@@ -26,13 +26,28 @@ final class Main {
 		'wc_version'  => '5.3',
 	);
 
+	/**
+	 * The plugin file.
+	 *
+	 * @var string
+	 */
+	const PLUGIN_FILE = __FILE__;
+
+
+	/**
+	 * The plugin version.
+	 *
+	 * @var string
+	 */
+	const VERSION = '1.0.0';
+
 
 	/**
 	 * Constructor
 	 */
 	public static function bootstrap() {
 
-		register_activation_hook( PLUGIN_FILE, array( Install::class, 'install' ) );
+		register_activation_hook( self::PLUGIN_FILE, array( Install::class, 'install' ) );
 
 		add_action( 'plugins_loaded', array( __CLASS__, 'load' ) );
 

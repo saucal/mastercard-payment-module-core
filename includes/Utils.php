@@ -45,7 +45,7 @@ final class Utils {
 	 * @return string
 	 */
 	public static function plugin_url() {
-		return untrailingslashit( plugins_url( '/', PLUGIN_FILE ) );
+		return untrailingslashit( plugins_url( '/', Main::PLUGIN_FILE ) );
 	}
 
 
@@ -55,7 +55,7 @@ final class Utils {
 	 * @return string
 	 */
 	public static function plugin_path() {
-		return untrailingslashit( plugin_dir_path( PLUGIN_FILE ) );
+		return untrailingslashit( plugin_dir_path( Main::PLUGIN_FILE ) );
 	}
 
 

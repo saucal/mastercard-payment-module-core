@@ -110,7 +110,7 @@ abstract class Assets {
 	 *
 	 * @return void
 	 */
-	private static function register_script( $handle, $path, $deps = array( 'jquery' ), $version = VERSION, $in_footer = true ) {
+	private static function register_script( $handle, $path, $deps = array( 'jquery' ), $version = Main::VERSION, $in_footer = true ) {
 		self::$scripts[] = $handle;
 		wp_register_script( $handle, $path, $deps, $version, $in_footer );
 	}
@@ -133,7 +133,7 @@ abstract class Assets {
 	 *
 	 * @return void
 	 */
-	private static function enqueue_script( $handle, $path = '', $deps = array( 'jquery' ), $version = VERSION, $in_footer = true ) {
+	private static function enqueue_script( $handle, $path = '', $deps = array( 'jquery' ), $version = Main::VERSION, $in_footer = true ) {
 
 		if ( ! in_array( $handle, self::$scripts, true ) && $path ) {
 			self::register_script( $handle, $path, $deps, $version, $in_footer );
@@ -161,7 +161,7 @@ abstract class Assets {
 	 *
 	 * @return void
 	 */
-	private static function register_style( $handle, $path, $deps = array(), $version = VERSION, $media = 'all' ) {
+	private static function register_style( $handle, $path, $deps = array(), $version = Main::VERSION, $media = 'all' ) {
 		self::$styles[] = $handle;
 		wp_register_style( $handle, $path, $deps, $version, $media );
 	}
@@ -185,7 +185,7 @@ abstract class Assets {
 	 *
 	 * @return void
 	 */
-	private static function enqueue_style( $handle, $path = '', $deps = array(), $version = VERSION, $media = 'all' ) {
+	private static function enqueue_style( $handle, $path = '', $deps = array(), $version = Main::VERSION, $media = 'all' ) {
 
 		if ( ! in_array( $handle, self::$styles, true ) && $path ) {
 			self::register_style( $handle, $path, $deps, $version, $media );
@@ -216,7 +216,7 @@ abstract class Assets {
 					array(
 						'src'       => '',
 						'deps'      => array( 'jquery' ),
-						'version'   => VERSION,
+						'version'   => Main::VERSION,
 						'in_footer' => true,
 						'enqueue'   => true,
 					)
@@ -240,7 +240,7 @@ abstract class Assets {
 					array(
 						'src'     => '',
 						'deps'    => '',
-						'version' => VERSION,
+						'version' => Main::VERSION,
 						'media'   => 'all',
 						'enqueue' => true,
 					)
