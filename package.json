@@ -27,7 +27,8 @@
 		"test:js:watch": "npm run test:js -- --watch",
 		"test:php": "npm run test:php-prepare -- wordpress_test root root localhost && npm run test:php-run",
 		"test:php-prepare": "./bin/install-wp-tests.sh",
-		"test:php-run": "composer test-unit"
+		"test:php-run": "composer test-unit",
+		"prearchive": "cross-var rm -rf $npm_package_config_wp_org_slug.zip vendor/ node_modules/ && composer install --no-dev --optimize-autoloader && npm install --only=prod --ignore-scripts"
 	},
 	"keywords": [
 		"mpgs core"
