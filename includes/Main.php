@@ -26,13 +26,52 @@ final class Main {
 		'wc_version'  => '5.3',
 	);
 
+	/**
+	 * Plugin instance.
+	 *
+	 * @var Main
+	 */
+	private static $instance;
+
 
 	/**
-	 * Constructor
+	 * Instance's prefix.
+	 *
+	 * @var string
 	 */
-	public static function bootstrap() {
+	private $prefix = '';
 
-		register_activation_hook( self::plugin_file(), array( Install::class, 'install' ) );
+
+	/**
+	 * MPGS Core instance.
+	 *
+	 * @param string $prefix Prefix for the instance.
+	 *
+	 * @return Main|null
+	 */
+	public static function instance( $prefix = '' ) {
+
+		if ( empty( $prefix ) ) {
+			return;
+		}
+
+		if ( empty( self::$instance[ $prefix ] ) ) {
+			self::$instance[ $prefix ] = new self( $prefix );
+		}
+		return self::$instance[ $prefix ];
+	}
+
+
+	/**
+	 * Constructor.
+	 *
+	 * @param string $prefix Prefix for the instance.
+	 */
+	public function __construct( $prefix ) {
+
+		$this->prefix = $prefix;
+
+		register_activation_hook( $this->plugin_file(), array( Install::class, 'install' ) );
 
 		add_action( 'plugins_loaded', array( __CLASS__, 'load' ) );
 
@@ -49,7 +88,7 @@ final class Main {
 	 * @since 1.0.0
 	 */
 	public function __clone() {
-		_doing_it_wrong( __FUNCTION__, esc_html__( 'Cheatin&#8217; huh?', self::text_domain() ), '1.0.0' );
+		_doing_it_wrong( __FUNCTION__, esc_html__( 'Cheatin&#8217; huh?', $this->text_domain() ), '1.0.0' );
 	}
 
 
@@ -59,7 +98,17 @@ final class Main {
 	 * @since 1.0.0
 	 */
 	public function __wakeup() {
-		_doing_it_wrong( __FUNCTION__, esc_html__( 'Cheatin&#8217; huh?', self::text_domain() ), '1.0.0' );
+		_doing_it_wrong( __FUNCTION__, esc_html__( 'Cheatin&#8217; huh?', $this->text_domain() ), '1.0.0' );
+	}
+
+
+	/**
+	 * Get the instance prefix.
+	 *
+	 * @return string
+	 */
+	public function get_prefix() {
+		return $this->prefix;
 	}
 
 
@@ -116,17 +165,17 @@ final class Main {
 
 		if ( ! version_compare( PHP_VERSION, self::PLUGIN_REQUIREMENTS['php_version'], '>=' ) ) {
 			/* Translators: The minimum PHP version */
-			$errors[] = sprintf( esc_html__( 'MPGS Core requires a minimum PHP version of %s.', self::text_domain() ), self::PLUGIN_REQUIREMENTS['php_version'] );
+			$errors[] = sprintf( esc_html__( 'MPGS Core requires a minimum PHP version of %s.', $this->text_domain() ), self::PLUGIN_REQUIREMENTS['php_version'] );
 		}
 
 		if ( ! version_compare( $wp_version, self::PLUGIN_REQUIREMENTS['wp_version'], '>=' ) ) {
 			/* Translators: The minimum WP version */
-			$errors[] = sprintf( esc_html__( 'MPGS Core requires a minimum WordPress version of %s.', self::text_domain() ), self::PLUGIN_REQUIREMENTS['wp_version'] );
+			$errors[] = sprintf( esc_html__( 'MPGS Core requires a minimum WordPress version of %s.', $this->text_domain() ), self::PLUGIN_REQUIREMENTS['wp_version'] );
 		}
 
 		if ( isset( self::PLUGIN_REQUIREMENTS['wc_version'] ) && ( ! defined( 'WC_VERSION' ) || ! version_compare( WC_VERSION, self::PLUGIN_REQUIREMENTS['wc_version'], '>=' ) ) ) {
 			/* Translators: The minimum WC version */
-			$errors[] = sprintf( esc_html__( 'MPGS Core requires a minimum WooCommerce version of %s.', self::text_domain() ), self::PLUGIN_REQUIREMENTS['wc_version'] );
+			$errors[] = sprintf( esc_html__( 'MPGS Core requires a minimum WooCommerce version of %s.', $this->text_domain() ), self::PLUGIN_REQUIREMENTS['wc_version'] );
 		}
 
 		if ( empty( $errors ) ) {
@@ -137,7 +186,7 @@ final class Main {
 
 			add_action(
 				'admin_notices',
-				function() use ( $errors ) {
+				function () use ( $errors ) {
 					?>
 					<div class="notice notice-error">
 						<?php
@@ -162,8 +211,8 @@ final class Main {
 	 *
 	 * @return string
 	 */
-	public static function plugin_file() {
-		return apply_filters( 'mpgs_plugin_file', PLUGIN_FILE );
+	public function plugin_file() {
+		return apply_filters( $this->prefix_hook( 'plugin_file' ), PLUGIN_FILE );
 	}
 
 
@@ -173,7 +222,7 @@ final class Main {
 	 * @return string
 	 */
 	public static function version() {
-		return apply_filters( 'mpgs_version', VERSION );
+		return apply_filters( 'mpgs_core_version', VERSION );
 	}
 
 
@@ -182,7 +231,17 @@ final class Main {
 	 *
 	 * @return string
 	 */
-	public static function text_domain() {
-		return apply_filters( 'mpgs_core_text_domain', 'mpgs-core' );
+	public function text_domain() {
+		return apply_filters( $this->prefix_hook( '_text_domain' ), 'mpgs-core' );
+	}
+
+
+	/**
+	 * Get prefixed hook name.
+	 *
+	 * @param string $hook The name of the hook.
+	 */
+	public function prefix_hook( $hook ) {
+		return $this->prefix . '_' . $hook;
 	}
 }
