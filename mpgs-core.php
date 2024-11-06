@@ -17,5 +17,3 @@ if ( ! defined( 'ABSPATH' ) ) {
 // Define constants.
 const VERSION     = '1.0.0';
 const PLUGIN_FILE = __FILE__;
-
-Main::bootstrap();
