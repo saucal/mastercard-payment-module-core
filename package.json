@@ -59,17 +59,16 @@
 		}
 	},
 	"browserslist": [
-		"last 5 versions",
 		"> 1%",
 		"not dead"
 	],
 	"author": "SAU/CAL",
 	"license": "GPL-2.0+",
 	"devDependencies": {
-		"@babel/cli": "^7.12.8",
-		"@babel/core": "^7.12.9",
-		"@babel/preset-env": "^7.12.7",
-		"@babel/register": "^7.12.1",
+		"@babel/cli": "^7.25.9",
+		"@babel/core": "^7.26.0",
+		"@babel/preset-env": "^7.26.0",
+		"@babel/register": "^7.25.9",
 		"@woocommerce/eslint-plugin": "^2.3.0",
 		"@wordpress/blocks": "^14.0.0",
 		"@wordpress/scripts": "^30.4.0",
