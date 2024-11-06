@@ -97,22 +97,18 @@ abstract class Assets {
 	 * Register a script for use.
 	 *
 	 * @uses   wp_register_script()
-	 * @param string           $handle    Name of the script. Should be unique.
-	 * @param string|bool      $path      Full URL of the script, or path of the script relative to the WordPress root directory.
-	 *                                    If source is set to false, script is an alias of other scripts it depends on.
-	 * @param string[]         $deps      Optional. An array of registered script handles this script depends on. Default empty array.
-	 * @param string|bool|null $version   Optional. String specifying script version number, if it has one, which is added to the URL
-	 *                                    as a query string for cache busting purposes. If version is set to false, a version
-	 *                                    number is automatically added equal to current installed WordPress version.
-	 *                                    If set to null, no version is added.
-	 * @param bool             $in_footer Optional. Whether to enqueue the script before </body> instead of in the <head>.
-	 *                                    Default 'false'.
+	 * @param string      $handle    Name of the script. Should be unique.
+	 * @param string|bool $path      Full URL of the script, or path of the script relative to the WordPress root directory.
+	 *                               If source is set to false, script is an alias of other scripts it depends on.
+	 * @param string[]    $deps      Optional. An array of registered script handles this script depends on. Default empty array.
+	 * @param bool        $in_footer Optional. Whether to enqueue the script before </body> instead of in the <head>.
+	 *                               Default 'false'.
 	 *
 	 * @return void
 	 */
-	private static function register_script( $handle, $path, $deps = array( 'jquery' ), $version = Main::VERSION, $in_footer = true ) {
+	private static function register_script( $handle, $path, $deps = array( 'jquery' ), $in_footer = true ) {
 		self::$scripts[] = $handle;
-		wp_register_script( $handle, $path, $deps, $version, $in_footer );
+		wp_register_script( $handle, $path, $deps, Main::version(), $in_footer );
 	}
 
 
@@ -120,23 +116,20 @@ abstract class Assets {
 	 * Register and enqueue a script for use.
 	 *
 	 * @uses   wp_enqueue_script()
-	 * @param string           $handle    Name of the script. Should be unique.
-	 * @param string|bool      $path      Full URL of the script, or path of the script relative to the WordPress root directory.
-	 *                                    If source is set to false, script is an alias of other scripts it depends on.
-	 * @param string[]         $deps      Optional. An array of registered script handles this script depends on. Default empty array.
-	 * @param string|bool|null $version   Optional. String specifying script version number, if it has one, which is added to the URL
-	 *                                    as a query string for cache busting purposes. If version is set to false, a version
-	 *                                    number is automatically added equal to current installed WordPress version.
-	 *                                    If set to null, no version is added.
-	 * @param bool             $in_footer Optional. Whether to enqueue the script before </body> instead of in the <head>.
-	 *                                    Default 'false'.
+	 * @param string      $handle    Name of the script. Should be unique.
+	 * @param string|bool $path      Full URL of the script, or path of the script relative to the WordPress root directory.
+	 *                               If source is set to false, script is an alias of other scripts it depends on.
+	 * @param string[]    $deps      Optional. An array of registered script handles this script depends on. Default empty array.
+	 *                               If set to null, no version is added.
+	 * @param bool        $in_footer Optional. Whether to enqueue the script before </body> instead of in the <head>.
+	 *                               Default 'false'.
 	 *
 	 * @return void
 	 */
-	private static function enqueue_script( $handle, $path = '', $deps = array( 'jquery' ), $version = Main::VERSION, $in_footer = true ) {
+	private static function enqueue_script( $handle, $path = '', $deps = array( 'jquery' ), $in_footer = true ) {
 
 		if ( ! in_array( $handle, self::$scripts, true ) && $path ) {
-			self::register_script( $handle, $path, $deps, $version, $in_footer );
+			self::register_script( $handle, $path, $deps, Main::version(), $in_footer );
 		}
 
 		wp_enqueue_script( $handle );
@@ -147,23 +140,19 @@ abstract class Assets {
 	 * Register a style for use.
 	 *
 	 * @uses   wp_register_style()
-	 * @param string           $handle  Name of the stylesheet. Should be unique.
-	 * @param string|bool      $path    Full URL of the stylesheet, or path of the stylesheet relative to the WordPress root directory.
-	 *                                  If source is set to false, stylesheet is an alias of other stylesheets it depends on.
-	 * @param string[]         $deps    Optional. An array of registered stylesheet handles this stylesheet depends on. Default empty array.
-	 * @param string|bool|null $version Optional. String specifying stylesheet version number, if it has one, which is added to the URL
-	 *                                  as a query string for cache busting purposes. If version is set to false, a version
-	 *                                  number is automatically added equal to current installed WordPress version.
-	 *                                  If set to null, no version is added.
-	 * @param string           $media   Optional. The media for which this stylesheet has been defined.
-	 *                                  Default 'all'. Accepts media types like 'all', 'print' and 'screen', or media queries like
-	 *                                  '(orientation: portrait)' and '(max-width: 640px)'.
+	 * @param string      $handle  Name of the stylesheet. Should be unique.
+	 * @param string|bool $path    Full URL of the stylesheet, or path of the stylesheet relative to the WordPress root directory.
+	 *                             If source is set to false, stylesheet is an alias of other stylesheets it depends on.
+	 * @param string[]    $deps    Optional. An array of registered stylesheet handles this stylesheet depends on. Default empty array.
+	 * @param string      $media   Optional. The media for which this stylesheet has been defined.
+	 *                             Default 'all'. Accepts media types like 'all', 'print' and 'screen', or media queries like
+	 *                             '(orientation: portrait)' and '(max-width: 640px)'.
 	 *
 	 * @return void
 	 */
-	private static function register_style( $handle, $path, $deps = array(), $version = Main::VERSION, $media = 'all' ) {
+	private static function register_style( $handle, $path, $deps = array(), $media = 'all' ) {
 		self::$styles[] = $handle;
-		wp_register_style( $handle, $path, $deps, $version, $media );
+		wp_register_style( $handle, $path, $deps, Main::version(), $media );
 	}
 
 
@@ -171,24 +160,20 @@ abstract class Assets {
 	 * Register and enqueue a styles for use.
 	 *
 	 * @uses   wp_enqueue_style()
-	 * @param string           $handle  Name of the stylesheet. Should be unique.
-	 * @param string|bool      $path    Full URL of the stylesheet, or path of the stylesheet relative to the WordPress root directory.
-	 *                                  If source is set to false, stylesheet is an alias of other stylesheets it depends on.
-	 * @param string[]         $deps    Optional. An array of registered stylesheet handles this stylesheet depends on. Default empty array.
-	 * @param string|bool|null $version Optional. String specifying stylesheet version number, if it has one, which is added to the URL
-	 *                                  as a query string for cache busting purposes. If version is set to false, a version
-	 *                                  number is automatically added equal to current installed WordPress version.
-	 *                                  If set to null, no version is added.
-	 * @param string           $media   Optional. The media for which this stylesheet has been defined.
-	 *                                  Default 'all'. Accepts media types like 'all', 'print' and 'screen', or media queries like
-	 *                                  '(orientation: portrait)' and '(max-width: 640px)'.
+	 * @param string      $handle  Name of the stylesheet. Should be unique.
+	 * @param string|bool $path    Full URL of the stylesheet, or path of the stylesheet relative to the WordPress root directory.
+	 *                             If source is set to false, stylesheet is an alias of other stylesheets it depends on.
+	 * @param string[]    $deps    Optional. An array of registered stylesheet handles this stylesheet depends on. Default empty array.
+	 * @param string      $media   Optional. The media for which this stylesheet has been defined.
+	 *                             Default 'all'. Accepts media types like 'all', 'print' and 'screen', or media queries like
+	 *                             '(orientation: portrait)' and '(max-width: 640px)'.
 	 *
 	 * @return void
 	 */
-	private static function enqueue_style( $handle, $path = '', $deps = array(), $version = Main::VERSION, $media = 'all' ) {
+	private static function enqueue_style( $handle, $path = '', $deps = array(), $media = 'all' ) {
 
 		if ( ! in_array( $handle, self::$styles, true ) && $path ) {
-			self::register_style( $handle, $path, $deps, $version, $media );
+			self::register_style( $handle, $path, $deps, Main::version(), $media );
 		}
 
 		wp_enqueue_style( $handle );
@@ -216,7 +201,7 @@ abstract class Assets {
 					array(
 						'src'       => '',
 						'deps'      => array( 'jquery' ),
-						'version'   => Main::VERSION,
+						'version'   => Main::version(),
 						'in_footer' => true,
 						'enqueue'   => true,
 					)
@@ -240,7 +225,7 @@ abstract class Assets {
 					array(
 						'src'     => '',
 						'deps'    => '',
-						'version' => Main::VERSION,
+						'version' => Main::version(),
 						'media'   => 'all',
 						'enqueue' => true,
 					)

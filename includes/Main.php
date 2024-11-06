@@ -26,28 +26,13 @@ final class Main {
 		'wc_version'  => '5.3',
 	);
 
-	/**
-	 * The plugin file.
-	 *
-	 * @var string
-	 */
-	const PLUGIN_FILE = __FILE__;
-
-
-	/**
-	 * The plugin version.
-	 *
-	 * @var string
-	 */
-	const VERSION = '1.0.0';
-
 
 	/**
 	 * Constructor
 	 */
 	public static function bootstrap() {
 
-		register_activation_hook( self::PLUGIN_FILE, array( Install::class, 'install' ) );
+		register_activation_hook( self::plugin_file(), array( Install::class, 'install' ) );
 
 		add_action( 'plugins_loaded', array( __CLASS__, 'load' ) );
 
@@ -64,7 +49,7 @@ final class Main {
 	 * @since 1.0.0
 	 */
 	public function __clone() {
-		_doing_it_wrong( __FUNCTION__, esc_html__( 'Cheatin&#8217; huh?', 'mpgs-core' ), '1.0.0' );
+		_doing_it_wrong( __FUNCTION__, esc_html__( 'Cheatin&#8217; huh?', self::text_domain() ), '1.0.0' );
 	}
 
 
@@ -74,7 +59,7 @@ final class Main {
 	 * @since 1.0.0
 	 */
 	public function __wakeup() {
-		_doing_it_wrong( __FUNCTION__, esc_html__( 'Cheatin&#8217; huh?', 'mpgs-core' ), '1.0.0' );
+		_doing_it_wrong( __FUNCTION__, esc_html__( 'Cheatin&#8217; huh?', self::text_domain() ), '1.0.0' );
 	}
 
 
@@ -96,9 +81,6 @@ final class Main {
 		if ( Utils::is_request( 'frontend' ) ) {
 			Front::hooks();
 		}
-
-		// Set up localisation.
-		self::load_plugin_textdomain();
 
 		// Init action.
 		do_action( 'mpgs_core_loaded' );
@@ -134,17 +116,17 @@ final class Main {
 
 		if ( ! version_compare( PHP_VERSION, self::PLUGIN_REQUIREMENTS['php_version'], '>=' ) ) {
 			/* Translators: The minimum PHP version */
-			$errors[] = sprintf( esc_html__( 'MPGS Core requires a minimum PHP version of %s.', 'mpgs-core' ), self::PLUGIN_REQUIREMENTS['php_version'] );
+			$errors[] = sprintf( esc_html__( 'MPGS Core requires a minimum PHP version of %s.', self::text_domain() ), self::PLUGIN_REQUIREMENTS['php_version'] );
 		}
 
 		if ( ! version_compare( $wp_version, self::PLUGIN_REQUIREMENTS['wp_version'], '>=' ) ) {
 			/* Translators: The minimum WP version */
-			$errors[] = sprintf( esc_html__( 'MPGS Core requires a minimum WordPress version of %s.', 'mpgs-core' ), self::PLUGIN_REQUIREMENTS['wp_version'] );
+			$errors[] = sprintf( esc_html__( 'MPGS Core requires a minimum WordPress version of %s.', self::text_domain() ), self::PLUGIN_REQUIREMENTS['wp_version'] );
 		}
 
 		if ( isset( self::PLUGIN_REQUIREMENTS['wc_version'] ) && ( ! defined( 'WC_VERSION' ) || ! version_compare( WC_VERSION, self::PLUGIN_REQUIREMENTS['wc_version'], '>=' ) ) ) {
 			/* Translators: The minimum WC version */
-			$errors[] = sprintf( esc_html__( 'MPGS Core requires a minimum WooCommerce version of %s.', 'mpgs-core' ), self::PLUGIN_REQUIREMENTS['wc_version'] );
+			$errors[] = sprintf( esc_html__( 'MPGS Core requires a minimum WooCommerce version of %s.', self::text_domain() ), self::PLUGIN_REQUIREMENTS['wc_version'] );
 		}
 
 		if ( empty( $errors ) ) {
@@ -176,21 +158,31 @@ final class Main {
 
 
 	/**
-	 * Load Localisation files.
+	 * Get the plugin file.
 	 *
-	 * Note: the first-loaded translation file overrides any following ones if the same translation is present.
-	 *
-	 * Locales found in:
-	 *      - WP_LANG_DIR/mpgs-core/mpgs-core-LOCALE.mo
-	 *      - WP_LANG_DIR/plugins/mpgs-core-LOCALE.mo
+	 * @return string
 	 */
-	private static function load_plugin_textdomain() {
+	public static function plugin_file() {
+		return apply_filters( 'mpgs_plugin_file', PLUGIN_FILE );
+	}
 
-		// Add plugin's locale.
-		$locale = apply_filters( 'plugin_locale', get_locale(), 'mpgs-core' );
 
-		load_textdomain( 'mpgs-core', WP_LANG_DIR . '/mpgs-core/mpgs-core-' . $locale . '.mo' );
+	/**
+	 * Get the plugin version.
+	 *
+	 * @return string
+	 */
+	public static function version() {
+		return apply_filters( 'mpgs_version', VERSION );
+	}
 
-		load_plugin_textdomain( 'mpgs-core', false, plugin_basename( dirname( __FILE__ ) ) . '/i18n/languages' );
+
+	/**
+	 * Get the translation domain.
+	 *
+	 * @return string
+	 */
+	public static function text_domain() {
+		return apply_filters( 'mpgs_core_text_domain', 'mpgs-core' );
 	}
 }

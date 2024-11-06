@@ -42,7 +42,7 @@ final class Assets {
 	public static function add_styles( $styles ) {
 
 		$styles['mpgs-core-general'] = array(
-			'src' => AssetsMain::localize_asset( 'css/front/mpgs-core.css' ),
+			'src' => AssetsMain::localize_asset( 'css/frontend/mpgs-core.css' ),
 		);
 
 		return $styles;
@@ -58,7 +58,7 @@ final class Assets {
 	public static function add_scripts( $scripts ) {
 
 		$scripts['mpgs-core-general'] = array(
-			'src'  => AssetsMain::localize_asset( 'js/front/mpgs-core.js' ),
+			'src'  => AssetsMain::localize_asset( 'js/frontend/mpgs-core.js' ),
 			'data' => array(
 				'ajax_url' => Utils::ajax_url(),
 			),
