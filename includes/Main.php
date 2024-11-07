@@ -11,7 +11,6 @@ namespace MPGSCore;
 use MPGSCore\Admin\Main as Admin;
 use MPGSCore\Front\Main as Front;
 
-
 /**
  * Base Plugin class holding generic functionality
  */
@@ -73,9 +72,9 @@ final class Main {
 
 		register_activation_hook( $this->plugin_file(), array( Install::class, 'install' ) );
 
-		add_action( 'plugins_loaded', array( __CLASS__, 'load' ) );
+		add_action( 'plugins_loaded', array( $this, 'load' ) );
 
-		add_action( 'init', array( __CLASS__, 'init' ) );
+		add_action( 'init', array( $this, 'init' ) );
 
 		// Perform other actions when plugin is loaded.
 		do_action( 'mpgs_core_loaded' );
@@ -117,7 +116,7 @@ final class Main {
 	 *
 	 * @since  1.0.0
 	 */
-	public static function load() {
+	public function load() {
 
 		if ( ! self::check_plugin_requirements() ) {
 			return;
@@ -141,12 +140,13 @@ final class Main {
 	 *
 	 * @return void
 	 */
-	public static function init() {
+	public function init() {
 
 		// Before init action.
 		do_action( 'before_mpgs_core_init' );
 
-		// Add needed hooks here.
+		// Init hooks.
+		Gateway::init();
 
 		// After init action.
 		do_action( 'mpgs_core_init' );
