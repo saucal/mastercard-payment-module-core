@@ -15,5 +15,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Define constants.
-const VERSION     = '1.0.0';
-const PLUGIN_FILE = __FILE__;
+if ( ! defined( 'MPGS_CORE_VERSION' ) ) {
+	define( 'MPGS_CORE_VERSION', '1.0.0' );
+}
+
+if ( ! defined( 'MPGS_CORE_FILE' ) ) {
+	define( 'MPGS_CORE_FILE', __FILE__ );
+}

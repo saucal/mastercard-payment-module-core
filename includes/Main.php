@@ -212,7 +212,7 @@ final class Main {
 	 * @return string
 	 */
 	public function plugin_file() {
-		return apply_filters( $this->prefix_hook( 'plugin_file' ), PLUGIN_FILE );
+		return apply_filters( $this->prefix_hook( 'plugin_file' ), MPGS_CORE_FILE );
 	}
 
 
@@ -222,7 +222,7 @@ final class Main {
 	 * @return string
 	 */
 	public static function version() {
-		return apply_filters( 'mpgs_core_version', VERSION );
+		return apply_filters( 'mpgs_core_version', MPGS_CORE_VERSION );
 	}
 
 
