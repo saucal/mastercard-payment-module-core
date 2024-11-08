@@ -227,6 +227,16 @@ final class Main {
 
 
 	/**
+	 * Plugin's title.
+	 *
+	 * @return string
+	 */
+	public function plugin_title() {
+		return apply_filters( $this->prefix_hook( 'plugin_title' ), 'MPGS Core' );
+	}
+
+
+	/**
 	 * Get the translation domain.
 	 *
 	 * @return string
