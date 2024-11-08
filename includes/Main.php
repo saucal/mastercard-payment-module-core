@@ -72,6 +72,10 @@ final class Main {
 
 		register_activation_hook( $this->plugin_file(), array( Install::class, 'install' ) );
 
+		if ( ! $this->check_plugin_requirements() ) {
+			return;
+		}
+
 		add_action( 'plugins_loaded', array( $this, 'load' ) );
 
 		add_action( 'init', array( $this, 'init' ) );
@@ -118,10 +122,6 @@ final class Main {
 	 */
 	public function load() {
 
-		if ( ! self::check_plugin_requirements() ) {
-			return;
-		}
-
 		if ( Utils::is_request( 'admin' ) ) {
 			Admin::hooks();
 		}
@@ -158,7 +158,7 @@ final class Main {
 	 *
 	 * @return boolean
 	 */
-	private static function check_plugin_requirements() {
+	private function check_plugin_requirements() {
 
 		$errors = array();
 		global $wp_version;
