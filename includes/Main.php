@@ -8,9 +8,6 @@
 
 namespace MPGSCore;
 
-use MPGSCore\Admin\Main as Admin;
-use MPGSCore\Front\Main as Front;
-
 /**
  * Base Plugin class holding generic functionality
  */
@@ -42,6 +39,22 @@ final class Main {
 
 
 	/**
+	 * Assets controller.
+	 *
+	 * @var Assets
+	 */
+	private $assets_controller;
+
+
+	/**
+	 * Utils class instance.
+	 *
+	 * @var Utils
+	 */
+	private $utils;
+
+
+	/**
 	 * MPGS Core instance.
 	 *
 	 * @param string $prefix Prefix for the instance.
@@ -68,20 +81,17 @@ final class Main {
 	 */
 	public function __construct( $prefix ) {
 
-		$this->prefix = $prefix;
-
-		register_activation_hook( $this->plugin_file(), array( Install::class, 'install' ) );
-
-		if ( ! $this->check_plugin_requirements() ) {
+		if ( empty( $prefix ) ) {
 			return;
 		}
 
+		$this->prefix = $prefix;
+
+		$this->init_classes();
+
+		register_activation_hook( $this->plugin_file(), array( Install::class, 'install' ) );
+
 		add_action( 'plugins_loaded', array( $this, 'load' ) );
-
-		add_action( 'init', array( $this, 'init' ) );
-
-		// Perform other actions when plugin is loaded.
-		do_action( 'mpgs_core_loaded' );
 	}
 
 
@@ -122,16 +132,14 @@ final class Main {
 	 */
 	public function load() {
 
-		if ( Utils::is_request( 'admin' ) ) {
-			Admin::hooks();
+		if ( ! $this->check_plugin_requirements() ) {
+			return;
 		}
 
-		if ( Utils::is_request( 'frontend' ) ) {
-			Front::hooks();
-		}
+		add_action( 'init', array( $this, 'init' ) );
 
 		// Init action.
-		do_action( 'mpgs_core_loaded' );
+		do_action( $this->prefix_hook( 'loaded' ) );
 	}
 
 
@@ -143,13 +151,29 @@ final class Main {
 	public function init() {
 
 		// Before init action.
-		do_action( 'before_mpgs_core_init' );
+		do_action( $this->prefix_hook( 'init', 'before_' ) );
 
 		// Init hooks.
 		Gateway::init();
 
 		// After init action.
-		do_action( 'mpgs_core_init' );
+		do_action( $this->prefix_hook( 'init' ) );
+	}
+
+
+	/**
+	 * Init child classes of this instance.
+	 *
+	 * @return void
+	 */
+	public function init_classes() {
+
+		if ( ! $this->prefix ) {
+			return;
+		}
+
+		$this->assets_controller[ $this->prefix ] = new Assets( $this->prefix );
+		$this->utils[ $this->prefix ]             = new Utils( $this->prefix );
 	}
 
 
@@ -212,7 +236,17 @@ final class Main {
 	 * @return string
 	 */
 	public function plugin_file() {
-		return apply_filters( $this->prefix_hook( 'plugin_file' ), MPGS_CORE_FILE );
+		return apply_filters( $this->prefix_hook( 'plugin_file' ), __FILE__ );
+	}
+
+
+	/**
+	 * MPGS Core plugin file.
+	 *
+	 * @return string
+	 */
+	public function core_plugin_file() {
+		return apply_filters( $this->prefix_hook( 'core_plugin_file' ), __DIR__ . '../mpgs-core.php' );
 	}
 
 
@@ -249,9 +283,30 @@ final class Main {
 	/**
 	 * Get prefixed hook name.
 	 *
-	 * @param string $hook The name of the hook.
+	 * @param string $hook   The name of the hook.
+	 * @param string $prefix Prefix for the hook.
 	 */
-	public function prefix_hook( $hook ) {
-		return $this->prefix . '_' . $hook;
+	public function prefix_hook( $hook, $prefix = '' ) {
+		return $prefix . $this->prefix . '_' . $hook;
+	}
+
+
+	/**
+	 * Get the assets controller instance.
+	 *
+	 * @return Assets
+	 */
+	public function assets_controller() {
+		return $this->assets_controller[ $this->prefix ];
+	}
+
+
+	/**
+	 * Get the utils instance.
+	 *
+	 * @return Utils
+	 */
+	public function utils() {
+		return $this->utils[ $this->prefix ];
 	}
 }

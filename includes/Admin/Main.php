@@ -19,13 +19,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Main {
 
 	/**
-	 * Initialize hooks
+	 * Initialize hooks.
+	 *
+	 * @param string $prefix Prefix of the MPGS Core instance.
 	 *
 	 * @return void
 	 */
-	public static function hooks() {
+	public static function hooks( $prefix = '' ) {
 
-		Assets::hooks();
+		if ( empty( $prefix ) ) {
+			return;
+		}
+
+		Assets::hooks( $prefix );
 
 		add_action( 'current_screen', array( __CLASS__, 'conditional_includes' ) );
 	}

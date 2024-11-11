@@ -18,6 +18,25 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class Utils {
 
+
+	/**
+	 * Main instance prefix.
+	 *
+	 * @var string
+	 */
+	private $prefix = '';
+
+
+	/**
+	 * Constructor.
+	 *
+	 * @param string $prefix Main instance prefix.
+	 */
+	public function __construct( $prefix ) {
+		$this->prefix = $prefix;
+	}
+
+
 	/**
 	 * What type of request is this?
 	 *
@@ -44,8 +63,18 @@ final class Utils {
 	 *
 	 * @return string
 	 */
-	public static function plugin_url() {
-		return untrailingslashit( plugins_url( '/', MPGS_CORE_FILE ) );
+	public function plugin_url() {
+		return untrailingslashit( plugins_url( '/', Main::instance( $this->prefix )->plugin_file() ) );
+	}
+
+
+	/**
+	 * Get the core package url.
+	 *
+	 * @return string
+	 */
+	public function core_package_url() {
+		return untrailingslashit( plugins_url( '/', Main::instance( $this->prefix )->core_plugin_file() ) );
 	}
 
 
@@ -54,8 +83,18 @@ final class Utils {
 	 *
 	 * @return string
 	 */
-	public static function plugin_path() {
-		return untrailingslashit( plugin_dir_path( MPGS_CORE_FILE ) );
+	public function plugin_path() {
+		return untrailingslashit( plugin_dir_path( Main::instance( $this->prefix )->plugin_file() ) );
+	}
+
+
+	/**
+	 * Get the core package path.
+	 *
+	 * @return string
+	 */
+	public function core_package_path() {
+		return untrailingslashit( plugin_dir_path( Main::instance( $this->prefix )->core_plugin_file() ) );
 	}
 
 
@@ -64,9 +103,9 @@ final class Utils {
 	 *
 	 * @return string
 	 */
-	public static function template_path() {
+	public function template_path() {
 		// Allow 3rd party plugin filter template path from their plugin.
-		return apply_filters( 'mpgs_core_template_path', 'mpgs-core/' );
+		return apply_filters( Main::instance( $this->prefix )->prefix_hook( 'template_path' ), 'mpgs-core/' );
 	}
 
 
@@ -75,7 +114,7 @@ final class Utils {
 	 *
 	 * @return string
 	 */
-	public static function ajax_url() {
+	public function ajax_url() {
 		return admin_url( 'admin-ajax.php', 'relative' );
 	}
 }
