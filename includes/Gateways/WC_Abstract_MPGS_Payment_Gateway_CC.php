@@ -22,10 +22,44 @@ class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Payment_Gatew
 
 
 	/**
+	 * Saved cards enabled.
+	 *
+	 * @var bool
+	 */
+	protected $saved_cards = false;
+
+
+	/**
 	 * Initialize Payment Gateway
 	 */
 	public function init() {
+
+		$this->enabled = $this->get_option( 'enabled' );
+
+		$this->saved_cards = ! empty( $this->get_option( 'saved_cards' ) && 'yes' === $this->get_option( 'saved_cards' ) );
+
+		// Load form fields.
 		$this->init_form_fields();
+	}
+
+
+	/**
+	 * Initialize gateway support features.
+	 *
+	 * @return void
+	 */
+	public function init_supports() {
+
+		$supports = array(
+			'products',
+			'refunds',
+		);
+
+		if ( $this->saved_cards ) {
+			$supports[] = 'tokenization';
+		}
+
+		$this->supports = $supports;
 	}
 
 

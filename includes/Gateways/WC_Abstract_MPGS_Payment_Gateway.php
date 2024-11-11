@@ -18,4 +18,14 @@ use WC_Payment_Gateway_CC;
 /**
  * Show the payment form for Mastercard Payment Gateway.
  */
-class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {}
+class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
+
+	/**
+	 * Is gateway enabled.
+	 *
+	 * @var bool
+	 */
+	public function is_enabled() {
+		return 'yes' === $this->get_option( 'enabled' );
+	}
+}

@@ -137,8 +137,8 @@ final class GatewaySettings {
 				'title'   => __( 'Hosted Checkout Mode', self::$mpgs_core_instance->text_domain() ),
 				'type'    => 'select',
 				'options' => array(
-					'redirect' => __( 'Redirect to Payment Page', self::$mpgs_core_instance->text_domain() ),
 					'embedded' => __( 'Embedded', self::$mpgs_core_instance->text_domain() ),
+					'redirect' => __( 'Redirect to Payment Page', self::$mpgs_core_instance->text_domain() ),
 				),
 				'default' => 'embedded',
 			),
