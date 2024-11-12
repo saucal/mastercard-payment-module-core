@@ -41,7 +41,7 @@ final class Main {
 	/**
 	 * Assets controller.
 	 *
-	 * @var Assets
+	 * @var Assets[]
 	 */
 	private $assets_controller;
 
@@ -49,9 +49,17 @@ final class Main {
 	/**
 	 * Utils class instance.
 	 *
-	 * @var Utils
+	 * @var Utils[]
 	 */
 	private $utils;
+
+
+	/**
+	 * Logger instance.
+	 *
+	 * @var Logger[]
+	 */
+	protected $logger;
 
 
 	/**
@@ -174,6 +182,7 @@ final class Main {
 
 		$this->assets_controller[ $this->prefix ] = new Assets( $this->prefix );
 		$this->utils[ $this->prefix ]             = new Utils( $this->prefix );
+		$this->logger[ $this->prefix ]            = new Logger( $this->prefix );
 	}
 
 
@@ -308,5 +317,17 @@ final class Main {
 	 */
 	public function utils() {
 		return $this->utils[ $this->prefix ];
+	}
+
+
+	/**
+	 * Get the logger instance.
+	 */
+	public function logger() {
+		if ( ! $this->logger[ $this->prefix ] ) {
+			$this->logger[ $this->prefix ] = new Logger( $this );
+		}
+
+		return $this->logger[ $this->prefix ];
 	}
 }
