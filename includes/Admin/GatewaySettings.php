@@ -57,7 +57,7 @@ final class GatewaySettings {
 			'title'                => array(
 				'title'       => __( 'Title', self::$mpgs_core_instance->text_domain() ),
 				'type'        => 'text',
-				'description' => __( 'This controls the title which the user sees during checkout.', self::$mpgs_core_instance->text_domain() ),
+				'description' => __( 'The payment method title displayed during checkout.', self::$mpgs_core_instance->text_domain() ),
 				'default'     => self::$mpgs_core_instance->plugin_title(),
 				'desc_tip'    => true,
 			),
