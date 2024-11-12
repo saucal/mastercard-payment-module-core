@@ -83,20 +83,8 @@ final class GatewaySettings {
 				'label'       => __( 'Enable test sandbox mode', self::$mpgs_core_instance->text_domain() ),
 				'type'        => 'checkbox',
 				'description' => __( 'Place the payment gateway in test mode using test API credentials (real payments will not be taken).', self::$mpgs_core_instance->text_domain() ),
-				'default'     => 'yes',
+				'default'     => 'no',
 				'desc_tip'    => true,
-			),
-			'sandbox_username'     => array(
-				'title'       => __( 'Test Merchant ID', self::$mpgs_core_instance->text_domain() ),
-				'type'        => 'text',
-				'description' => __( 'This is your test merchant profile ID prefixed with TEST.', self::$mpgs_core_instance->text_domain() ),
-				'default'     => '',
-			),
-			'sandbox_password'     => array(
-				'title'       => __( 'Test API Password', self::$mpgs_core_instance->text_domain() ),
-				'type'        => 'password',
-				'description' => __( 'This is your test API password.', self::$mpgs_core_instance->text_domain() ),
-				'default'     => '',
 			),
 			'username'             => array(
 				'title'       => __( 'Merchant ID', self::$mpgs_core_instance->text_domain() ),
@@ -122,7 +110,7 @@ final class GatewaySettings {
 					'authorize' => __( 'Authorize', self::$mpgs_core_instance->text_domain() ),
 				),
 				'default'     => 'purchase',
-				'description' => __( 'Choose "Authorize" to only authorize the payment, and capture it manually later from the WC admin panel. Choose "Authorize and Capture" to authorize and capture the payment immediately.', self::$mpgs_core_instance->text_domain() ),
+				'description' => __( 'Choose "Authorize and Capture" to authorize and capture the payment immediately. Choose "Authorize" to only authorize the payment, and capture it manually later from the WC admin panel.', self::$mpgs_core_instance->text_domain() ),
 			),
 			'method'               => array(
 				'title'   => __( 'Integration method', self::$mpgs_core_instance->text_domain() ),
