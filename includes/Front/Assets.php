@@ -27,7 +27,7 @@ final class Assets {
 	 *
 	 * @var string
 	 */
-	private static $prefix;
+	private $prefix;
 
 
 	/**

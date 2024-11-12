@@ -80,6 +80,11 @@ final class Gateway {
 	 * @return array
 	 */
 	public static function add_gateways( $methods ) {
+
+		if ( empty( self::payment_gateways() ) || ! is_array( self::payment_gateways() ) ) {
+			return $methods;
+		}
+
 		foreach ( self::payment_gateways() as $gateway ) {
 			$methods[] = $gateway;
 		}

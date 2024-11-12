@@ -97,8 +97,6 @@ final class Main {
 
 		$this->init_classes();
 
-		register_activation_hook( $this->plugin_file(), array( Install::class, 'install' ) );
-
 		add_action( 'plugins_loaded', array( $this, 'load' ) );
 	}
 
