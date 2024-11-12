@@ -18,7 +18,3 @@ if ( ! defined( 'ABSPATH' ) ) {
 if ( ! defined( 'MPGS_CORE_VERSION' ) ) {
 	define( 'MPGS_CORE_VERSION', '1.0.0' );
 }
-
-if ( ! defined( 'MPGS_CORE_FILE' ) ) {
-	define( 'MPGS_CORE_FILE', __FILE__ );
-}

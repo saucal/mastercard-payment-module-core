@@ -22,9 +22,6 @@ final class Install {
 	 * Install action.
 	 */
 	public static function install() {
-
-		// Perform install actions here.
-
 		// Trigger action.
 		do_action( 'mpgs_core_installed' );
 	}

@@ -8,10 +8,6 @@
 
 namespace MPGSCore;
 
-use MPGSCore\Admin\Main as Admin;
-use MPGSCore\Front\Main as Front;
-
-
 /**
  * Base Plugin class holding generic functionality
  */
@@ -43,6 +39,30 @@ final class Main {
 
 
 	/**
+	 * Assets controller.
+	 *
+	 * @var Assets[]
+	 */
+	private $assets_controller;
+
+
+	/**
+	 * Utils class instance.
+	 *
+	 * @var Utils[]
+	 */
+	private $utils;
+
+
+	/**
+	 * Logger instance.
+	 *
+	 * @var Logger[]
+	 */
+	protected $logger;
+
+
+	/**
 	 * MPGS Core instance.
 	 *
 	 * @param string $prefix Prefix for the instance.
@@ -69,16 +89,15 @@ final class Main {
 	 */
 	public function __construct( $prefix ) {
 
+		if ( empty( $prefix ) ) {
+			return;
+		}
+
 		$this->prefix = $prefix;
 
-		register_activation_hook( $this->plugin_file(), array( Install::class, 'install' ) );
+		$this->init_classes();
 
-		add_action( 'plugins_loaded', array( __CLASS__, 'load' ) );
-
-		add_action( 'init', array( __CLASS__, 'init' ) );
-
-		// Perform other actions when plugin is loaded.
-		do_action( 'mpgs_core_loaded' );
+		add_action( 'plugins_loaded', array( $this, 'load' ) );
 	}
 
 
@@ -117,22 +136,16 @@ final class Main {
 	 *
 	 * @since  1.0.0
 	 */
-	public static function load() {
+	public function load() {
 
-		if ( ! self::check_plugin_requirements() ) {
+		if ( ! $this->check_plugin_requirements() ) {
 			return;
 		}
 
-		if ( Utils::is_request( 'admin' ) ) {
-			Admin::hooks();
-		}
-
-		if ( Utils::is_request( 'frontend' ) ) {
-			Front::hooks();
-		}
+		add_action( 'init', array( $this, 'init' ) );
 
 		// Init action.
-		do_action( 'mpgs_core_loaded' );
+		do_action( $this->prefix_hook( 'loaded' ) );
 	}
 
 
@@ -141,15 +154,33 @@ final class Main {
 	 *
 	 * @return void
 	 */
-	public static function init() {
+	public function init() {
 
 		// Before init action.
-		do_action( 'before_mpgs_core_init' );
+		do_action( $this->prefix_hook( 'init', 'before_' ) );
 
-		// Add needed hooks here.
+		// Init hooks.
+		Gateway::init();
 
 		// After init action.
-		do_action( 'mpgs_core_init' );
+		do_action( $this->prefix_hook( 'init' ) );
+	}
+
+
+	/**
+	 * Init child classes of this instance.
+	 *
+	 * @return void
+	 */
+	public function init_classes() {
+
+		if ( ! $this->prefix ) {
+			return;
+		}
+
+		$this->assets_controller[ $this->prefix ] = new Assets( $this->prefix );
+		$this->utils[ $this->prefix ]             = new Utils( $this->prefix );
+		$this->logger[ $this->prefix ]            = new Logger( $this->prefix );
 	}
 
 
@@ -158,7 +189,7 @@ final class Main {
 	 *
 	 * @return boolean
 	 */
-	private static function check_plugin_requirements() {
+	private function check_plugin_requirements() {
 
 		$errors = array();
 		global $wp_version;
@@ -212,7 +243,17 @@ final class Main {
 	 * @return string
 	 */
 	public function plugin_file() {
-		return apply_filters( $this->prefix_hook( 'plugin_file' ), MPGS_CORE_FILE );
+		return apply_filters( $this->prefix_hook( 'plugin_file' ), __FILE__ );
+	}
+
+
+	/**
+	 * MPGS Core plugin file.
+	 *
+	 * @return string
+	 */
+	public function core_plugin_file() {
+		return apply_filters( $this->prefix_hook( 'core_plugin_file' ), __DIR__ . '../mpgs-core.php' );
 	}
 
 
@@ -223,6 +264,16 @@ final class Main {
 	 */
 	public static function version() {
 		return apply_filters( 'mpgs_core_version', MPGS_CORE_VERSION );
+	}
+
+
+	/**
+	 * Plugin's title.
+	 *
+	 * @return string
+	 */
+	public function plugin_title() {
+		return apply_filters( $this->prefix_hook( 'plugin_title' ), 'MPGS Core' );
 	}
 
 
@@ -239,9 +290,42 @@ final class Main {
 	/**
 	 * Get prefixed hook name.
 	 *
-	 * @param string $hook The name of the hook.
+	 * @param string $hook   The name of the hook.
+	 * @param string $prefix Prefix for the hook.
 	 */
-	public function prefix_hook( $hook ) {
-		return $this->prefix . '_' . $hook;
+	public function prefix_hook( $hook, $prefix = '' ) {
+		return $prefix . $this->prefix . '_' . $hook;
+	}
+
+
+	/**
+	 * Get the assets controller instance.
+	 *
+	 * @return Assets
+	 */
+	public function assets_controller() {
+		return $this->assets_controller[ $this->prefix ];
+	}
+
+
+	/**
+	 * Get the utils instance.
+	 *
+	 * @return Utils
+	 */
+	public function utils() {
+		return $this->utils[ $this->prefix ];
+	}
+
+
+	/**
+	 * Get the logger instance.
+	 */
+	public function logger() {
+		if ( ! $this->logger[ $this->prefix ] ) {
+			$this->logger[ $this->prefix ] = new Logger( $this );
+		}
+
+		return $this->logger[ $this->prefix ];
 	}
 }

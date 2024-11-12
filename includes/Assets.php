@@ -13,31 +13,91 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use MPGSCore\Admin\Assets as Admin;
+use MPGSCore\Front\Assets as Front;
+
 /**
  * Main assets class
  */
-abstract class Assets {
+class Assets {
 
 	/**
 	 * Contains an array of script handles registered by WC.
 	 *
 	 * @var array<string>
 	 */
-	private static $scripts = array();
+	private $scripts = array();
 
 	/**
 	 * Contains an array of script handles registered by WC.
 	 *
 	 * @var array<string>
 	 */
-	private static $styles = array();
+	private $styles = array();
 
 	/**
 	 * Contains an array of script handles localized by WC.
 	 *
 	 * @var array<string>
 	 */
-	private static $wp_localize_scripts = array();
+	private $wp_localize_scripts = array();
+
+
+	/**
+	 * MPGS Core instance's prefix.
+	 *
+	 * @var string
+	 */
+	private $prefix;
+
+
+	/**
+	 * Admin assets controller.
+	 *
+	 * @var Admin\Assets
+	 */
+	private $admin_assets_controller;
+
+
+	/**
+	 * Front assets controller.
+	 *
+	 * @var Front\Assets
+	 */
+	private $front_assets_controller;
+
+
+	/**
+	 * Hook in methods.
+	 *
+	 * @param string $prefix Prefix of the MPGS Core instance.
+	 */
+	public function __construct( $prefix ) {
+
+		if ( empty( $prefix ) ) {
+			return;
+		}
+
+		$this->prefix = $prefix;
+
+		$this->init_controllers();
+	}
+
+
+	/**
+	 * Initialize assets controllers.
+	 *
+	 * @return void
+	 */
+	private function init_controllers() {
+		if ( Utils::is_request( 'admin' ) ) {
+			$this->admin_assets_controller = new Admin( $this->prefix );
+		}
+
+		if ( Utils::is_request( 'frontend' ) ) {
+			$this->front_assets_controller = new Front( $this->prefix );
+		}
+	}
 
 
 	/**
@@ -46,10 +106,10 @@ abstract class Assets {
 	 * @param  string $path Path of the asset to locate.
 	 * @return string
 	 */
-	public static function localize_asset( $path ) {
+	public function localize_asset( $path ) {
 
-		$assets_path     = Utils::plugin_path() . '/assets/';
-		$assets_path_url = str_replace( array( 'http:', 'https:' ), '', Utils::plugin_url() ) . '/assets/';
+		$assets_path     = Main::instance( $this->prefix )->utils()->core_package_path() . '/assets/';
+		$assets_path_url = str_replace( array( 'http:', 'https:' ), '', Main::instance( $this->prefix )->utils()->core_package_url() ) . '/assets/';
 
 		if ( ! ( defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ) ) {
 
@@ -76,9 +136,9 @@ abstract class Assets {
 	 *
 	 * @return array<string,array>
 	 */
-	public static function get_styles() {
+	public function get_styles() {
 		// Allow to change the list of styles.
-		return apply_filters( 'mpgs_core_enqueue_styles', array() );
+		return apply_filters( Main::instance( $this->prefix )->prefix_hook( 'enqueue_styles' ), array() );
 	}
 
 
@@ -87,9 +147,9 @@ abstract class Assets {
 	 *
 	 * @return array<string,array>
 	 */
-	public static function get_scripts() {
+	public function get_scripts() {
 		// Allow to change the list of scripts.
-		return apply_filters( 'mpgs_core_enqueue_scripts', array() );
+		return apply_filters( Main::instance( $this->prefix )->prefix_hook( 'enqueue_scripts' ), array() );
 	}
 
 
@@ -106,8 +166,8 @@ abstract class Assets {
 	 *
 	 * @return void
 	 */
-	private static function register_script( $handle, $path, $deps = array( 'jquery' ), $in_footer = true ) {
-		self::$scripts[] = $handle;
+	private function register_script( $handle, $path, $deps = array( 'jquery' ), $in_footer = true ) {
+		$this->scripts[] = $handle;
 		wp_register_script( $handle, $path, $deps, Main::version(), $in_footer );
 	}
 
@@ -126,10 +186,10 @@ abstract class Assets {
 	 *
 	 * @return void
 	 */
-	private static function enqueue_script( $handle, $path = '', $deps = array( 'jquery' ), $in_footer = true ) {
+	private function enqueue_script( $handle, $path = '', $deps = array( 'jquery' ), $in_footer = true ) {
 
-		if ( ! in_array( $handle, self::$scripts, true ) && $path ) {
-			self::register_script( $handle, $path, $deps, Main::version(), $in_footer );
+		if ( ! in_array( $handle, $this->scripts, true ) && $path ) {
+			$this->register_script( $handle, $path, $deps, Main::version(), $in_footer );
 		}
 
 		wp_enqueue_script( $handle );
@@ -150,8 +210,8 @@ abstract class Assets {
 	 *
 	 * @return void
 	 */
-	private static function register_style( $handle, $path, $deps = array(), $media = 'all' ) {
-		self::$styles[] = $handle;
+	private function register_style( $handle, $path, $deps = array(), $media = 'all' ) {
+		$this->styles[] = $handle;
 		wp_register_style( $handle, $path, $deps, Main::version(), $media );
 	}
 
@@ -170,10 +230,10 @@ abstract class Assets {
 	 *
 	 * @return void
 	 */
-	private static function enqueue_style( $handle, $path = '', $deps = array(), $media = 'all' ) {
+	private function enqueue_style( $handle, $path = '', $deps = array(), $media = 'all' ) {
 
-		if ( ! in_array( $handle, self::$styles, true ) && $path ) {
-			self::register_style( $handle, $path, $deps, Main::version(), $media );
+		if ( ! in_array( $handle, $this->styles, true ) && $path ) {
+			$this->register_style( $handle, $path, $deps, Main::version(), $media );
 		}
 
 		wp_enqueue_style( $handle );
@@ -185,14 +245,14 @@ abstract class Assets {
 	 *
 	 * @return void
 	 */
-	public static function load_scripts() {
+	public function load_scripts() {
 
-		if ( ! did_action( 'before_mpgs_core_init' ) ) {
+		if ( ! $this->prefix || ! did_action( Main::instance( $this->prefix )->prefix_hook( 'init', 'before_' ) ) ) {
 			return;
 		}
 
 		// JS Scripts.
-		$enqueue_scripts = static::get_scripts();
+		$enqueue_scripts = $this->get_scripts();
 		if ( $enqueue_scripts ) {
 
 			foreach ( $enqueue_scripts as $handle => $args ) {
@@ -208,15 +268,15 @@ abstract class Assets {
 				);
 
 				if ( $args['enqueue'] ) {
-					self::enqueue_script( $handle, $args['src'], $args['deps'], $args['version'], $args['in_footer'] );
+					$this->enqueue_script( $handle, $args['src'], $args['deps'], $args['version'], $args['in_footer'] );
 				} else {
-					self::register_script( $handle, $args['src'], $args['deps'], $args['version'], $args['in_footer'] );
+					$this->register_script( $handle, $args['src'], $args['deps'], $args['version'], $args['in_footer'] );
 				}
 			}
 		}
 
 		// CSS Styles.
-		$enqueue_styles = static::get_styles();
+		$enqueue_styles = $this->get_styles();
 		if ( $enqueue_styles ) {
 
 			foreach ( $enqueue_styles as $handle => $args ) {
@@ -232,9 +292,9 @@ abstract class Assets {
 				);
 
 				if ( $args['enqueue'] ) {
-					self::enqueue_style( $handle, $args['src'], $args['deps'], $args['version'], $args['media'] );
+					$this->enqueue_style( $handle, $args['src'], $args['deps'], $args['version'], $args['media'] );
 				} else {
-					self::register_style( $handle, $args['src'], $args['deps'], $args['version'], $args['media'] );
+					$this->register_style( $handle, $args['src'], $args['deps'], $args['version'], $args['media'] );
 				}
 			}
 		}
@@ -249,14 +309,14 @@ abstract class Assets {
 	 *
 	 * @return void
 	 */
-	private static function localize_script( $handle ) {
+	private function localize_script( $handle ) {
 
-		if ( ! in_array( $handle, self::$wp_localize_scripts, true ) && wp_script_is( $handle ) ) {
+		if ( ! in_array( $handle, $this->wp_localize_scripts, true ) && wp_script_is( $handle ) ) {
 
-			$data = self::get_script_data( $handle );
+			$data = $this->get_script_data( $handle );
 			if ( $data ) {
 				$name                        = str_replace( '-', '_', $handle ) . '_params';
-				self::$wp_localize_scripts[] = $handle;
+				$this->wp_localize_scripts[] = $handle;
 				// Let plugins to filter the script data.
 				wp_localize_script( $handle, $name, apply_filters( $name, $data ) );
 			}
@@ -270,9 +330,9 @@ abstract class Assets {
 	 * @param  string $handle Handle of the script to add data for.
 	 * @return array<string,mixed>|bool
 	 */
-	private static function get_script_data( $handle ) {
+	private function get_script_data( $handle ) {
 
-		$scripts = self::get_scripts();
+		$scripts = $this->get_scripts();
 		if ( isset( $scripts[ $handle ] ) && isset( $scripts[ $handle ]['data'] ) ) {
 
 			$data = $scripts[ $handle ]['data'];
@@ -292,9 +352,9 @@ abstract class Assets {
 	 *
 	 * @return void
 	 */
-	public static function localize_printed_scripts() {
-		foreach ( self::$scripts as $handle ) {
-			self::localize_script( $handle );
+	public function localize_printed_scripts() {
+		foreach ( $this->scripts as $handle ) {
+			$this->localize_script( $handle );
 		}
 	}
 }

@@ -10,6 +10,7 @@
 namespace MPGSCore\Front;
 
 use MPGSCore\Assets as AssetsMain;
+use MPGSCore\Main;
 use MPGSCore\Utils;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -22,14 +23,39 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Assets {
 
 	/**
-	 * Hook in methods.
+	 * MPGS Core instance's prefix.
+	 *
+	 * @var string
 	 */
-	public static function hooks() {
-		add_filter( 'mpgs_core_enqueue_styles', array( __CLASS__, 'add_styles' ), 9 );
-		add_filter( 'mpgs_core_enqueue_scripts', array( __CLASS__, 'add_scripts' ), 9 );
-		add_action( 'wp_enqueue_scripts', array( AssetsMain::class, 'load_scripts' ) );
-		add_action( 'wp_print_scripts', array( AssetsMain::class, 'localize_printed_scripts' ), 5 );
-		add_action( 'wp_print_footer_scripts', array( AssetsMain::class, 'localize_printed_scripts' ), 5 );
+	private $prefix;
+
+
+	/**
+	 * Hook in methods.
+	 *
+	 * @param string $prefix Prefix of the MPGS Core instance.
+	 */
+	public function __construct( $prefix = '' ) {
+
+		if ( empty( $prefix ) ) {
+			return;
+		}
+
+		$this->prefix = $prefix;
+
+		add_action( 'plugins_loaded', array( $this, 'init_hooks' ) );
+	}
+
+
+	/**
+	 * Init hooks.
+	 */
+	public function init_hooks() {
+		add_filter( Main::instance( $this->prefix )->prefix_hook( 'enqueue_styles' ), array( $this, 'add_styles' ), 9 );
+		add_filter( Main::instance( $this->prefix )->prefix_hook( 'enqueue_scripts' ), array( $this, 'add_scripts' ), 9 );
+		add_action( 'wp_enqueue_scripts', array( Main::instance( $this->prefix )->assets_controller(), 'load_scripts' ) );
+		add_action( 'wp_print_scripts', array( Main::instance( $this->prefix )->assets_controller(), 'localize_printed_scripts' ), 5 );
+		add_action( 'wp_print_footer_scripts', array( Main::instance( $this->prefix )->assets_controller(), 'localize_printed_scripts' ), 5 );
 	}
 
 
@@ -39,10 +65,10 @@ final class Assets {
 	 * @param array $styles Admin styles.
 	 * @return array<string,array>
 	 */
-	public static function add_styles( $styles ) {
+	public function add_styles( $styles ) {
 
-		$styles['mpgs-core-general'] = array(
-			'src' => AssetsMain::localize_asset( 'css/frontend/mpgs-core.css' ),
+		$styles[ $this->prefix ] = array(
+			'src' => Main::instance( $this->prefix )->assets_controller()->localize_asset( 'css/frontend/mpgs-core.css' ),
 		);
 
 		return $styles;
@@ -55,12 +81,13 @@ final class Assets {
 	 * @param  array $scripts Admin scripts.
 	 * @return array<string,array>
 	 */
-	public static function add_scripts( $scripts ) {
+	public function add_scripts( $scripts ) {
 
-		$scripts['mpgs-core-general'] = array(
-			'src'  => AssetsMain::localize_asset( 'js/frontend/mpgs-core.js' ),
+		$scripts[ $this->prefix ] = array(
+			'src'  => Main::instance( $this->prefix )->assets_controller()->localize_asset( 'js/frontend/mpgs-core.js' ),
 			'data' => array(
-				'ajax_url' => Utils::ajax_url(),
+				'ajax_url' => Main::instance( $this->prefix )->utils()->ajax_url(),
+				'prefix'   => $this->prefix,
 			),
 		);
 

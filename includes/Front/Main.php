@@ -19,11 +19,18 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Main {
 
 	/**
-	 * Initialize hooks
+	 * Initialize hooks.
+	 *
+	 * @param string $prefix Prefix of the MPGS Core instance.
 	 *
 	 * @return void
 	 */
-	public static function hooks() {
-		Assets::hooks();
+	public static function hooks( $prefix = '' ) {
+
+		if ( empty( $prefix ) ) {
+			return;
+		}
+
+		Assets::hooks( $prefix );
 	}
 }
