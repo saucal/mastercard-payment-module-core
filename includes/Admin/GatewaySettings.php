@@ -10,6 +10,7 @@
 namespace MPGSCore\Admin;
 
 use MPGSCore\Main;
+use MPGSCore\MpgsPlugin;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -46,39 +47,39 @@ final class GatewaySettings {
 			return array();
 		}
 
-		return array(
-			'enabled'              => array(
+		$setting_fields = array(
+			'enabled'          => array(
 				'title'       => __( 'Enable/Disable', self::$mpgs_core_instance->text_domain() ),
 				'label'       => __( 'Enable', self::$mpgs_core_instance->text_domain() ),
 				'type'        => 'checkbox',
 				'description' => '',
 				'default'     => 'no',
 			),
-			'title'                => array(
+			'title'            => array(
 				'title'       => __( 'Title', self::$mpgs_core_instance->text_domain() ),
 				'type'        => 'text',
 				'description' => __( 'The payment method title displayed during checkout.', self::$mpgs_core_instance->text_domain() ),
 				'default'     => self::$mpgs_core_instance->plugin_title(),
 				'desc_tip'    => true,
 			),
-			'description'          => array(
+			'description'      => array(
 				'title'       => __( 'Description', self::$mpgs_core_instance->text_domain() ),
 				'type'        => 'text',
 				'description' => esc_html__( 'The description displayed when this payment method is selected.', self::$mpgs_core_instance->text_domain() ),
 				'default'     => esc_html__( 'Pay with your Credit/Debit Card', self::$mpgs_core_instance->text_domain() ),
 				'desc_tip'    => true,
 			),
-			'region'               => array(
+			'region'           => array(
 				'title'   => __( 'Merchant Region', self::$mpgs_core_instance->text_domain() ),
 				'type'    => 'select',
 				'options' => wp_list_pluck( self::payment_regions(), 'name', 'code' ),
 				'default' => 'eu',
 			),
-			'merchant_details'     => array(
+			'merchant_details' => array(
 				'title' => __( 'Merchant account details', self::$mpgs_core_instance->text_domain() ),
 				'type'  => 'title',
 			),
-			'sandbox'              => array(
+			'sandbox'          => array(
 				'title'       => __( 'Test Sandbox', self::$mpgs_core_instance->text_domain() ),
 				'label'       => __( 'Enable test sandbox mode', self::$mpgs_core_instance->text_domain() ),
 				'type'        => 'checkbox',
@@ -86,73 +87,96 @@ final class GatewaySettings {
 				'default'     => 'no',
 				'desc_tip'    => true,
 			),
-			'username'             => array(
+			'merchant_id'      => array(
 				'title'       => __( 'Merchant ID', self::$mpgs_core_instance->text_domain() ),
 				'type'        => 'text',
 				'description' => __( 'This is your merchant profile ID.', self::$mpgs_core_instance->text_domain() ),
 				'default'     => '',
 			),
-			'password'             => array(
+			'password'         => array(
 				'title'       => __( 'API Password', self::$mpgs_core_instance->text_domain() ),
 				'type'        => 'password',
 				'description' => __( 'This is your API password.', self::$mpgs_core_instance->text_domain() ),
 				'default'     => '',
 			),
-			'advanced'             => array(
-				'title' => __( 'Advanced configurations', self::$mpgs_core_instance->text_domain() ),
-				'type'  => 'title',
-			),
-			'transaction_mode'     => array(
-				'title'       => __( 'Payment capture', self::$mpgs_core_instance->text_domain() ),
-				'type'        => 'select',
-				'options'     => array(
-					'purchase'  => __( 'Authorize and Capture', self::$mpgs_core_instance->text_domain() ),
-					'authorize' => __( 'Authorize', self::$mpgs_core_instance->text_domain() ),
+		);
+
+		return self::maybe_add_advanced_settings( $setting_fields );
+	}
+
+
+	/**
+	 * Add advanced settings if the credentials are valid.
+	 *
+	 * @param array $settings Settings.
+	 *
+	 * @return array
+	 */
+	private static function maybe_add_advanced_settings( $settings ) {
+
+		if ( ! MpgsPlugin::get_validated_credentials() ) {
+			return $settings;
+		}
+
+		return array_merge(
+			$settings,
+			array(
+				'advanced'             => array(
+					'title' => __( 'Advanced configurations', self::$mpgs_core_instance->text_domain() ),
+					'type'  => 'title',
 				),
-				'default'     => 'purchase',
-				'description' => __( 'Choose "Authorize and Capture" to authorize and capture the payment immediately. Choose "Authorize" to only authorize the payment, and capture it manually later from the WC admin panel.', self::$mpgs_core_instance->text_domain() ),
-			),
-			'method'               => array(
-				'title'   => __( 'Integration method', self::$mpgs_core_instance->text_domain() ),
-				'type'    => 'select',
-				'options' => array(
-					'hosted_session'  => __( 'Hosted Session', self::$mpgs_core_instance->text_domain() ),
-					'hosted_checkout' => __( 'Hosted Checkout', self::$mpgs_core_instance->text_domain() ),
+				'transaction_mode'     => array(
+					'title'       => __( 'Payment capture', self::$mpgs_core_instance->text_domain() ),
+					'type'        => 'select',
+					'options'     => array(
+						'purchase'  => __( 'Authorize and Capture', self::$mpgs_core_instance->text_domain() ),
+						'authorize' => __( 'Authorize', self::$mpgs_core_instance->text_domain() ),
+					),
+					'default'     => 'purchase',
+					'description' => __( 'Choose "Authorize and Capture" to authorize and capture the payment immediately. Choose "Authorize" to only authorize the payment, and capture it manually later from the WC admin panel.', self::$mpgs_core_instance->text_domain() ),
 				),
-				'default' => 'hosted_session',
-			),
-			'hosted_checkout_mode' => array(
-				'title'   => __( 'Hosted Checkout Mode', self::$mpgs_core_instance->text_domain() ),
-				'type'    => 'select',
-				'options' => array(
-					'embedded' => __( 'Embedded', self::$mpgs_core_instance->text_domain() ),
-					'redirect' => __( 'Redirect to Payment Page', self::$mpgs_core_instance->text_domain() ),
+				'method'               => array(
+					'title'   => __( 'Integration method', self::$mpgs_core_instance->text_domain() ),
+					'type'    => 'select',
+					'options' => array(
+						'hosted_session'  => __( 'Hosted Session', self::$mpgs_core_instance->text_domain() ),
+						'hosted_checkout' => __( 'Hosted Checkout', self::$mpgs_core_instance->text_domain() ),
+					),
+					'default' => 'hosted_session',
 				),
-				'default' => 'embedded',
-			),
-			'_3d_secure'           => array(
-				'title'       => __( '3D Secure', self::$mpgs_core_instance->text_domain() ),
-				'type'        => 'checkbox',
-				'default'     => 'yes',
-				'description' => __( 'Contact your payment service provider if you need more information.', self::$mpgs_core_instance->text_domain() ),
-				'desc_tip'    => true,
-			),
-			'saved_cards'          => array(
-				'title'       => __( 'Saved Cards', self::$mpgs_core_instance->text_domain() ),
-				'label'       => __( 'Enable payment via saved tokenized cards', self::$mpgs_core_instance->text_domain() ),
-				'type'        => 'checkbox',
-				'description' => __( 'If enabled, users will be able to pay with a saved card during checkout. Card details are saved in the payment gateway, not on your store.', self::$mpgs_core_instance->text_domain() ),
-				'default'     => 'yes',
-				'desc_tip'    => true,
-			),
-			'debug'                => array(
-				'title'       => __( 'Logging', self::$mpgs_core_instance->text_domain() ),
-				'label'       => __( 'Log debug messages', self::$mpgs_core_instance->text_domain() ),
-				'type'        => 'checkbox',
-				'description' => __( 'Save debug messages to the WooCommerce System Status log.', self::$mpgs_core_instance->text_domain() ),
-				'default'     => 'no',
-				'desc_tip'    => true,
-			),
+				'hosted_checkout_mode' => array(
+					'title'   => __( 'Hosted Checkout Mode', self::$mpgs_core_instance->text_domain() ),
+					'type'    => 'select',
+					'options' => array(
+						'embedded' => __( 'Embedded', self::$mpgs_core_instance->text_domain() ),
+						'redirect' => __( 'Redirect to Payment Page', self::$mpgs_core_instance->text_domain() ),
+					),
+					'default' => 'embedded',
+				),
+				'_3d_secure'           => array(
+					'title'       => __( '3D Secure', self::$mpgs_core_instance->text_domain() ),
+					'type'        => 'checkbox',
+					'default'     => 'yes',
+					'description' => __( 'Contact your payment service provider if you need more information.', self::$mpgs_core_instance->text_domain() ),
+					'desc_tip'    => true,
+				),
+				'saved_cards'          => array(
+					'title'       => __( 'Saved Cards', self::$mpgs_core_instance->text_domain() ),
+					'label'       => __( 'Enable payment via saved tokenized cards', self::$mpgs_core_instance->text_domain() ),
+					'type'        => 'checkbox',
+					'description' => __( 'If enabled, users will be able to pay with a saved card during checkout. Card details are saved in the payment gateway, not on your store.', self::$mpgs_core_instance->text_domain() ),
+					'default'     => 'yes',
+					'desc_tip'    => true,
+				),
+				'debug'                => array(
+					'title'       => __( 'Logging', self::$mpgs_core_instance->text_domain() ),
+					'label'       => __( 'Log debug messages', self::$mpgs_core_instance->text_domain() ),
+					'type'        => 'checkbox',
+					'description' => __( 'Save debug messages to the WooCommerce System Status log.', self::$mpgs_core_instance->text_domain() ),
+					'default'     => 'yes',
+					'desc_tip'    => true,
+				),
+			)
 		);
 	}
 
@@ -185,5 +209,24 @@ final class GatewaySettings {
 				'url'  => 'https://na-gateway.mastercard.com',
 			),
 		);
+	}
+
+
+	/**
+	 * Get payment region URL.
+	 *
+	 * @param string $region Region code.
+	 *
+	 * @return string
+	 */
+	public static function payment_region_url( $region ) {
+
+		$regions = self::payment_regions();
+
+		if ( ! isset( $regions[ $region ] ) ) {
+			return '';
+		}
+
+		return $regions[ $region ]['url'];
 	}
 }

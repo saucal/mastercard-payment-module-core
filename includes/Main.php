@@ -55,14 +55,6 @@ final class Main {
 
 
 	/**
-	 * Logger instance.
-	 *
-	 * @var Logger[]
-	 */
-	protected $logger;
-
-
-	/**
 	 * MPGS Core instance.
 	 *
 	 * @param string $prefix Prefix for the instance.
@@ -180,7 +172,6 @@ final class Main {
 
 		$this->assets_controller[ $this->prefix ] = new Assets( $this->prefix );
 		$this->utils[ $this->prefix ]             = new Utils( $this->prefix );
-		$this->logger[ $this->prefix ]            = new Logger( $this->prefix );
 	}
 
 
@@ -323,17 +314,5 @@ final class Main {
 		}
 
 		return $this->utils[ $this->prefix ];
-	}
-
-
-	/**
-	 * Get the logger instance.
-	 */
-	public function logger() {
-		if ( ! $this->logger[ $this->prefix ] ) {
-			$this->logger[ $this->prefix ] = new Logger( $this->prefix );
-		}
-
-		return $this->logger[ $this->prefix ];
 	}
 }

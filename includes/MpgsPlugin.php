@@ -16,9 +16,9 @@ abstract class MpgsPlugin {
 	/**
 	 * MPGS Core instance.
 	 *
-	 * @var MPGS_Core
+	 * @var Main
 	 */
-	private static $mpgs_core;
+	private static $mpgs_core_instance;
 
 
 	/**
@@ -173,6 +173,7 @@ abstract class MpgsPlugin {
 
 		// Activation hook.
 		add_action( 'admin_init', array( __CLASS__, 'maybe_redirect_to_settings' ) );
+		add_action( 'admin_init', array( __CLASS__, 'maybe_add_not_connected_notice' ) );
 
 		// Load the plugin.
 		add_action( 'plugins_loaded', array( __CLASS__, 'load' ) );
@@ -202,6 +203,32 @@ abstract class MpgsPlugin {
 		<div class="notice notice-error">
 			<p>
 				<?php esc_html_e( 'The plugin package is corrupt or incomplete: MPGS Core package is missing.', 'woocommerce-gateway-acme-mpgs' ); ?>
+			</p>
+		</div>
+		<?php
+	}
+
+
+	/**
+	 * Display an admin notice if the gateway is not connected.
+	 */
+	public static function maybe_add_not_connected_notice() {
+		if ( self::is_enabled() && self::get_validated_credentials() ) {
+			return;
+		}
+		?>
+		<div class="notice notice-error">
+			<p>
+				<?php
+				echo wp_kses_post(
+					sprintf(
+						__( 'The %1$s credentials are either empty or not valid. Verify your connection %2$shere%3$s', 'woocommerce-gateway-acme-mpgs' ),
+						static::plugin_title(),
+						'<a href="' . static::settings_url() . '">',
+						'</a>',
+					)
+				);
+				?>
 			</p>
 		</div>
 		<?php
@@ -265,7 +292,7 @@ abstract class MpgsPlugin {
 	 * Initialize the MPGS Core instance.
 	 */
 	private static function init_core_instance() {
-		static::$mpgs_core = Main::instance( static::plugin_id() );
+		static::$mpgs_core_instance = Main::instance( static::plugin_id() );
 
 		// Filter the text domain for translations on the mpgs-core package.
 		add_filter( static::prefix_hook( 'text_domain' ), array( __CLASS__, 'text_domain' ) );
@@ -285,10 +312,10 @@ abstract class MpgsPlugin {
 	/**
 	 * Get the MPGS Core instance.
 	 *
-	 * @return MPGS_Core
+	 * @return Main
 	 */
 	public static function mpgs_core() {
-		return static::$mpgs_core;
+		return static::$mpgs_core_instance;
 	}
 
 
@@ -359,5 +386,97 @@ abstract class MpgsPlugin {
 	 */
 	public static function prefix_hook( $hook, $prefix = '' ) {
 		return $prefix . static::plugin_id() . '_' . $hook;
+	}
+
+
+	/**
+	 * Gateway settings.
+	 *
+	 * @return array
+	 */
+	public static function get_gateway_settings() {
+		static $settings = array();
+
+		if ( isset( $settings[ static::plugin_id() ] ) ) {
+			return $settings[ static::plugin_id() ];
+		}
+
+		$settings[ static::$plugin_id ] = get_option( 'woocommerce_' . static::plugin_id() . '_settings', array() );
+
+		return $settings[ static::plugin_id() ];
+	}
+
+
+	/**
+	 * Get gateway specific setting.
+	 *
+	 * @param  string $key Setting key.
+	 *
+	 * @return mixed
+	 */
+	public static function get_gateway_setting( $key ) {
+		$settings = static::get_gateway_settings();
+
+		return isset( $settings[ $key ] ) ? $settings[ $key ] : '';
+	}
+
+
+	/**
+	 * Get validated credentials.
+	 *
+	 * @return array
+	 */
+	public static function get_validated_credentials() {
+		return get_option( 'woocommerce_' . static::plugin_id() . '_validated_credentials', false );
+	}
+
+
+	/**
+	 * Update validated credentials.
+	 *
+	 * @param bool $validated_credentials Validated credentials.
+	 */
+	public static function update_validated_credentials( $validated_credentials ) {
+		update_option( 'woocommerce_' . static::plugin_id() . '_validated_credentials', $validated_credentials );
+	}
+
+
+	/**
+	 * Get validated payment operations.
+	 *
+	 * @return array
+	 */
+	public static function get_payment_operations() {
+		return get_option( 'woocommerce_' . static::plugin_id() . '_payment_operations', array() );
+	}
+
+
+	/**
+	 * Save validated payment operations.
+	 *
+	 * @param array $options Payment operations.
+	 */
+	public static function update_payment_operations( $options ) {
+		update_option( 'woocommerce_' . static::plugin_id() . '_payment_operations', $options );
+	}
+
+
+	/**
+	 * Is the gateway enabled.
+	 *
+	 * @return bool
+	 */
+	public static function is_enabled() {
+		return ! empty( static::get_gateway_setting( 'enabled' ) ) && 'yes' === static::get_gateway_setting( 'enabled' ) ? true : false;
+	}
+
+
+	/**
+	 * Is sandbox mode enabled.
+	 *
+	 * @return bool
+	 */
+	public static function is_sandbox() {
+		return ( self::is_enabled() && ! self::get_validated_credentials() ) || ( ! empty( static::get_gateway_setting( 'sandbox' ) ) && 'yes' === static::get_gateway_setting( 'sandbox' ) ) ? true : false;
 	}
 }

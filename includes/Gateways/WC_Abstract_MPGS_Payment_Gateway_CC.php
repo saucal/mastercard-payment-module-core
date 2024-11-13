@@ -10,7 +10,11 @@
 namespace MPGSCore\Gateways;
 
 use MPGSCore\Admin\GatewaySettings;
+use MPGSCore\Logger;
 use MPGSCore\Main;
+use MPGSCore\MpgsAPI;
+use MPGSCore\MpgsPlugin;
+use WC_Admin_Settings;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
@@ -76,13 +80,11 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		$this->saved_cards = ! empty( $this->get_option( 'saved_cards' ) && 'yes' === $this->get_option( 'saved_cards' ) );
 		$this->debug       = ! empty( $this->get_option( 'debug' ) && 'yes' === $this->get_option( 'debug' ) );
 
-		// Init debug mode.
-		$this->init_debug();
-
 		$this->init();
 
 		// Add hooks.
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'process_admin_options' ) );
+		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'validate_credentials' ) );
 	}
 
 
@@ -117,46 +119,31 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 
 	/**
-	 * Init debug mode.
+	 * Validate API keys.
 	 *
 	 * @return void
 	 */
-	public function init_debug() {
-		if ( ! $this->is_debug() ) {
+	public function validate_credentials() {
+		$merchant_id = $this->get_option( 'merchant_id' );
+		$password    = $this->get_option( 'password' );
+
+		if ( empty( $merchant_id ) || empty( $password ) ) {
+			WC_Admin_Settings::add_error( __( 'Merchant ID and API Key are required.', MpgsPlugin::text_domain() ) );
+		}
+
+		$response = MpgsAPI::payment_options_inquiry();
+
+		if ( ! $response['success'] || empty( $response['body'] ) ) {
+			WC_Admin_Settings::add_error( __( 'Failed to validate API credentials. Please validate your credentials and save your account details again.', MpgsPlugin::text_domain() ) );
+			MpgsPlugin::update_validated_credentials( false );
+			MpgsPlugin::update_payment_operations( array() );
 			return;
 		}
 
-		$this->logger()->set_debug( true );
-	}
+		Logger::log( __( 'API credentials validated successfully.', MpgsPlugin::text_domain() ) );
 
+		MpgsPlugin::update_validated_credentials( true );
 
-	/**
-	 * Get the logger instance.
-	 *
-	 * @return Logger
-	 */
-	public function logger() {
-		return Main::instance( $this->mpgs_core_prefix() )->logger();
-	}
-
-
-	/**
-	 * Log message.
-	 *
-	 * @param string $message Log message.
-	 * @param string $level   Log level.
-	 */
-	public function log( $message, $level = 'debug' ) {
-		$this->logger()->log( $message, $level, $this->id . '-gateway' );
-	}
-
-
-	/**
-	 * Is debug enabled.
-	 *
-	 * @return bool
-	 */
-	public function is_debug() {
-		return $this->debug;
+		MpgsPlugin::update_payment_operations( $response['body']['supportedPaymentOperations'] ?? array() );
 	}
 }
