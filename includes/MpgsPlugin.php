@@ -8,6 +8,10 @@
 
 namespace MPGSCore;
 
+use MPGSCore\Admin\Notices;
+use MPGSCore\Admin\Main as Admin;
+use MPGSCore\Front\Main as Front;
+
 /**
  * Abstract class for child MPGS plugins.
  */
@@ -173,7 +177,6 @@ abstract class MpgsPlugin {
 
 		// Activation hook.
 		add_action( 'admin_init', array( __CLASS__, 'maybe_redirect_to_settings' ) );
-		add_action( 'admin_init', array( __CLASS__, 'maybe_add_not_connected_notice' ) );
 
 		// Load the plugin.
 		add_action( 'plugins_loaded', array( __CLASS__, 'load' ) );
@@ -187,51 +190,11 @@ abstract class MpgsPlugin {
 	 */
 	private static function load_mpgs_core() {
 		if ( ! file_exists( dirname( static::plugin_file() ) . '/packages/mpgs-core/mpgs-core.php' ) ) {
-			add_action( 'admin_notices', array( __CLASS__, 'missing_mpgs_core_notice' ) );
+			add_action( 'admin_notices', array( Notices::class, 'missing_mpgs_core_notice' ) );
 			return false;
 		}
 
 		return include_once dirname( static::plugin_file() ) . '/packages/mpgs-core/mpgs-core.php';
-	}
-
-
-	/**
-	 * Display an admin notice if the MPGSCore package is missing.
-	 */
-	public static function missing_mpgs_core_notice() {
-		?>
-		<div class="notice notice-error">
-			<p>
-				<?php esc_html_e( 'The plugin package is corrupt or incomplete: MPGS Core package is missing.', 'woocommerce-gateway-acme-mpgs' ); ?>
-			</p>
-		</div>
-		<?php
-	}
-
-
-	/**
-	 * Display an admin notice if the gateway is not connected.
-	 */
-	public static function maybe_add_not_connected_notice() {
-		if ( self::is_enabled() && self::get_validated_credentials() ) {
-			return;
-		}
-		?>
-		<div class="notice notice-error">
-			<p>
-				<?php
-				echo wp_kses_post(
-					sprintf(
-						__( 'The %1$s credentials are either empty or not valid. Verify your connection %2$shere%3$s', 'woocommerce-gateway-acme-mpgs' ),
-						static::plugin_title(),
-						'<a href="' . static::settings_url() . '">',
-						'</a>',
-					)
-				);
-				?>
-			</p>
-		</div>
-		<?php
 	}
 
 
@@ -283,6 +246,14 @@ abstract class MpgsPlugin {
 
 		// Load Localisation files.
 		static::load_plugin_textdomain();
+
+		if ( Utils::is_request( 'admin' ) ) {
+			Admin::hooks();
+		}
+
+		if ( Utils::is_request( 'frontend' ) ) {
+			Front::hooks();
+		}
 
 		add_filter( 'plugin_action_links_' . plugin_basename( static::plugin_file() ), array( __CLASS__, 'plugin_action_links' ) );
 	}
@@ -351,7 +322,7 @@ abstract class MpgsPlugin {
 			sprintf(
 				'<a href="%s">%s</a>',
 				static::settings_url(),
-				__( 'Settings', 'woocommerce-gateway-acme-mpgs' )
+				__( 'Settings', MpgsPlugin::text_domain() )
 			),
 		);
 
@@ -468,6 +439,16 @@ abstract class MpgsPlugin {
 	 */
 	public static function is_enabled() {
 		return ! empty( static::get_gateway_setting( 'enabled' ) ) && 'yes' === static::get_gateway_setting( 'enabled' ) ? true : false;
+	}
+
+
+	/**
+	 * Is the merchant connected.
+	 *
+	 * @return bool
+	 */
+	public static function is_merchant_connected() {
+		return self::is_enabled() && self::get_validated_credentials();
 	}
 
 

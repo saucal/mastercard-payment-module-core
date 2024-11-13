@@ -128,10 +128,7 @@ final class GatewaySettings {
 				'transaction_mode'     => array(
 					'title'       => __( 'Payment capture', self::$mpgs_core_instance->text_domain() ),
 					'type'        => 'select',
-					'options'     => array(
-						'purchase'  => __( 'Authorize and Capture', self::$mpgs_core_instance->text_domain() ),
-						'authorize' => __( 'Authorize', self::$mpgs_core_instance->text_domain() ),
-					),
+					'options'     => self::supported_payment_operations(),
 					'default'     => 'purchase',
 					'description' => __( 'Choose "Authorize and Capture" to authorize and capture the payment immediately. Choose "Authorize" to only authorize the payment, and capture it manually later from the WC admin panel.', self::$mpgs_core_instance->text_domain() ),
 				),
@@ -228,5 +225,40 @@ final class GatewaySettings {
 		}
 
 		return $regions[ $region ]['url'];
+	}
+
+
+	/**
+	 * Get supported payment operations.
+	 *
+	 * @return array
+	 */
+	public static function supported_payment_operations() {
+
+		$supported_operations = array();
+
+		if ( empty( MpgsPlugin::get_validated_credentials() ) ) {
+			return $supported_operations;
+		}
+
+		$payment_operations = MpgsPlugin::get_payment_operations();
+
+		if ( empty( $payment_operations ) || ! is_array( $payment_operations ) ) {
+			return $supported_operations;
+		}
+
+		foreach ( $payment_operations as $supported_operation ) {
+			$operation = reset( $supported_operation );
+
+			if ( 'PURCHASE' === $operation ) {
+				$supported_operations['purchase'] = __( 'Authorize and Capture', self::$mpgs_core_instance->text_domain() );
+			}
+
+			if ( 'AUTHORIZE' === $operation ) {
+				$supported_operations['authorize'] = __( 'Authorize', self::$mpgs_core_instance->text_domain() );
+			}
+		}
+
+		return $supported_operations;
 	}
 }

@@ -8,6 +8,8 @@
 
 namespace MPGSCore;
 
+use MPGSCore\Admin\Notices;
+
 /**
  * Base Plugin class holding generic functionality
  */
@@ -209,15 +211,9 @@ final class Main {
 			add_action(
 				'admin_notices',
 				function () use ( $errors ) {
-					?>
-					<div class="notice notice-error">
-						<?php
-						foreach ( $errors as $error ) {
-							echo '<p>' . esc_html( $error ) . '</p>';
-						}
-						?>
-					</div>
-					<?php
+					foreach ( $errors as $error ) {
+						Notices::render_error_notice( $error );
+					}
 				}
 			);
 
