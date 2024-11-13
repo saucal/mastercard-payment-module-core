@@ -151,11 +151,11 @@ abstract class MpgsPlugin {
 	 * @return array
 	 */
 	public static function add_gateways( $methods ) {
-		if ( empty( self::registered_gateways() ) || ! is_array( self::registered_gateways() ) ) {
+		if ( empty( static::registered_gateways() ) || ! is_array( static::registered_gateways() ) ) {
 			return $methods;
 		}
 
-		return array_merge( $methods, self::registered_gateways() );
+		return array_merge( $methods, static::registered_gateways() );
 	}
 
 
@@ -171,7 +171,7 @@ abstract class MpgsPlugin {
 			return;
 		}
 
-		self::init_core_instance();
+		static::init_core_instance();
 
 		register_activation_hook( static::plugin_file(), array( Install::class, 'install' ) );
 
@@ -448,7 +448,7 @@ abstract class MpgsPlugin {
 	 * @return bool
 	 */
 	public static function is_merchant_connected() {
-		return self::is_enabled() && self::get_validated_credentials();
+		return static::is_enabled() && static::get_validated_credentials();
 	}
 
 
@@ -458,6 +458,6 @@ abstract class MpgsPlugin {
 	 * @return bool
 	 */
 	public static function is_sandbox() {
-		return ( self::is_enabled() && ! self::get_validated_credentials() ) || ( ! empty( static::get_gateway_setting( 'sandbox' ) ) && 'yes' === static::get_gateway_setting( 'sandbox' ) ) ? true : false;
+		return ( static::is_enabled() && ! static::get_validated_credentials() ) || ( ! empty( static::get_gateway_setting( 'sandbox' ) ) && 'yes' === static::get_gateway_setting( 'sandbox' ) ) ? true : false;
 	}
 }
