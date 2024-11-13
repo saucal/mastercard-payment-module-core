@@ -118,6 +118,12 @@ final class GatewaySettings {
 			return $settings;
 		}
 
+		$supported_operations = self::supported_payment_operations();
+
+		if ( empty( $supported_operations ) ) {
+			return $settings;
+		}
+
 		return array_merge(
 			$settings,
 			array(
@@ -128,7 +134,7 @@ final class GatewaySettings {
 				'transaction_mode'     => array(
 					'title'       => __( 'Payment capture', self::$mpgs_core_instance->text_domain() ),
 					'type'        => 'select',
-					'options'     => self::supported_payment_operations(),
+					'options'     => $supported_operations,
 					'default'     => 'purchase',
 					'description' => __( 'Choose "Authorize and Capture" to authorize and capture the payment immediately. Choose "Authorize" to only authorize the payment, and capture it manually later from the WC admin panel.', self::$mpgs_core_instance->text_domain() ),
 				),
