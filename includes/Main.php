@@ -304,6 +304,10 @@ final class Main {
 	 * @return Assets
 	 */
 	public function assets_controller() {
+		if ( ! $this->assets_controller[ $this->prefix ] ) {
+			$this->assets_controller[ $this->prefix ] = new Assets( $this->prefix );
+		}
+
 		return $this->assets_controller[ $this->prefix ];
 	}
 
@@ -314,6 +318,10 @@ final class Main {
 	 * @return Utils
 	 */
 	public function utils() {
+		if ( ! $this->utils[ $this->prefix ] ) {
+			$this->utils[ $this->prefix ] = new Utils( $this->prefix );
+		}
+
 		return $this->utils[ $this->prefix ];
 	}
 
@@ -323,7 +331,7 @@ final class Main {
 	 */
 	public function logger() {
 		if ( ! $this->logger[ $this->prefix ] ) {
-			$this->logger[ $this->prefix ] = new Logger( $this );
+			$this->logger[ $this->prefix ] = new Logger( $this->prefix );
 		}
 
 		return $this->logger[ $this->prefix ];
