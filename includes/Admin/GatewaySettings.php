@@ -138,13 +138,10 @@ final class GatewaySettings {
 					'default'     => 'purchase',
 					'description' => __( 'Choose "Authorize and Capture" to authorize and capture the payment immediately. Choose "Authorize" to only authorize the payment, and capture it manually later from the WC admin panel.', self::$mpgs_core_instance->text_domain() ),
 				),
-				'method'               => array(
-					'title'   => __( 'Integration method', self::$mpgs_core_instance->text_domain() ),
+				'checkout_mode'        => array(
+					'title'   => __( 'Integration mode', self::$mpgs_core_instance->text_domain() ),
 					'type'    => 'select',
-					'options' => array(
-						'hosted_session'  => __( 'Hosted Session', self::$mpgs_core_instance->text_domain() ),
-						'hosted_checkout' => __( 'Hosted Checkout', self::$mpgs_core_instance->text_domain() ),
-					),
+					'options' => self::checkout_modes(),
 					'default' => 'hosted_session',
 				),
 				'hosted_checkout_mode' => array(
@@ -231,6 +228,19 @@ final class GatewaySettings {
 		}
 
 		return $regions[ $region ]['url'];
+	}
+
+
+	/**
+	 * Get the checkout modes.
+	 *
+	 * @return array
+	 */
+	public static function checkout_modes() {
+		return array(
+			'hosted_session'  => __( 'Hosted Session', self::$mpgs_core_instance->text_domain() ),
+			'hosted_checkout' => __( 'Hosted Checkout', self::$mpgs_core_instance->text_domain() ),
+		);
 	}
 
 

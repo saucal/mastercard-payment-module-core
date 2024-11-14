@@ -149,11 +149,11 @@ final class Template {
 	public function locate( $template_name, $template_path = '', $default_path = '' ) {
 
 		if ( ! $template_path ) {
-			$template_path = Main::instance( $this->prefix )->utils()->template_path();
+			$template_path = Main::instance( $this->prefix )->utils()->core_package_path();
 		}
 
 		if ( ! $default_path ) {
-			$default_path = Main::instance( $this->prefix )->utils()->plugin_path() . '/templates/';
+			$default_path = Main::instance( $this->prefix )->utils()->core_package_path() . '/templates/';
 		}
 
 		// Look within passed path within the theme - this is priority.

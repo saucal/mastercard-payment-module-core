@@ -49,23 +49,9 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 
 	/**
-	 * Initialize Payment Gateway.
-	 */
-	abstract public function build();
-
-
-	/**
-	 * Init hooks.
-	 */
-	abstract public function init();
-
-
-	/**
 	 * Constructor.
 	 */
-	public function __construct() {
-		// Load gateway settings.
-		$this->build();
+	public function build() {
 
 		// Load the gateway support features.
 		$this->init_supports();
@@ -77,10 +63,11 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		$this->init_settings();
 
 		// Load common settings.
+		$this->title       = $this->get_option( 'title' );
+		$this->enabled     = $this->get_option( 'enabled' );
+		$this->description = $this->get_option( 'description' );
 		$this->saved_cards = ! empty( $this->get_option( 'saved_cards' ) && 'yes' === $this->get_option( 'saved_cards' ) );
 		$this->debug       = ! empty( $this->get_option( 'debug' ) && 'yes' === $this->get_option( 'debug' ) );
-
-		$this->init();
 
 		// Add hooks.
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'process_admin_options' ) );
@@ -145,5 +132,60 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		MpgsPlugin::update_validated_credentials( true );
 
 		MpgsPlugin::update_payment_operations( $response['body']['supportedPaymentOperations'] ?? array() );
+	}
+
+
+	/**
+	 * Is the gateway available.
+	 *
+	 * @return bool
+	 */
+	public function is_available() {
+		if ( ! parent::is_available() ) {
+			return false;
+		}
+
+		if ( ! MpgsPlugin::is_enabled() ) {
+			return false;
+		}
+
+		if ( ! MpgsPlugin::get_validated_credentials() ) {
+			return false;
+		}
+
+		return true;
+	}
+
+
+	/**
+	 * Get checkout mode.
+	 *
+	 * @return string
+	 */
+	public function get_checkout_mode() {
+		$chosen_method = $this->get_option( 'checkout_mode' );
+
+		if ( ! in_array( $chosen_method, array_keys( GatewaySettings::checkout_modes() ), true ) ) {
+			$chosen_method = 'hosted_session';
+		}
+
+		return $chosen_method;
+	}
+
+
+	/**
+	 * Payment fields.
+	 *
+	 * @return void
+	 */
+	public function payment_fields() {
+		switch ( $this->get_checkout_mode() ) {
+			case 'hosted_checkout':
+				MpgsPlugin::mpgs_core()->template()->get( 'payment-fields-hosted-checkout.php' );
+				break;
+			case 'hosted_session':
+				MpgsPlugin::mpgs_core()->template()->get( 'payment-fields-hosted-session.php' );
+				break;
+		}
 	}
 }
