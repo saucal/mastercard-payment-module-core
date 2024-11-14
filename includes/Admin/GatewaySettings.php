@@ -127,8 +127,8 @@ final class GatewaySettings {
 		return array_merge(
 			$settings,
 			array(
-				'advanced'             => array(
-					'title' => __( 'Advanced configurations', self::$mpgs_core_instance->text_domain() ),
+				'payments'             => array(
+					'title' => __( 'Payment configurations', self::$mpgs_core_instance->text_domain() ),
 					'type'  => 'title',
 				),
 				'transaction_mode'     => array(
@@ -145,28 +145,47 @@ final class GatewaySettings {
 					'default' => 'hosted_session',
 				),
 				'hosted_checkout_mode' => array(
-					'title'   => __( 'Hosted Checkout Mode', self::$mpgs_core_instance->text_domain() ),
-					'type'    => 'select',
-					'options' => array(
+					'title'             => __( 'Hosted Checkout Mode', self::$mpgs_core_instance->text_domain() ),
+					'type'              => 'select',
+					'options'           => array(
 						'embedded' => __( 'Embedded', self::$mpgs_core_instance->text_domain() ),
 						'redirect' => __( 'Redirect to Payment Page', self::$mpgs_core_instance->text_domain() ),
 					),
-					'default' => 'embedded',
+					'default'           => 'embedded',
+					'class'             => 'conditional-hide',
+					'custom_attributes' => array(
+						'data-show-rel' => 'checkout_mode',
+						'data-show-if'  => 'hosted_checkout',
+					),
 				),
 				'_3d_secure'           => array(
-					'title'       => __( '3D Secure', self::$mpgs_core_instance->text_domain() ),
-					'type'        => 'checkbox',
-					'default'     => 'yes',
-					'description' => __( 'Contact your payment service provider if you need more information.', self::$mpgs_core_instance->text_domain() ),
-					'desc_tip'    => true,
+					'title'             => __( '3D Secure', self::$mpgs_core_instance->text_domain() ),
+					'type'              => 'checkbox',
+					'default'           => 'yes',
+					'description'       => __( 'Contact your payment service provider if you need more information.', self::$mpgs_core_instance->text_domain() ),
+					'desc_tip'          => true,
+					'class'             => 'conditional-hide',
+					'custom_attributes' => array(
+						'data-show-rel' => 'checkout_mode',
+						'data-show-if'  => 'hosted_session',
+					),
 				),
 				'saved_cards'          => array(
-					'title'       => __( 'Saved Cards', self::$mpgs_core_instance->text_domain() ),
-					'label'       => __( 'Enable payment via saved tokenized cards', self::$mpgs_core_instance->text_domain() ),
-					'type'        => 'checkbox',
-					'description' => __( 'If enabled, users will be able to pay with a saved card during checkout. Card details are saved in the payment gateway, not on your store.', self::$mpgs_core_instance->text_domain() ),
-					'default'     => 'yes',
-					'desc_tip'    => true,
+					'title'             => __( 'Saved Cards', self::$mpgs_core_instance->text_domain() ),
+					'label'             => __( 'Enable payment via saved tokenized cards', self::$mpgs_core_instance->text_domain() ),
+					'type'              => 'checkbox',
+					'description'       => __( 'If enabled, users will be able to pay with a saved card during checkout. Card details are saved in the payment gateway, not on your store.', self::$mpgs_core_instance->text_domain() ),
+					'default'           => 'yes',
+					'desc_tip'          => true,
+					'class'             => 'conditional-hide',
+					'custom_attributes' => array(
+						'data-show-rel' => 'checkout_mode',
+						'data-show-if'  => 'hosted_session',
+					),
+				),
+				'advanced'             => array(
+					'title' => __( 'Advanced configurations', self::$mpgs_core_instance->text_domain() ),
+					'type'  => 'title',
 				),
 				'debug'                => array(
 					'title'       => __( 'Logging', self::$mpgs_core_instance->text_domain() ),

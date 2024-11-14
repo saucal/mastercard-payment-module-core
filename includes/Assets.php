@@ -315,7 +315,7 @@ class Assets {
 
 			$data = $this->get_script_data( $handle );
 			if ( $data ) {
-				$name                        = str_replace( '-', '_', $handle ) . '_params';
+				$name                        = str_replace( array( MpgsPlugin::plugin_id(), '-' ), array( 'mpgs', '_' ), $handle ) . '_params';
 				$this->wp_localize_scripts[] = $handle;
 				// Let plugins to filter the script data.
 				wp_localize_script( $handle, $name, apply_filters( $name, $data ) );
