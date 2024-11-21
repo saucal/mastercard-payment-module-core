@@ -8,6 +8,10 @@
 
 namespace MPGSCore;
 
+use MPGSCore\Admin\Notices;
+use MPGSCore\Admin\Main as Admin;
+use MPGSCore\Front\Main as Front;
+
 /**
  * Abstract class for child MPGS plugins.
  */
@@ -16,9 +20,9 @@ abstract class MpgsPlugin {
 	/**
 	 * MPGS Core instance.
 	 *
-	 * @var MPGS_Core
+	 * @var Main
 	 */
-	private static $mpgs_core;
+	private static $mpgs_core_instance;
 
 
 	/**
@@ -147,11 +151,11 @@ abstract class MpgsPlugin {
 	 * @return array
 	 */
 	public static function add_gateways( $methods ) {
-		if ( empty( self::registered_gateways() ) || ! is_array( self::registered_gateways() ) ) {
+		if ( empty( static::registered_gateways() ) || ! is_array( static::registered_gateways() ) ) {
 			return $methods;
 		}
 
-		return array_merge( $methods, self::registered_gateways() );
+		return array_merge( $methods, static::registered_gateways() );
 	}
 
 
@@ -167,7 +171,7 @@ abstract class MpgsPlugin {
 			return;
 		}
 
-		self::init_core_instance();
+		static::init_core_instance();
 
 		register_activation_hook( static::plugin_file(), array( Install::class, 'install' ) );
 
@@ -186,25 +190,11 @@ abstract class MpgsPlugin {
 	 */
 	private static function load_mpgs_core() {
 		if ( ! file_exists( dirname( static::plugin_file() ) . '/packages/mpgs-core/mpgs-core.php' ) ) {
-			add_action( 'admin_notices', array( __CLASS__, 'missing_mpgs_core_notice' ) );
+			add_action( 'admin_notices', array( Notices::class, 'missing_mpgs_core_notice' ) );
 			return false;
 		}
 
 		return include_once dirname( static::plugin_file() ) . '/packages/mpgs-core/mpgs-core.php';
-	}
-
-
-	/**
-	 * Display an admin notice if the MPGSCore package is missing.
-	 */
-	public static function missing_mpgs_core_notice() {
-		?>
-		<div class="notice notice-error">
-			<p>
-				<?php esc_html_e( 'The plugin package is corrupt or incomplete: MPGS Core package is missing.', 'woocommerce-gateway-acme-mpgs' ); ?>
-			</p>
-		</div>
-		<?php
 	}
 
 
@@ -257,6 +247,14 @@ abstract class MpgsPlugin {
 		// Load Localisation files.
 		static::load_plugin_textdomain();
 
+		if ( Utils::is_request( 'admin' ) ) {
+			Admin::hooks();
+		}
+
+		if ( Utils::is_request( 'frontend' ) ) {
+			Front::hooks();
+		}
+
 		add_filter( 'plugin_action_links_' . plugin_basename( static::plugin_file() ), array( __CLASS__, 'plugin_action_links' ) );
 	}
 
@@ -265,7 +263,7 @@ abstract class MpgsPlugin {
 	 * Initialize the MPGS Core instance.
 	 */
 	private static function init_core_instance() {
-		static::$mpgs_core = Main::instance( static::plugin_id() );
+		static::$mpgs_core_instance = Main::instance( static::plugin_id() );
 
 		// Filter the text domain for translations on the mpgs-core package.
 		add_filter( static::prefix_hook( 'text_domain' ), array( __CLASS__, 'text_domain' ) );
@@ -285,10 +283,10 @@ abstract class MpgsPlugin {
 	/**
 	 * Get the MPGS Core instance.
 	 *
-	 * @return MPGS_Core
+	 * @return Main
 	 */
 	public static function mpgs_core() {
-		return static::$mpgs_core;
+		return static::$mpgs_core_instance;
 	}
 
 
@@ -324,7 +322,7 @@ abstract class MpgsPlugin {
 			sprintf(
 				'<a href="%s">%s</a>',
 				static::settings_url(),
-				__( 'Settings', 'woocommerce-gateway-acme-mpgs' )
+				__( 'Settings', MpgsPlugin::text_domain() )
 			),
 		);
 
@@ -359,5 +357,107 @@ abstract class MpgsPlugin {
 	 */
 	public static function prefix_hook( $hook, $prefix = '' ) {
 		return $prefix . static::plugin_id() . '_' . $hook;
+	}
+
+
+	/**
+	 * Gateway settings.
+	 *
+	 * @return array
+	 */
+	public static function get_gateway_settings() {
+		static $settings = array();
+
+		if ( isset( $settings[ static::plugin_id() ] ) ) {
+			return $settings[ static::plugin_id() ];
+		}
+
+		$settings[ static::$plugin_id ] = get_option( 'woocommerce_' . static::plugin_id() . '_settings', array() );
+
+		return $settings[ static::plugin_id() ];
+	}
+
+
+	/**
+	 * Get gateway specific setting.
+	 *
+	 * @param  string $key Setting key.
+	 *
+	 * @return mixed
+	 */
+	public static function get_gateway_setting( $key ) {
+		$settings = static::get_gateway_settings();
+
+		return isset( $settings[ $key ] ) ? $settings[ $key ] : '';
+	}
+
+
+	/**
+	 * Get validated credentials.
+	 *
+	 * @return array
+	 */
+	public static function get_validated_credentials() {
+		return get_option( 'woocommerce_' . static::plugin_id() . '_validated_credentials', false );
+	}
+
+
+	/**
+	 * Update validated credentials.
+	 *
+	 * @param bool $validated_credentials Validated credentials.
+	 */
+	public static function update_validated_credentials( $validated_credentials ) {
+		update_option( 'woocommerce_' . static::plugin_id() . '_validated_credentials', $validated_credentials );
+	}
+
+
+	/**
+	 * Get validated payment operations.
+	 *
+	 * @return array
+	 */
+	public static function get_payment_operations() {
+		return get_option( 'woocommerce_' . static::plugin_id() . '_payment_operations', array() );
+	}
+
+
+	/**
+	 * Save validated payment operations.
+	 *
+	 * @param array $options Payment operations.
+	 */
+	public static function update_payment_operations( $options ) {
+		update_option( 'woocommerce_' . static::plugin_id() . '_payment_operations', $options );
+	}
+
+
+	/**
+	 * Is the gateway enabled.
+	 *
+	 * @return bool
+	 */
+	public static function is_enabled() {
+		return ! empty( static::get_gateway_setting( 'enabled' ) ) && 'yes' === static::get_gateway_setting( 'enabled' ) ? true : false;
+	}
+
+
+	/**
+	 * Is the merchant connected.
+	 *
+	 * @return bool
+	 */
+	public static function is_merchant_connected() {
+		return static::is_enabled() && static::get_validated_credentials();
+	}
+
+
+	/**
+	 * Is sandbox mode enabled.
+	 *
+	 * @return bool
+	 */
+	public static function is_sandbox() {
+		return ( static::is_enabled() && ! static::get_validated_credentials() ) || ( ! empty( static::get_gateway_setting( 'sandbox' ) ) && 'yes' === static::get_gateway_setting( 'sandbox' ) ) ? true : false;
 	}
 }

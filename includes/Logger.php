@@ -18,23 +18,6 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class Logger {
 
-
-	/**
-	 * Main instance prefix.
-	 *
-	 * @var string
-	 */
-	private $prefix = '';
-
-
-	/**
-	 * Is debug mode enabled.
-	 *
-	 * @var bool
-	 */
-	private $debug;
-
-
 	/**
 	 * WC Logger instance.
 	 *
@@ -44,35 +27,15 @@ final class Logger {
 
 
 	/**
-	 * Constructor.
-	 *
-	 * @param string $prefix Main instance prefix.
-	 */
-	public function __construct( $prefix ) {
-		$this->prefix = $prefix;
-	}
-
-
-	/**
-	 * Set debug mode.
-	 *
-	 * @param bool $debug Debug mode.
-	 */
-	public function set_debug( $debug ) {
-		$this->debug = $debug;
-	}
-
-
-	/**
 	 * Always log errors, debug only when is on the settings.
 	 *
 	 * @param string $message Log message.
 	 * @param string $level   Log level.
 	 * @param string $file    Log file.
 	 */
-	public function log( $message, $level = 'debug', $file = null ) {
+	public static function log( $message, $level = 'debug', $file = null ) {
 
-		if ( 'error' !== $level && ! $this->debug ) {
+		if ( 'error' !== $level && ! MpgsPlugin::is_sandbox() ) {
 			return;
 		}
 
@@ -80,8 +43,57 @@ final class Logger {
 			self::$wc_logger = wc_get_logger();
 		}
 
-		$handler = array( 'source' => ! empty( $file ) ? $file . '-logs' : $this->prefix . '-logs' );
+		$handler = array( 'source' => ! empty( $file ) ? $file . '-logs' : MpgsPlugin::plugin_id() . '-logs' );
 
 		self::$wc_logger->log( $level, $message, $handler );
+	}
+
+
+	/**
+	 * Log request.
+	 *
+	 * @param string $url  Request URL.
+	 * @param array  $args Request arguments.
+	 * @param string $level Log level.
+	 */
+	public static function log_request( $url, $args, $level = 'debug' ) {
+		unset( $args['headers'] );
+		$method = isset( $args['method'] ) ? $args['method'] : 'POST';
+		$data   = ! empty( $args['body'] ) ? self::maybe_mask_in_json( $args['body'] ) : '--- EMPTY STRING ---';
+		self::log( $method . ' Request: ' . $url . "\n\n" . $data . "\n", $level );
+	}
+
+
+	/**
+	 * Log response.
+	 *
+	 * @param WP_Error|array $response Response.
+	 * @param string         $level    Log level.
+	 */
+	public static function log_response( $response, $level = 'debug' ) {
+		if ( is_wp_error( $response ) ) {
+			$level = 'error';
+			$data  = $response->get_error_code() . ': ' . $response->get_error_message();
+		} else {
+			$data   = $response['http_response']->get_response_object()->raw;
+			$orig   = $response['http_response']->get_data();
+			$masked = self::maybe_mask_in_json( $orig );
+			$data   = str_replace( $orig, $masked, $data );
+		}
+
+		self::log( 'Response: ' . "\n\n" . $data . "\n", $level );
+	}
+
+
+	/**
+	 * Maybe mask data in JSON.
+	 *
+	 * @param string $data Data to mask.
+	 *
+	 * @return string
+	 */
+	private static function maybe_mask_in_json( $data ) {
+		// TODO: Mask sensitive data in JSON.
+		return $data;
 	}
 }

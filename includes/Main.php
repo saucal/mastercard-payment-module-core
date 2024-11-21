@@ -8,6 +8,8 @@
 
 namespace MPGSCore;
 
+use MPGSCore\Admin\Notices;
+
 /**
  * Base Plugin class holding generic functionality
  */
@@ -52,14 +54,6 @@ final class Main {
 	 * @var Utils[]
 	 */
 	private $utils;
-
-
-	/**
-	 * Logger instance.
-	 *
-	 * @var Logger[]
-	 */
-	protected $logger;
 
 
 	/**
@@ -180,7 +174,6 @@ final class Main {
 
 		$this->assets_controller[ $this->prefix ] = new Assets( $this->prefix );
 		$this->utils[ $this->prefix ]             = new Utils( $this->prefix );
-		$this->logger[ $this->prefix ]            = new Logger( $this->prefix );
 	}
 
 
@@ -218,15 +211,9 @@ final class Main {
 			add_action(
 				'admin_notices',
 				function () use ( $errors ) {
-					?>
-					<div class="notice notice-error">
-						<?php
-						foreach ( $errors as $error ) {
-							echo '<p>' . esc_html( $error ) . '</p>';
-						}
-						?>
-					</div>
-					<?php
+					foreach ( $errors as $error ) {
+						Notices::render_error_notice( $error );
+					}
 				}
 			);
 
@@ -304,6 +291,10 @@ final class Main {
 	 * @return Assets
 	 */
 	public function assets_controller() {
+		if ( ! $this->assets_controller[ $this->prefix ] ) {
+			$this->assets_controller[ $this->prefix ] = new Assets( $this->prefix );
+		}
+
 		return $this->assets_controller[ $this->prefix ];
 	}
 
@@ -314,18 +305,10 @@ final class Main {
 	 * @return Utils
 	 */
 	public function utils() {
-		return $this->utils[ $this->prefix ];
-	}
-
-
-	/**
-	 * Get the logger instance.
-	 */
-	public function logger() {
-		if ( ! $this->logger[ $this->prefix ] ) {
-			$this->logger[ $this->prefix ] = new Logger( $this );
+		if ( ! $this->utils[ $this->prefix ] ) {
+			$this->utils[ $this->prefix ] = new Utils( $this->prefix );
 		}
 
-		return $this->logger[ $this->prefix ];
+		return $this->utils[ $this->prefix ];
 	}
 }
