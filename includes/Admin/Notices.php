@@ -21,38 +21,39 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Notices {
 
 	/**
-	 * Initialize hooks.
+	 * Main instance.
 	 *
-	 * @return void
+	 * @var MpgsPlugin
 	 */
-	public static function hooks() {
-		add_action( 'admin_init', array( __CLASS__, 'maybe_add_not_connected_notice' ) );
-		add_action( 'admin_init', array( __CLASS__, 'maybe_no_supported_operation_notice' ) );
-	}
-
+	private $mpgs_plugin;
 
 	/**
-	 * Display an admin notice if the MPGSCore package is missing.
+	 * Constructor.
+	 *
+	 * @param MpgsPlugin $mpgs_plugin Child plugin instance.
 	 */
-	public static function missing_mpgs_core_notice() {
-		self::render_error_notice( __( 'The plugin package is corrupt or incomplete: MPGS Core package is missing.', MpgsPlugin::text_domain() ) );
+	public function __construct( MpgsPlugin $mpgs_plugin ) {
+		$this->mpgs_plugin = $mpgs_plugin;
+
+		add_action( 'admin_init', array( $this, 'maybe_add_not_connected_notice' ) );
+		add_action( 'admin_init', array( $this, 'maybe_no_supported_operation_notice' ) );
 	}
 
 
 	/**
 	 * Display an admin notice if the gateway is not connected.
 	 */
-	public static function maybe_add_not_connected_notice() {
-		if ( ! MpgsPlugin::is_enabled() || MpgsPlugin::is_merchant_connected() ) {
+	public function maybe_add_not_connected_notice() {
+		if ( ! $this->mpgs_plugin->is_enabled() || $this->mpgs_plugin->is_merchant_connected() ) {
 			return;
 		}
 
-		self::render_error_notice(
+		$this->render_error_notice(
 			sprintf(
 				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
-				__( 'The %1$s credentials are either empty or not valid. Verify your connection %2$shere%3$s', MpgsPlugin::text_domain() ),
-				MpgsPlugin::plugin_title(),
-				'<a href="' . MpgsPlugin::settings_url() . '">',
+				__( 'The %1$s credentials are either empty or not valid. Verify your connection %2$shere%3$s', $this->mpgs_plugin->mpgs_core()->text_domain() ),
+				$this->mpgs_plugin->plugin_title(),
+				'<a href="' . $this->mpgs_plugin->settings_url() . '">',
 				'</a>',
 			)
 		);
@@ -62,13 +63,13 @@ final class Notices {
 	/**
 	 * Display an admin notice if the gateway is connected but there is no supported payment operation for the merchant.
 	 */
-	public static function maybe_no_supported_operation_notice() {
-		if ( ! MpgsPlugin::is_merchant_connected() || ! empty( MpgsPlugin::get_payment_operations() ) ) {
+	public function maybe_no_supported_operation_notice() {
+		if ( ! $this->mpgs_plugin->is_merchant_connected() || ! empty( $this->mpgs_plugin->get_payment_operations() ) ) {
 			return;
 		}
 
-		self::render_error_notice(
-			__( 'There is no supported payment operation for your merchant account. Contact your adquirer to verify this issue.', MpgsPlugin::text_domain() ),
+		$this->render_error_notice(
+			__( 'There is no supported payment operation for your merchant account. Contact your adquirer to verify this issue.', $this->mpgs_plugin->mpgs_core()->text_domain() ),
 		);
 	}
 

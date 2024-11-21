@@ -9,11 +9,8 @@
 
 namespace MPGSCore\Gateways;
 
-use MPGSCore\Admin\GatewaySettings;
 use MPGSCore\Logger;
-use MPGSCore\Main;
 use MPGSCore\MpgsAPI;
-use MPGSCore\MpgsPlugin;
 use WC_Admin_Settings;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -43,13 +40,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 
 	/**
-	 * MPGS Core instance prefix.
-	 */
-	abstract public function mpgs_core_prefix();
-
-
-	/**
-	 * Constructor.
+	 * Initialize the gateway.
 	 */
 	public function build() {
 
@@ -101,7 +92,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @return void
 	 */
 	public function init_form_fields() {
-		$this->form_fields = GatewaySettings::get_settings( $this->id );
+		$this->form_fields = $this->mpgs_plugin->gateway_settings()->get_settings();
 	}
 
 
@@ -115,23 +106,23 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		$password    = $this->get_option( 'password' );
 
 		if ( empty( $merchant_id ) || empty( $password ) ) {
-			WC_Admin_Settings::add_error( __( 'Merchant ID and API Key are required.', MpgsPlugin::text_domain() ) );
+			WC_Admin_Settings::add_error( __( 'Merchant ID and API Key are required.', $this->mpgs_plugin->text_domain() ) );
 		}
 
 		$response = MpgsAPI::payment_options_inquiry();
 
 		if ( ! $response['success'] || empty( $response['body'] ) ) {
-			WC_Admin_Settings::add_error( __( 'Failed to validate API credentials. Please validate your credentials and save your account details again.', MpgsPlugin::text_domain() ) );
-			MpgsPlugin::update_validated_credentials( false );
-			MpgsPlugin::update_payment_operations( array() );
+			WC_Admin_Settings::add_error( __( 'Failed to validate API credentials. Please validate your credentials and save your account details again.', $this->mpgs_plugin->text_domain() ) );
+			$this->mpgs_plugin->update_validated_credentials( false );
+			$this->mpgs_plugin->update_payment_operations( array() );
 			return;
 		}
 
-		Logger::log( __( 'API credentials validated successfully.', MpgsPlugin::text_domain() ) );
+		Logger::log( __( 'API credentials validated successfully.', $this->mpgs_plugin->text_domain() ) );
 
-		MpgsPlugin::update_validated_credentials( true );
+		$this->mpgs_plugin->update_validated_credentials( true );
 
-		MpgsPlugin::update_payment_operations( $response['body']['supportedPaymentOperations'] ?? array() );
+		$this->mpgs_plugin->update_payment_operations( $response['body']['supportedPaymentOperations'] ?? array() );
 	}
 
 
@@ -145,11 +136,11 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			return false;
 		}
 
-		if ( ! MpgsPlugin::is_enabled() ) {
+		if ( ! $this->mpgs_plugin->is_enabled() ) {
 			return false;
 		}
 
-		if ( ! MpgsPlugin::get_validated_credentials() ) {
+		if ( ! $this->mpgs_plugin->get_validated_credentials() ) {
 			return false;
 		}
 
@@ -165,7 +156,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	public function get_checkout_mode() {
 		$chosen_method = $this->get_option( 'checkout_mode' );
 
-		if ( ! in_array( $chosen_method, array_keys( GatewaySettings::checkout_modes() ), true ) ) {
+		if ( ! in_array( $chosen_method, array_keys( $this->mpgs_plugin->gateway_settings()->checkout_modes() ), true ) ) {
 			$chosen_method = 'hosted_session';
 		}
 
@@ -181,10 +172,10 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	public function payment_fields() {
 		switch ( $this->get_checkout_mode() ) {
 			case 'hosted_checkout':
-				MpgsPlugin::mpgs_core()->template()->get( 'payment-fields-hosted-checkout.php' );
+				$this->mpgs_plugin->mpgs_core()->template()->get( 'payment-fields-hosted-checkout.php' );
 				break;
 			case 'hosted_session':
-				MpgsPlugin::mpgs_core()->template()->get( 'payment-fields-hosted-session.php' );
+				$this->mpgs_plugin->mpgs_core()->template()->get( 'payment-fields-hosted-session.php' );
 				break;
 		}
 	}

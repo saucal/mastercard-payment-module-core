@@ -20,20 +20,20 @@ final class Template {
 
 
 	/**
-	 * Main instance prefix.
+	 * Main instance.
 	 *
-	 * @var string
+	 * @var Main
 	 */
-	private $prefix = '';
+	private $mpgs_core;
 
 
 	/**
 	 * Constructor.
 	 *
-	 * @param string $prefix Main instance prefix.
+	 * @param Main $mpgs_core Main instance.
 	 */
-	public function __construct( $prefix ) {
-		$this->prefix = $prefix;
+	public function __construct( Main $mpgs_core ) {
+		$this->mpgs_core = $mpgs_core;
 	}
 
 
@@ -51,17 +51,17 @@ final class Template {
 
 		// Look in yourtheme/slug-name.php and yourtheme/mpgs-core/slug-name.php .
 		if ( $name ) {
-			$template = locate_template( array( "{$slug}-{$name}.php", Main::instance( $this->prefix )->utils()->template_path() . "{$slug}-{$name}.php" ) );
+			$template = locate_template( array( "{$slug}-{$name}.php", $this->mpgs_core->utils()->template_path() . "{$slug}-{$name}.php" ) );
 		}
 
 		// Get default slug-name.php .
-		if ( ! $template && $name && file_exists( Main::instance( $this->prefix )->utils()->plugin_path() . "/templates/{$slug}-{$name}.php" ) ) {
-			$template = Main::instance( $this->prefix )->utils()->plugin_path() . "/templates/{$slug}-{$name}.php";
+		if ( ! $template && $name && file_exists( $this->mpgs_core->utils()->plugin_path() . "/templates/{$slug}-{$name}.php" ) ) {
+			$template = $this->mpgs_core->utils()->plugin_path() . "/templates/{$slug}-{$name}.php";
 		}
 
 		// If template file doesn't exist, look in yourtheme/slug.php and yourtheme/mpgs-core/slug.php .
 		if ( ! $template ) {
-			$template = locate_template( array( "{$slug}.php", Main::instance( $this->prefix )->utils()->template_path() . "{$slug}.php" ) );
+			$template = locate_template( array( "{$slug}.php", $this->mpgs_core->utils()->template_path() . "{$slug}.php" ) );
 		}
 
 		// Allow 3rd party plugins to filter template file from their plugin.
@@ -149,11 +149,11 @@ final class Template {
 	public function locate( $template_name, $template_path = '', $default_path = '' ) {
 
 		if ( ! $template_path ) {
-			$template_path = Main::instance( $this->prefix )->utils()->core_package_path();
+			$template_path = $this->mpgs_core->utils()->core_package_path();
 		}
 
 		if ( ! $default_path ) {
-			$default_path = Main::instance( $this->prefix )->utils()->core_package_path() . '/templates/';
+			$default_path = $this->mpgs_core->utils()->core_package_path() . '/templates/';
 		}
 
 		// Look within passed path within the theme - this is priority.

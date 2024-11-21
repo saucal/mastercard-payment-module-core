@@ -13,12 +13,22 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
+use MPGSCore\MpgsPlugin;
 use WC_Payment_Gateway_CC;
 
 /**
  * Show the payment form for Mastercard Payment Gateway.
  */
 class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
+
+
+	/**
+	 * Plugin instance.
+	 *
+	 * @var MpgsPlugin
+	 */
+	protected $mpgs_plugin;
+
 
 	/**
 	 * Is gateway enabled.

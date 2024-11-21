@@ -180,9 +180,9 @@ final class Main {
 			return;
 		}
 
-		$this->assets_controller[ $this->prefix ] = new Assets( $this->prefix );
-		$this->template[ $this->prefix ]          = new Template( $this->prefix );
-		$this->utils[ $this->prefix ]             = new Utils( $this->prefix );
+		$this->assets_controller[ $this->prefix ] = new Assets( $this );
+		$this->template[ $this->prefix ]          = new Template( $this );
+		$this->utils[ $this->prefix ]             = new Utils( $this );
 	}
 
 

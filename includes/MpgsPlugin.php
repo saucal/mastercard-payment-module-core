@@ -8,9 +8,8 @@
 
 namespace MPGSCore;
 
+use MPGSCore\Admin\GatewaySettings;
 use MPGSCore\Admin\Notices;
-use MPGSCore\Admin\Main as Admin;
-use MPGSCore\Front\Main as Front;
 
 /**
  * Abstract class for child MPGS plugins.
@@ -22,7 +21,7 @@ abstract class MpgsPlugin {
 	 *
 	 * @var Main
 	 */
-	private static $mpgs_core_instance;
+	protected $mpgs_core;
 
 
 	/**
@@ -30,7 +29,7 @@ abstract class MpgsPlugin {
 	 *
 	 * @var string
 	 */
-	protected static $plugin_id;
+	protected $plugin_id;
 
 
 	/**
@@ -38,7 +37,7 @@ abstract class MpgsPlugin {
 	 *
 	 * @var string
 	 */
-	protected static $text_domain;
+	protected $text_domain;
 
 
 	/**
@@ -46,7 +45,7 @@ abstract class MpgsPlugin {
 	 *
 	 * @var string
 	 */
-	protected static $plugin_file;
+	protected $plugin_file;
 
 
 	/**
@@ -54,7 +53,7 @@ abstract class MpgsPlugin {
 	 *
 	 * @var string
 	 */
-	protected static $core_plugin_file;
+	protected $core_plugin_file;
 
 
 	/**
@@ -62,7 +61,7 @@ abstract class MpgsPlugin {
 	 *
 	 * @var string
 	 */
-	protected static $plugin_title;
+	protected $plugin_title;
 
 
 	/**
@@ -70,213 +69,71 @@ abstract class MpgsPlugin {
 	 *
 	 * @var array
 	 */
-	protected static $registered_gateways;
+	protected $registered_gateways;
 
 
 	/**
-	 * Get the plugin ID.
+	 * Gateway settings instance.
 	 *
-	 * @return string
+	 * @var Admin\GatewaySettings
 	 */
-	public static function plugin_id() {
-		return self::$plugin_id;
-	}
+	private $gateway_settings;
 
 
 	/**
-	 * Get the translation domain.
+	 * Notices class instance.
 	 *
-	 * @return string
+	 * @var Admin\Notices
 	 */
-	public static function text_domain() {
-		return self::$text_domain;
-	}
-
-
-	/**
-	 * Get the plugin file.
-	 *
-	 * @return string
-	 */
-	public static function plugin_file() {
-		return self::$plugin_file;
-	}
-
-
-	/**
-	 * Get the core plugin file.
-	 *
-	 * @return string
-	 */
-	public static function core_plugin_file() {
-		return self::$core_plugin_file;
-	}
-
-
-	/**
-	 * Get the plugin title.
-	 *
-	 * @return string
-	 */
-	public static function plugin_title() {
-		return self::$plugin_title;
-	}
-
-
-	/**
-	 * Init static properties.
-	 *
-	 * @return bool
-	 */
-	public static function init_static_properties() {
-		return false;
-	}
-
-
-	/**
-	 * Register the payment gateways.
-	 *
-	 * @return array
-	 */
-	public static function registered_gateways() {
-		return self::$registered_gateways;
-	}
-
-
-	/**
-	 * Add payment gateways.
-	 *
-	 * @param  array $methods Payment gateways.
-	 *
-	 * @return array
-	 */
-	public static function add_gateways( $methods ) {
-		if ( empty( static::registered_gateways() ) || ! is_array( static::registered_gateways() ) ) {
-			return $methods;
-		}
-
-		return array_merge( $methods, static::registered_gateways() );
-	}
+	private $notices;
 
 
 	/**
 	 * Constructor
 	 */
-	public static function bootstrap() {
-		if ( ! static::init_static_properties() ) {
+	public function __construct() {
+		$this->init();
+
+		// Validate that the plugin is correctly setup.
+		if ( ! $this->is_valid() ) {
 			return;
 		}
 
-		if ( ! static::load_mpgs_core() || empty( static::plugin_id() ) ) {
+		$this->notices = new Notices( $this );
+
+		if ( ! $this->load_mpgs_core() || empty( $this->plugin_id() ) ) {
 			return;
 		}
 
-		static::init_core_instance();
+		$this->init_core_instance();
 
-		register_activation_hook( static::plugin_file(), array( Install::class, 'install' ) );
+		$this->gateway_settings = new GatewaySettings( $this );
+
+		register_activation_hook( $this->plugin_file(), array( $this, 'install' ) );
 
 		// Activation hook.
-		add_action( 'admin_init', array( __CLASS__, 'maybe_redirect_to_settings' ) );
+		add_action( 'admin_init', array( $this, 'maybe_redirect_to_settings' ) );
 
 		// Load the plugin.
-		add_action( 'plugins_loaded', array( __CLASS__, 'load' ) );
+		add_action( 'plugins_loaded', array( $this, 'load' ) );
 	}
 
 
 	/**
-	 * Load the MPGSCore package.
-	 *
-	 * @return bool
-	 */
-	private static function load_mpgs_core() {
-		if ( ! file_exists( dirname( static::plugin_file() ) . '/packages/mpgs-core/mpgs-core.php' ) ) {
-			add_action( 'admin_notices', array( Notices::class, 'missing_mpgs_core_notice' ) );
-			return false;
-		}
-
-		return include_once dirname( static::plugin_file() ) . '/packages/mpgs-core/mpgs-core.php';
-	}
-
-
-	/**
-	 * Cloning is forbidden.
-	 *
-	 * @since 1.0.0
-	 */
-	public function __clone() {
-		_doing_it_wrong( __FUNCTION__, esc_html__( 'Cheatin&#8217; huh?', static::text_domain() ), '1.0.0' );
-	}
-
-
-	/**
-	 * Unserializing instances of this class is forbidden.
-	 *
-	 * @since 1.0.0
-	 */
-	public function __wakeup() {
-		_doing_it_wrong( __FUNCTION__, esc_html__( 'Cheatin&#8217; huh?', static::text_domain() ), '1.0.0' );
-	}
-
-
-	/**
-	 * Maybe redirect to the settings page on first activation.
+	 * Initialize the plugin.
 	 *
 	 * @return void
 	 */
-	public static function maybe_redirect_to_settings() {
-		$already_redirected = get_option( static::prefix_hook( 'installed', 'woocommerce_' ) );
-
-		if ( $already_redirected ) {
-			return;
-		}
-
-		update_option( static::prefix_hook( 'installed', 'woocommerce_' ), true );
-
-		// Redirect to the settings page.
-		exit( wp_safe_redirect( static::settings_url() ) );
-	}
+	abstract public function init();
 
 
 	/**
-	 * Include plugins files and hook into actions and filters.
+	 * Is valid instance?
 	 *
-	 * @since  1.0.0
+	 * @return bool
 	 */
-	public static function load() {
-
-		// Load Localisation files.
-		static::load_plugin_textdomain();
-
-		if ( Utils::is_request( 'admin' ) ) {
-			Admin::hooks();
-		}
-
-		if ( Utils::is_request( 'frontend' ) ) {
-			Front::hooks();
-		}
-
-		add_filter( 'plugin_action_links_' . plugin_basename( static::plugin_file() ), array( __CLASS__, 'plugin_action_links' ) );
-	}
-
-
-	/**
-	 * Initialize the MPGS Core instance.
-	 */
-	private static function init_core_instance() {
-		static::$mpgs_core_instance = Main::instance( static::plugin_id() );
-
-		// Filter the text domain for translations on the mpgs-core package.
-		add_filter( static::prefix_hook( 'text_domain' ), array( __CLASS__, 'text_domain' ) );
-
-		// Filter the plugin file on the core package.
-		add_filter( static::prefix_hook( 'plugin_file' ), array( __CLASS__, 'plugin_file' ) );
-		add_filter( static::prefix_hook( 'core_plugin_file' ), array( __CLASS__, 'core_plugin_file' ) );
-
-		// Filter the plugin file on the core package.
-		add_filter( static::prefix_hook( 'plugin_title' ), array( __CLASS__, 'plugin_title' ) );
-
-		// Register the payment gateways.
-		add_filter( 'mpgs_core_payment_gateways', array( __CLASS__, 'add_gateways' ) );
+	private function is_valid() {
+		return ! empty( $this->plugin_id() ) && ! empty( $this->text_domain() ) && ! empty( $this->plugin_file() ) && ! empty( $this->core_plugin_file() ) && ! empty( $this->plugin_title() );
 	}
 
 
@@ -285,30 +142,165 @@ abstract class MpgsPlugin {
 	 *
 	 * @return Main
 	 */
-	public static function mpgs_core() {
-		return static::$mpgs_core_instance;
+	public function mpgs_core() {
+		return $this->mpgs_core;
+	}
+
+
+	/**
+	 * Get the plugin ID.
+	 *
+	 * @return string
+	 */
+	public function plugin_id() {
+		return $this->plugin_id;
+	}
+
+
+	/**
+	 * Get the translation domain.
+	 *
+	 * @return string
+	 */
+	public function text_domain() {
+		return $this->text_domain;
+	}
+
+
+	/**
+	 * Get the plugin file.
+	 *
+	 * @return string
+	 */
+	public function plugin_file() {
+		return $this->plugin_file;
+	}
+
+
+	/**
+	 * Get the core plugin file.
+	 *
+	 * @return string
+	 */
+	public function core_plugin_file() {
+		return $this->core_plugin_file;
+	}
+
+
+	/**
+	 * Get the plugin title.
+	 *
+	 * @return string
+	 */
+	public function plugin_title() {
+		return $this->plugin_title;
+	}
+
+
+	/**
+	 * Register the payment gateways.
+	 *
+	 * @return array
+	 */
+	public function registered_gateways() {
+		return $this->registered_gateways;
+	}
+
+
+	/**
+	 * Install hooks.
+	 *
+	 * @return void
+	 */
+	public function install() {
+		do_action( $this->mpgs_core()->prefix_hook( 'installed' ) );
+	}
+
+
+	/**
+	 * Load the MPGSCore package.
+	 *
+	 * @return bool
+	 */
+	private function load_mpgs_core() {
+		if ( ! file_exists( dirname( $this->plugin_file() ) . '/packages/mpgs-core/mpgs-core.php' ) ) {
+			add_action( 'admin_notices', array( $this->notices(), 'missing_mpgs_core_notice' ) );
+			return false;
+		}
+
+		return include_once dirname( $this->plugin_file() ) . '/packages/mpgs-core/mpgs-core.php';
+	}
+
+
+	/**
+	 * Initialize the MPGS Core instance.
+	 */
+	private function init_core_instance() {
+		$this->mpgs_core = Main::instance( $this->plugin_id() );
+
+		// Add filters for the core class.
+		add_filter( $this->mpgs_core()->prefix_hook( 'plugin_file' ), array( $this, 'plugin_file' ) );
+		add_filter( $this->mpgs_core()->prefix_hook( 'core_plugin_file' ), array( $this, 'core_plugin_file' ) );
+		add_filter( $this->mpgs_core()->prefix_hook( 'plugin_title' ), array( $this, 'plugin_title' ) );
+		add_filter( $this->mpgs_core()->prefix_hook( 'text_domain' ), array( $this, 'text_domain' ) );
+
+		// Register the payment gateways.
+		add_filter( 'mpgs_core_payment_gateways', array( $this, 'add_gateways' ) );
+	}
+
+
+	/**
+	 * Maybe redirect to the settings page on first activation.
+	 *
+	 * @return void
+	 */
+	public function maybe_redirect_to_settings() {
+		$already_redirected = get_option( $this->mpgs_core()->prefix_hook( 'installed', 'woocommerce_' ) );
+
+		if ( $already_redirected ) {
+			return;
+		}
+
+		update_option( $this->mpgs_core()->prefix_hook( 'installed', 'woocommerce_' ), true );
+
+		// Redirect to the settings page.
+		exit( wp_safe_redirect( $this->settings_url() ) );
+	}
+
+
+	/**
+	 * Include plugins files and hook into actions and filters.
+	 *
+	 * @since  1.0.0
+	 */
+	public function load() {
+
+		// Load Localisation files.
+		$this->load_plugin_textdomain();
+
+		add_filter( 'plugin_action_links_' . plugin_basename( $this->plugin_file() ), array( $this, 'plugin_action_links' ) );
 	}
 
 
 	/**
 	 * Load Localisation files.
 	 */
-	public static function load_plugin_textdomain() {
+	public function load_plugin_textdomain() {
 
 		// Add plugin's locale.
-		$locale = apply_filters( 'plugin_locale', get_locale(), static::text_domain() );
+		$locale = apply_filters( 'plugin_locale', get_locale(), $this->text_domain() );
 
 		load_textdomain(
-			static::text_domain(),
+			$this->text_domain(),
 			sprintf(
 				'%1$s/%2$s/%2$s-%3$s.mo',
 				WP_LANG_DIR,
-				static::text_domain(),
+				$this->text_domain(),
 				$locale,
 			)
 		);
 
-		load_plugin_textdomain( static::text_domain(), false, plugin_basename( __DIR__ ) . '/i18n/languages' );
+		load_plugin_textdomain( $this->text_domain(), false, plugin_basename( __DIR__ ) . '/i18n/languages' );
 	}
 
 
@@ -317,12 +309,12 @@ abstract class MpgsPlugin {
 	 *
 	 * @param  array $links Plugin action links.
 	 */
-	public static function plugin_action_links( $links ) {
+	public function plugin_action_links( $links ) {
 		$plugin_links = array(
 			sprintf(
 				'<a href="%s">%s</a>',
-				static::settings_url(),
-				__( 'Settings', MpgsPlugin::text_domain() )
+				$this->settings_url(),
+				__( 'Settings', $this->text_domain() )
 			),
 		);
 
@@ -335,12 +327,12 @@ abstract class MpgsPlugin {
 	 *
 	 * @return string
 	 */
-	public static function settings_url() {
-		return ! empty( static::plugin_id() ) ? add_query_arg(
+	public function settings_url() {
+		return ! empty( $this->plugin_id() ) ? add_query_arg(
 			array(
 				'page'    => 'wc-settings',
 				'tab'     => 'checkout',
-				'section' => static::plugin_id(),
+				'section' => $this->plugin_id(),
 			),
 			admin_url( 'admin.php' )
 		) : '';
@@ -348,33 +340,56 @@ abstract class MpgsPlugin {
 
 
 	/**
-	 * Prefix a hook with the plugin ID.
+	 * Add payment gateways.
 	 *
-	 * @param  string $hook   The name of the hook.
-	 * @param  string $prefix Prefix for the hook.
+	 * @param  array $methods Payment gateways.
 	 *
-	 * @return string
+	 * @return array
 	 */
-	public static function prefix_hook( $hook, $prefix = '' ) {
-		return $prefix . static::plugin_id() . '_' . $hook;
+	public function add_gateways( $methods ) {
+		if ( empty( $this->registered_gateways ) || ! is_array( $this->registered_gateways ) ) {
+			return $methods;
+		}
+
+		return array_merge( $methods, $this->registered_gateways );
 	}
 
 
 	/**
-	 * Gateway settings.
+	 * Get the notices instance.
+	 *
+	 * @return Notices
+	 */
+	public function notices() {
+		return $this->notices;
+	}
+
+
+	/**
+	 * Get the Gateway settings instance.
+	 *
+	 * @return Admin\GatewaySettings
+	 */
+	public function gateway_settings() {
+		return $this->gateway_settings;
+	}
+
+
+	/**
+	 * Get the gateway settings.
 	 *
 	 * @return array
 	 */
-	public static function get_gateway_settings() {
+	public function get_gateway_settings() {
 		static $settings = array();
 
-		if ( isset( $settings[ static::plugin_id() ] ) ) {
-			return $settings[ static::plugin_id() ];
+		if ( ! empty( $settings ) ) {
+			return $settings;
 		}
 
-		$settings[ static::$plugin_id ] = get_option( 'woocommerce_' . static::plugin_id() . '_settings', array() );
+		$settings = get_option( 'woocommerce_' . $this->plugin_id() . '_settings', array() );
 
-		return $settings[ static::plugin_id() ];
+		return $settings;
 	}
 
 
@@ -385,8 +400,8 @@ abstract class MpgsPlugin {
 	 *
 	 * @return mixed
 	 */
-	public static function get_gateway_setting( $key ) {
-		$settings = static::get_gateway_settings();
+	public function get_gateway_setting( $key ) {
+		$settings = $this->get_gateway_settings();
 
 		return isset( $settings[ $key ] ) ? $settings[ $key ] : '';
 	}
@@ -397,8 +412,8 @@ abstract class MpgsPlugin {
 	 *
 	 * @return array
 	 */
-	public static function get_validated_credentials() {
-		return get_option( 'woocommerce_' . static::plugin_id() . '_validated_credentials', false );
+	public function get_validated_credentials() {
+		return get_option( 'woocommerce_' . $this->plugin_id() . '_validated_credentials', false );
 	}
 
 
@@ -407,8 +422,8 @@ abstract class MpgsPlugin {
 	 *
 	 * @param bool $validated_credentials Validated credentials.
 	 */
-	public static function update_validated_credentials( $validated_credentials ) {
-		update_option( 'woocommerce_' . static::plugin_id() . '_validated_credentials', $validated_credentials );
+	public function update_validated_credentials( $validated_credentials ) {
+		update_option( 'woocommerce_' . $this->plugin_id() . '_validated_credentials', $validated_credentials );
 	}
 
 
@@ -417,8 +432,8 @@ abstract class MpgsPlugin {
 	 *
 	 * @return array
 	 */
-	public static function get_payment_operations() {
-		return get_option( 'woocommerce_' . static::plugin_id() . '_payment_operations', array() );
+	public function get_payment_operations() {
+		return get_option( 'woocommerce_' . $this->plugin_id() . '_payment_operations', array() );
 	}
 
 
@@ -427,8 +442,8 @@ abstract class MpgsPlugin {
 	 *
 	 * @param array $options Payment operations.
 	 */
-	public static function update_payment_operations( $options ) {
-		update_option( 'woocommerce_' . static::plugin_id() . '_payment_operations', $options );
+	public function update_payment_operations( $options ) {
+		update_option( 'woocommerce_' . $this->plugin_id() . '_payment_operations', $options );
 	}
 
 
@@ -437,8 +452,8 @@ abstract class MpgsPlugin {
 	 *
 	 * @return bool
 	 */
-	public static function is_enabled() {
-		return ! empty( static::get_gateway_setting( 'enabled' ) ) && 'yes' === static::get_gateway_setting( 'enabled' ) ? true : false;
+	public function is_enabled() {
+		return ! empty( $this->get_gateway_setting( 'enabled' ) ) && 'yes' === $this->get_gateway_setting( 'enabled' ) ? true : false;
 	}
 
 
@@ -447,8 +462,8 @@ abstract class MpgsPlugin {
 	 *
 	 * @return bool
 	 */
-	public static function is_merchant_connected() {
-		return static::is_enabled() && static::get_validated_credentials();
+	public function is_merchant_connected() {
+		return $this->is_enabled() && $this->get_validated_credentials();
 	}
 
 
@@ -457,7 +472,7 @@ abstract class MpgsPlugin {
 	 *
 	 * @return bool
 	 */
-	public static function is_sandbox() {
-		return ( static::is_enabled() && ! static::get_validated_credentials() ) || ( ! empty( static::get_gateway_setting( 'sandbox' ) ) && 'yes' === static::get_gateway_setting( 'sandbox' ) ) ? true : false;
+	public function is_sandbox() {
+		return ( $this->is_enabled() && ! $this->get_validated_credentials() ) || ( ! empty( $this->get_gateway_setting( 'sandbox' ) ) && 'yes' === $this->get_gateway_setting( 'sandbox' ) ) ? true : false;
 	}
 }
