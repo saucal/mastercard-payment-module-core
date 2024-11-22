@@ -159,6 +159,17 @@ final class GatewaySettings {
 						'data-show-if'  => 'hosted_checkout',
 					),
 				),
+				'merchant_name'        => array(
+					'title'             => __( 'Merchant Name', $this->mpgs_plugin->mpgs_core()->text_domain() ),
+					'type'              => 'text',
+					'description'       => __( 'The name of your business for display to the payer on the payment interaction (The website title will be used as default).', $this->mpgs_plugin->mpgs_core()->text_domain() ),
+					'default'           => get_bloginfo( 'name', 'display' ),
+					'class'             => 'conditional-hide',
+					'custom_attributes' => array(
+						'data-show-rel' => 'checkout_mode',
+						'data-show-if'  => 'hosted_checkout',
+					),
+				),
 				'_3d_secure'           => array(
 					'title'             => __( '3D Secure', $this->mpgs_plugin->mpgs_core()->text_domain() ),
 					'type'              => 'checkbox',

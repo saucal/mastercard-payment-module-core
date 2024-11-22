@@ -109,7 +109,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			WC_Admin_Settings::add_error( __( 'Merchant ID and API Key are required.', $this->mpgs_plugin->text_domain() ) );
 		}
 
-		$response = MpgsAPI::payment_options_inquiry();
+		$response = $this->mpgs_api()->payment_options_inquiry();
 
 		if ( ! $response['success'] || empty( $response['body'] ) ) {
 			WC_Admin_Settings::add_error( __( 'Failed to validate API credentials. Please validate your credentials and save your account details again.', $this->mpgs_plugin->text_domain() ) );
@@ -118,7 +118,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			return;
 		}
 
-		Logger::log( __( 'API credentials validated successfully.', $this->mpgs_plugin->text_domain() ) );
+		$this->mpgs_plugin->logger()->log( __( 'API credentials validated successfully.', $this->mpgs_plugin->text_domain() ) );
 
 		$this->mpgs_plugin->update_validated_credentials( true );
 
@@ -172,11 +172,83 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	public function payment_fields() {
 		switch ( $this->get_checkout_mode() ) {
 			case 'hosted_checkout':
-				$this->mpgs_plugin->mpgs_core()->template()->get( 'payment-fields-hosted-checkout.php' );
+				$this->mpgs_plugin->mpgs_core()->template()->get(
+					'payment-fields-hosted-checkout.php',
+					array(
+						'gateway'    => $this,
+						'session_id' => $this->initiate_checkout_session(),
+					)
+				);
 				break;
 			case 'hosted_session':
-				$this->mpgs_plugin->mpgs_core()->template()->get( 'payment-fields-hosted-session.php' );
+				$this->mpgs_plugin->mpgs_core()->template()->get(
+					'payment-fields-hosted-session.php',
+					array(
+						'gateway' => $this,
+					)
+				);
 				break;
 		}
+	}
+
+
+	/**
+	 * Initiate checkout session.
+	 *
+	 * @return string Session ID.
+	 */
+	public function initiate_checkout_session() {
+		// Bail if the cart is not defined.
+		if ( ! function_exists( 'WC' ) || empty( WC()->cart ) ) {
+			return '';
+		}
+
+		$session_key = $this->mpgs_plugin->mpgs_core()->prefix_hook( WC()->cart->get_cart_hash(), 'session_id_' );
+
+		if ( ! empty( WC()->session ) ) {
+			$session_id = WC()->session->get( $session_key );
+
+			if ( ! empty( $session_id ) ) {
+				return $session_id;
+			}
+		}
+
+		$order_payload = apply_filters(
+			$this->mpgs_plugin->mpgs_core()->prefix_hook( 'checkout_session_payload' ),
+			array(
+				'currency' => get_woocommerce_currency(),
+				'amount'   => WC()->cart->total,
+				'id'       => WC()->cart->get_cart_hash(),
+			)
+		);
+
+		if ( empty( $order_payload['currency'] ) || empty( $order_payload['amount'] ) || empty( $order_payload['id'] ) ) {
+			return '';
+		}
+
+		$payload = array(
+			'apiOperation' => 'INITIATE_CHECKOUT',
+			'interaction'  => array(
+				'operation' => 'AUTHORIZE',
+				'merchant'  => array(
+					'name' => $this->mpgs_plugin->get_gateway_setting( 'merchant_name' ),
+				),
+			),
+			'order'        => $order_payload,
+		);
+
+		$response = $this->mpgs_api()->create_session( $payload );
+
+		if ( ! $response['success'] || empty( $response['body']['session']['id'] ) ) {
+			return '';
+		}
+
+		$session_id = $response['body']['session']['id'];
+
+		if ( ! empty( WC()->session ) ) {
+			WC()->session->set( $session_key, $session_id );
+		}
+
+		return $session_id;
 	}
 }
