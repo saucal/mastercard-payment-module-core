@@ -13,6 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
+use MPGSCore\MpgsAPI;
 use MPGSCore\MpgsPlugin;
 use WC_Payment_Gateway_CC;
 
@@ -31,11 +32,55 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 
 	/**
+	 * MPGS API instance.
+	 *
+	 * @var MpgsAPI
+	 */
+	protected $mpgs_api;
+
+
+	/**
 	 * Is gateway enabled.
 	 *
 	 * @var bool
 	 */
 	public function is_enabled() {
 		return 'yes' === $this->get_option( 'enabled' );
+	}
+
+
+	/**
+	 * Is gateway available.
+	 *
+	 * @return bool
+	 */
+	public function is_available() {
+		if ( ! parent::is_available() ) {
+			return false;
+		}
+
+		if ( empty( $this->mpgs_plugin ) ) {
+			return false;
+		}
+
+		if ( empty( $this->mpgs_api() ) ) {
+			return false;
+		}
+
+		return true;
+	}
+
+
+	/**
+	 * Get the MPGS API instance.
+	 *
+	 * @return MpgsAPI
+	 */
+	public function mpgs_api() {
+		if ( ! $this->mpgs_api ) {
+			$this->mpgs_api = new MpgsAPI( $this->mpgs_plugin );
+		}
+
+		return $this->mpgs_api;
 	}
 }

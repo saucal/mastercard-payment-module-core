@@ -89,6 +89,14 @@ abstract class MpgsPlugin {
 
 
 	/**
+	 * Logger class instance.
+	 *
+	 * @var Logger
+	 */
+	private $logger;
+
+
+	/**
 	 * Constructor
 	 */
 	public function __construct() {
@@ -100,6 +108,7 @@ abstract class MpgsPlugin {
 		}
 
 		$this->notices = new Notices( $this );
+		$this->logger  = new Logger( $this );
 
 		if ( ! $this->load_mpgs_core() || empty( $this->plugin_id() ) ) {
 			return;
@@ -362,6 +371,16 @@ abstract class MpgsPlugin {
 	 */
 	public function notices() {
 		return $this->notices;
+	}
+
+
+	/**
+	 * Get the logger instance.
+	 *
+	 * @return Logger
+	 */
+	public function logger() {
+		return $this->logger;
 	}
 
 
