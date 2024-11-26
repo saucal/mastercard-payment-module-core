@@ -20,8 +20,25 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class MpgsAPI {
 
-
 	const API_VERSION = '100';
+
+
+	/**
+	 * MPGS Plugin instance.
+	 *
+	 * @var MpgsPlugin
+	 */
+	private $mpgs_plugin;
+
+
+	/**
+	 * Constructor.
+	 *
+	 * @param MpgsPlugin $mpgs_plugin MPGS Plugin instance.
+	 */
+	public function __construct( MpgsPlugin $mpgs_plugin ) {
+		$this->mpgs_plugin = $mpgs_plugin;
+	}
 
 
 	/**
@@ -29,10 +46,10 @@ final class MpgsAPI {
 	 *
 	 * @return string
 	 */
-	private static function get_merchant_id() {
-		$merchant_id = MpgsPlugin::get_gateway_setting( 'merchant_id' );
+	private function get_merchant_id() {
+		$merchant_id = $this->mpgs_plugin->get_gateway_setting( 'merchant_id' );
 
-		if ( self::is_sandbox() && ! defined( 'MGPS_MID_FORCE_TEST' ) ) {
+		if ( $this->is_sandbox() && ! defined( 'MGPS_MID_FORCE_TEST' ) ) {
 			$merchant_id = 'TEST' . $merchant_id;
 		}
 
@@ -45,8 +62,8 @@ final class MpgsAPI {
 	 *
 	 * @return string
 	 */
-	private static function get_password() {
-		return MpgsPlugin::get_gateway_setting( 'password' );
+	private function get_password() {
+		return $this->mpgs_plugin->get_gateway_setting( 'password' );
 	}
 
 
@@ -55,8 +72,8 @@ final class MpgsAPI {
 	 *
 	 * @return string
 	 */
-	private static function get_authorization() {
-		return base64_encode( 'merchant.' . self::get_merchant_id() . ':' . self::get_password() ); //phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
+	private function get_authorization() {
+		return base64_encode( 'merchant.' . $this->get_merchant_id() . ':' . $this->get_password() ); //phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
 	}
 
 
@@ -69,12 +86,12 @@ final class MpgsAPI {
 	 *
 	 * @return array
 	 */
-	protected static function get_headers( $content_type = 'application/json', $endpoint = null, $payload = array() ) {
+	protected function get_headers( $content_type = 'application/json', $endpoint = null, $payload = array() ) {
 
 		return apply_filters(
-			MpgsPlugin::prefix_hook( 'request_headers' ),
+			$this->mpgs_plugin->mpgs_core()->prefix_hook( 'request_headers' ),
 			array(
-				'Authorization' => 'Basic ' . self::get_authorization(),
+				'Authorization' => 'Basic ' . $this->get_authorization(),
 				'Content-Type'  => $content_type,
 				'Accept'        => $content_type,
 			),
@@ -89,8 +106,8 @@ final class MpgsAPI {
 	 *
 	 * @return bool
 	 */
-	private static function is_sandbox() {
-		return MpgsPlugin::is_sandbox();
+	private function is_sandbox() {
+		return $this->mpgs_plugin->is_sandbox();
 	}
 
 
@@ -99,19 +116,13 @@ final class MpgsAPI {
 	 *
 	 * @return string
 	 */
-	private static function get_domain() {
-		$api_domain = GatewaySettings::payment_region_url( MpgsPlugin::get_gateway_setting( 'region' ) );
-
-		if ( defined( 'MPGS_GATEWAY_URL' ) && ! empty( \MPGS_GATEWAY_URL ) ) {
-			$api_domain = \MPGS_GATEWAY_URL;
-		}
-
+	private function get_domain() {
 		return trailingslashit(
 			sprintf(
 				'%1$s/api/rest/version/%2$s/merchant/%3$s',
-				untrailingslashit( $api_domain ),
+				untrailingslashit( $this->mpgs_plugin->gateway_url() ),
 				self::API_VERSION,
-				self::get_merchant_id()
+				$this->get_merchant_id()
 			)
 		);
 	}
@@ -126,21 +137,21 @@ final class MpgsAPI {
 	 *
 	 * @return array
 	 */
-	protected static function request( $endpoint, $method = 'GET', $payload = array() ) {
-		$url  = self::get_domain() . $endpoint;
+	protected function request( $endpoint, $method = 'GET', $payload = array() ) {
+		$url  = $this->get_domain() . $endpoint;
 		$args = array(
 			'method'  => $method,
-			'headers' => self::get_headers( 'application/json', $endpoint, $payload ),
-			'body'    => apply_filters( MpgsPlugin::prefix_hook( 'request_body' ), self::maybe_json_encode( $payload ) ),
+			'headers' => $this->get_headers( 'application/json', $endpoint, $payload ),
+			'body'    => apply_filters( $this->mpgs_plugin->mpgs_core()->prefix_hook( 'request_body' ), $this->maybe_json_encode( $payload ) ),
 		);
 
 		// Logging request.
-		Logger::log_request( $url, $args );
+		$this->mpgs_plugin->logger()->log_request( $url, $args );
 
 		$response = wp_safe_remote_request( $url, $args );
 
 		// Logging responses.
-		Logger::log_response( $response );
+		$this->mpgs_plugin->logger()->log_response( $response );
 
 		if ( is_wp_error( $response ) ) {
 			return array(
@@ -149,10 +160,10 @@ final class MpgsAPI {
 			);
 		}
 
-		$response = self::process_response( $response );
+		$response = $this->process_response( $response );
 
 		if ( ! $response['success'] ) {
-			Logger::log( 'Request failed: ' . $response['error'], 'error' );
+			$this->mpgs_plugin->logger()->log( 'Request failed: ' . $response['error'], 'error' );
 		}
 
 		return $response;
@@ -190,7 +201,7 @@ final class MpgsAPI {
 	 *
 	 * @return array
 	 */
-	private static function process_response( $response ) {
+	private function process_response( $response ) {
 		if ( empty( $response['response']['code'] ) ) {
 			return array(
 				'success' => false,
@@ -203,7 +214,7 @@ final class MpgsAPI {
 				'success' => false,
 				'error'   => sprintf(
 					// Translators: %1$s: Response code, %2$s: Response message.
-					__( 'Request failed with status code %1$s and message: %2$s', MpgsPlugin::text_domain() ),
+					__( 'Request failed with status code %1$s and message: %2$s', $this->mpgs_plugin->text_domain() ),
 					$response['response']['code'],
 					$response['response']['message'] ?? '',
 				),
@@ -212,7 +223,7 @@ final class MpgsAPI {
 
 		return array(
 			'success'       => true,
-			'body'          => self::maybe_json_decode( wp_remote_retrieve_body( $response ) ),
+			'body'          => $this->maybe_json_decode( wp_remote_retrieve_body( $response ) ),
 			'http_response' => $response,
 		);
 	}
@@ -221,7 +232,17 @@ final class MpgsAPI {
 	/**
 	 * Payment options inquiry.
 	 */
-	public static function payment_options_inquiry() {
-		return self::request( 'paymentOptionsInquiry', 'POST' );
+	public function payment_options_inquiry() {
+		return $this->request( 'paymentOptionsInquiry', 'POST' );
+	}
+
+
+	/**
+	 * Create session.
+	 *
+	 * @param array $payload Payload.
+	 */
+	public function create_session( $payload ) {
+		return $this->request( 'session', 'POST', $payload );
 	}
 }

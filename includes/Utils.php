@@ -20,20 +20,20 @@ final class Utils {
 
 
 	/**
-	 * Main instance prefix.
+	 * Main instance.
 	 *
-	 * @var string
+	 * @var Main
 	 */
-	private $prefix = '';
+	private $mpgs_core;
 
 
 	/**
 	 * Constructor.
 	 *
-	 * @param string $prefix Main instance prefix.
+	 * @param Main $mpgs_core Main instance.
 	 */
-	public function __construct( $prefix ) {
-		$this->prefix = $prefix;
+	public function __construct( Main $mpgs_core ) {
+		$this->mpgs_core = $mpgs_core;
 	}
 
 
@@ -64,7 +64,7 @@ final class Utils {
 	 * @return string
 	 */
 	public function plugin_url() {
-		return untrailingslashit( plugins_url( '/', Main::instance( $this->prefix )->plugin_file() ) );
+		return untrailingslashit( plugins_url( '/', $this->mpgs_core->plugin_file() ) );
 	}
 
 
@@ -74,7 +74,7 @@ final class Utils {
 	 * @return string
 	 */
 	public function core_package_url() {
-		return untrailingslashit( plugins_url( '/', Main::instance( $this->prefix )->core_plugin_file() ) );
+		return untrailingslashit( plugins_url( '/', $this->mpgs_core->core_plugin_file() ) );
 	}
 
 
@@ -84,7 +84,7 @@ final class Utils {
 	 * @return string
 	 */
 	public function plugin_path() {
-		return untrailingslashit( plugin_dir_path( Main::instance( $this->prefix )->plugin_file() ) );
+		return untrailingslashit( plugin_dir_path( $this->mpgs_core->plugin_file() ) );
 	}
 
 
@@ -94,7 +94,7 @@ final class Utils {
 	 * @return string
 	 */
 	public function core_package_path() {
-		return untrailingslashit( plugin_dir_path( Main::instance( $this->prefix )->core_plugin_file() ) );
+		return untrailingslashit( plugin_dir_path( $this->mpgs_core->core_plugin_file() ) );
 	}
 
 
@@ -105,7 +105,7 @@ final class Utils {
 	 */
 	public function template_path() {
 		// Allow 3rd party plugin filter template path from their plugin.
-		return apply_filters( Main::instance( $this->prefix )->prefix_hook( 'template_path' ), 'mpgs-core/' );
+		return apply_filters( $this->mpgs_core->prefix_hook( 'template_path' ), 'mpgs-core/' );
 	}
 
 

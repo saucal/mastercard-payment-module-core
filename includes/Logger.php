@@ -23,7 +23,25 @@ final class Logger {
 	 *
 	 * @var WC_Logger
 	 */
-	private static $wc_logger;
+	private $wc_logger;
+
+
+	/**
+	 * MPGS Plugin instance.
+	 *
+	 * @var MpgsPlugin
+	 */
+	private $mpgs_plugin;
+
+
+	/**
+	 * Constructor.
+	 *
+	 * @param MpgsPlugin $mpgs_plugin MPGS Plugin instance.
+	 */
+	public function __construct( MpgsPlugin $mpgs_plugin ) {
+		$this->mpgs_plugin = $mpgs_plugin;
+	}
 
 
 	/**
@@ -33,19 +51,19 @@ final class Logger {
 	 * @param string $level   Log level.
 	 * @param string $file    Log file.
 	 */
-	public static function log( $message, $level = 'debug', $file = null ) {
+	public function log( $message, $level = 'debug', $file = null ) {
 
-		if ( 'error' !== $level && ! MpgsPlugin::is_sandbox() ) {
+		if ( 'error' !== $level && ! $this->mpgs_plugin->is_debug() ) {
 			return;
 		}
 
-		if ( ! self::$wc_logger ) {
-			self::$wc_logger = wc_get_logger();
+		if ( ! $this->wc_logger ) {
+			$this->wc_logger = wc_get_logger();
 		}
 
-		$handler = array( 'source' => ! empty( $file ) ? $file . '-logs' : MpgsPlugin::plugin_id() . '-logs' );
+		$handler = array( 'source' => ! empty( $file ) ? $file . '-logs' : $this->mpgs_plugin->plugin_id() . '-logs' );
 
-		self::$wc_logger->log( $level, $message, $handler );
+		$this->wc_logger->log( $level, $message, $handler );
 	}
 
 
@@ -56,11 +74,11 @@ final class Logger {
 	 * @param array  $args Request arguments.
 	 * @param string $level Log level.
 	 */
-	public static function log_request( $url, $args, $level = 'debug' ) {
+	public function log_request( $url, $args, $level = 'debug' ) {
 		unset( $args['headers'] );
 		$method = isset( $args['method'] ) ? $args['method'] : 'POST';
 		$data   = ! empty( $args['body'] ) ? self::maybe_mask_in_json( $args['body'] ) : '--- EMPTY STRING ---';
-		self::log( $method . ' Request: ' . $url . "\n\n" . $data . "\n", $level );
+		$this->log( $method . ' Request: ' . $url . "\n\n" . $data . "\n", $level );
 	}
 
 
@@ -70,18 +88,22 @@ final class Logger {
 	 * @param WP_Error|array $response Response.
 	 * @param string         $level    Log level.
 	 */
-	public static function log_response( $response, $level = 'debug' ) {
+	public function log_response( $response, $level = 'debug' ) {
+		$data = '--- EMPTY STRING ---';
+
 		if ( is_wp_error( $response ) ) {
 			$level = 'error';
 			$data  = $response->get_error_code() . ': ' . $response->get_error_message();
-		} else {
+		}
+
+		if ( is_array( $response ) && isset( $response['http_response'] ) && is_a( $response['http_response'], 'WP_HTTP_Requests_Response' ) ) {
 			$data   = $response['http_response']->get_response_object()->raw;
 			$orig   = $response['http_response']->get_data();
 			$masked = self::maybe_mask_in_json( $orig );
 			$data   = str_replace( $orig, $masked, $data );
 		}
 
-		self::log( 'Response: ' . "\n\n" . $data . "\n", $level );
+		$this->log( 'Response: ' . "\n\n" . $data . "\n", $level );
 	}
 
 

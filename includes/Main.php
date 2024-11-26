@@ -49,6 +49,14 @@ final class Main {
 
 
 	/**
+	 * Template class instance.
+	 *
+	 * @var Template[]
+	 */
+	private $template;
+
+
+	/**
 	 * Utils class instance.
 	 *
 	 * @var Utils[]
@@ -172,8 +180,9 @@ final class Main {
 			return;
 		}
 
-		$this->assets_controller[ $this->prefix ] = new Assets( $this->prefix );
-		$this->utils[ $this->prefix ]             = new Utils( $this->prefix );
+		$this->assets_controller[ $this->prefix ] = new Assets( $this );
+		$this->template[ $this->prefix ]          = new Template( $this );
+		$this->utils[ $this->prefix ]             = new Utils( $this );
 	}
 
 
@@ -296,6 +305,20 @@ final class Main {
 		}
 
 		return $this->assets_controller[ $this->prefix ];
+	}
+
+
+	/**
+	 * Get the template instance.
+	 *
+	 * @return Template
+	 */
+	public function template() {
+		if ( ! $this->template[ $this->prefix ] ) {
+			$this->template[ $this->prefix ] = new Template( $this->prefix );
+		}
+
+		return $this->template[ $this->prefix ];
 	}
 
 

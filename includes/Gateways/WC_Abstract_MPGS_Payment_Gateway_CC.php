@@ -9,11 +9,8 @@
 
 namespace MPGSCore\Gateways;
 
-use MPGSCore\Admin\GatewaySettings;
 use MPGSCore\Logger;
-use MPGSCore\Main;
 use MPGSCore\MpgsAPI;
-use MPGSCore\MpgsPlugin;
 use WC_Admin_Settings;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -43,29 +40,9 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 
 	/**
-	 * MPGS Core instance prefix.
+	 * Initialize the gateway.
 	 */
-	abstract public function mpgs_core_prefix();
-
-
-	/**
-	 * Initialize Payment Gateway.
-	 */
-	abstract public function build();
-
-
-	/**
-	 * Init hooks.
-	 */
-	abstract public function init();
-
-
-	/**
-	 * Constructor.
-	 */
-	public function __construct() {
-		// Load gateway settings.
-		$this->build();
+	public function build() {
 
 		// Load the gateway support features.
 		$this->init_supports();
@@ -77,14 +54,17 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		$this->init_settings();
 
 		// Load common settings.
+		$this->title       = $this->get_option( 'title' );
+		$this->enabled     = $this->get_option( 'enabled' );
+		$this->description = $this->get_option( 'description' );
 		$this->saved_cards = ! empty( $this->get_option( 'saved_cards' ) && 'yes' === $this->get_option( 'saved_cards' ) );
 		$this->debug       = ! empty( $this->get_option( 'debug' ) && 'yes' === $this->get_option( 'debug' ) );
-
-		$this->init();
 
 		// Add hooks.
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'process_admin_options' ) );
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'validate_credentials' ) );
+
+		add_filter( $this->mpgs_plugin->mpgs_core()->prefix_hook( 'enqueue_scripts' ), array( $this, 'enqueue_scripts' ) );
 	}
 
 
@@ -114,7 +94,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @return void
 	 */
 	public function init_form_fields() {
-		$this->form_fields = GatewaySettings::get_settings( $this->id );
+		$this->form_fields = $this->mpgs_plugin->gateway_settings()->get_settings();
 	}
 
 
@@ -128,22 +108,181 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		$password    = $this->get_option( 'password' );
 
 		if ( empty( $merchant_id ) || empty( $password ) ) {
-			WC_Admin_Settings::add_error( __( 'Merchant ID and API Key are required.', MpgsPlugin::text_domain() ) );
+			WC_Admin_Settings::add_error( __( 'Merchant ID and API Key are required.', $this->mpgs_plugin->text_domain() ) );
 		}
 
-		$response = MpgsAPI::payment_options_inquiry();
+		$response = $this->mpgs_api()->payment_options_inquiry();
 
 		if ( ! $response['success'] || empty( $response['body'] ) ) {
-			WC_Admin_Settings::add_error( __( 'Failed to validate API credentials. Please validate your credentials and save your account details again.', MpgsPlugin::text_domain() ) );
-			MpgsPlugin::update_validated_credentials( false );
-			MpgsPlugin::update_payment_operations( array() );
+			WC_Admin_Settings::add_error( __( 'Failed to validate API credentials. Please validate your credentials and save your account details again.', $this->mpgs_plugin->text_domain() ) );
+			$this->mpgs_plugin->update_validated_credentials( false );
+			$this->mpgs_plugin->update_payment_operations( array() );
 			return;
 		}
 
-		Logger::log( __( 'API credentials validated successfully.', MpgsPlugin::text_domain() ) );
+		$this->mpgs_plugin->logger()->log( __( 'API credentials validated successfully.', $this->mpgs_plugin->text_domain() ) );
 
-		MpgsPlugin::update_validated_credentials( true );
+		$this->mpgs_plugin->update_validated_credentials( true );
 
-		MpgsPlugin::update_payment_operations( $response['body']['supportedPaymentOperations'] ?? array() );
+		$this->mpgs_plugin->update_payment_operations( $response['body']['supportedPaymentOperations'] ?? array() );
+	}
+
+
+	/**
+	 * Is the gateway available.
+	 *
+	 * @return bool
+	 */
+	public function is_available() {
+		if ( ! parent::is_available() ) {
+			return false;
+		}
+
+		if ( ! $this->mpgs_plugin->is_enabled() ) {
+			return false;
+		}
+
+		if ( ! $this->mpgs_plugin->get_validated_credentials() ) {
+			return false;
+		}
+
+		return true;
+	}
+
+
+	/**
+	 * Get checkout mode.
+	 *
+	 * @return string
+	 */
+	public function get_checkout_mode() {
+		$chosen_method = $this->get_option( 'checkout_mode' );
+
+		if ( ! in_array( $chosen_method, array_keys( $this->mpgs_plugin->gateway_settings()->checkout_modes() ), true ) ) {
+			$chosen_method = 'hosted_session';
+		}
+
+		return $chosen_method;
+	}
+
+
+	/**
+	 * Payment fields.
+	 *
+	 * @return void
+	 */
+	public function payment_fields() {
+		switch ( $this->get_checkout_mode() ) {
+			case 'hosted_checkout':
+				$this->mpgs_plugin->mpgs_core()->template()->get(
+					'payment-fields-hosted-checkout.php',
+					array(
+						'gateway' => $this,
+					)
+				);
+				break;
+			case 'hosted_session':
+				$this->mpgs_plugin->mpgs_core()->template()->get(
+					'payment-fields-hosted-session.php',
+					array(
+						'gateway' => $this,
+					)
+				);
+				break;
+		}
+	}
+
+
+	/**
+	 * Enqueue gateway scripts.
+	 *
+	 * @param array $scripts Scripts to enqueue.
+	 *
+	 * @return array
+	 */
+	public function enqueue_scripts( $scripts ) {
+
+		if ( ! $this->is_available() ) {
+			return $scripts;
+		}
+
+		if ( 'hosted_checkout' === $this->get_checkout_mode() ) {
+			$scripts['mpgs_hosted_checkout'] = array(
+				'src' => $this->hosted_checkout_url(),
+			);
+		}
+
+		return $scripts;
+	}
+
+
+	/**
+	 * Get the hosted checkout URL.
+	 *
+	 * @return string
+	 */
+	public function hosted_checkout_url() {
+		return untrailingslashit( $this->mpgs_plugin->gateway_url() ) . '/static/checkout/checkout.min.js';
+	}
+
+
+	/**
+	 * Initiate checkout session.
+	 *
+	 * @return string Session ID.
+	 */
+	public function session_id() {
+		// Bail if the cart is not defined.
+		if ( ! function_exists( 'WC' ) || empty( WC()->cart ) ) {
+			return '';
+		}
+
+		$session_key = $this->mpgs_plugin->mpgs_core()->prefix_hook( WC()->cart->get_cart_hash(), 'session_id_' );
+
+		if ( ! empty( WC()->session ) ) {
+			$session_id = WC()->session->get( $session_key );
+
+			if ( ! empty( $session_id ) ) {
+				return $session_id;
+			}
+		}
+
+		$order_payload = apply_filters(
+			$this->mpgs_plugin->mpgs_core()->prefix_hook( 'checkout_session_payload' ),
+			array(
+				'currency' => get_woocommerce_currency(),
+				'amount'   => WC()->cart->total,
+				'id'       => WC()->cart->get_cart_hash(),
+			)
+		);
+
+		if ( empty( $order_payload['currency'] ) || empty( $order_payload['amount'] ) || empty( $order_payload['id'] ) ) {
+			return '';
+		}
+
+		$payload = array(
+			'apiOperation' => 'INITIATE_CHECKOUT',
+			'interaction'  => array(
+				'operation' => 'AUTHORIZE',
+				'merchant'  => array(
+					'name' => $this->mpgs_plugin->get_gateway_setting( 'merchant_name' ),
+				),
+			),
+			'order'        => $order_payload,
+		);
+
+		$response = $this->mpgs_api()->create_session( $payload );
+
+		if ( ! $response['success'] || empty( $response['body']['session']['id'] ) ) {
+			return '';
+		}
+
+		$session_id = $response['body']['session']['id'];
+
+		if ( ! empty( WC()->session ) ) {
+			WC()->session->set( $session_key, $session_id );
+		}
+
+		return $session_id;
 	}
 }

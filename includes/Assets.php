@@ -44,14 +44,6 @@ class Assets {
 
 
 	/**
-	 * MPGS Core instance's prefix.
-	 *
-	 * @var string
-	 */
-	private $prefix;
-
-
-	/**
 	 * Admin assets controller.
 	 *
 	 * @var Admin\Assets
@@ -68,17 +60,20 @@ class Assets {
 
 
 	/**
-	 * Hook in methods.
+	 * Main instance.
 	 *
-	 * @param string $prefix Prefix of the MPGS Core instance.
+	 * @var Main
 	 */
-	public function __construct( $prefix ) {
+	private $mpgs_core;
 
-		if ( empty( $prefix ) ) {
-			return;
-		}
 
-		$this->prefix = $prefix;
+	/**
+	 * Constructor.
+	 *
+	 * @param Main $mpgs_core Main instance.
+	 */
+	public function __construct( Main $mpgs_core ) {
+		$this->mpgs_core = $mpgs_core;
 
 		$this->init_controllers();
 	}
@@ -91,11 +86,11 @@ class Assets {
 	 */
 	private function init_controllers() {
 		if ( Utils::is_request( 'admin' ) ) {
-			$this->admin_assets_controller = new Admin( $this->prefix );
+			$this->admin_assets_controller = new Admin( $this->mpgs_core );
 		}
 
 		if ( Utils::is_request( 'frontend' ) ) {
-			$this->front_assets_controller = new Front( $this->prefix );
+			$this->front_assets_controller = new Front( $this->mpgs_core );
 		}
 	}
 
@@ -108,8 +103,8 @@ class Assets {
 	 */
 	public function localize_asset( $path ) {
 
-		$assets_path     = Main::instance( $this->prefix )->utils()->core_package_path() . '/assets/';
-		$assets_path_url = str_replace( array( 'http:', 'https:' ), '', Main::instance( $this->prefix )->utils()->core_package_url() ) . '/assets/';
+		$assets_path     = $this->mpgs_core->utils()->core_package_path() . '/assets/';
+		$assets_path_url = str_replace( array( 'http:', 'https:' ), '', $this->mpgs_core->utils()->core_package_url() ) . '/assets/';
 
 		if ( ! ( defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ) ) {
 
@@ -138,7 +133,7 @@ class Assets {
 	 */
 	public function get_styles() {
 		// Allow to change the list of styles.
-		return apply_filters( Main::instance( $this->prefix )->prefix_hook( 'enqueue_styles' ), array() );
+		return apply_filters( $this->mpgs_core->prefix_hook( 'enqueue_styles' ), array() );
 	}
 
 
@@ -149,7 +144,7 @@ class Assets {
 	 */
 	public function get_scripts() {
 		// Allow to change the list of scripts.
-		return apply_filters( Main::instance( $this->prefix )->prefix_hook( 'enqueue_scripts' ), array() );
+		return apply_filters( $this->mpgs_core->prefix_hook( 'enqueue_scripts' ), array() );
 	}
 
 
@@ -168,7 +163,7 @@ class Assets {
 	 */
 	private function register_script( $handle, $path, $deps = array( 'jquery' ), $in_footer = true ) {
 		$this->scripts[] = $handle;
-		wp_register_script( $handle, $path, $deps, Main::version(), $in_footer );
+		wp_register_script( $handle, $path, $deps, $this->mpgs_core->version(), $in_footer );
 	}
 
 
@@ -189,7 +184,7 @@ class Assets {
 	private function enqueue_script( $handle, $path = '', $deps = array( 'jquery' ), $in_footer = true ) {
 
 		if ( ! in_array( $handle, $this->scripts, true ) && $path ) {
-			$this->register_script( $handle, $path, $deps, Main::version(), $in_footer );
+			$this->register_script( $handle, $path, $deps, $this->mpgs_core->version(), $in_footer );
 		}
 
 		wp_enqueue_script( $handle );
@@ -212,7 +207,7 @@ class Assets {
 	 */
 	private function register_style( $handle, $path, $deps = array(), $media = 'all' ) {
 		$this->styles[] = $handle;
-		wp_register_style( $handle, $path, $deps, Main::version(), $media );
+		wp_register_style( $handle, $path, $deps, $this->mpgs_core->version(), $media );
 	}
 
 
@@ -233,7 +228,7 @@ class Assets {
 	private function enqueue_style( $handle, $path = '', $deps = array(), $media = 'all' ) {
 
 		if ( ! in_array( $handle, $this->styles, true ) && $path ) {
-			$this->register_style( $handle, $path, $deps, Main::version(), $media );
+			$this->register_style( $handle, $path, $deps, $this->mpgs_core->version(), $media );
 		}
 
 		wp_enqueue_style( $handle );
@@ -247,7 +242,7 @@ class Assets {
 	 */
 	public function load_scripts() {
 
-		if ( ! $this->prefix || ! did_action( Main::instance( $this->prefix )->prefix_hook( 'init', 'before_' ) ) ) {
+		if ( ! $this->mpgs_core || ! did_action( $this->mpgs_core->prefix_hook( 'init', 'before_' ) ) ) {
 			return;
 		}
 
@@ -261,7 +256,7 @@ class Assets {
 					array(
 						'src'       => '',
 						'deps'      => array( 'jquery' ),
-						'version'   => Main::version(),
+						'version'   => $this->mpgs_core->version(),
 						'in_footer' => true,
 						'enqueue'   => true,
 					)
@@ -285,7 +280,7 @@ class Assets {
 					array(
 						'src'     => '',
 						'deps'    => '',
-						'version' => Main::version(),
+						'version' => $this->mpgs_core->version(),
 						'media'   => 'all',
 						'enqueue' => true,
 					)
@@ -315,7 +310,7 @@ class Assets {
 
 			$data = $this->get_script_data( $handle );
 			if ( $data ) {
-				$name                        = str_replace( '-', '_', $handle ) . '_params';
+				$name                        = str_replace( array( $this->mpgs_core->get_prefix(), '-' ), array( 'mpgs', '_' ), $handle ) . '_params';
 				$this->wp_localize_scripts[] = $handle;
 				// Let plugins to filter the script data.
 				wp_localize_script( $handle, $name, apply_filters( $name, $data ) );
