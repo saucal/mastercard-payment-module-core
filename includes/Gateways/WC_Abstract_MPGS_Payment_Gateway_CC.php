@@ -63,6 +63,8 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		// Add hooks.
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'process_admin_options' ) );
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'validate_credentials' ) );
+
+		add_filter( $this->mpgs_plugin->mpgs_core()->prefix_hook( 'enqueue_scripts' ), array( $this, 'enqueue_scripts' ) );
 	}
 
 
@@ -175,8 +177,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 				$this->mpgs_plugin->mpgs_core()->template()->get(
 					'payment-fields-hosted-checkout.php',
 					array(
-						'gateway'    => $this,
-						'session_id' => $this->initiate_checkout_session(),
+						'gateway' => $this,
 					)
 				);
 				break;
@@ -193,11 +194,44 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 
 	/**
+	 * Enqueue gateway scripts.
+	 *
+	 * @param array $scripts Scripts to enqueue.
+	 *
+	 * @return array
+	 */
+	public function enqueue_scripts( $scripts ) {
+
+		if ( ! $this->is_available() ) {
+			return $scripts;
+		}
+
+		if ( 'hosted_checkout' === $this->get_checkout_mode() ) {
+			$scripts['mpgs_hosted_checkout'] = array(
+				'src' => $this->hosted_checkout_url(),
+			);
+		}
+
+		return $scripts;
+	}
+
+
+	/**
+	 * Get the hosted checkout URL.
+	 *
+	 * @return string
+	 */
+	public function hosted_checkout_url() {
+		return untrailingslashit( $this->mpgs_plugin->gateway_url() ) . '/static/checkout/checkout.min.js';
+	}
+
+
+	/**
 	 * Initiate checkout session.
 	 *
 	 * @return string Session ID.
 	 */
-	public function initiate_checkout_session() {
+	public function session_id() {
 		// Bail if the cart is not defined.
 		if ( ! function_exists( 'WC' ) || empty( WC()->cart ) ) {
 			return '';

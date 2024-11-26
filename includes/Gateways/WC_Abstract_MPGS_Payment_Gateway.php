@@ -72,6 +72,16 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 
 	/**
+	 * Get the MPGS Plugin instance.
+	 *
+	 * @return MpgsPlugin
+	 */
+	public function mpgs_plugin() {
+		return $this->mpgs_plugin;
+	}
+
+
+	/**
 	 * Get the MPGS API instance.
 	 *
 	 * @return MpgsAPI

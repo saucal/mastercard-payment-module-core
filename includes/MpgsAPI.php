@@ -117,16 +117,10 @@ final class MpgsAPI {
 	 * @return string
 	 */
 	private function get_domain() {
-		$api_domain = $this->mpgs_plugin->gateway_settings()->payment_region_url( $this->mpgs_plugin->get_gateway_setting( 'region' ) );
-
-		if ( defined( 'MPGS_GATEWAY_URL' ) && ! empty( \MPGS_GATEWAY_URL ) ) {
-			$api_domain = \MPGS_GATEWAY_URL;
-		}
-
 		return trailingslashit(
 			sprintf(
 				'%1$s/api/rest/version/%2$s/merchant/%3$s',
-				untrailingslashit( $api_domain ),
+				untrailingslashit( $this->mpgs_plugin->gateway_url() ),
 				self::API_VERSION,
 				$this->get_merchant_id()
 			)

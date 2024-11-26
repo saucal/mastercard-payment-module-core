@@ -492,6 +492,32 @@ abstract class MpgsPlugin {
 	 * @return bool
 	 */
 	public function is_sandbox() {
-		return ( $this->is_enabled() && ! $this->get_validated_credentials() ) || ( ! empty( $this->get_gateway_setting( 'sandbox' ) ) && 'yes' === $this->get_gateway_setting( 'sandbox' ) ) ? true : false;
+		return ( $this->is_enabled() && ! $this->get_validated_credentials() ) || ( 'yes' === $this->get_gateway_setting( 'sandbox' ) );
+	}
+
+
+	/**
+	 * Is debug mode enabled.
+	 *
+	 * @return bool
+	 */
+	public function is_debug() {
+		return 'yes' === $this->get_gateway_setting( 'debug' );
+	}
+
+
+	/**
+	 * Get the gateway URL.
+	 *
+	 * @return string
+	 */
+	public function gateway_url() {
+		$gateway_url = $this->gateway_settings()->payment_region_url( $this->get_gateway_setting( 'region' ) );
+
+		if ( defined( 'MPGS_GATEWAY_URL' ) && ! empty( \MPGS_GATEWAY_URL ) ) {
+			$gateway_url = \MPGS_GATEWAY_URL;
+		}
+
+		return $gateway_url;
 	}
 }

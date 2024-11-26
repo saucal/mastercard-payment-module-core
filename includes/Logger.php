@@ -53,7 +53,7 @@ final class Logger {
 	 */
 	public function log( $message, $level = 'debug', $file = null ) {
 
-		if ( 'error' !== $level && ! $this->mpgs_plugin->is_sandbox() ) {
+		if ( 'error' !== $level && ! $this->mpgs_plugin->is_debug() ) {
 			return;
 		}
 
