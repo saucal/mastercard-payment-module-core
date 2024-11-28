@@ -89,6 +89,14 @@ abstract class MpgsPlugin {
 
 
 	/**
+	 * Assets class instance.
+	 *
+	 * @var MpgsCore\Assets
+	 */
+	private $assets_controller;
+
+
+	/**
 	 * Logger class instance.
 	 *
 	 * @var Logger
@@ -107,8 +115,9 @@ abstract class MpgsPlugin {
 			return;
 		}
 
-		$this->notices = new Notices( $this );
-		$this->logger  = new Logger( $this );
+		$this->notices           = new Notices( $this );
+		$this->logger            = new Logger( $this );
+		$this->assets_controller = new Assets( $this );
 
 		if ( ! $this->load_mpgs_core() || empty( $this->plugin_id() ) ) {
 			return;
@@ -375,6 +384,16 @@ abstract class MpgsPlugin {
 
 
 	/**
+	 * Get the assets controller instance.
+	 *
+	 * @return Assets
+	 */
+	public function assets_controller() {
+		return $this->assets_controller;
+	}
+
+
+	/**
 	 * Get the logger instance.
 	 *
 	 * @return Logger
@@ -519,5 +538,21 @@ abstract class MpgsPlugin {
 		}
 
 		return $gateway_url;
+	}
+
+
+	/**
+	 * Get checkout mode.
+	 *
+	 * @return string
+	 */
+	public function get_checkout_mode() {
+		$chosen_method = $this->get_gateway_setting( 'checkout_mode' );
+
+		if ( ! in_array( $chosen_method, array_keys( $this->gateway_settings()->checkout_modes() ), true ) ) {
+			$chosen_method = 'hosted_session';
+		}
+
+		return $chosen_method;
 	}
 }

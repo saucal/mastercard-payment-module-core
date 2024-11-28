@@ -64,7 +64,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'process_admin_options' ) );
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'validate_credentials' ) );
 
-		add_filter( $this->mpgs_plugin->mpgs_core()->prefix_hook( 'enqueue_scripts' ), array( $this, 'enqueue_scripts' ) );
+		add_filter( $this->mpgs_plugin->mpgs_core()->prefix_hook( 'enqueue_scripts' ), array( $this, 'enqueue_scripts' ), 20 );
 	}
 
 
@@ -155,14 +155,8 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 *
 	 * @return string
 	 */
-	public function get_checkout_mode() {
-		$chosen_method = $this->get_option( 'checkout_mode' );
-
-		if ( ! in_array( $chosen_method, array_keys( $this->mpgs_plugin->gateway_settings()->checkout_modes() ), true ) ) {
-			$chosen_method = 'hosted_session';
-		}
-
-		return $chosen_method;
+	public function checkout_mode() {
+		return $this->mpgs_plugin->get_checkout_mode();
 	}
 
 
@@ -172,7 +166,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @return void
 	 */
 	public function payment_fields() {
-		switch ( $this->get_checkout_mode() ) {
+		switch ( $this->checkout_mode() ) {
 			case 'hosted_checkout':
 				$this->mpgs_plugin->mpgs_core()->template()->get(
 					'payment-fields-hosted-checkout.php',
@@ -206,10 +200,19 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			return $scripts;
 		}
 
-		if ( 'hosted_checkout' === $this->get_checkout_mode() ) {
+		if ( 'hosted_checkout' === $this->checkout_mode() ) {
 			$scripts['mpgs_hosted_checkout'] = array(
 				'src' => $this->hosted_checkout_url(),
 			);
+
+			$gateway_script = $this->mpgs_plugin->mpgs_core()->prefix_hook( 'gateway' );
+
+			if ( isset( $scripts[ $gateway_script ] ) ) {
+				$scripts[ $gateway_script ]['deps'] = array_merge(
+					array( 'mpgs_hosted_checkout' ),
+					$scripts[ $gateway_script ]['deps'] ?? array()
+				);
+			}
 		}
 
 		return $scripts;
