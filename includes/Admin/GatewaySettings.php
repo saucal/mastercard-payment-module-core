@@ -298,11 +298,11 @@ final class GatewaySettings {
 			$operation = reset( $supported_operation );
 
 			if ( 'PURCHASE' === $operation ) {
-				$supported_operations['purchase'] = __( 'Authorize and Capture', $this->mpgs_plugin->mpgs_core()->text_domain() );
+				$supported_operations['PURCHASE'] = __( 'Authorize and Capture', $this->mpgs_plugin->mpgs_core()->text_domain() );
 			}
 
 			if ( 'AUTHORIZE' === $operation ) {
-				$supported_operations['authorize'] = __( 'Authorize', $this->mpgs_plugin->mpgs_core()->text_domain() );
+				$supported_operations['AUTHORIZE'] = __( 'Authorize', $this->mpgs_plugin->mpgs_core()->text_domain() );
 			}
 		}
 

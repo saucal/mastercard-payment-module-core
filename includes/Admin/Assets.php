@@ -79,8 +79,8 @@ final class Assets {
 		$scripts[ $this->mpgs_plugin->mpgs_core()->prefix_hook( 'gateway-admin' ) ] = array(
 			'src'  => $this->mpgs_plugin->assets_controller()->localize_asset( 'js/admin/mpgs-core.js' ),
 			'data' => array(
-				'ajax_url' => $this->mpgs_plugin->mpgs_core()->utils()->ajax_url(),
-				'prefix'   => $this->mpgs_plugin->mpgs_core()->get_prefix(),
+				'ajaxUrl' => $this->mpgs_plugin->mpgs_core()->utils()->ajax_url(),
+				'prefix'  => $this->mpgs_plugin->mpgs_core()->get_prefix(),
 			),
 		);
 
