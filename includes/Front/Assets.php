@@ -10,6 +10,7 @@
 namespace MPGSCore\Front;
 
 use MPGSCore\MpgsPlugin;
+use MPGSCore\Utils;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -79,9 +80,10 @@ final class Assets {
 		$scripts[ $this->mpgs_plugin->mpgs_core()->prefix_hook( 'gateway' ) ] = array(
 			'src'  => $this->mpgs_plugin->assets_controller()->localize_asset( 'js/frontend/mpgs-core.js' ),
 			'data' => array(
-				'ajax_url'     => $this->mpgs_plugin->mpgs_core()->utils()->ajax_url(),
-				'prefix'       => $this->mpgs_plugin->mpgs_core()->get_prefix(),
-				'checkoutMode' => $this->mpgs_plugin->get_checkout_mode(),
+				'ajaxUrl'        => $this->mpgs_plugin->mpgs_core()->utils()->ajax_url(),
+				'prefix'         => $this->mpgs_plugin->mpgs_core()->get_prefix(),
+				'checkoutMode'   => $this->mpgs_plugin->get_checkout_mode(),
+				'orderCancelUrl' => ! empty( Utils::get_current_order() ) ? Utils::get_current_order()->get_cancel_order_url() : '',
 			),
 		);
 

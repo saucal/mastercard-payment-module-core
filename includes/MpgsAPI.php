@@ -245,4 +245,14 @@ final class MpgsAPI {
 	public function create_session( $payload ) {
 		return $this->request( 'session', 'POST', $payload );
 	}
+
+
+	/**
+	 * Retrieve order.
+	 *
+	 * @param string $order_id Order ID.
+	 */
+	public function retrieve_order( $order_id ) {
+		return $this->request( 'order/' . $order_id, 'GET' );
+	}
 }
