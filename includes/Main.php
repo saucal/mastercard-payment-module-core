@@ -136,6 +136,9 @@ final class Main {
 			return;
 		}
 
+		// Init hooks.
+		Gateway::init();
+
 		add_action( 'init', array( $this, 'init' ) );
 
 		// Init action.
@@ -149,13 +152,6 @@ final class Main {
 	 * @return void
 	 */
 	public function init() {
-
-		// Before init action.
-		do_action( $this->prefix_hook( 'init', 'before_' ) );
-
-		// Init hooks.
-		Gateway::init();
-
 		// After init action.
 		do_action( $this->prefix_hook( 'init' ) );
 	}
@@ -217,7 +213,7 @@ final class Main {
 				}
 			);
 
-			return;
+			return false;
 		}
 
 		return false;

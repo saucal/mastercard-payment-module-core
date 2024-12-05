@@ -242,7 +242,7 @@ class Assets {
 	 */
 	public function load_scripts() {
 
-		if ( ! $this->mpgs_plugin || ! did_action( $this->mpgs_plugin->mpgs_core()->prefix_hook( 'init', 'before_' ) ) ) {
+		if ( ! $this->mpgs_plugin || ! did_action( $this->mpgs_plugin->mpgs_core()->prefix_hook( 'init' ) ) ) {
 			return;
 		}
 
