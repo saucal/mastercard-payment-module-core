@@ -502,6 +502,10 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			),
 		);
 
+		if ( $this->is_hosted_checkout() && 'yes' === $this->mpgs_plugin->get_gateway_setting( 'display_logo' ) && ! empty( $this->icon ) ) {
+			$payload['interaction']['merchant']['logo'] = str_replace( 'http:', 'https:', $this->icon );
+		}
+
 		$formatted_billing_info = Utils::get_formatted_info_billing( $order );
 		if ( ! empty( $formatted_billing_info ) ) {
 			$payload['billing'] = $formatted_billing_info;
