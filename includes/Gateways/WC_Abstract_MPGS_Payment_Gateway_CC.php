@@ -210,6 +210,36 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 
 	/**
+	 * Is hosted session mode.
+	 *
+	 * @return bool
+	 */
+	public function is_hosted_session() {
+		return 'hosted_session' === $this->checkout_mode;
+	}
+
+
+	/**
+	 * Is embedded checkout mode.
+	 *
+	 * @return bool
+	 */
+	public function is_embedded_checkout() {
+		return $this->is_hosted_checkout() && 'embedded' === $this->hosted_checkout_mode;
+	}
+
+
+	/**
+	 * Is redirect checkout mode.
+	 *
+	 * @return bool
+	 */
+	public function is_redirect_checkout() {
+		return $this->is_hosted_checkout() && 'redirect' === $this->hosted_checkout_mode;
+	}
+
+
+	/**
 	 * Should render embedded checkout.
 	 *
 	 * @return bool
