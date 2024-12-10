@@ -101,6 +101,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'validate_credentials' ) );
 		add_action( 'woocommerce_receipt_' . $this->id, array( $this, 'payment_fields' ) );
 		add_action( 'woocommerce_api_' . $this->prefix_hook( 'wc' ), array( $this, 'process_return_callback' ) );
+		add_action( 'woocommerce_api_' . $this->prefix_hook( 'wc-webhook' ), array( $this, 'process_notification_callback' ) );
 
 		add_filter( $this->prefix_hook( 'enqueue_scripts' ), array( $this, 'enqueue_scripts' ), 20 );
 		add_filter( 'script_loader_tag', array( $this, 'maybe_add_callbacks_attr' ), 10, 3 );
@@ -490,16 +491,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			}
 		}
 
-		$order_payload = apply_filters(
-			$this->prefix_hook( 'checkout_session_payload' ),
-			array(
-				'id'          => $this->unique_order_id( $order ),
-				'reference'   => $order_id,
-				'currency'    => get_woocommerce_currency(),
-				'amount'      => $order->get_total(),
-				'description' => $this->mpgs_plugin->get_gateway_setting( 'merchant_name' ),
-			)
-		);
+		$order_payload = $this->hosted_checkout_order_payload( $order );
 
 		if ( empty( $order_payload['currency'] ) || empty( $order_payload['amount'] ) || empty( $order_payload['id'] ) ) {
 			return '';
@@ -509,27 +501,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			'apiOperation'      => 'INITIATE_CHECKOUT',
 			'partnerSolutionId' => $this->get_partner_solution_id(),
 			'order'             => $order_payload,
-			'interaction'       => array(
-				'operation'      => $this->transaction_mode,
-				'returnUrl'      => add_query_arg(
-					array(
-						'wc-api'   => $this->prefix_hook( 'wc' ),
-						'order-id' => $order_id,
-						'nonce'    => wp_create_nonce( $this->prefix_hook( 'nonce' ) ),
-					),
-					trailingslashit( get_home_url() )
-				),
-				'cancelUrl'      => $order->get_checkout_payment_url(),
-				'timeoutUrl'     => $order->get_checkout_payment_url(),
-				'merchant'       => array(
-					'name' => $this->mpgs_plugin->get_gateway_setting( 'merchant_name' ),
-				),
-				'displayControl' => array(
-					'customerEmail'  => 'HIDE',
-					'billingAddress' => 'HIDE',
-					'shipping'       => 'HIDE',
-				),
-			),
+			'interaction'       => $this->hosted_checkout_interaction_payload( $order ),
 		);
 
 		if ( $this->is_hosted_checkout() && 'yes' === $this->mpgs_plugin->get_gateway_setting( 'display_logo' ) && ! empty( $this->icon ) ) {
@@ -572,6 +544,69 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		return $session_id;
 	}
 
+
+	/**
+	 * Get the order payload for the hosted checkout.
+	 *
+	 * @param WC_Order $order Order object.
+	 *
+	 * @return array
+	 */
+	protected function hosted_checkout_order_payload( $order ) {
+		return apply_filters(
+			$this->prefix_hook( 'checkout_session_order_payload' ),
+			array(
+				'id'              => $this->unique_order_id( $order ),
+				'reference'       => $order->get_id(),
+				'currency'        => get_woocommerce_currency(),
+				'amount'          => $order->get_total(),
+				'description'     => $this->mpgs_plugin->get_gateway_setting( 'merchant_name' ),
+				'notificationUrl' => add_query_arg(
+					array(
+						'wc-api'   => $this->prefix_hook( 'wc-webhook' ),
+						'order-id' => $order->get_id(),
+						'nonce'    => wp_create_nonce( $this->prefix_hook( 'webhook-nonce' ) ),
+					),
+					trailingslashit( get_home_url() )
+				),
+			)
+		);
+	}
+
+
+	/**
+	 * Get the interaction payload for the hosted checkout.
+	 *
+	 * @param WC_Order $order Order object.
+	 *
+	 * @return array
+	 */
+	protected function hosted_checkout_interaction_payload( $order ) {
+		return apply_filters(
+			$this->prefix_hook( 'checkout_session_interaction_payload' ),
+			array(
+				'operation'      => $this->transaction_mode,
+				'returnUrl'      => add_query_arg(
+					array(
+						'wc-api'   => $this->prefix_hook( 'wc' ),
+						'order-id' => $order->get_id(),
+						'nonce'    => wp_create_nonce( $this->prefix_hook( 'nonce' ) ),
+					),
+					trailingslashit( get_home_url() )
+				),
+				'cancelUrl'      => $order->get_checkout_payment_url(),
+				'timeoutUrl'     => $order->get_checkout_payment_url(),
+				'merchant'       => array(
+					'name' => $this->mpgs_plugin->get_gateway_setting( 'merchant_name' ),
+				),
+				'displayControl' => array(
+					'customerEmail'  => 'HIDE',
+					'billingAddress' => 'HIDE',
+					'shipping'       => 'HIDE',
+				),
+			)
+		);
+	}
 
 	/**
 	 * Get the unique order ID.
@@ -681,6 +716,17 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			wp_safe_redirect( wc_get_checkout_url() );
 			exit();
 		}
+	}
+
+
+	/**
+	 * Process the return callback.
+	 *
+	 * @return void
+	 * @throws Exception Exception.
+	 */
+	public function process_notification_callback() {
+		// TODO: Implement process notification.
 	}
 
 

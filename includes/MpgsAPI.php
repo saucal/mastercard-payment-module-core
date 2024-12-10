@@ -9,8 +9,6 @@
 
 namespace MPGSCore;
 
-use MPGSCore\Admin\GatewaySettings;
-
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
