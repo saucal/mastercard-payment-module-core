@@ -120,6 +120,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		add_action( 'woocommerce_receipt_' . $this->id, array( $this, 'payment_fields' ) );
 		add_action( 'woocommerce_api_' . $this->prefix_hook( 'wc' ), array( $this, 'process_return_callback' ) );
 		add_action( 'woocommerce_api_' . $this->prefix_hook( 'wc-webhook' ), array( $this, 'process_notification_callback' ) );
+		add_action( $this->prefix_hook( 'process_payment_error' ), array( $this, 'handle_failed_payment' ) );
 
 		add_filter( $this->prefix_hook( 'enqueue_scripts' ), array( $this, 'enqueue_scripts' ), 20 );
 		add_filter( 'script_loader_tag', array( $this, 'maybe_add_callbacks_attr' ), 10, 3 );
@@ -274,6 +275,11 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @return void
 	 */
 	public function payment_fields() {
+
+		if ( is_checkout_pay_page() ) {
+			$this->maybe_flag_order_as_paid( Utils::get_current_order() );
+		}
+
 		switch ( $this->checkout_mode ) {
 			case 'hosted_checkout':
 				$this->payment_fields_hosted_checkout();
@@ -362,49 +368,150 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 */
 	public function process_payment( $order_id, $transaction_type = null, $override_total = null, $payment_complete = true ) {
 
-		$order = wc_get_order( $order_id );
-
-		if ( ! $order ) {
-			return array(
-				'result'   => 'error',
-				'redirect' => '',
-			);
-		}
-
 		try {
-			if ( 'hosted_checkout' === $this->checkout_mode ) {
-				$order->update_status( 'pending', __( 'Pending payment', $this->mpgs_plugin->text_domain() ) );
+			$order = wc_get_order( $order_id );
 
-				if ( 'redirect' === $this->hosted_checkout_mode ) {
+			if ( ! $order ) {
+				throw new Exception( __( 'Invalid order.', $this->mpgs_plugin->text_domain() ), 'error' );
+			}
 
-					$session_id = $this->checkout_session_id( $order );
+			if ( ! empty( $order->get_date_paid( 'edit' ) ) ) {
+				return array(
+					'result'   => 'success',
+					'redirect' => $this->get_return_url( $order ),
+				);
+			}
 
-					return array(
-						'result'    => 'success',
-						'pluginId'  => $this->id,
-						'sessionId' => $session_id,
-						'redirect'  => '#',
-					);
-				}
+			if ( $this->is_hosted_checkout() ) {
+				return $this->process_payment_hosted_checkout( $order );
+			}
+
+			if ( $this->is_hosted_session() ) {
+				return $this->process_payment_hosted_session( $order );
 			}
 
 			return array(
 				'result'   => 'success',
-				'redirect' => $order->get_checkout_payment_url( true ),
+				'redirect' => $order->get_checkout_payment_url(),
 			);
 		} catch ( Exception $e ) {
 			$this->mpgs_plugin->logger()->log( $e->getMessage(), 'error' );
 			wc_add_notice( $e->getMessage(), 'error' );
 
-			do_action( $this->prefix_hook( 'process_payment_error' ), $e, $order );
+			do_action( $this->prefix_hook( 'process_payment_error' ), $e, ! empty( $order ) ? $order : null );
 
 			return array(
-				'result'   => 'fail',
+				'result'   => 'failure',
 				'redirect' => '',
+				'messages' => array( $e->getMessage() ),
 			);
 		}
 
 		// It is a success anyways, since the order at this point is completed.
+		return array(
+			'result'   => 'success',
+			'redirect' => $this->get_return_url( $order ),
+		);
+	}
+
+
+	/**
+	 * Process payment using the hosted checkout mode.
+	 *
+	 * @param WC_Order $order Order object.
+	 *
+	 * @return array
+	 */
+	protected function process_payment_hosted_checkout( $order ) {
+		$order->update_status( 'pending', __( 'Pending payment', $this->mpgs_plugin->text_domain() ) );
+
+		if ( 'redirect' === $this->hosted_checkout_mode ) {
+
+			$session_id = $this->checkout_session_id( $order );
+
+			return array(
+				'result'    => 'success',
+				'pluginId'  => $this->id,
+				'sessionId' => $session_id,
+				'redirect'  => '#',
+			);
+		}
+
+		return array(
+			'result'   => 'success',
+			'redirect' => $order->get_checkout_payment_url(),
+		);
+	}
+
+
+	/**
+	 * Process payment using the hosted session mode.
+	 *
+	 * @param WC_Order $order Order object.
+	 *
+	 * @return array
+	 * @throws Exception Exception.
+	 */
+	protected function process_payment_hosted_session( $order ) {
+
+		if ( $this->maybe_flag_order_as_paid( $order, false ) ) {
+			return array(
+				'result'   => 'success',
+				'redirect' => $this->get_return_url( $order ),
+			);
+		}
+
+		$session = $this->get_posted_session_data();
+
+		if ( empty( $session ) ) {
+			throw new Exception( __( 'There was an error obtaining the payment session. Please refresh the page and try again.', $this->mpgs_plugin->text_domain() ) );
+		}
+
+		$session_data = $this->retrieve_payment_session( $session['id'] );
+
+		if ( empty( $session_data['sourceOfFunds'] ) ) {
+			throw new Exception( __( 'There was an error validating the payment session. Please refresh the page and try again.', $this->mpgs_plugin->text_domain() ) );
+		}
+
+		$transaction_id = $this->unique_transaction_id( $order );
+
+		$payment_data = array(
+			'apiOperation' => 'AUTHORIZE' === $this->transaction_mode ? 'AUTHORIZE' : 'PAY',
+			'order'        => $this->hosted_session_order_payload( $order ),
+			'session'      => $session,
+			'transaction'  => array(
+				'reference' => $transaction_id,
+				'source'    => 'INTERNET',
+			),
+		);
+
+		$response = $this->mpgs_api()->create_transaction( $this->unique_order_id( $order ), $transaction_id, $payment_data );
+
+		if ( ! $response['success'] || empty( $response['body']['result'] ) || ! empty( $response['error'] ) ) {
+			$error = __( 'There was an error processing the payment. Please try again.', $this->mpgs_plugin->text_domain() );
+			throw new Exception( $error );
+		}
+
+		if ( 'SUCCESS' !== $response['body']['result'] ) {
+			$error = __( 'There was an error processing the payment. Please try again.', $this->mpgs_plugin->text_domain() );
+			if ( ! empty( $response['body']['response']['acquirerMessage'] ) ) {
+				$error = $response['body']['response']['acquirerMessage'];
+			} elseif ( ! empty( $response['body']['response']['gatewayCode'] ) ) {
+				$error = $this->get_mapped_error_code( $response['body']['response']['gatewayCode'] );
+			}
+			throw new Exception( $error );
+		}
+
+		if ( empty( $response['body']['transaction'] ) || empty( $response['body']['transaction']['id'] ) ) {
+			throw new Exception( __( 'There was an error obtaining the transaction.', $this->mpgs_plugin->text_domain() ) );
+		}
+
+		if ( empty( $response['body']['order'] ) ) {
+			throw new Exception( __( 'There was an error obtaining the order data.', $this->mpgs_plugin->text_domain() ) );
+		}
+
+		$this->process_wc_order( $order, $response['body']['order'], $response['body']['transaction'] );
+
 		return array(
 			'result'   => 'success',
 			'redirect' => $this->get_return_url( $order ),
@@ -424,16 +531,16 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		$errors = new WP_Error();
 
+		$session = $this->get_posted_session_data();
+
 		// Validate the session values.
-		if ( empty( $_POST[ $this->prefix_hook( 'session_id' ) ] ) || empty( $_POST[ $this->prefix_hook( 'session_version' ) ] ) ) {
+		if ( empty( $session ) ) {
 			$errors->add( 'invalid_session', __( 'There was an error obtaining the Payment Session. Please try again.', $this->mpgs_plugin->text_domain() ) );
 		}
 
-		$session_id      = wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'session_id' ) ] ) );
-		$session_version = wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'session_version' ) ] ) );
-
 		// Validate the session.
-		if ( ! $this->validate_payment_session_status( $session_id, $session_version ) ) {
+		if ( ! $this->validate_payment_session_status( $session['id'], $session['version'] ) ) {
+			$this->maybe_clean_hosted_cached_session();
 			$errors->add( 'invalid_session', __( 'The Payment Session is invalid or has expired. Please try again.', $this->mpgs_plugin->text_domain() ) );
 		}
 
@@ -448,6 +555,26 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		}
 
 		return true;
+	}
+
+
+	/**
+	 * Get posted session data.
+	 *
+	 * @return array
+	 */
+	public function get_posted_session_data() {
+		$id      = ! empty( $_POST[ $this->prefix_hook( 'session_id' ) ] ) ? wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'session_id' ) ] ) ) : '';
+		$version = ! empty( $_POST[ $this->prefix_hook( 'session_version' ) ] ) ? wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'session_version' ) ] ) ) : '';
+
+		if ( ! $id || ! $version ) {
+			return array();
+		}
+
+		return array(
+			'id'      => $id,
+			'version' => $version,
+		);
 	}
 
 
@@ -619,20 +746,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			$payload['interaction']['merchant']['logo'] = str_replace( 'http:', 'https:', $this->icon );
 		}
 
-		$formatted_billing_info = Utils::get_formatted_info_billing( $order );
-		if ( ! empty( $formatted_billing_info ) ) {
-			$payload['billing'] = $formatted_billing_info;
-		}
-
-		$formatted_shipping_info = Utils::get_formatted_info_shipping( $order );
-		if ( ! empty( $formatted_shipping_info ) ) {
-			$payload['shipping'] = $formatted_shipping_info;
-		}
-
-		$formatted_customer_info = Utils::get_formatted_info_customer( $order );
-		if ( ! $this->mpgs_plugin->is_sandbox() && ! empty( $formatted_customer_info ) ) {
-			$payload['customer'] = $formatted_customer_info;
-		}
+		$payload = $this->maybe_add_customer_data( $payload, $order );
 
 		$response = $this->mpgs_api()->create_session( $payload );
 
@@ -693,6 +807,37 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 
 	/**
+	 * Update hosted session data.
+	 *
+	 * @param string $session_id Session ID.
+	 *
+	 * @return void
+	 */
+	protected function update_hosted_session( $session_id ) {
+
+		$session_data = array(
+			'order' => array(
+				'currency' => get_woocommerce_currency(),
+				'amount'   => WC()->cart->total,
+			),
+		);
+
+		if ( hash_equals( md5( wp_json_encode( $session_data ) ), $this->get_hosted_session_data_hash() ) ) {
+			return;
+		}
+
+		$response = $this->mpgs_api()->update_session( $session_id, $session_data );
+
+		if ( ! $response['success'] ) {
+			$this->mpgs_plugin->logger()->log( $response['error'], 'error' );
+			return;
+		}
+
+		$this->set_hosted_session_data_hash( md5( wp_json_encode( $session_data ) ) );
+	}
+
+
+	/**
 	 * Get the order payload for the hosted checkout.
 	 *
 	 * @param WC_Order $order Order object.
@@ -702,20 +847,28 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	protected function hosted_checkout_order_payload( $order ) {
 		return apply_filters(
 			$this->prefix_hook( 'checkout_session_order_payload' ),
-			array(
-				'id'              => $this->unique_order_id( $order ),
-				'reference'       => $order->get_id(),
-				'currency'        => get_woocommerce_currency(),
-				'amount'          => $order->get_total(),
-				'description'     => $this->mpgs_plugin->get_gateway_setting( 'merchant_name' ),
-				'notificationUrl' => add_query_arg(
-					array(
-						'wc-api'   => $this->prefix_hook( 'wc-webhook' ),
-						'order-id' => $order->get_id(),
-						'nonce'    => wp_create_nonce( $this->prefix_hook( 'webhook-nonce' ) ),
-					),
-					trailingslashit( get_home_url() )
+			array_merge(
+				$this->base_order_payload( $order ),
+				array(
+					'id' => $this->unique_order_id( $order ),
 				),
+			)
+		);
+	}
+
+
+	/**
+	 * Get the order payload for the hosted session.
+	 *
+	 * @param WC_Order $order Order object.
+	 *
+	 * @return array
+	 */
+	protected function hosted_session_order_payload( $order ) {
+		return apply_filters(
+			$this->prefix_hook( 'session_order_payload' ),
+			array_merge(
+				$this->base_order_payload( $order )
 			)
 		);
 	}
@@ -753,17 +906,6 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 				),
 			)
 		);
-	}
-
-	/**
-	 * Get the unique order ID.
-	 *
-	 * @param WC_Order $order Order.
-	 *
-	 * @return string
-	 */
-	protected function unique_order_id( $order ) {
-		return $order->get_id() . '-' . $order->get_cart_hash();
 	}
 
 
@@ -817,11 +959,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @return void
 	 */
 	public function maybe_clean_hosted_cached_session() {
-		if ( ! function_exists( 'WC' ) || ! WC()->cart ) {
-			return;
-		}
-
-		if ( ! $this->is_hosted_session() || empty( WC()->session ) ) {
+		if ( ! function_exists( 'WC' ) || ! WC()->cart || empty( WC()->session ) ) {
 			return;
 		}
 
@@ -926,7 +1064,9 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 			$this->validate_payment_status( $order, $order_data );
 
-			$this->process_wc_order( $order, $order_data );
+			$transaction = ! empty( $order_data['transaction'][0] ) ? $order_data['transaction'][0] : array();
+
+			$this->process_wc_order( $order, $order_data, $transaction['transaction'] );
 
 			wp_safe_redirect( $this->get_return_url( $order ) );
 			exit();
@@ -958,12 +1098,16 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			$order_data = $this->mpgs_api()->retrieve_order( $this->unique_order_id( $order ) );
 		}
 
-		if ( ! $order_data['success'] || empty( $order_data['body']['result'] ) ) {
+		if ( ! $order_data['success'] || empty( $order_data['body'] ) || empty( $order_data['body']['result'] ) ) {
 			throw new Exception( __( 'Failed to retrieve the order.', $this->mpgs_plugin->text_domain() ) );
 		}
 
 		if ( 'SUCCESS' !== $order_data['body']['result'] ) {
 			throw new Exception( 'Payment was declined.', $this->mpgs_plugin->text_domain() );
+		}
+
+		if ( empty(  $order_data['body']['transaction'] ) || ! is_array( $order_data['body']['transaction'] ) ) {
+			throw new Exception( __( 'The transaction data is not valid.', $this->mpgs_plugin->text_domain() ) );
 		}
 	}
 
@@ -971,71 +1115,106 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	/**
 	 * Maybe flag the order as paid.
 	 *
-	 * @param WC_Order $order Order object.
+	 * @param WC_Order $order    Order object.
+	 * @param bool     $redirect Wether to forcefully redirect the user or not.
 	 *
-	 * @return void
+	 * @return bool
 	 */
-	protected function maybe_flag_order_as_paid( $order ) {
+	protected function maybe_flag_order_as_paid( $order, $redirect = true ) {
 		try {
+			if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
+				return false;
+			}
+
 			if ( ! $order->needs_payment() ) {
-				return;
+				return false;
 			}
 
 			$order_data = $this->mpgs_api()->retrieve_order( $this->unique_order_id( $order ) );
 
 			$this->validate_payment_status( $order, $order_data );
 
-			$this->process_wc_order( $order, $order_data );
+			$transaction_data = ! empty( $order_data['body']['transaction'] ) ? $this->get_approved_transaction( $order_data['body']['transaction'] ) : array();
+
+			$this->process_wc_order( $order, $order_data['body'], $transaction_data );
 
 			if ( $order->needs_payment() ) {
-				return;
+				return false;
 			}
 
-			wp_safe_redirect( $this->get_return_url( $order ) );
-			exit();
+			if ( $redirect ) {
+				wp_safe_redirect( $this->get_return_url( $order ) );
+				exit();
+			}
+
+			return true;
 		} catch ( Exception $e ) {
-			return;
+			return false;
 		}
+	}
+
+
+	/**
+	 * Get approved transaction.
+	 *
+	 * @param array $transaction_data Transaction data.
+	 *
+	 * @return array
+	 */
+	protected function get_approved_transaction( $transaction_data ) {
+		if ( empty( $transaction_data) || ! is_array( $transaction_data ) ) {
+			return array();
+		}
+
+		foreach ( $transaction_data as $transaction ) {
+			if ( ! empty( $transaction['transaction']['type'] ) && 'PAYMENT' === $transaction['transaction']['type'] && ! empty( $transaction['result'] ) && 'SUCCESS' === $transaction['result'] ) {
+				return $transaction['transaction'];
+			}
+		}
+
+		return array();
 	}
 
 
 	/**
 	 * This function processes a WooCommerce order.
 	 *
-	 * @param object $order      The WooCommerce order object.
-	 * @param array  $order_data Order data retrieved from the API.
+	 * @param object $order       The WooCommerce order object.
+	 * @param array  $order_data  Order data retrieved from the API.
+	 * @param array  $transaction Transaction data retrieved from the API.
 	 *
 	 * @return void
 	 *
 	 * @throws Exception Exception.
 	 */
-	protected function process_wc_order( $order, $order_data ) {
+	protected function process_wc_order( $order, $order_data, $transaction ) {
 
 		if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
 			throw new Exception( __( 'The order object is not valid.', $this->mpgs_plugin->text_domain() ) );
 		}
 
-		if ( ! isset( $order_data['body']['status'] ) || ! isset( $order_data['body']['id'] ) ) {
+		if ( ! isset( $order_data['status'] ) || ! isset( $order_data['id'] ) ) {
 			throw new Exception( __( 'The order data is not valid.', $this->mpgs_plugin->text_domain() ) );
 		}
 
-		if ( empty( $order_data['body']['transaction'] ) || ! is_array( $order_data['body']['transaction'] ) ) {
+		if ( empty( $transaction['id'] ) || empty( $transaction['reference'] ) ) {
 			throw new Exception( __( 'The transaction data is not valid.', $this->mpgs_plugin->text_domain() ) );
 		}
 
-		$is_captured = 'CAPTURED' === $order_data['body']['status'];
+		$is_captured = 'CAPTURED' === $order_data['status'];
 		$order->add_meta_data( $this->prefix_hook( 'order_captured' ), $is_captured );
-		$order->add_meta_data( $this->prefix_hook( 'transaction_id' ), $order_data['body']['id'] );
+		$order->add_meta_data( $this->prefix_hook( 'transaction_id' ), $transaction['id'] );
+		$order->add_meta_data( $this->prefix_hook( 'transaction_reference' ), $transaction['reference'] );
 
 		if ( $is_captured ) {
-			$order->payment_complete( $order_data['body']['id'] );
+			$order->payment_complete( $order_data['id'] );
 
 			$order->add_order_note(
 				sprintf(
 					// translators: %1$s: Gateway title, %2$s: Transaction ID.
 					__( '%1$s payment was Captured (ID: %2$s)', $this->mpgs_plugin->text_domain() ),
 					$this->title,
-					$order_data['body']['id'],
+					$order_data['id'],
 				)
 			);
 		} else {
@@ -1044,7 +1223,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 					// translators: %1$s: Gateway title, %2$s: Transaction ID.
 					__( '%1$s payment was Authorized (ID: %2$s)', $this->mpgs_plugin->text_domain() ),
 					$this->title,
-					$order_data['body']['id'],
+					$order_data['id'],
 				)
 			);
 			$order->update_status( 'on-hold', __( 'Payment authorized, waiting for capture.', $this->mpgs_plugin->text_domain() ) );
@@ -1072,20 +1251,46 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @return bool
 	 */
 	protected function validate_payment_session_status( $session_id, $session_version ) {
-		$response = $this->mpgs_api()->retrieve_session( $session_id );
+		$session = $this->retrieve_payment_session( $session_id );
 
-		if ( ! $response['success'] || empty( $response['body']['session']['id'] ) ) {
+		if ( empty( $session ) ) {
 			return false;
 		}
 
-		if ( empty( $response['body']['session']['updateStatus'] ) || 'SUCCESS' !== $response['body']['session']['updateStatus'] ) {
+		if ( empty( $session['session']['updateStatus'] ) || 'SUCCESS' !== $session['session']['updateStatus'] ) {
 			return false;
 		}
 
-		if ( empty( $response['body']['session']['version'] ) || $response['body']['session']['version'] !== $session_version ) {
+		if ( empty( $session['session']['version'] ) || $session['session']['version'] !== $session_version ) {
 			return false;
 		}
 
 		return true;
+	}
+
+
+	/**
+	 * Retrieve Payment Session.
+	 *
+	 * @param string $session_id Session ID.
+	 *
+	 * @return array
+	 */
+	protected function retrieve_payment_session( $session_id ) {
+		static $sessions = array();
+
+		if ( isset( $sessions[ $session_id ] ) ) {
+			return $sessions[ $session_id ];
+		}
+
+		$response = $this->mpgs_api()->retrieve_session( $session_id );
+
+		if ( ! $response['success'] || empty( $response['body']['session']['id'] ) ) {
+			return array();
+		}
+
+		$sessions[ $session_id ] = $response['body'];
+
+		return $sessions[ $session_id ];
 	}
 }
