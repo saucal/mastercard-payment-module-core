@@ -240,8 +240,31 @@ final class MpgsAPI {
 	 *
 	 * @param array $payload Payload.
 	 */
-	public function create_session( $payload ) {
+	public function create_session( $payload = array() ) {
 		return $this->request( 'session', 'POST', $payload );
+	}
+
+
+	/**
+	 * Update session.
+	 *
+	 * @param string $session_id Session ID.
+	 * @param array  $payload    Payload.
+	 */
+	public function update_session( $session_id, $payload = array() ) {
+		return $this->request( 'session/' . $session_id, 'PUT', $payload );
+	}
+
+
+	/**
+	 * Retrieve session.
+	 *
+	 * @param string $session_id Session ID.
+	 *
+	 * @return array
+	 */
+	public function retrieve_session( $session_id ) {
+		return $this->request( 'session/' . $session_id, 'GET' );
 	}
 
 
