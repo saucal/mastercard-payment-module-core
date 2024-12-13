@@ -12,6 +12,7 @@ namespace MPGSCore\Gateways;
 use WC_Admin_Settings;
 use WC_Order;
 use Exception;
+use WP_Error;
 use MPGSCore\Utils;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -408,6 +409,45 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			'result'   => 'success',
 			'redirect' => $this->get_return_url( $order ),
 		);
+	}
+
+
+	/**
+	 * Validate fields.
+	 *
+	 * @return bool
+	 */
+	public function validate_fields() {
+		if ( $this->is_hosted_checkout() ) {
+			return true;
+		}
+
+		$errors = new WP_Error();
+
+		// Validate the session values.
+		if ( empty( $_POST[ $this->prefix_hook( 'session_id' ) ] ) || empty( $_POST[ $this->prefix_hook( 'session_version' ) ] ) ) {
+			$errors->add( 'invalid_session', __( 'There was an error obtaining the Payment Session. Please try again.', $this->mpgs_plugin->text_domain() ) );
+		}
+
+		$session_id      = wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'session_id' ) ] ) );
+		$session_version = wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'session_version' ) ] ) );
+
+		// Validate the session.
+		if ( ! $this->validate_payment_session_status( $session_id, $session_version ) ) {
+			$errors->add( 'invalid_session', __( 'The Payment Session is invalid or has expired. Please try again.', $this->mpgs_plugin->text_domain() ) );
+		}
+
+		$errors = apply_filters( $this->prefix_hook( 'validate_fields' ), $errors );
+
+		$errors_messages = $errors->get_error_messages();
+		if ( ! empty( $errors_messages ) ) {
+			foreach ( $errors_messages as $message ) {
+				wc_add_notice( $message, 'error' );
+			}
+			return false;
+		}
+
+		return true;
 	}
 
 
@@ -1023,4 +1063,29 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	}
 
 
+	/**
+	 * Validate Payment Session status.
+	 *
+	 * @param string $session_id      Session ID.
+	 * @param string $session_version Session version.
+	 *
+	 * @return bool
+	 */
+	protected function validate_payment_session_status( $session_id, $session_version ) {
+		$response = $this->mpgs_api()->retrieve_session( $session_id );
+
+		if ( ! $response['success'] || empty( $response['body']['session']['id'] ) ) {
+			return false;
+		}
+
+		if ( empty( $response['body']['session']['updateStatus'] ) || 'SUCCESS' !== $response['body']['session']['updateStatus'] ) {
+			return false;
+		}
+
+		if ( empty( $response['body']['session']['version'] ) || $response['body']['session']['version'] !== $session_version ) {
+			return false;
+		}
+
+		return true;
+	}
 }
