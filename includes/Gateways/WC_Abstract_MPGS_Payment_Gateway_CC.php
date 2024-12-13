@@ -33,6 +33,22 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 
 	/**
+	 * Hosted session handle.
+	 *
+	 * @var string
+	 */
+	const HOSTED_SESSION_HANDLE = 'hosted_session';
+
+
+	/**
+	 * Merchant ID.
+	 *
+	 * @var string
+	 */
+	protected $merchant_id;
+
+
+	/**
 	 * Checkout mode.
 	 *
 	 * @var string
@@ -93,6 +109,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		$this->checkout_mode        = $this->get_option( 'checkout_mode' );
 		$this->hosted_checkout_mode = $this->get_option( 'hosted_checkout_mode' );
 		$this->transaction_mode     = $this->get_option( 'transaction_mode' );
+		$this->merchant_id          = $this->get_option( 'merchant_id' );
 		$this->saved_cards          = ! empty( $this->get_option( 'saved_cards' ) && 'yes' === $this->get_option( 'saved_cards' ) );
 		$this->debug                = ! empty( $this->get_option( 'debug' ) && 'yes' === $this->get_option( 'debug' ) );
 
@@ -304,10 +321,25 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @return void
 	 */
 	protected function payment_fields_hosted_session() {
+
+		wp_enqueue_script( 'wc-credit-card-form' );
+
+		// Display the description.
+		echo wp_kses_post( $this->description );
+
+		$session_id = $this->hosted_session_id();
+
+		if ( ! $session_id ) {
+			wc_add_notice( __( 'There was an error creating the payment session. Please refresh the page and try again.', $this->mpgs_plugin->text_domain() ), 'error' );
+			return;
+		}
+
 		$this->mpgs_plugin->mpgs_core()->template()->get(
 			'payment-fields-hosted-session.php',
 			array(
-				'gateway' => $this,
+				'gateway'         => $this,
+				'session_id'      => $session_id,
+				'session_attempt' => uniqid( $session_id ),
 			)
 		);
 	}
@@ -390,6 +422,16 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 
 	/**
+	 * Get the hosted session script handle.
+	 *
+	 * @return string
+	 */
+	public function hosted_session_script_handle() {
+		return $this->prefix_hook( self::HOSTED_SESSION_HANDLE );
+	}
+
+
+	/**
 	 * Enqueue gateway scripts.
 	 *
 	 * @param array $scripts Scripts to enqueue.
@@ -402,16 +444,30 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			return $scripts;
 		}
 
+		$gateway_script = $this->prefix_hook( 'gateway' );
+
 		if ( $this->is_hosted_checkout() ) {
 			$scripts[ $this->hosted_checkout_script_handle() ] = array(
 				'src' => $this->hosted_checkout_url(),
 			);
 
-			$gateway_script = $this->prefix_hook( 'gateway' );
-
 			if ( isset( $scripts[ $gateway_script ] ) ) {
 				$scripts[ $gateway_script ]['deps'] = array_merge(
 					array( $this->hosted_checkout_script_handle() ),
+					$scripts[ $gateway_script ]['deps'] ?? array()
+				);
+			}
+		} else {
+			$scripts[ $this->hosted_session_script_handle() ] = array(
+				'src' => $this->hosted_session_url(),
+			);
+
+			if ( isset( $scripts[ $gateway_script ] ) ) {
+				$scripts[ $gateway_script ]['deps'] = array_merge(
+					array(
+						$this->hosted_session_script_handle(),
+						'jquery-payment',
+					),
 					$scripts[ $gateway_script ]['deps'] ?? array()
 				);
 			}
@@ -456,7 +512,22 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 
 	/**
-	 * Initiate checkout session.
+	 * Get the hosted session URL.
+	 *
+	 * @return string
+	 */
+	public function hosted_session_url() {
+		return sprintf(
+			'%1$s/form/version/%2$s/merchant/%3$s/session.js',
+			untrailingslashit( $this->mpgs_plugin->gateway_url() ),
+			72,
+			$this->get_option( 'merchant_id' )
+		);
+	}
+
+
+	/**
+	 * Initiate hosted checkout session.
 	 *
 	 * @param WC_Order $order Order object.
 	 *
@@ -486,7 +557,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		if ( ! empty( WC()->session ) ) {
 			$session_id = WC()->session->get( $session_key );
 
-			if ( $this->is_valid_session( WC()->session->get( $session_duration_key ) ) && $session_id ) {
+			if ( $session_id && $this->is_session_valid( WC()->session->get( $session_duration_key ) ) ) {
 				return $session_id;
 			}
 		}
@@ -539,6 +610,42 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		if ( ! empty( WC()->session ) ) {
 			WC()->session->set( $session_key, $session_id );
 			WC()->session->set( $session_duration_key, time() + 3 * MINUTE_IN_SECONDS );
+		}
+
+		return $session_id;
+	}
+
+
+	/**
+	 * Initiate hosted session.
+	 *
+	 * @return string
+	 */
+	protected function hosted_session_id() {
+		// Bail if the cart is not defined.
+		if ( ! function_exists( 'WC' ) || ! WC()->cart ) {
+			return '';
+		}
+
+		if ( ! empty( WC()->session ) ) {
+			$session_id = WC()->session->get( $this->hosted_session_id_key() );
+
+			if ( $session_id && $this->is_session_valid( WC()->session->get( $this->hosted_session_duration_key() ) ) ) {
+				return $session_id;
+			}
+		}
+
+		$response = $this->mpgs_api()->create_session();
+
+		if ( ! $response['success'] || empty( $response['body']['session']['id'] ) ) {
+			return '';
+		}
+
+		$session_id = $response['body']['session']['id'];
+
+		if ( ! empty( WC()->session ) ) {
+			WC()->session->set( $this->hosted_session_id_key(), $session_id );
+			WC()->session->set( $this->hosted_session_duration_key(), time() + 3 * MINUTE_IN_SECONDS );
 		}
 
 		return $session_id;
@@ -627,7 +734,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 *
 	 * @return bool
 	 */
-	protected function is_valid_session( $session_duration ) {
+	protected function is_session_valid( $session_duration ) {
 		$session_duration = (int) $session_duration;
 
 		if ( ! $session_duration ) {
@@ -661,6 +768,79 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		WC()->session->set( $session_key, null );
 		WC()->session->set( $session_duration_key, null );
+	}
+
+
+	/**
+	 * Maybe clean hosted cached session.
+	 *
+	 * @return void
+	 */
+	public function maybe_clean_hosted_cached_session() {
+		if ( ! function_exists( 'WC' ) || ! WC()->cart ) {
+			return;
+		}
+
+		if ( ! $this->is_hosted_session() || empty( WC()->session ) ) {
+			return;
+		}
+
+		WC()->session->set( $this->hosted_session_id_key(), null );
+		WC()->session->set( $this->hosted_session_duration_key(), null );
+	}
+
+
+	/**
+	 * Get hosted session ID key.
+	 *
+	 * @return string
+	 */
+	protected function hosted_session_id_key() {
+		return $this->prefix_hook( 'session_id_' . WC()->cart->get_cart_hash() );
+	}
+
+
+	/**
+	 * Get hosted session duration key.
+	 *
+	 * @return string
+	 */
+	protected function hosted_session_duration_key() {
+		return $this->prefix_hook( 'session_duration_' . WC()->cart->get_cart_hash() );
+	}
+
+
+	/**
+	 * Get hosted session data hash key.
+	 *
+	 * @return string
+	 */
+	protected function hosted_session_data_hash_key() {
+		return $this->prefix_hook( 'session_data_hash_' . WC()->cart->get_cart_hash() );
+	}
+
+
+	/**
+	 * Get hosted session data hash.
+	 *
+	 * @return string
+	 */
+	protected function get_hosted_session_data_hash() {
+		return ! empty( WC()->session ) ? WC()->session->get( $this->hosted_session_data_hash_key(), '' ) : '';
+	}
+
+
+	/**
+	 * Set hosted session data hash.
+	 *
+	 * @param string $hash Hash.
+	 *
+	 * @return void
+	 */
+	protected function set_hosted_session_data_hash( $hash ) {
+		if ( ! empty( WC()->session ) ) {
+			WC()->session->set( $this->hosted_session_data_hash_key(), $hash );
+		}
 	}
 
 
@@ -716,17 +896,6 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			wp_safe_redirect( wc_get_checkout_url() );
 			exit();
 		}
-	}
-
-
-	/**
-	 * Process the return callback.
-	 *
-	 * @return void
-	 * @throws Exception Exception.
-	 */
-	public function process_notification_callback() {
-		// TODO: Implement process notification.
 	}
 
 
@@ -841,4 +1010,17 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			$order->update_status( 'on-hold', __( 'Payment authorized, waiting for capture.', $this->mpgs_plugin->text_domain() ) );
 		}
 	}
+
+
+	/**
+	 * Process the return callback.
+	 *
+	 * @return void
+	 * @throws Exception Exception.
+	 */
+	public function process_notification_callback() {
+		// TODO: Implement process notification.
+	}
+
+
 }
