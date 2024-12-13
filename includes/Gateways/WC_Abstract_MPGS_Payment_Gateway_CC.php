@@ -94,9 +94,6 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 */
 	public function build() {
 
-		// Load the gateway support features.
-		$this->init_supports();
-
 		// Load the form fields.
 		$this->init_form_fields();
 
@@ -113,6 +110,9 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		$this->merchant_id          = $this->get_option( 'merchant_id' );
 		$this->saved_cards          = ! empty( $this->get_option( 'saved_cards' ) && 'yes' === $this->get_option( 'saved_cards' ) );
 		$this->debug                = ! empty( $this->get_option( 'debug' ) && 'yes' === $this->get_option( 'debug' ) );
+
+		// Load the gateway support features.
+		$this->init_supports();
 
 		// Add hooks.
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'process_admin_options' ) );
@@ -328,9 +328,6 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @return void
 	 */
 	protected function payment_fields_hosted_session() {
-
-		wp_enqueue_script( 'wc-credit-card-form' );
-
 		// Display the description.
 		echo wp_kses_post( $this->description );
 
@@ -341,6 +338,16 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			return;
 		}
 
+		$this->maybe_load_tokenization_scripts();
+
+		wp_enqueue_script( 'wc-credit-card-form' );
+
+		$display_tokenization = $this->is_save_card_available();
+
+		if ( $display_tokenization ) {
+			$this->saved_payment_methods();
+		}
+
 		$this->mpgs_plugin->mpgs_core()->template()->get(
 			'payment-fields-hosted-session.php',
 			array(
@@ -349,6 +356,10 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 				'session_attempt' => uniqid( $session_id ),
 			)
 		);
+
+		if ( ! apply_filters( 'wc_' . $this->id . '_hide_save_payment_method_checkbox', ! $display_tokenization ) && ! is_add_payment_method_page() ) {
+			$this->save_payment_method_checkbox();
+		}
 	}
 
 
@@ -1286,5 +1297,28 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		$sessions[ $session_id ] = $response['body'];
 
 		return $sessions[ $session_id ];
+	}
+
+
+	/**
+	 * Load tokenization scripts.
+	 */
+	public function maybe_load_tokenization_scripts() {
+		if ( ! $this->supports( 'tokenization' ) ) {
+			return;
+		}
+		if ( is_checkout() || is_add_payment_method_page() || is_checkout_pay_page() ) {
+			$this->tokenization_script();
+		}
+	}
+
+
+	/**
+	 * Check if save card feature is available.
+	 *
+	 * @return bool
+	 */
+	public function is_save_card_available() {
+		return $this->supports( 'tokenization' ) && is_checkout() && $this->saved_cards;
 	}
 }
