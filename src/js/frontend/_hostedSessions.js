@@ -16,6 +16,7 @@ const hostedSessions = {
 
 		if ( hostedSessions.sessionId ) {
 			hostedSessions.initWcForm();
+			hostedSessions.unblockForm();
 		}
 	},
 
@@ -54,6 +55,15 @@ const hostedSessions = {
 	},
 
 	initWcForm() {
+		jQuery( document.body ).on(
+			'checkout_error',
+			hostedSessions.unblockForm
+		);
+		jQuery( document.body ).on(
+			'update_checkout',
+			hostedSessions.unblockForm
+		);
+
 		const $checkout_form = jQuery(
 			'form.woocommerce-checkout, form.wc-block-checkout__form'
 		);
@@ -163,7 +173,6 @@ const hostedSessions = {
 				`There was an error updating the session: ${ error }`
 			);
 			hostedSessions.unblockForm();
-			hostedSessions.$wcForm.removeClass( 'is-processing' );
 		}
 
 		return false;
@@ -191,7 +200,6 @@ const hostedSessions = {
 		if ( error ) {
 			hostedSessions.submitError( error );
 			hostedSessions.unblockForm();
-			hostedSessions.$wcForm.removeClass( 'is-processing' );
 			return;
 		}
 
@@ -282,7 +290,7 @@ const hostedSessions = {
 				error_message +
 				'</div></div>'
 		); // eslint-disable-line max-len
-		hostedSessions.$wcForm.removeClass( 'is-processing' ).unblock();
+		hostedSessions.unblockForm();
 		hostedSessions.$wcForm
 			.find( '.input-text, select, input:checkbox' )
 			.trigger( 'validate' )
@@ -313,7 +321,10 @@ const hostedSessions = {
 	},
 
 	unblockForm() {
-		hostedSessions.$wcForm.unblock();
+		if ( hostedSessions.$wcForm ) {
+			hostedSessions.$wcForm.unblock();
+			hostedSessions.$wcForm.removeClass( 'is-processing' );
+		}
 	},
 };
 
