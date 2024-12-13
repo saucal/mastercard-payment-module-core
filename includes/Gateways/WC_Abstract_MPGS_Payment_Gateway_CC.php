@@ -375,7 +375,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 				throw new Exception( __( 'Invalid order.', $this->mpgs_plugin->text_domain() ), 'error' );
 			}
 
-			if ( ! empty( $order->get_date_paid( 'edit' ) ) ) {
+			if ( ! empty( $order->get_date_paid( 'edit' ) ) || $this->maybe_flag_order_as_paid( $order, false ) ) {
 				return array(
 					'result'   => 'success',
 					'redirect' => $this->get_return_url( $order ),
@@ -453,14 +453,6 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @throws Exception Exception.
 	 */
 	protected function process_payment_hosted_session( $order ) {
-
-		if ( $this->maybe_flag_order_as_paid( $order, false ) ) {
-			return array(
-				'result'   => 'success',
-				'redirect' => $this->get_return_url( $order ),
-			);
-		}
-
 		$session = $this->get_posted_session_data();
 
 		if ( empty( $session ) ) {
@@ -713,8 +705,6 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		if ( ! $order ) {
 			return '';
 		}
-
-		$this->maybe_flag_order_as_paid( $order );
 
 		$order_id = $order->get_id();
 
@@ -1064,9 +1054,13 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 			$this->validate_payment_status( $order, $order_data );
 
-			$transaction = ! empty( $order_data['transaction'][0] ) ? $order_data['transaction'][0] : array();
+			if ( empty( $order_data['body'] ) ) {
+				throw new Exception( __( 'The order data is not valid.', $this->mpgs_plugin->text_domain() ) );
+			}
 
-			$this->process_wc_order( $order, $order_data, $transaction['transaction'] );
+			$transaction = ! empty( $order_data['body']['transaction'] ) ? $this->get_approved_transaction( $order_data['body']['transaction'] ) : array();
+
+			$this->process_wc_order( $order, $order_data['body'], $transaction );
 
 			wp_safe_redirect( $this->get_return_url( $order ) );
 			exit();
@@ -1197,14 +1191,14 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			throw new Exception( __( 'The order data is not valid.', $this->mpgs_plugin->text_domain() ) );
 		}
 
-		if ( empty( $transaction['id'] ) || empty( $transaction['reference'] ) ) {
+		if ( empty( $transaction['id'] ) ) {
 			throw new Exception( __( 'The transaction data is not valid.', $this->mpgs_plugin->text_domain() ) );
 		}
 
 		$is_captured = 'CAPTURED' === $order_data['status'];
 		$order->add_meta_data( $this->prefix_hook( 'order_captured' ), $is_captured );
 		$order->add_meta_data( $this->prefix_hook( 'transaction_id' ), $transaction['id'] );
-		$order->add_meta_data( $this->prefix_hook( 'transaction_reference' ), $transaction['reference'] );
+		$order->add_meta_data( $this->prefix_hook( 'transaction_reference' ), $transaction['reference'] ?? '' );
 
 		if ( $is_captured ) {
 			$order->payment_complete( $order_data['id'] );
