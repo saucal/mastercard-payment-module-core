@@ -41,14 +41,6 @@ final class Main {
 
 
 	/**
-	 * Assets controller.
-	 *
-	 * @var Assets[]
-	 */
-	private $assets_controller;
-
-
-	/**
 	 * Template class instance.
 	 *
 	 * @var Template[]
@@ -144,6 +136,9 @@ final class Main {
 			return;
 		}
 
+		// Init hooks.
+		Gateway::init();
+
 		add_action( 'init', array( $this, 'init' ) );
 
 		// Init action.
@@ -157,13 +152,6 @@ final class Main {
 	 * @return void
 	 */
 	public function init() {
-
-		// Before init action.
-		do_action( $this->prefix_hook( 'init', 'before_' ) );
-
-		// Init hooks.
-		Gateway::init();
-
 		// After init action.
 		do_action( $this->prefix_hook( 'init' ) );
 	}
@@ -180,9 +168,8 @@ final class Main {
 			return;
 		}
 
-		$this->assets_controller[ $this->prefix ] = new Assets( $this );
-		$this->template[ $this->prefix ]          = new Template( $this );
-		$this->utils[ $this->prefix ]             = new Utils( $this );
+		$this->template[ $this->prefix ] = new Template( $this );
+		$this->utils[ $this->prefix ]    = new Utils( $this );
 	}
 
 
@@ -226,7 +213,7 @@ final class Main {
 				}
 			);
 
-			return;
+			return false;
 		}
 
 		return false;
@@ -295,27 +282,13 @@ final class Main {
 
 
 	/**
-	 * Get the assets controller instance.
-	 *
-	 * @return Assets
-	 */
-	public function assets_controller() {
-		if ( ! $this->assets_controller[ $this->prefix ] ) {
-			$this->assets_controller[ $this->prefix ] = new Assets( $this->prefix );
-		}
-
-		return $this->assets_controller[ $this->prefix ];
-	}
-
-
-	/**
 	 * Get the template instance.
 	 *
 	 * @return Template
 	 */
 	public function template() {
 		if ( ! $this->template[ $this->prefix ] ) {
-			$this->template[ $this->prefix ] = new Template( $this->prefix );
+			$this->template[ $this->prefix ] = new Template( $this );
 		}
 
 		return $this->template[ $this->prefix ];
@@ -329,7 +302,7 @@ final class Main {
 	 */
 	public function utils() {
 		if ( ! $this->utils[ $this->prefix ] ) {
-			$this->utils[ $this->prefix ] = new Utils( $this->prefix );
+			$this->utils[ $this->prefix ] = new Utils( $this );
 		}
 
 		return $this->utils[ $this->prefix ];

@@ -40,6 +40,24 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 
 	/**
+	 * Partner solution ID.
+	 *
+	 * @var string
+	 */
+	protected $partner_solution_id;
+
+
+	/**
+	 * Get the partner solution ID.
+	 *
+	 * @return string
+	 */
+	public function get_partner_solution_id() {
+		return $this->partner_solution_id;
+	}
+
+
+	/**
 	 * Is gateway enabled.
 	 *
 	 * @var bool
@@ -78,6 +96,19 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 */
 	public function mpgs_plugin() {
 		return $this->mpgs_plugin;
+	}
+
+
+	/**
+	 * Prefix hook.
+	 *
+	 * @param string $hook   Hook name.
+	 * @param string $prefix Prefix.
+	 *
+	 * @return string
+	 */
+	public function prefix_hook( $hook, $prefix = '' ) {
+		return $this->mpgs_plugin->mpgs_core()->prefix_hook( $hook, $prefix );
 	}
 
 

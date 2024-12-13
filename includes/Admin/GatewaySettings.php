@@ -170,6 +170,17 @@ final class GatewaySettings {
 						'data-show-if'  => 'hosted_checkout',
 					),
 				),
+				'display_logo'         => array(
+					'title'             => __( 'Display Plugin\'s Logo', $this->mpgs_plugin->mpgs_core()->text_domain() ),
+					'label'             => __( 'Check this to display the plugin\'s logo in the Hosted Checkout page.', $this->mpgs_plugin->mpgs_core()->text_domain() ),
+					'type'              => 'checkbox',
+					'default'           => 'yes',
+					'class'             => 'conditional-hide',
+					'custom_attributes' => array(
+						'data-show-rel' => 'checkout_mode',
+						'data-show-if'  => 'hosted_checkout',
+					),
+				),
 				'_3d_secure'           => array(
 					'title'             => __( '3D Secure', $this->mpgs_plugin->mpgs_core()->text_domain() ),
 					'type'              => 'checkbox',
@@ -298,11 +309,11 @@ final class GatewaySettings {
 			$operation = reset( $supported_operation );
 
 			if ( 'PURCHASE' === $operation ) {
-				$supported_operations['purchase'] = __( 'Authorize and Capture', $this->mpgs_plugin->mpgs_core()->text_domain() );
+				$supported_operations['PURCHASE'] = __( 'Authorize and Capture', $this->mpgs_plugin->mpgs_core()->text_domain() );
 			}
 
 			if ( 'AUTHORIZE' === $operation ) {
-				$supported_operations['authorize'] = __( 'Authorize', $this->mpgs_plugin->mpgs_core()->text_domain() );
+				$supported_operations['AUTHORIZE'] = __( 'Authorize', $this->mpgs_plugin->mpgs_core()->text_domain() );
 			}
 		}
 

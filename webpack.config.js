@@ -21,8 +21,6 @@ const path = require( 'path' );
 const cssPaths = package.assets.css ? package.assets.css : {};
 const jsPaths = package.assets.js ? package.assets.js : {};
 
-// TODO: Maybe define defaults, to avoid config definition under standard circumstances.
-
 cssPaths.src = path.join( process.cwd(), cssPaths.src );
 jsPaths.src = path.join( process.cwd(), jsPaths.src );
 cssPaths.out = path.join( process.cwd(), cssPaths.out );

@@ -1,8 +1,7 @@
-import Settings from "./_settings";
+import Settings from './_settings';
 
-(function( $ ) {
+( function ( $ ) {
 	'use strict';
 
 	Settings.init();
-
-})( jQuery );
+} )( jQuery );
