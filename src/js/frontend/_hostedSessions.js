@@ -103,36 +103,67 @@ const hostedSessions = {
 			},
 			hostedSessions.paymentScope()
 		);
-	},
 
-	initExpiryFields() {
-		const $expiryDate = jQuery(
-			`#${ hostedSessions.pluginPrefix }-card-expiry`
+		PaymentSession.onBlur(
+			[
+				'card.number',
+				'card.securityCode',
+				'card.expiryYear',
+				'card.expiryMonth',
+			],
+			function ( fieldSelector, role ) {
+				PaymentSession.validate( 'card', function ( allresult ) {
+					if ( allresult.card[ role ].isValid ) {
+						jQuery( fieldSelector )
+							.closest( '.form-row' )
+							.removeClass(
+								'woocommerce-invalid woocommerce-validated'
+							)
+							.addClass( 'woocommerce-validated' );
+					} else {
+						jQuery( fieldSelector )
+							.closest( '.form-row' )
+							.removeClass(
+								'woocommerce-invalid woocommerce-validated'
+							)
+							.addClass( 'woocommerce-invalid' );
+					}
+				} );
+			}
 		);
 
-		if ( ! $expiryDate ) {
-			return;
-		}
-
-		jQuery( document.body ).on(
-			'change',
-			`#${ hostedSessions.pluginPrefix }-card-expiry`,
-			( e ) => {
-				const expiryDate = jQuery( e.target ).val().split( ' / ' );
-
-				if ( expiryDate.length !== 2 ) {
-					return;
+		PaymentSession.onValidityChange(
+			[
+				'card.number',
+				'card.securityCode',
+				'card.expiryMonth',
+				'card.expiryYear',
+			],
+			function ( selector, result ) {
+				if ( result.isValid ) {
+					jQuery( selector )
+						.closest( '.form-row' )
+						.removeClass( [
+							'woocommerce-validated',
+							'woocommerce-invalid',
+						] )
+						.addClass( 'woocommerce-validated' );
+				} else if ( result.isIncomplete ) {
+					jQuery( selector )
+						.closest( '.form-row' )
+						.removeClass( [
+							'woocommerce-validated',
+							'woocommerce-invalid',
+						] );
+				} else {
+					jQuery( selector )
+						.closest( '.form-row' )
+						.removeClass( [
+							'woocommerce-validated',
+							'woocommerce-invalid',
+						] )
+						.addClass( 'woocommerce-invalid' );
 				}
-
-				const $expiryMonth = jQuery(
-					`#${ hostedSessions.pluginPrefix }-card-expiry-month-field`
-				);
-				const $expiryYear = jQuery(
-					`#${ hostedSessions.pluginPrefix }-card-expiry-year-field`
-				);
-
-				$expiryMonth.val( expiryDate[ 0 ] );
-				$expiryYear.val( expiryDate[ 1 ] );
 			}
 		);
 	},
@@ -289,7 +320,7 @@ const hostedSessions = {
 			'<div class="woocommerce-NoticeGroup woocommerce-NoticeGroup-checkout"><div class="woocommerce-error">' +
 				error_message +
 				'</div></div>'
-		); // eslint-disable-line max-len
+		);
 		hostedSessions.unblockForm();
 		hostedSessions.$wcForm
 			.find( '.input-text, select, input:checkbox' )
