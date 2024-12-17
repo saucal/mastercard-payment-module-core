@@ -188,7 +188,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * @return string
 	 */
 	protected function unique_order_id( $order ) {
-		return $order->get_id() . '-' . $order->get_cart_hash();
+		return $order->get_id() . '-' . md5( get_site_url() . '-' . $order->get_cart_hash() );
 	}
 
 
