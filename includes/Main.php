@@ -136,13 +136,23 @@ final class Main {
 			return;
 		}
 
-		// Init hooks.
-		Gateway::init();
+		add_action( 'woocommerce_init', array( $this, 'woocommerce_init' ) );
 
 		add_action( 'init', array( $this, 'init' ) );
 
 		// Init action.
 		do_action( $this->prefix_hook( 'loaded' ) );
+	}
+
+
+	/**
+	 * WooCommerce init.
+	 *
+	 * @return void
+	 */
+	public function woocommerce_init() {
+		// Init hooks.
+		Gateway::init();
 	}
 
 

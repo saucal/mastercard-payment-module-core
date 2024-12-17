@@ -207,21 +207,23 @@ final class MpgsAPI {
 			);
 		}
 
+		$body = $this->maybe_json_decode( wp_remote_retrieve_body( $response ) );
+
 		if ( 200 > $response['response']['code'] || 300 < $response['response']['code'] ) {
 			return array(
 				'success' => false,
 				'error'   => sprintf(
 					// Translators: %1$s: Response code, %2$s: Response message.
 					__( 'Request failed with status code %1$s and message: %2$s', $this->mpgs_plugin->text_domain() ),
-					$response['response']['code'],
-					$response['response']['message'] ?? '',
+					$body['error']['cause'] ?? $response['response']['code'],
+					$body['error']['explanation'] ?? '',
 				),
 			);
 		}
 
 		return array(
 			'success'       => true,
-			'body'          => $this->maybe_json_decode( wp_remote_retrieve_body( $response ) ),
+			'body'          => $body,
 			'http_response' => $response,
 		);
 	}
@@ -240,8 +242,45 @@ final class MpgsAPI {
 	 *
 	 * @param array $payload Payload.
 	 */
-	public function create_session( $payload ) {
+	public function create_session( $payload = array() ) {
 		return $this->request( 'session', 'POST', $payload );
+	}
+
+
+	/**
+	 * Update session.
+	 *
+	 * @param string $session_id Session ID.
+	 * @param array  $payload    Payload.
+	 */
+	public function update_session( $session_id, $payload = array() ) {
+		return $this->request( 'session/' . $session_id, 'PUT', $payload );
+	}
+
+
+	/**
+	 * Retrieve session.
+	 *
+	 * @param string $session_id Session ID.
+	 *
+	 * @return array
+	 */
+	public function retrieve_session( $session_id ) {
+		return $this->request( 'session/' . $session_id, 'GET' );
+	}
+
+
+	/**
+	 * Create payment transaction.
+	 *
+	 * @param string $order_id       Order ID.
+	 * @param string $transaction_id Transaction ID.
+	 * @param array  $payload        Payload.
+	 *
+	 * @return array
+	 */
+	public function create_transaction( $order_id, $transaction_id, $payload = array() ) {
+		return $this->request( 'order/' . $order_id . '/transaction/' . $transaction_id, 'PUT', $payload );
 	}
 
 
