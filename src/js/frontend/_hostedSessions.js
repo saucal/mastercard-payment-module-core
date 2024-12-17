@@ -1,3 +1,8 @@
+/**
+ * Internal dependencies
+ */
+import { debounce, getWcAjaxUrl } from './_utils';
+
 const hostedSessions = {
 	pluginPrefix: mpgs_gateway_params.prefix,
 	sessionId: null,
@@ -112,60 +117,40 @@ const hostedSessions = {
 				'card.expiryMonth',
 			],
 			function ( fieldSelector, role ) {
-				PaymentSession.validate( 'card', function ( allresult ) {
-					if ( allresult.card[ role ].isValid ) {
-						jQuery( fieldSelector )
-							.closest( '.form-row' )
-							.removeClass(
-								'woocommerce-invalid woocommerce-validated'
-							)
-							.addClass( 'woocommerce-validated' );
-					} else {
-						jQuery( fieldSelector )
-							.closest( '.form-row' )
-							.removeClass(
-								'woocommerce-invalid woocommerce-validated'
-							)
-							.addClass( 'woocommerce-invalid' );
-					}
+				hostedSessions.blockFieldset();
+				PaymentSession.validate( 'card', function ( fieldResults ) {
+					hostedSessions.validateCardField(
+						fieldResults,
+						fieldSelector,
+						role
+					);
 				} );
+
+				PaymentSession.onValidityChange(
+					[
+						'card.number',
+						'card.securityCode',
+						'card.expiryMonth',
+						'card.expiryYear',
+					],
+					function ( selector, result ) {
+						hostedSessions.maybeResetPaymentSession( result );
+						hostedSessions.processValidatedField(
+							selector,
+							result
+						);
+					}
+				);
 			}
 		);
 
-		PaymentSession.onValidityChange(
-			[
-				'card.number',
-				'card.securityCode',
-				'card.expiryMonth',
-				'card.expiryYear',
-			],
-			function ( selector, result ) {
-				if ( result.isValid ) {
-					jQuery( selector )
-						.closest( '.form-row' )
-						.removeClass( [
-							'woocommerce-validated',
-							'woocommerce-invalid',
-						] )
-						.addClass( 'woocommerce-validated' );
-				} else if ( result.isIncomplete ) {
-					jQuery( selector )
-						.closest( '.form-row' )
-						.removeClass( [
-							'woocommerce-validated',
-							'woocommerce-invalid',
-						] );
-				} else {
-					jQuery( selector )
-						.closest( '.form-row' )
-						.removeClass( [
-							'woocommerce-validated',
-							'woocommerce-invalid',
-						] )
-						.addClass( 'woocommerce-invalid' );
-				}
+		PaymentSession.onCardTypeChange( function ( selector, result ) {
+			if ( result.status !== 'SUPPORTED' ) {
+				return;
 			}
-		);
+
+			console.log( result.brand );
+		} );
 	},
 
 	fields() {
@@ -177,6 +162,46 @@ const hostedSessions = {
 				expiryYear: `#${ hostedSessions.pluginPrefix }-card-expiry-year-${ hostedSessions.sessionId }`,
 			},
 		};
+	},
+
+	validateCardField( fieldResults, fieldSelector, role ) {
+		hostedSessions.maybeResetPaymentSession( fieldResults.card[ role ] );
+
+		if (
+			fieldResults.card[ role ].errorReason &&
+			fieldResults.card[ role ].errorReason === 'AWAITING_SERVER_RESPONSE'
+		) {
+			PaymentSession.validate( 'card', function ( results ) {
+				hostedSessions.validateCardField(
+					results,
+					fieldSelector,
+					role
+				);
+			} );
+
+			return;
+		}
+
+		hostedSessions.processValidatedField(
+			fieldSelector,
+			fieldResults.card[ role ]
+		);
+	},
+
+	processValidatedField( fieldSelector, result ) {
+		hostedSessions.unblockFieldset();
+
+		if ( result.isValid ) {
+			jQuery( fieldSelector )
+				.closest( '.form-row' )
+				.removeClass( 'woocommerce-invalid woocommerce-validated' )
+				.addClass( 'woocommerce-validated' );
+		} else {
+			jQuery( fieldSelector )
+				.closest( '.form-row' )
+				.removeClass( 'woocommerce-invalid woocommerce-validated' )
+				.addClass( 'woocommerce-invalid' );
+		}
 	},
 
 	submitPay( event ) {
@@ -312,6 +337,50 @@ const hostedSessions = {
 		}
 	},
 
+	maybeResetPaymentSession( fieldResults ) {
+		if (
+			! fieldResults ||
+			! fieldResults.errorReason ||
+			fieldResults.errorReason !== 'SESSION_AUTHENTICATION_LIMIT_EXCEEDED'
+		) {
+			return;
+		}
+
+		hostedSessions.resetPaymentSession();
+	},
+
+	resetPaymentSession() {
+		hostedSessions.blockFieldset();
+		debounce( function () {
+			if (
+				! hostedSessions.isPaymentMethodSelected() ||
+				! hostedSessions.selectedField()
+			) {
+				hostedSessions.unblockFieldset();
+				return;
+			}
+
+			jQuery
+				.ajax( {
+					url: getWcAjaxUrl(
+						'reset_hosted_session',
+						hostedSessions.pluginPrefix
+					),
+					method: 'POST',
+				} )
+				.done( function () {
+					hostedSessions.sessionId = '';
+					hostedSessions.submitError(
+						'The Payment Session expired. Please try again.'
+					);
+				} )
+				.always( function () {
+					hostedSessions.unblockFieldset();
+					jQuery( document.body ).trigger( 'update_checkout' );
+				} );
+		}, 100 )();
+	},
+
 	submitError( error_message ) {
 		jQuery(
 			'.woocommerce-NoticeGroup-checkout, .woocommerce-error, .woocommerce-message, .is-error, .is-success'
@@ -321,6 +390,7 @@ const hostedSessions = {
 				error_message +
 				'</div></div>'
 		);
+		hostedSessions.unblockFieldset();
 		hostedSessions.unblockForm();
 		hostedSessions.$wcForm
 			.find( '.input-text, select, input:checkbox' )
@@ -342,13 +412,18 @@ const hostedSessions = {
 	},
 
 	blockForm() {
-		hostedSessions.$wcForm.block( {
-			message: null,
-			overlayCSS: {
-				background: '#fff',
-				opacity: 0.6,
-			},
-		} );
+		if (
+			hostedSessions.$wcForm &&
+			jQuery( hostedSessions.$wcForm ).block === 'function'
+		) {
+			hostedSessions.$wcForm.block( {
+				message: null,
+				overlayCSS: {
+					background: '#fff',
+					opacity: 0.6,
+				},
+			} );
+		}
 	},
 
 	unblockForm() {
@@ -357,6 +432,30 @@ const hostedSessions = {
 			if ( jQuery( hostedSessions.$wcForm ).unblock === 'function' ) {
 				jQuery( hostedSessions.$wcForm ).unblock();
 			}
+		}
+	},
+
+	blockFieldset() {
+		if (
+			hostedSessions.$ccFieldset &&
+			typeof jQuery( hostedSessions.$ccFieldset ).block === 'function'
+		) {
+			hostedSessions.$ccFieldset.block( {
+				message: null,
+				overlayCSS: {
+					background: '#fff',
+					opacity: 0.6,
+				},
+			} );
+		}
+	},
+
+	unblockFieldset() {
+		if (
+			hostedSessions.$ccFieldset &&
+			typeof jQuery( hostedSessions.$ccFieldset ).unblock === 'function'
+		) {
+			jQuery( hostedSessions.$ccFieldset ).unblock();
 		}
 	},
 };
