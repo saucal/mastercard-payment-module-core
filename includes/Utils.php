@@ -340,4 +340,34 @@ final class Utils {
 			}
 		);
 	}
+
+
+	/**
+	 * Get hosted session ID key.
+	 *
+	 * @return string
+	 */
+	public function hosted_session_id_key() {
+		return $this->mpgs_core->prefix_hook( 'session_id_' . WC()->cart->get_cart_hash() );
+	}
+
+
+	/**
+	 * Get hosted session duration key.
+	 *
+	 * @return string
+	 */
+	public function hosted_session_duration_key() {
+		return $this->mpgs_core->prefix_hook( 'session_duration_' . WC()->cart->get_cart_hash() );
+	}
+
+
+	/**
+	 * Get hosted session data hash key.
+	 *
+	 * @return string
+	 */
+	public function hosted_session_data_hash_key() {
+		return $this->mpgs_core->prefix_hook( 'session_data_hash_' . WC()->cart->get_cart_hash() );
+	}
 }

@@ -790,7 +790,13 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			}
 		}
 
-		$response = $this->mpgs_api()->create_session();
+		$response = $this->mpgs_api()->create_session(
+			array(
+				'session' => array(
+					'authenticationLimit' => 20,
+				),
+			)
+		);
 
 		if ( ! $response['success'] || empty( $response['body']['session']['id'] ) ) {
 			return '';
@@ -975,7 +981,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @return string
 	 */
 	protected function hosted_session_id_key() {
-		return $this->prefix_hook( 'session_id_' . WC()->cart->get_cart_hash() );
+		return $this->mpgs_plugin()->mpgs_core()->utils()->hosted_session_id_key();
 	}
 
 
@@ -985,7 +991,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @return string
 	 */
 	protected function hosted_session_duration_key() {
-		return $this->prefix_hook( 'session_duration_' . WC()->cart->get_cart_hash() );
+		return $this->mpgs_plugin()->mpgs_core()->utils()->hosted_session_duration_key();
 	}
 
 
@@ -995,7 +1001,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @return string
 	 */
 	protected function hosted_session_data_hash_key() {
-		return $this->prefix_hook( 'session_data_hash_' . WC()->cart->get_cart_hash() );
+		return $this->mpgs_plugin()->mpgs_core()->utils()->hosted_session_data_hash_key();
 	}
 
 

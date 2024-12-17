@@ -297,6 +297,9 @@ abstract class MpgsPlugin {
 		$this->load_plugin_textdomain();
 
 		add_filter( 'plugin_action_links_' . plugin_basename( $this->plugin_file() ), array( $this, 'plugin_action_links' ) );
+
+		// Gateway AJAX actions.
+		add_action( 'wc_ajax_' . $this->mpgs_core->prefix_hook( 'reset_hosted_session' ), array( $this, 'maybe_clean_hosted_cached_session' ) );
 	}
 
 
@@ -554,5 +557,20 @@ abstract class MpgsPlugin {
 		}
 
 		return $chosen_method;
+	}
+
+
+	/**
+	 * Maybe clean hosted cached session.
+	 *
+	 * @return void
+	 */
+	public function maybe_clean_hosted_cached_session() {
+		foreach ( WC()->payment_gateways->get_available_payment_gateways() as $gateway ) {
+			if ( ! is_a( $gateway, 'MPGSCore\Gateways\WC_Abstract_MPGS_Payment_Gateway_CC' ) ) {
+				continue;
+			}
+			$gateway->maybe_clean_hosted_cached_session();
+		}
 	}
 }
