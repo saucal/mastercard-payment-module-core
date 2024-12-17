@@ -1057,7 +1057,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 				throw new Exception( __( 'The order cannot be found.', $this->mpgs_plugin->text_domain() ) );
 			}
 
-			if ( $order->get_status() === 'completed' ) {
+			if ( ! $order->needs_payment() ) {
 				throw new Exception( __( 'The order has already been processed.', $this->mpgs_plugin->text_domain() ) );
 			}
 
