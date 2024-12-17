@@ -18,10 +18,10 @@ if ( empty( $gateway ) || empty( $session_id ) || empty( $session_attempt ) ) {
 }
 
 ?>
-<fieldset id="wc-<?php echo esc_attr( $gateway->id ); ?>-cc-form" class="wc-credit-card-form wc-payment-form <?php echo esc_attr( $gateway->id ); ?>-payment-form" data-field-type="card">
+<fieldset id="wc-<?php echo esc_attr( $gateway->id ); ?>-cc-form" class="wc-credit-card-form wc-payment-form <?php echo esc_attr( $gateway->id ); ?>-payment-form mpgs-payment-form" data-field-type="card">
 	<div class="form-row form-row-wide">
 		<label for="<?php echo esc_attr( $gateway->id ); ?>-card-number"><?php esc_html_e( 'Card number', $gateway->mpgs_plugin()->text_domain() ); ?><span class="required">*</span></label>
-		<input id="<?php echo esc_attr( $gateway->id ); ?>-card-number-<?php echo esc_attr( $session_id ); ?>" readonly="readonly" class="input-text wc-credit-card-form-card-number" inputmode="numeric" autocomplete="cc-number" autocorrect="no" autocapitalize="no" spellcheck="no" type="tel" placeholder="&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull;" style="background-image:none;" />
+		<input id="<?php echo esc_attr( $gateway->id ); ?>-card-number-<?php echo esc_attr( $session_id ); ?>" readonly="readonly" class="input-text wc-credit-card-form-card-number" inputmode="numeric" autocomplete="cc-number" autocorrect="no" autocapitalize="no" spellcheck="no" type="tel" placeholder="&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull;" />
 	</div>
 	<div class="form-row form-row-first">
 		<label for="<?php echo esc_attr( $gateway->id ); ?>-card-expiry-month"><?php esc_html_e( 'Expiry (MM)', $gateway->mpgs_plugin()->text_domain() ); ?><span class="required">*</span></label>

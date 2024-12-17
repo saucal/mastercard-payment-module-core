@@ -156,14 +156,15 @@ class Assets {
 	 * @param string|bool $path      Full URL of the script, or path of the script relative to the WordPress root directory.
 	 *                               If source is set to false, script is an alias of other scripts it depends on.
 	 * @param string[]    $deps      Optional. An array of registered script handles this script depends on. Default empty array.
+	 * @param string      $version   Optional. String specifying the stylesheet version number. Default is the version of the current plugin.
 	 * @param bool        $in_footer Optional. Whether to enqueue the script before </body> instead of in the <head>.
 	 *                               Default 'false'.
 	 *
 	 * @return void
 	 */
-	private function register_script( $handle, $path, $deps = array( 'jquery' ), $in_footer = true ) {
+	private function register_script( $handle, $path, $deps = array( 'jquery' ), $version = '', $in_footer = true ) {
 		$this->scripts[] = $handle;
-		wp_register_script( $handle, $path, $deps, $this->mpgs_plugin->mpgs_core()->version(), $in_footer );
+		wp_register_script( $handle, $path, $deps, $version, $in_footer );
 	}
 
 
@@ -176,15 +177,16 @@ class Assets {
 	 *                               If source is set to false, script is an alias of other scripts it depends on.
 	 * @param string[]    $deps      Optional. An array of registered script handles this script depends on. Default empty array.
 	 *                               If set to null, no version is added.
+	 * @param string      $version   Optional. String specifying the stylesheet version number. Default is the version of the current plugin.
 	 * @param bool        $in_footer Optional. Whether to enqueue the script before </body> instead of in the <head>.
 	 *                               Default 'false'.
 	 *
 	 * @return void
 	 */
-	private function enqueue_script( $handle, $path = '', $deps = array( 'jquery' ), $in_footer = true ) {
+	private function enqueue_script( $handle, $path = '', $deps = array( 'jquery' ), $version = '', $in_footer = true ) {
 
 		if ( ! in_array( $handle, $this->scripts, true ) && $path ) {
-			$this->register_script( $handle, $path, $deps, $this->mpgs_plugin->mpgs_core()->version(), $in_footer );
+			$this->register_script( $handle, $path, $deps, $version, $in_footer );
 		}
 
 		wp_enqueue_script( $handle );
@@ -199,15 +201,16 @@ class Assets {
 	 * @param string|bool $path    Full URL of the stylesheet, or path of the stylesheet relative to the WordPress root directory.
 	 *                             If source is set to false, stylesheet is an alias of other stylesheets it depends on.
 	 * @param string[]    $deps    Optional. An array of registered stylesheet handles this stylesheet depends on. Default empty array.
+	 * @param string      $version Optional. String specifying the stylesheet version number. Default is the version of the current plugin.
 	 * @param string      $media   Optional. The media for which this stylesheet has been defined.
 	 *                             Default 'all'. Accepts media types like 'all', 'print' and 'screen', or media queries like
 	 *                             '(orientation: portrait)' and '(max-width: 640px)'.
 	 *
 	 * @return void
 	 */
-	private function register_style( $handle, $path, $deps = array(), $media = 'all' ) {
+	private function register_style( $handle, $path, $deps = array(), $version = '', $media = 'all' ) {
 		$this->styles[] = $handle;
-		wp_register_style( $handle, $path, $deps, $this->mpgs_plugin->mpgs_core()->version(), $media );
+		wp_register_style( $handle, $path, $deps, $version, $media );
 	}
 
 
@@ -219,16 +222,17 @@ class Assets {
 	 * @param string|bool $path    Full URL of the stylesheet, or path of the stylesheet relative to the WordPress root directory.
 	 *                             If source is set to false, stylesheet is an alias of other stylesheets it depends on.
 	 * @param string[]    $deps    Optional. An array of registered stylesheet handles this stylesheet depends on. Default empty array.
+	 * @param string      $version Optional. String specifying the stylesheet version number. Default is the version of the current plugin.
 	 * @param string      $media   Optional. The media for which this stylesheet has been defined.
 	 *                             Default 'all'. Accepts media types like 'all', 'print' and 'screen', or media queries like
 	 *                             '(orientation: portrait)' and '(max-width: 640px)'.
 	 *
 	 * @return void
 	 */
-	private function enqueue_style( $handle, $path = '', $deps = array(), $media = 'all' ) {
+	private function enqueue_style( $handle, $path = '', $deps = array(), $version = '', $media = 'all' ) {
 
 		if ( ! in_array( $handle, $this->styles, true ) && $path ) {
-			$this->register_style( $handle, $path, $deps, $this->mpgs_plugin->mpgs_core()->version(), $media );
+			$this->register_style( $handle, $path, $deps, $version, $media );
 		}
 
 		wp_enqueue_style( $handle );

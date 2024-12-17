@@ -1,7 +1,7 @@
 /**
  * Internal dependencies
  */
-import { debounce, getWcAjaxUrl } from './_utils';
+import { debounce, getWcAjaxUrl, supportedLogos, getCardLogo } from './_utils';
 
 const hostedSessions = {
 	pluginPrefix: mpgs_gateway_params.prefix,
@@ -144,13 +144,7 @@ const hostedSessions = {
 			}
 		);
 
-		PaymentSession.onCardTypeChange( function ( selector, result ) {
-			if ( result.status !== 'SUPPORTED' ) {
-				return;
-			}
-
-			console.log( result.brand );
-		} );
+		PaymentSession.onCardTypeChange( hostedSessions.processCardTypeChange );
 	},
 
 	fields() {
@@ -456,6 +450,19 @@ const hostedSessions = {
 			typeof jQuery( hostedSessions.$ccFieldset ).unblock === 'function'
 		) {
 			jQuery( hostedSessions.$ccFieldset ).unblock();
+		}
+	},
+
+	processCardTypeChange( selector, result ) {
+		const $cardField = jQuery( selector );
+		$cardField.removeClass( supportedLogos().join( ' ' ) );
+		if ( result.status !== 'SUPPORTED' ) {
+			return;
+		}
+
+		const cardLogo = getCardLogo( result.brand );
+		if ( cardLogo !== 'unknown' ) {
+			$cardField.addClass( cardLogo );
 		}
 	},
 };
