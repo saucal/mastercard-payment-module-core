@@ -20,4 +20,25 @@ function getWcAjaxUrl( method, prefix = mpgs_gateway_params.prefix ) {
 		.replace( '%%endpoint%%', `${ prefix }_${ method }` );
 }
 
-export { debounce, getWcAjaxUrl };
+function supportedLogos() {
+	return [
+		'amex',
+		'diners',
+		'discover',
+		'jcb',
+		'laser',
+		'maestro',
+		'mastercard',
+		'paypal',
+		'unknown',
+		'visa',
+	];
+}
+
+function getCardLogo( brand ) {
+	return supportedLogos().includes( String( brand ).toLowerCase() )
+		? String( brand ).toLowerCase()
+		: 'unknown';
+}
+
+export { debounce, getWcAjaxUrl, supportedLogos, getCardLogo };
