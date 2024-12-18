@@ -348,7 +348,7 @@ final class Utils {
 	 * @return string
 	 */
 	public function hosted_session_id_key() {
-		return $this->mpgs_core->prefix_hook( 'session_id_' . WC()->cart->get_cart_hash() );
+		return $this->mpgs_core->prefix_hook( 'session_id_' . $this->unique_cart_hash() );
 	}
 
 
@@ -358,7 +358,7 @@ final class Utils {
 	 * @return string
 	 */
 	public function hosted_session_duration_key() {
-		return $this->mpgs_core->prefix_hook( 'session_duration_' . WC()->cart->get_cart_hash() );
+		return $this->mpgs_core->prefix_hook( 'session_duration_' . $this->unique_cart_hash() );
 	}
 
 
@@ -368,6 +368,16 @@ final class Utils {
 	 * @return string
 	 */
 	public function hosted_session_data_hash_key() {
-		return $this->mpgs_core->prefix_hook( 'session_data_hash_' . WC()->cart->get_cart_hash() );
+		return $this->mpgs_core->prefix_hook( 'session_data_hash_' . $this->unique_cart_hash() );
+	}
+
+
+	/**
+	 * Get unique cart hash.
+	 *
+	 * @return string
+	 */
+	protected function unique_cart_hash() {
+		return md5( get_site_url() . '-' . WC()->cart->get_cart_hash() );
 	}
 }
