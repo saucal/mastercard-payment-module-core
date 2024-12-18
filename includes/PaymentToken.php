@@ -45,7 +45,7 @@ class PaymentToken {
 	 * @param string $session_id The session ID.
 	 * @param int    $user_id    The user ID.
 	 *
-	 * @return bool
+	 * @return int|bool The token ID or false.
 	 */
 	public function process_saved_cards( $session_id, $user_id ) {
 		try {
@@ -88,7 +88,7 @@ class PaymentToken {
 			$token->set_user_id( $user_id );
 			$token->save();
 
-			return true;
+			return $token->get_id();
 		} catch ( Exception $e ) {
 			$this->gateway->mpgs_plugin()->logger()->log( 'Error processing saved cards: ' . $e->getMessage(), 'error' );
 			return false;

@@ -659,6 +659,47 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 
 	/**
+	 * Add Payment Method hook on My account.
+	 *
+	 * @return array
+	 * @throws Exception
+	 */
+	public function add_payment_method() {
+		try {
+			if ( ! is_user_logged_in() ) {
+				throw new Exception( __( 'No logged-in user found.', $this->mpgs_plugin->text_domain() ) );
+			}
+
+			$session = $this->get_posted_session_data();
+
+			if ( empty( $session ) ) {
+				throw new Exception( __( 'There was an error obtaining the payment details.', $this->mpgs_plugin->text_domain() ) );
+			}
+
+			$token_id = $this->payment_token()->process_saved_cards( $session['id'], get_current_user_id() );
+
+			if ( ! $token_id ) {
+				throw new Exception( __( 'There was an error saving the card.', $this->mpgs_plugin->text_domain() ) );
+			}
+
+			do_action( $this->prefix_hook( 'add_payment_method_success', 'wc_' ), $token_id, $this );
+
+			return array(
+				'result'   => 'success',
+				'redirect' => wc_get_endpoint_url( 'payment-methods' ),
+			);
+		} catch ( Exception $e ) {
+			$this->mpgs_plugin->logger()->log( $e->getMessage(), 'error' );
+			wc_add_notice( $e->getMessage(), 'error' );
+			return array(
+				'result'   => 'failure',
+				'redirect' => wc_get_endpoint_url( 'payment-methods' ),
+			);
+		}
+	}
+
+
+	/**
 	 * Get the hosted checkout script handle.
 	 *
 	 * @return string
