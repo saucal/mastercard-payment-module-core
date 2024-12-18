@@ -515,7 +515,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		$this->process_wc_order( $order, $response['body']['order'], $response['body']['transaction'] );
 
-		if ( $this->saved_cards && ! $this->is_saved_payment_method() ) {
+		if ( $this->saved_cards && ! $this->is_saving_payment_method() ) {
 			$this->payment_token()->process_saved_cards( $session['id'], $order->get_user_id( 'system' ) );
 		}
 
@@ -603,6 +603,16 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 */
 	public function is_saved_payment_method() {
 		return isset( $_POST[ $this->payment_token_key() ] ) && 'new' !== wc_clean( $_POST[ $this->payment_token_key() ] );
+	}
+
+
+	/**
+	 * Is saving payment method.
+	 *
+	 * @return bool
+	 */
+	protected function is_saving_payment_method() {
+		return isset( $_POST[ 'wc-' . $this->id . '-new-payment-method' ] ) && ( $_POST[ 'wc-' . $this->id . '-new-payment-method' ] ); // WPCS: CSRF ok.
 	}
 
 
