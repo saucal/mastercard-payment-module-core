@@ -292,4 +292,14 @@ final class MpgsAPI {
 	public function retrieve_order( $order_id ) {
 		return $this->request( 'order/' . $order_id, 'GET' );
 	}
+
+
+	/**
+	 * Create payment token.
+	 *
+	 * @param array $payload Payload.
+	 */
+	public function create_token( $payload = array() ) {
+		return $this->request( 'token', 'POST', $payload );
+	}
 }

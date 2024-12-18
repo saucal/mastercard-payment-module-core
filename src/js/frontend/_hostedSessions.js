@@ -202,7 +202,8 @@ const hostedSessions = {
 		if (
 			hostedSessions.$wcForm.hasClass( 'is-processing' ) ||
 			! hostedSessions.isPaymentMethodSelected() ||
-			! hostedSessions.selectedField()
+			! hostedSessions.selectedField() ||
+			hostedSessions.isSavedToken()
 		) {
 			return;
 		}
@@ -281,20 +282,22 @@ const hostedSessions = {
 			: null;
 	},
 
-	selectedToken() {
-		// TODO: To be implemented along with the saved card functionality.
-		return 'new';
-	},
-
 	isSavedToken() {
-		// TODO: To be implemented along with the saved card functionality.
-		return hostedSessions.isPaymentMethodSelected();
+		return (
+			jQuery( `#payment_method_${ hostedSessions.pluginPrefix }` ).is(
+				':checked'
+			) &&
+			jQuery(
+				`input[name="wc-${ hostedSessions.pluginPrefix }-payment-token"]`
+			).is( ':checked' ) &&
+			jQuery(
+				`input[name="wc-${ hostedSessions.pluginPrefix }-payment-token"]:checked`
+			).val() !== 'new'
+		);
 	},
 
 	paymentScope() {
-		return `${ hostedSessions.selectedToken() }-${
-			hostedSessions.sessionId
-		}-${ hostedSessions.sessionIdAttempt }`;
+		return `new-${ hostedSessions.sessionId }-${ hostedSessions.sessionIdAttempt }`;
 	},
 
 	getSessionError( response ) {
