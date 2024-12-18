@@ -83,9 +83,15 @@ const hostedSessions = {
 		}
 
 		const $order_review_form = jQuery( 'form#order_review' );
-
 		if ( $order_review_form.length ) {
 			hostedSessions.$wcForm = $order_review_form;
+			hostedSessions.$wcForm.on( 'submit', hostedSessions.submitPay );
+			return;
+		}
+
+		const $payment_form = jQuery( 'form#add_payment_method' );
+		if ( $payment_form.length ) {
+			hostedSessions.$wcForm = $payment_form;
 			hostedSessions.$wcForm.on( 'submit', hostedSessions.submitPay );
 		}
 	},
