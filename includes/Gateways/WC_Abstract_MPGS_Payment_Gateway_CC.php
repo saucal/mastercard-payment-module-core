@@ -82,6 +82,14 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 
 	/**
+	 * 3DS enabled.
+	 *
+	 * @var bool
+	 */
+	protected $enable_3ds = false;
+
+
+	/**
 	 * Debug enabled.
 	 *
 	 * @var bool
@@ -109,6 +117,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		$this->transaction_mode     = $this->get_option( 'transaction_mode' );
 		$this->merchant_id          = $this->get_option( 'merchant_id' );
 		$this->saved_cards          = ! empty( $this->get_option( 'saved_cards' ) && 'yes' === $this->get_option( 'saved_cards' ) );
+		$this->enable_3ds           = ! empty( $this->get_option( '_3d_secure' ) && 'yes' === $this->get_option( '_3d_secure' ) );
 		$this->debug                = ! empty( $this->get_option( 'debug' ) && 'yes' === $this->get_option( 'debug' ) );
 
 		// Load the gateway support features.
@@ -119,6 +128,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'validate_credentials' ) );
 		add_action( 'woocommerce_receipt_' . $this->id, array( $this, 'payment_fields' ) );
 		add_action( 'woocommerce_api_' . $this->prefix_hook( 'wc' ), array( $this, 'process_return_callback' ) );
+		add_action( 'woocommerce_api_' . $this->prefix_hook( 'wc-3ds' ), array( $this, 'process_threeds_callback' ) );
 		add_action( 'woocommerce_api_' . $this->prefix_hook( 'wc-webhook' ), array( $this, 'process_notification_callback' ) );
 		add_action( $this->prefix_hook( 'process_payment_error' ), array( $this, 'handle_failed_payment' ) );
 
@@ -488,6 +498,12 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			),
 		);
 
+		if ( $this->enable_3ds && $this->process_3ds_authentication( $order, $session, $transaction_id ) ) {
+			$payment_data['authentication'] = array(
+				'transactionId' => $transaction_id,
+			);
+		}
+
 		$response = $this->mpgs_api()->create_transaction( $this->unique_order_id( $order ), $transaction_id, $payment_data );
 
 		if ( ! $response['success'] || empty( $response['body']['result'] ) || ! empty( $response['error'] ) ) {
@@ -515,7 +531,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		$this->process_wc_order( $order, $response['body']['order'], $response['body']['transaction'] );
 
-		if ( $this->saved_cards && ! $this->is_saving_payment_method() ) {
+		if ( $this->saved_cards && $this->is_saving_payment_method() ) {
 			$this->payment_token()->process_saved_cards( $session['id'], $order->get_user_id( 'system' ) );
 		}
 
@@ -523,6 +539,93 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			'result'   => 'success',
 			'redirect' => $this->get_return_url( $order ),
 		);
+	}
+
+
+	/**
+	 * Process 3DS authentication.
+	 *
+	 * @param WC_Order $order          Order object.
+	 * @param array    $session        Session data (ID and version).
+	 * @param string   $transaction_id Transaction ID.
+	 *
+	 * @return bool
+	 * @throws Exception Exception.
+	 */
+	protected function process_3ds_authentication( $order, $session, $transaction_id ) {
+
+		$init_authentication = array(
+			'apiOperation' => 'INITIATE_AUTHENTICATION',
+			'order'        => array(
+				'currency' => $order->get_currency(),
+			),
+			'session'      => $session,
+		);
+
+		$response = $this->mpgs_api()->init_authentication( $order->get_id(), $transaction_id, $init_authentication );
+
+		if ( ! $this->process_authentication_response( $response ) ) {
+			return false;
+		}
+
+		$authenticate_payer = array(
+			'apiOperation'   => 'AUTHENTICATE_PAYER',
+			'authentication' => array(
+				'redirectResponseUrl' => add_query_arg(
+					array(
+						'wc-api'         => $this->prefix_hook( 'wc-3ds' ),
+						'order_id'       => $order->get_id(),
+						'transaction_id' => $transaction_id,
+					),
+					home_url( '/' )
+				),
+			),
+			'order'          => array(
+				'amount'   => $order->get_total(),
+				'currency' => $order->get_currency(),
+			),
+			'session'        => $session,
+		);
+
+		$authentication_response = $this->mpgs_api()->authenticate_payer( $order->get_id(), $transaction_id, $authenticate_payer );
+
+		$this->process_authentication_response( $authentication_response );
+
+		return true;
+	}
+
+
+	/**
+	 * Process authentication response.
+	 *
+	 * @param array $response The response data.
+	 *
+	 * @return bool
+	 * @throws Exception Exception.
+	 */
+	public function process_authentication_response( $response ) {
+		if ( ! $response['success'] ) {
+			throw new Exception( __( 'There was an error with the payment authentication.', $this->mpgs_plugin->text_domain() ) );
+		}
+
+		if ( ( ! empty( $response['body']['authentication'] ) && 'NONE' !== $response['body']['authentication'] ) || ( ! empty( $response['body']['transaction']['authenticationStatus'] ) && 'AUTHENTICATION_NOT_SUPPORTED' === $response['body']['transaction']['authenticationStatus'] ) ) {
+			return false;
+		}
+
+		if ( empty( $response['body']['result'] ) || 'SUCCESS' !== $response['body']['result'] ) {
+			throw new Exception( __( 'There was an error with the payment authentication.', $this->mpgs_plugin->text_domain() ) );
+		}
+
+		if ( 'PROCEED' !== $response['body']['response']['gatewayRecommendation'] ) {
+
+			if ( 'RESUBMIT_WITH_ALTERNATIVE_PAYMENT_DETAILS' === $response['body']['response']['gatewayRecommendation'] ) {
+				throw new Exception( __( 'The payment method was declined. Please try again with a different payment method.', $this->mpgs_plugin->text_domain() ) );
+			}
+
+			throw new Exception( __( 'The payment method was declined.', $this->mpgs_plugin->text_domain() ) );
+		}
+
+		return true;
 	}
 
 
@@ -942,37 +1045,6 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 
 	/**
-	 * Update hosted session data.
-	 *
-	 * @param string $session_id Session ID.
-	 *
-	 * @return void
-	 */
-	protected function update_hosted_session( $session_id ) {
-
-		$session_data = array(
-			'order' => array(
-				'currency' => get_woocommerce_currency(),
-				'amount'   => WC()->cart->total,
-			),
-		);
-
-		if ( hash_equals( md5( wp_json_encode( $session_data ) ), $this->get_hosted_session_data_hash() ) ) {
-			return;
-		}
-
-		$response = $this->mpgs_api()->update_session( $session_id, $session_data );
-
-		if ( ! $response['success'] ) {
-			$this->mpgs_plugin->logger()->log( $response['error'], 'error' );
-			return;
-		}
-
-		$this->set_hosted_session_data_hash( md5( wp_json_encode( $session_data ) ) );
-	}
-
-
-	/**
 	 * Get the order payload for the hosted checkout.
 	 *
 	 * @param WC_Order $order Order object.
@@ -1020,8 +1092,8 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		return apply_filters(
 			$this->prefix_hook( 'checkout_session_interaction_payload' ),
 			array(
-				'operation'      => $this->transaction_mode,
-				'returnUrl'      => add_query_arg(
+				'operation'                   => $this->transaction_mode,
+				'returnUrl'                   => add_query_arg(
 					array(
 						'wc-api'   => $this->prefix_hook( 'wc' ),
 						'order-id' => $order->get_id(),
@@ -1029,16 +1101,17 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 					),
 					trailingslashit( get_home_url() )
 				),
-				'cancelUrl'      => $order->get_checkout_payment_url(),
-				'timeoutUrl'     => $order->get_checkout_payment_url(),
-				'merchant'       => array(
+				'cancelUrl'                   => $order->get_checkout_payment_url(),
+				'timeoutUrl'                  => $order->get_checkout_payment_url(),
+				'merchant'                    => array(
 					'name' => $this->mpgs_plugin->get_gateway_setting( 'merchant_name' ),
 				),
-				'displayControl' => array(
+				'displayControl'              => array(
 					'customerEmail'  => 'HIDE',
 					'billingAddress' => 'HIDE',
 					'shipping'       => 'HIDE',
 				),
+				'saveCardForCredentialOnFile' => 'PAYER_INITIATED_PAYMENTS',
 			)
 		);
 	}
@@ -1367,6 +1440,17 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			);
 			$order->update_status( 'on-hold', __( 'Payment authorized, waiting for capture.', $this->mpgs_plugin->text_domain() ) );
 		}
+	}
+
+
+	/**
+	 * Process the 3DS return callback.
+	 *
+	 * @return void
+	 * @throws Exception Exception.
+	 */
+	public function process_3ds_return_callback() {
+		// TODO: Implement process 3DS return.
 	}
 
 
