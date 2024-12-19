@@ -380,4 +380,30 @@ final class Utils {
 	protected function unique_cart_hash() {
 		return md5( get_site_url() . '-' . WC()->cart->get_cart_hash() );
 	}
+
+
+	/**
+	 * Get a list of the possible errors that can occur while updating a Hosted Session form.
+	 *
+	 * @return array
+	 */
+	public function hosted_session_errors() {
+		return apply_filters(
+			$this->mpgs_core->prefix_hook( 'hosted_session_errors' ),
+			array(
+				'fields_in_error'       => array(
+					'cardNumber'   => __( 'Card number invalid or missing', $this->mpgs_core->text_domain() ),
+					'number'       => __( 'Card number invalid or missing', $this->mpgs_core->text_domain() ),
+					'expiryMonth'  => __( 'Expiry month invalid or missing', $this->mpgs_core->text_domain() ),
+					'expiryYear'   => __( 'Expiry year invalid or missing', $this->mpgs_core->text_domain() ),
+					'securityCode' => __( 'CVV invalid or missing', $this->mpgs_core->text_domain() ),
+					'default'      => __( 'There was an error updating the payment details', $this->mpgs_core->text_domain() ),
+				),
+				'payment_type_required' => __( 'Payment type is required', $this->mpgs_core->text_domain() ),
+				'request_timeout'       => __( 'Session update failed with request timeout', $this->mpgs_core->text_domain() ),
+				'system_error'          => __( 'Session update failed with system error', $this->mpgs_core->text_domain() ),
+				'default'               => __( 'There was an error updating the payment details.', $this->mpgs_core->text_domain() ),
+			)
+		);
+	}
 }
