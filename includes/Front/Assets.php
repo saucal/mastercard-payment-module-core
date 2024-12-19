@@ -81,11 +81,12 @@ final class Assets {
 		$scripts[ $this->mpgs_plugin->mpgs_core()->prefix_hook( 'gateway' ) ] = array(
 			'src'  => $this->mpgs_plugin->assets_controller()->localize_asset( 'js/frontend/mpgs-core.js' ),
 			'data' => array(
-				'wcAjaxUrl'      => WC_AJAX::get_endpoint( '%%endpoint%%' ),
-				'ajaxUrl'        => $this->mpgs_plugin->mpgs_core()->utils()->ajax_url(),
-				'prefix'         => $this->mpgs_plugin->mpgs_core()->get_prefix(),
-				'checkoutMode'   => $this->mpgs_plugin->get_checkout_mode(),
-				'orderCancelUrl' => ! empty( Utils::get_current_order() ) ? Utils::get_current_order()->get_cancel_order_url() : '',
+				'wcAjaxUrl'           => WC_AJAX::get_endpoint( '%%endpoint%%' ),
+				'ajaxUrl'             => $this->mpgs_plugin->mpgs_core()->utils()->ajax_url(),
+				'prefix'              => $this->mpgs_plugin->mpgs_core()->get_prefix(),
+				'checkoutMode'        => $this->mpgs_plugin->get_checkout_mode(),
+				'orderCancelUrl'      => ! empty( Utils::get_current_order() ) ? Utils::get_current_order()->get_cancel_order_url() : '',
+				'hostedSessionErrors' => $this->mpgs_plugin->mpgs_core()->utils()->hosted_session_errors(),
 			),
 		);
 

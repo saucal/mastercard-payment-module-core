@@ -264,9 +264,7 @@ const hostedSessions = {
 
 		if ( response.status !== 'ok' ) {
 			error = hostedSessions.getSessionError( response );
-		}
-
-		if (
+		} else if (
 			! response.session ||
 			! response.session.id ||
 			! response.session.version
@@ -327,37 +325,35 @@ const hostedSessions = {
 	},
 
 	getSessionError( response ) {
-		// TODO: Refactor errors.
-		if ( response.status === 'fields_in_error' ) {
-			if ( response.errors.cardNumber ) {
-				return 'Card number invalid or missing.';
-			}
-			if ( response.errors.expiryYear ) {
-				return 'Expiry year invalid or missing.';
-			}
-			if ( response.errors.expiryMonth ) {
-				return 'Expiry month invalid or missing.';
-			}
-			if ( response.errors.securityCode ) {
-				return 'Security code invalid.';
-			}
-
-			return 'Session update failed with field errors.';
-		} else if ( response.status === 'payment_type_required' ) {
-			return "Payment type is required. Valid values are 'card', 'ach' or 'giftCard'.";
-		} else if ( response.status === 'giftCard_type_required' ) {
-			return 'Gift card payment type requires an expected local brand parameter.';
-		} else if ( response.status === 'request_timeout' ) {
-			return (
-				'Session update failed with request timeout: ' +
-				response.errors.message
-			);
-		} else if ( response.status === 'system_error' ) {
-			return (
-				'Session update failed with system error: ' +
-				response.errors.message
-			);
+		if (
+			! response.status ||
+			! mpgs_gateway_params.hostedSessionErrors[ response.status ]
+		) {
+			return mpgs_gateway_params.hostedSessionErrors.default;
 		}
+
+		if (
+			typeof mpgs_gateway_params.hostedSessionErrors[
+				response.status
+			] === 'object'
+		) {
+			if (
+				response.errors &&
+				mpgs_gateway_params.hostedSessionErrors[ response.status ][
+					Object.keys( response.errors ).shift()
+				]
+			) {
+				return mpgs_gateway_params.hostedSessionErrors[
+					response.status
+				][ Object.keys( response.errors ).shift() ];
+			}
+			return mpgs_gateway_params.hostedSessionErrors.default;
+		}
+
+		return (
+			mpgs_gateway_params.hostedSessionErrors[ response.status ] +
+			( response.errors.message ? `: ${ response.errors.message }` : '' )
+		);
 	},
 
 	maybeResetPaymentSession( fieldResults ) {
