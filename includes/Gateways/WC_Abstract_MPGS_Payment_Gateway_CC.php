@@ -498,13 +498,15 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			),
 		);
 
-		if ( $this->enable_3ds && $this->process_3ds_authentication( $order, $session, $transaction_id ) ) {
+		$unique_order_id = $this->unique_order_id( $order );
+
+		if ( $this->enable_3ds && $this->process_3ds_authentication( $order, $session, $unique_order_id, $transaction_id ) ) {
 			$payment_data['authentication'] = array(
 				'transactionId' => $transaction_id,
 			);
 		}
 
-		$response = $this->mpgs_api()->create_transaction( $this->unique_order_id( $order ), $transaction_id, $payment_data );
+		$response = $this->mpgs_api()->create_transaction( $unique_order_id, $transaction_id, $payment_data );
 
 		if ( ! $response['success'] || empty( $response['body']['result'] ) || ! empty( $response['error'] ) ) {
 			$error = __( 'There was an error processing the payment. Please try again.', $this->mpgs_plugin->text_domain() );
@@ -547,12 +549,13 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 *
 	 * @param WC_Order $order          Order object.
 	 * @param array    $session        Session data (ID and version).
+	 * @param int      $order_id       Order ID.
 	 * @param string   $transaction_id Transaction ID.
 	 *
 	 * @return bool
 	 * @throws Exception Exception.
 	 */
-	protected function process_3ds_authentication( $order, $session, $transaction_id ) {
+	protected function process_3ds_authentication( $order, $session, $order_id, $transaction_id ) {
 
 		$init_authentication = array(
 			'apiOperation' => 'INITIATE_AUTHENTICATION',
@@ -562,7 +565,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			'session'      => $session,
 		);
 
-		$response = $this->mpgs_api()->init_authentication( $order->get_id(), $transaction_id, $init_authentication );
+		$response = $this->mpgs_api()->init_authentication( $order_id, $transaction_id, $init_authentication );
 
 		if ( ! $this->process_authentication_response( $response ) ) {
 			return false;
@@ -587,7 +590,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			'session'        => $session,
 		);
 
-		$authentication_response = $this->mpgs_api()->authenticate_payer( $order->get_id(), $transaction_id, $authenticate_payer );
+		$authentication_response = $this->mpgs_api()->authenticate_payer( $order_id, $transaction_id, $authenticate_payer );
 
 		$this->process_authentication_response( $authentication_response );
 
@@ -1338,8 +1341,8 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 				return false;
 			}
 
-			if ( ! $order->needs_payment() ) {
-				return false;
+			if ( $order->get_meta( $this->prefix_hook( 'order_captured' ) ) ) {
+				return true;
 			}
 
 			$order_data = $this->mpgs_api()->retrieve_order( $this->unique_order_id( $order ) );
@@ -1350,7 +1353,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 			$this->process_wc_order( $order, $order_data['body'], $transaction_data );
 
-			if ( $order->needs_payment() ) {
+			if ( ! $order->get_meta( $this->prefix_hook( 'order_captured' ) ) ) {
 				return false;
 			}
 
@@ -1415,6 +1418,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		$is_captured = 'CAPTURED' === $order_data['status'];
 		$order->add_meta_data( $this->prefix_hook( 'order_captured' ), $is_captured );
+		$order->add_meta_data( $this->prefix_hook( 'order_id' ), $order_data['id'] );
 		$order->add_meta_data( $this->prefix_hook( 'transaction_id' ), $transaction['id'] );
 		$order->add_meta_data( $this->prefix_hook( 'transaction_reference' ), $transaction['reference'] ?? '' );
 
