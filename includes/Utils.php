@@ -403,6 +403,7 @@ final class Utils {
 				'request_timeout'       => __( 'Session update failed with request timeout', $this->mpgs_core->text_domain() ),
 				'system_error'          => __( 'Session update failed with system error', $this->mpgs_core->text_domain() ),
 				'default'               => __( 'There was an error updating the payment details.', $this->mpgs_core->text_domain() ),
+				'session_expired'       => __( 'The Payment Session expired. Please try again.', $this->mpgs_core->text_domain() ),
 			)
 		);
 	}
