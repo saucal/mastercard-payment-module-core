@@ -97,12 +97,32 @@ const hostedSessions = {
 	},
 
 	initHostedSession() {
+		jQuery( document.body ).off(
+			'change',
+			`input[name="payment_method"], input[name="radio-control-wc-payment-method-options"], input[name="wc-${ hostedSessions.pluginPrefix }-payment-token"]`,
+			hostedSessions.initHostedSession
+		);
+		jQuery( document.body ).on(
+			'change',
+			`input[name="payment_method"], input[name="radio-control-wc-payment-method-options"], input[name="wc-${ hostedSessions.pluginPrefix }-payment-token"]`,
+			hostedSessions.initHostedSession
+		);
+
+		if (
+			! hostedSessions.isPaymentMethodSelected() ||
+			hostedSessions.isSavedToken()
+		) {
+			return;
+		}
+
+		hostedSessions.blockFieldset();
 		PaymentSession.configure(
 			{
 				session: hostedSessions.sessionId,
 				fields: hostedSessions.fields(),
 				frameEmbeddingMitigation: [ 'javascript' ],
 				callbacks: {
+					initialized: hostedSessions.unblockFieldset,
 					formSessionUpdate: hostedSessions.handlePaymentResponse,
 				},
 				interaction: {
