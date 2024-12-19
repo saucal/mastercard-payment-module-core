@@ -247,7 +247,7 @@ const hostedSessions = {
 			);
 		} catch ( error ) {
 			hostedSessions.submitError(
-				`There was an error updating the session: ${ error }`
+				`${ mpgs_gateway_params.hostedSessionErrors.default }: ${ error }`
 			);
 			hostedSessions.unblockForm();
 		}
@@ -259,7 +259,7 @@ const hostedSessions = {
 		let error = false;
 
 		if ( ! response.status ) {
-			error = `There was an error updating the session: ${ response }`;
+			error = `${ mpgs_gateway_params.hostedSessionErrors.default }: ${ response }`;
 		}
 
 		if ( response.status !== 'ok' ) {
@@ -269,7 +269,7 @@ const hostedSessions = {
 			! response.session.id ||
 			! response.session.version
 		) {
-			error = 'There was an error updating the session.';
+			error = mpgs_gateway_params.hostedSessionErrors.default;
 		}
 
 		if ( error ) {
@@ -390,7 +390,7 @@ const hostedSessions = {
 				.done( function () {
 					hostedSessions.sessionId = '';
 					hostedSessions.submitError(
-						'The Payment Session expired. Please try again.'
+						mpgs_gateway_params.hostedSessionErrors.session_expired
 					);
 				} )
 				.always( function () {
