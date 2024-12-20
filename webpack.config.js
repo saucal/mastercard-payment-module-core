@@ -94,6 +94,14 @@ const baseConfig = {
 				test: /\.js$/,
 				exclude: /node_modules/,
 			},
+			{
+				test: /\.(bmp|png|jpe?g|gif|svg|webp)$/i,
+				type: 'asset/resource',
+				exclude: /node_modules/,
+				generator: {
+					filename: 'assets/images/[name][ext]',
+				},
+			},
 		],
 	},
 	plugins: [

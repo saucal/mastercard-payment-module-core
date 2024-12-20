@@ -1,3 +1,8 @@
+/**
+ * Internal dependencies
+ */
+import { debounce, getWcAjaxUrl, supportedLogos, getCardLogo } from './_utils';
+
 const hostedSessions = {
 	pluginPrefix: mpgs_gateway_params.prefix,
 	sessionId: null,
@@ -78,20 +83,46 @@ const hostedSessions = {
 		}
 
 		const $order_review_form = jQuery( 'form#order_review' );
-
 		if ( $order_review_form.length ) {
 			hostedSessions.$wcForm = $order_review_form;
+			hostedSessions.$wcForm.on( 'submit', hostedSessions.submitPay );
+			return;
+		}
+
+		const $payment_form = jQuery( 'form#add_payment_method' );
+		if ( $payment_form.length ) {
+			hostedSessions.$wcForm = $payment_form;
 			hostedSessions.$wcForm.on( 'submit', hostedSessions.submitPay );
 		}
 	},
 
 	initHostedSession() {
+		jQuery( document.body ).off(
+			'change',
+			`input[name="payment_method"], input[name="radio-control-wc-payment-method-options"], input[name="wc-${ hostedSessions.pluginPrefix }-payment-token"]`,
+			hostedSessions.initHostedSession
+		);
+		jQuery( document.body ).on(
+			'change',
+			`input[name="payment_method"], input[name="radio-control-wc-payment-method-options"], input[name="wc-${ hostedSessions.pluginPrefix }-payment-token"]`,
+			hostedSessions.initHostedSession
+		);
+
+		if (
+			! hostedSessions.isPaymentMethodSelected() ||
+			hostedSessions.isSavedToken()
+		) {
+			return;
+		}
+
+		hostedSessions.blockFieldset();
 		PaymentSession.configure(
 			{
 				session: hostedSessions.sessionId,
 				fields: hostedSessions.fields(),
 				frameEmbeddingMitigation: [ 'javascript' ],
 				callbacks: {
+					initialized: hostedSessions.unblockFieldset,
 					formSessionUpdate: hostedSessions.handlePaymentResponse,
 				},
 				interaction: {
@@ -103,38 +134,43 @@ const hostedSessions = {
 			},
 			hostedSessions.paymentScope()
 		);
-	},
 
-	initExpiryFields() {
-		const $expiryDate = jQuery(
-			`#${ hostedSessions.pluginPrefix }-card-expiry`
-		);
+		PaymentSession.onBlur(
+			[
+				'card.number',
+				'card.securityCode',
+				'card.expiryYear',
+				'card.expiryMonth',
+			],
+			function ( fieldSelector, role ) {
+				hostedSessions.blockFieldset();
+				PaymentSession.validate( 'card', function ( fieldResults ) {
+					hostedSessions.validateCardField(
+						fieldResults,
+						fieldSelector,
+						role
+					);
+				} );
 
-		if ( ! $expiryDate ) {
-			return;
-		}
-
-		jQuery( document.body ).on(
-			'change',
-			`#${ hostedSessions.pluginPrefix }-card-expiry`,
-			( e ) => {
-				const expiryDate = jQuery( e.target ).val().split( ' / ' );
-
-				if ( expiryDate.length !== 2 ) {
-					return;
-				}
-
-				const $expiryMonth = jQuery(
-					`#${ hostedSessions.pluginPrefix }-card-expiry-month-field`
+				PaymentSession.onValidityChange(
+					[
+						'card.number',
+						'card.securityCode',
+						'card.expiryMonth',
+						'card.expiryYear',
+					],
+					function ( selector, result ) {
+						hostedSessions.maybeResetPaymentSession( result );
+						hostedSessions.processValidatedField(
+							selector,
+							result
+						);
+					}
 				);
-				const $expiryYear = jQuery(
-					`#${ hostedSessions.pluginPrefix }-card-expiry-year-field`
-				);
-
-				$expiryMonth.val( expiryDate[ 0 ] );
-				$expiryYear.val( expiryDate[ 1 ] );
 			}
 		);
+
+		PaymentSession.onCardTypeChange( hostedSessions.processCardTypeChange );
 	},
 
 	fields() {
@@ -148,11 +184,52 @@ const hostedSessions = {
 		};
 	},
 
+	validateCardField( fieldResults, fieldSelector, role ) {
+		hostedSessions.maybeResetPaymentSession( fieldResults.card[ role ] );
+
+		if (
+			fieldResults.card[ role ].errorReason &&
+			fieldResults.card[ role ].errorReason === 'AWAITING_SERVER_RESPONSE'
+		) {
+			PaymentSession.validate( 'card', function ( results ) {
+				hostedSessions.validateCardField(
+					results,
+					fieldSelector,
+					role
+				);
+			} );
+
+			return;
+		}
+
+		hostedSessions.processValidatedField(
+			fieldSelector,
+			fieldResults.card[ role ]
+		);
+	},
+
+	processValidatedField( fieldSelector, result ) {
+		hostedSessions.unblockFieldset();
+
+		if ( result.isValid ) {
+			jQuery( fieldSelector )
+				.closest( '.form-row' )
+				.removeClass( 'woocommerce-invalid woocommerce-validated' )
+				.addClass( 'woocommerce-validated' );
+		} else {
+			jQuery( fieldSelector )
+				.closest( '.form-row' )
+				.removeClass( 'woocommerce-invalid woocommerce-validated' )
+				.addClass( 'woocommerce-invalid' );
+		}
+	},
+
 	submitPay( event ) {
 		if (
 			hostedSessions.$wcForm.hasClass( 'is-processing' ) ||
 			! hostedSessions.isPaymentMethodSelected() ||
-			! hostedSessions.selectedField()
+			! hostedSessions.selectedField() ||
+			hostedSessions.isSavedToken()
 		) {
 			return;
 		}
@@ -170,7 +247,7 @@ const hostedSessions = {
 			);
 		} catch ( error ) {
 			hostedSessions.submitError(
-				`There was an error updating the session: ${ error }`
+				`${ mpgs_gateway_params.hostedSessionErrors.default }: ${ error }`
 			);
 			hostedSessions.unblockForm();
 		}
@@ -182,19 +259,17 @@ const hostedSessions = {
 		let error = false;
 
 		if ( ! response.status ) {
-			error = `There was an error updating the session: ${ response }`;
+			error = `${ mpgs_gateway_params.hostedSessionErrors.default }: ${ response }`;
 		}
 
 		if ( response.status !== 'ok' ) {
 			error = hostedSessions.getSessionError( response );
-		}
-
-		if (
+		} else if (
 			! response.session ||
 			! response.session.id ||
 			! response.session.version
 		) {
-			error = 'There was an error updating the session.';
+			error = mpgs_gateway_params.hostedSessionErrors.default;
 		}
 
 		if ( error ) {
@@ -231,54 +306,98 @@ const hostedSessions = {
 			: null;
 	},
 
-	selectedToken() {
-		// TODO: To be implemented along with the saved card functionality.
-		return 'new';
-	},
-
 	isSavedToken() {
-		// TODO: To be implemented along with the saved card functionality.
-		return hostedSessions.isPaymentMethodSelected();
+		return (
+			jQuery( `#payment_method_${ hostedSessions.pluginPrefix }` ).is(
+				':checked'
+			) &&
+			jQuery(
+				`input[name="wc-${ hostedSessions.pluginPrefix }-payment-token"]`
+			).is( ':checked' ) &&
+			jQuery(
+				`input[name="wc-${ hostedSessions.pluginPrefix }-payment-token"]:checked`
+			).val() !== 'new'
+		);
 	},
 
 	paymentScope() {
-		return `${ hostedSessions.selectedToken() }-${
-			hostedSessions.sessionId
-		}-${ hostedSessions.sessionIdAttempt }`;
+		return `new-${ hostedSessions.sessionId }-${ hostedSessions.sessionIdAttempt }`;
 	},
 
 	getSessionError( response ) {
-		// TODO: Refactor errors.
-		if ( response.status === 'fields_in_error' ) {
-			if ( response.errors.cardNumber ) {
-				return 'Card number invalid or missing.';
+		if (
+			! response.status ||
+			! mpgs_gateway_params.hostedSessionErrors[ response.status ]
+		) {
+			return mpgs_gateway_params.hostedSessionErrors.default;
+		}
+
+		if (
+			typeof mpgs_gateway_params.hostedSessionErrors[
+				response.status
+			] === 'object'
+		) {
+			if (
+				response.errors &&
+				mpgs_gateway_params.hostedSessionErrors[ response.status ][
+					Object.keys( response.errors ).shift()
+				]
+			) {
+				return mpgs_gateway_params.hostedSessionErrors[
+					response.status
+				][ Object.keys( response.errors ).shift() ];
 			}
-			if ( response.errors.expiryYear ) {
-				return 'Expiry year invalid or missing.';
-			}
-			if ( response.errors.expiryMonth ) {
-				return 'Expiry month invalid or missing.';
-			}
-			if ( response.errors.securityCode ) {
-				return 'Security code invalid.';
+			return mpgs_gateway_params.hostedSessionErrors.default;
+		}
+
+		return (
+			mpgs_gateway_params.hostedSessionErrors[ response.status ] +
+			( response.errors.message ? `: ${ response.errors.message }` : '' )
+		);
+	},
+
+	maybeResetPaymentSession( fieldResults ) {
+		if (
+			! fieldResults ||
+			! fieldResults.errorReason ||
+			fieldResults.errorReason !== 'SESSION_AUTHENTICATION_LIMIT_EXCEEDED'
+		) {
+			return;
+		}
+
+		hostedSessions.resetPaymentSession();
+	},
+
+	resetPaymentSession() {
+		hostedSessions.blockFieldset();
+		debounce( function () {
+			if (
+				! hostedSessions.isPaymentMethodSelected() ||
+				! hostedSessions.selectedField()
+			) {
+				hostedSessions.unblockFieldset();
+				return;
 			}
 
-			return 'Session update failed with field errors.';
-		} else if ( response.status === 'payment_type_required' ) {
-			return "Payment type is required. Valid values are 'card', 'ach' or 'giftCard'.";
-		} else if ( response.status === 'giftCard_type_required' ) {
-			return 'Gift card payment type requires an expected local brand parameter.';
-		} else if ( response.status === 'request_timeout' ) {
-			return (
-				'Session update failed with request timeout: ' +
-				response.errors.message
-			);
-		} else if ( response.status === 'system_error' ) {
-			return (
-				'Session update failed with system error: ' +
-				response.errors.message
-			);
-		}
+			jQuery
+				.ajax( {
+					url: getWcAjaxUrl(
+						'reset_hosted_session',
+						hostedSessions.pluginPrefix
+					),
+					method: 'POST',
+				} )
+				.done( function () {
+					hostedSessions.sessionId = '';
+					hostedSessions.submitError(
+						mpgs_gateway_params.hostedSessionErrors.session_expired
+					);
+				} )
+				.always( function () {
+					hostedSessions.unblockFieldset();
+					jQuery( document.body ).trigger( 'update_checkout' );
+				} );
+		}, 100 )();
 	},
 
 	submitError( error_message ) {
@@ -289,7 +408,8 @@ const hostedSessions = {
 			'<div class="woocommerce-NoticeGroup woocommerce-NoticeGroup-checkout"><div class="woocommerce-error">' +
 				error_message +
 				'</div></div>'
-		); // eslint-disable-line max-len
+		);
+		hostedSessions.unblockFieldset();
 		hostedSessions.unblockForm();
 		hostedSessions.$wcForm
 			.find( '.input-text, select, input:checkbox' )
@@ -311,19 +431,63 @@ const hostedSessions = {
 	},
 
 	blockForm() {
-		hostedSessions.$wcForm.block( {
-			message: null,
-			overlayCSS: {
-				background: '#fff',
-				opacity: 0.6,
-			},
-		} );
+		if (
+			hostedSessions.$wcForm &&
+			jQuery( hostedSessions.$wcForm ).block === 'function'
+		) {
+			hostedSessions.$wcForm.block( {
+				message: null,
+				overlayCSS: {
+					background: '#fff',
+					opacity: 0.6,
+				},
+			} );
+		}
 	},
 
 	unblockForm() {
 		if ( hostedSessions.$wcForm ) {
-			hostedSessions.$wcForm.unblock();
 			hostedSessions.$wcForm.removeClass( 'is-processing' );
+			if ( jQuery( hostedSessions.$wcForm ).unblock === 'function' ) {
+				jQuery( hostedSessions.$wcForm ).unblock();
+			}
+		}
+	},
+
+	blockFieldset() {
+		if (
+			hostedSessions.$ccFieldset &&
+			typeof jQuery( hostedSessions.$ccFieldset ).block === 'function'
+		) {
+			hostedSessions.$ccFieldset.block( {
+				message: null,
+				overlayCSS: {
+					background: '#fff',
+					opacity: 0.6,
+				},
+			} );
+		}
+	},
+
+	unblockFieldset() {
+		if (
+			hostedSessions.$ccFieldset &&
+			typeof jQuery( hostedSessions.$ccFieldset ).unblock === 'function'
+		) {
+			jQuery( hostedSessions.$ccFieldset ).unblock();
+		}
+	},
+
+	processCardTypeChange( selector, result ) {
+		const $cardField = jQuery( selector );
+		$cardField.removeClass( supportedLogos().join( ' ' ) );
+		if ( result.status !== 'SUPPORTED' ) {
+			return;
+		}
+
+		const cardLogo = getCardLogo( result.brand );
+		if ( cardLogo !== 'unknown' ) {
+			$cardField.addClass( cardLogo );
 		}
 	},
 };

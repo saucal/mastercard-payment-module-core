@@ -340,4 +340,71 @@ final class Utils {
 			}
 		);
 	}
+
+
+	/**
+	 * Get hosted session ID key.
+	 *
+	 * @return string
+	 */
+	public function hosted_session_id_key() {
+		return $this->mpgs_core->prefix_hook( 'session_id_' . $this->unique_cart_hash() );
+	}
+
+
+	/**
+	 * Get hosted session duration key.
+	 *
+	 * @return string
+	 */
+	public function hosted_session_duration_key() {
+		return $this->mpgs_core->prefix_hook( 'session_duration_' . $this->unique_cart_hash() );
+	}
+
+
+	/**
+	 * Get hosted session data hash key.
+	 *
+	 * @return string
+	 */
+	public function hosted_session_data_hash_key() {
+		return $this->mpgs_core->prefix_hook( 'session_data_hash_' . $this->unique_cart_hash() );
+	}
+
+
+	/**
+	 * Get unique cart hash.
+	 *
+	 * @return string
+	 */
+	protected function unique_cart_hash() {
+		return md5( get_site_url() . '-' . WC()->cart->get_cart_hash() );
+	}
+
+
+	/**
+	 * Get a list of the possible errors that can occur while updating a Hosted Session form.
+	 *
+	 * @return array
+	 */
+	public function hosted_session_errors() {
+		return apply_filters(
+			$this->mpgs_core->prefix_hook( 'hosted_session_errors' ),
+			array(
+				'fields_in_error'       => array(
+					'cardNumber'   => __( 'Card number invalid or missing', $this->mpgs_core->text_domain() ),
+					'number'       => __( 'Card number invalid or missing', $this->mpgs_core->text_domain() ),
+					'expiryMonth'  => __( 'Expiry month invalid or missing', $this->mpgs_core->text_domain() ),
+					'expiryYear'   => __( 'Expiry year invalid or missing', $this->mpgs_core->text_domain() ),
+					'securityCode' => __( 'CVV invalid or missing', $this->mpgs_core->text_domain() ),
+					'default'      => __( 'There was an error updating the payment details', $this->mpgs_core->text_domain() ),
+				),
+				'payment_type_required' => __( 'Payment type is required', $this->mpgs_core->text_domain() ),
+				'request_timeout'       => __( 'Session update failed with request timeout', $this->mpgs_core->text_domain() ),
+				'system_error'          => __( 'Session update failed with system error', $this->mpgs_core->text_domain() ),
+				'default'               => __( 'There was an error updating the payment details.', $this->mpgs_core->text_domain() ),
+				'session_expired'       => __( 'The Payment Session expired. Please try again.', $this->mpgs_core->text_domain() ),
+			)
+		);
+	}
 }

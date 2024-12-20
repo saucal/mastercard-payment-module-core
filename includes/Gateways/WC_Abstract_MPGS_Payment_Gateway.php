@@ -15,6 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 use MPGSCore\MpgsAPI;
 use MPGSCore\MpgsPlugin;
+use MPGSCore\PaymentToken;
 use MPGSCore\Utils;
 use WC_Payment_Gateway_CC;
 
@@ -46,6 +47,14 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * @var string
 	 */
 	protected $partner_solution_id;
+
+
+	/**
+	 * Payment Token instance.
+	 *
+	 * @var PaymentToken
+	 */
+	protected $payment_token;
 
 
 	/**
@@ -128,6 +137,20 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 
 	/**
+	 * Get the Payment Token instance.
+	 *
+	 * @return PaymentToken
+	 */
+	public function payment_token() {
+		if ( ! $this->payment_token ) {
+			$this->payment_token = new PaymentToken( $this );
+		}
+
+		return $this->payment_token;
+	}
+
+
+	/**
 	 * Get base order payload.
 	 *
 	 * @param WC_Order $order Order object.
@@ -188,7 +211,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * @return string
 	 */
 	protected function unique_order_id( $order ) {
-		return $order->get_id() . '-' . $order->get_cart_hash();
+		return $order->get_id() . '-' . md5( get_site_url() . '-' . $order->get_cart_hash() );
 	}
 
 

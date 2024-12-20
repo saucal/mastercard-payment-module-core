@@ -292,4 +292,38 @@ final class MpgsAPI {
 	public function retrieve_order( $order_id ) {
 		return $this->request( 'order/' . $order_id, 'GET' );
 	}
+
+
+	/**
+	 * Create payment token.
+	 *
+	 * @param array $payload Payload.
+	 */
+	public function create_token( $payload = array() ) {
+		return $this->request( 'token', 'POST', $payload );
+	}
+
+
+	/**
+	 * Initialize authentication.
+	 *
+	 * @param string $order_id       Order ID.
+	 * @param string $transaction_id Transaction ID.
+	 * @param array  $payload        Payload.
+	 */
+	public function init_authentication( $order_id, $transaction_id, $payload = array() ) {
+		return $this->request( 'order/' . $order_id . '/transaction/' . $transaction_id, 'PUT', $payload );
+	}
+
+
+	/**
+	 * Authenticate payer.
+	 *
+	 * @param string $order_id       Order ID.
+	 * @param string $transaction_id Transaction ID.
+	 * @param array  $payload        Payload.
+	 */
+	public function authenticate_payer( $order_id, $transaction_id, $payload = array() ) {
+		return $this->request( 'order/' . $order_id . '/transaction/' . $transaction_id, 'PUT', $payload );
+	}
 }
