@@ -13,6 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
+use Exception;
 use MPGSCore\MpgsAPI;
 use MPGSCore\MpgsPlugin;
 use MPGSCore\PaymentToken;
@@ -211,6 +212,12 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * @return string
 	 */
 	protected function unique_order_id( $order ) {
+		$unique_order_id = $order->get_meta( $this->prefix_hook( 'order_id' ) );
+
+		if ( $unique_order_id ) {
+			return $unique_order_id;
+		}
+
 		return $order->get_id() . '-' . md5( get_site_url() . '-' . $order->get_cart_hash() );
 	}
 
@@ -285,6 +292,241 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 				return __( 'The card not authorized. Please enter a new card for payment.', $this->mpgs_plugin->text_domain() );
 			default:
 				return __( 'The payment was declined.', $this->mpgs_plugin->text_domain() );
+		}
+	}
+
+
+	/**
+	 * Maybe flag the order as paid.
+	 *
+	 * @param WC_Order $order    Order object.
+	 * @param bool     $redirect Wether to forcefully redirect the user or not.
+	 *
+	 * @return bool
+	 */
+	protected function maybe_flag_order_as_paid( $order, $redirect = true ) {
+		try {
+			if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
+				return false;
+			}
+
+			if ( $order->get_meta( $this->prefix_hook( 'order_captured' ) ) ) {
+				return true;
+			}
+
+			$unique_order_id = $order->get_meta( $this->prefix_hook( 'order_id' ) );
+			if ( ! $unique_order_id ) {
+				$unique_order_id = $this->unique_order_id( $order );
+			}
+
+			$order_data = $this->mpgs_api()->retrieve_order( $unique_order_id );
+
+			$this->validate_payment_status( $order, $order_data );
+
+			$transaction_data = ! empty( $order_data['body']['transaction'] ) ? $this->get_approved_transaction( $order_data['body']['transaction'] ) : array();
+
+			$this->process_wc_order( $order, $order_data['body'], $transaction_data );
+
+			if ( ! $order->get_meta( $this->prefix_hook( 'order_captured' ) ) ) {
+				return false;
+			}
+
+			if ( $redirect ) {
+				wp_safe_redirect( $this->get_return_url( $order ) );
+				exit();
+			}
+
+			return true;
+		} catch ( Exception $e ) {
+			return false;
+		}
+	}
+
+
+	/**
+	 * This function processes a WooCommerce order.
+	 *
+	 * @param object $order       The WooCommerce order object.
+	 * @param array  $order_data  Order data retrieved from the API.
+	 * @param array  $transaction Transaction data retrieved from the API.
+	 *
+	 * @return void
+	 *
+	 * @throws Exception Exception.
+	 */
+	protected function process_wc_order( $order, $order_data, $transaction ) {
+
+		if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
+			throw new Exception( __( 'The order object is not valid.', $this->mpgs_plugin->text_domain() ) );
+		}
+
+		if ( ! isset( $order_data['status'] ) || ! isset( $order_data['id'] ) ) {
+			throw new Exception( __( 'The order data is not valid.', $this->mpgs_plugin->text_domain() ) );
+		}
+
+		if ( empty( $transaction['id'] ) ) {
+			throw new Exception( __( 'The transaction data is not valid.', $this->mpgs_plugin->text_domain() ) );
+		}
+
+		$order->add_meta_data( $this->prefix_hook( 'order_captured' ), 'CAPTURED' === $order_data['status'] );
+		$order->add_meta_data( $this->prefix_hook( 'order_id' ), $order_data['id'] );
+		$order->add_meta_data( $this->prefix_hook( 'transaction_id' ), $transaction['id'] );
+
+		switch ( $order_data['status'] ) {
+			case 'CAPTURED':
+				$order->payment_complete( $order_data['id'] );
+				$order->add_order_note(
+					sprintf(
+						// translators: %1$s: Gateway title, %2$s: Transaction ID.
+						__( '%1$s payment was Captured (ID: %2$s)', $this->mpgs_plugin->text_domain() ),
+						$this->title,
+						$transaction['id'],
+					)
+				);
+				break;
+			case 'AUTHORIZED':
+				$order->add_order_note(
+					sprintf(
+						// translators: %1$s: Gateway title, %2$s: Transaction ID.
+						__( '%1$s payment was Authorized (ID: %2$s)', $this->mpgs_plugin->text_domain() ),
+						$this->title,
+						$transaction['id'],
+					)
+				);
+				$order->update_status( 'on-hold', __( 'Payment authorized, waiting for capture.', $this->mpgs_plugin->text_domain() ) );
+				break;
+			case 'PARTIALLY_CAPTURED':
+				$order->add_order_note(
+					sprintf(
+						// translators: %1$s: Gateway title, %2$s: Transaction ID.
+						__( '%1$s payment was Partially Captured (ID: %2$s). Captured Amount: %3$s', $this->mpgs_plugin->text_domain() ),
+						$this->title,
+						$transaction['id'],
+						wc_price( $transaction['amount'], array( 'currency' => $transaction['currency'] ) )
+					)
+				);
+				$order->update_status( 'on-hold', __( 'Payment partially captured, waiting for full capture.', $this->mpgs_plugin->text_domain() ) );
+				break;
+		}
+	}
+
+
+	/**
+	 * Validate if the order was paid agains the API.
+	 *
+	 * @param WC_Order $order      Order object.
+	 * @param array    $order_data Order data.
+	 *
+	 * @return void
+	 * @throws Exception Exception.
+	 */
+	protected function validate_payment_status( $order, $order_data = array() ) {
+
+		if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
+			throw new Exception( __( 'The order object is not valid.', $this->mpgs_plugin->text_domain() ) );
+		}
+
+		if ( empty( $order_data ) ) {
+			$order_data = $this->mpgs_api()->retrieve_order( $this->unique_order_id( $order ) );
+		}
+
+		if ( ! $order_data['success'] || empty( $order_data['body'] ) || empty( $order_data['body']['result'] ) ) {
+			throw new Exception( __( 'Failed to retrieve the order.', $this->mpgs_plugin->text_domain() ) );
+		}
+
+		if ( 'SUCCESS' !== $order_data['body']['result'] ) {
+			throw new Exception( 'Payment was declined.', $this->mpgs_plugin->text_domain() );
+		}
+
+		if ( empty( $order_data['body']['transaction'] ) || ! is_array( $order_data['body']['transaction'] ) ) {
+			throw new Exception( __( 'The transaction data is not valid.', $this->mpgs_plugin->text_domain() ) );
+		}
+	}
+
+
+	/**
+	 * Get approved transaction.
+	 *
+	 * @param array $transaction_data Transaction data.
+	 *
+	 * @return array
+	 */
+	protected function get_approved_transaction( $transaction_data ) {
+		if ( empty( $transaction_data ) || ! is_array( $transaction_data ) ) {
+			return array();
+		}
+
+		foreach ( $transaction_data as $transaction ) {
+			if ( ! empty( $transaction['transaction']['type'] ) && in_array( $transaction['transaction']['type'], array( 'PAYMENT', 'CAPTURE' ), true ) && ! empty( $transaction['result'] ) && 'SUCCESS' === $transaction['result'] ) {
+				return $transaction['transaction'];
+			}
+		}
+
+		return array();
+	}
+
+
+	/**
+	 * Process capture payment action.
+	 *
+	 * @param WC_Order $order  Order object.
+	 * @param float    $amount Amount to capture.
+	 *
+	 * @return void
+	 */
+	public function process_capture_payment( $order, $amount = 0 ) {
+
+		try {
+			if ( $this->id !== $order->get_payment_method() ) {
+				throw new Exception( __( 'The payment method is invalid.', $this->mpgs_plugin->text_domain() ) );
+			}
+
+			if ( $order->get_meta( $this->prefix_hook( 'order_captured' ) ) ) {
+				return;
+			}
+
+			$unique_order_id = $order->get_meta( $this->prefix_hook( 'order_id' ) );
+
+			if ( ! $unique_order_id || ! $order->get_meta( $this->prefix_hook( 'transaction_id' ) ) ) {
+				throw new Exception( __( 'The order data is missing or invalid.', $this->mpgs_plugin->text_domain() ) );
+			}
+
+			$transaction_id = $this->unique_transaction_id( $order );
+
+			$payload = array(
+				'apiOperation' => 'CAPTURE',
+				'transaction'  => array(
+					'amount'   => $amount > 0 ? $amount : $order->get_total(),
+					'currency' => $order->get_currency(),
+				),
+			);
+
+			$response = $this->mpgs_api()->capture_payment( $unique_order_id, $transaction_id, $payload );
+
+			if ( ! $response['success'] || empty( $response['body']['result'] ) || 'SUCCESS' !== $response['body']['result'] ) {
+
+				if ( ! empty( $response['error'] ) ) {
+					throw new Exception( $response['error'] );
+				}
+
+				throw new Exception( __( 'There was an error capturing the payment.', $this->mpgs_plugin->text_domain() ) );
+			}
+
+			if ( empty( $response['body']['order'] ) || empty( $response['body']['transaction'] ) ) {
+				throw new Exception( __( 'There was an error parsing the capture response.', $this->mpgs_plugin->text_domain() ) );
+			}
+
+			$this->process_wc_order( $order, $response['body']['order'], $response['body']['transaction'] );
+		} catch ( Exception $e ) {
+			$this->mpgs_plugin->logger()->log( $e->getMessage(), 'error' );
+			$order->add_order_note(
+				sprintf(
+					// translators: %1$s: Gateway title, %2$s: Error message.
+					__( '%1$s payment capture failed: %2$s', $this->mpgs_plugin->text_domain() ),
+					$this->title,
+					$e->getMessage()
+				)
+			);
 		}
 	}
 }

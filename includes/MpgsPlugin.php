@@ -8,8 +8,10 @@
 
 namespace MPGSCore;
 
+use MPGSCore\Admin\CapturePaymentMetaBox;
 use MPGSCore\Admin\GatewaySettings;
 use MPGSCore\Admin\Notices;
+use WC_Order;
 
 /**
  * Abstract class for child MPGS plugins.
@@ -89,6 +91,14 @@ abstract class MpgsPlugin {
 
 
 	/**
+	 * Capture payment meta box instance.
+	 *
+	 * @var Admin\CapturePaymentMetaBox
+	 */
+	private $capture_payment_meta;
+
+
+	/**
 	 * Notices class instance.
 	 *
 	 * @var Admin\Notices
@@ -133,7 +143,8 @@ abstract class MpgsPlugin {
 
 		$this->init_core_instance();
 
-		$this->gateway_settings = new GatewaySettings( $this );
+		$this->gateway_settings     = new GatewaySettings( $this );
+		$this->capture_payment_meta = new CapturePaymentMetaBox( $this );
 
 		register_activation_hook( $this->plugin_file(), array( $this, 'install' ) );
 
@@ -456,6 +467,16 @@ abstract class MpgsPlugin {
 
 
 	/**
+	 * Get the Capture Payment Meta Box instance.
+	 *
+	 * @return Admin\CapturePaymentMetaBox
+	 */
+	public function capture_payment_meta() {
+		return $this->capture_payment_meta;
+	}
+
+
+	/**
 	 * Get the gateway settings.
 	 *
 	 * @return array
@@ -610,6 +631,54 @@ abstract class MpgsPlugin {
 				continue;
 			}
 			$gateway->maybe_clean_hosted_cached_session();
+		}
+	}
+
+
+	/**
+	 * Check if the order was paid with a plugin's payment method.
+	 *
+	 * @param WC_Order $order The order.
+	 *
+	 * @return bool
+	 */
+	public function is_mpgs_order( $order ) {
+		return $order instanceof WC_Order && $this->registered_gateway_instance( $order->get_payment_method() );
+	}
+
+
+	/**
+	 * Get the gateway instance of the order.
+	 *
+	 * @param WC_Order $order The order.
+	 *
+	 * @return WC_Abstract_MPGS_Payment_Gateway|bool
+	 */
+	public function get_order_gateway_instance( $order ) {
+		if ( ! $this->is_mpgs_order( $order ) ) {
+			return false;
+		}
+
+		return $this->registered_gateway_instance( $order->get_payment_method() );
+	}
+
+
+	/**
+	 * Get the authorized amount pending of capture.
+	 *
+	 * @param WC_Order $order The order.
+	 *
+	 * @return float
+	 */
+	public function get_capturable_amount( $order ) {
+		if ( ! $this->is_mpgs_order( $order ) ) {
+			return 0;
+		}
+
+		try {
+			return $this->registered_gateway_instance( $order->get_payment_method() )->get_authorized_amount( $order );
+		} catch ( \Exception $e ) {
+			return 0;
 		}
 	}
 }
