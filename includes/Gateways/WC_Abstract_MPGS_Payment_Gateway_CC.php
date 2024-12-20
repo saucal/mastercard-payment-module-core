@@ -367,7 +367,9 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			)
 		);
 
-		if ( ! apply_filters( 'wc_' . $this->id . '_hide_save_payment_method_checkbox', ! $display_tokenization ) && ! is_add_payment_method_page() ) {
+		$display_save_checkbox = apply_filters( 'wc_' . $this->id . '_display_save_payment_method_checkbox', $display_tokenization );
+
+		if ( $display_save_checkbox && ! is_add_payment_method_page() ) {
 			$this->save_payment_method_checkbox();
 		}
 	}
@@ -642,7 +644,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			return true;
 		}
 
-		if ( isset( $_POST[ $this->payment_token_key() ] ) && 'new' !== wc_clean( $_POST[ $this->payment_token_key() ] ) ) {
+		if ( $this->is_saved_payment_method() ) {
 			return;
 		}
 
