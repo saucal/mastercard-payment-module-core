@@ -1283,7 +1283,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 				throw new Exception( __( 'The payment session is invalid.', $this->mpgs_plugin->text_domain() ) );
 			}
 
-			$order_data = $this->mpgs_api()->retrieve_order( $this->unique_order_id( $order ) );
+			$order_data = $this->retrieve_order( $order );
 
 			$this->validate_payment_status( $order, $order_data );
 
@@ -1422,7 +1422,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			return $actions;
 		}
 
-		if ( $order->get_meta( $this->prefix_hook( 'order_captured' ) ) || ! $order->get_meta( $this->prefix_hook( 'transaction_id' ) ) ) {
+		if ( $order->get_meta( $this->prefix_hook( 'order_captured' ) ) || $this->get_authorized_amount( $order ) <= 0 ) {
 			return $actions;
 		}
 
@@ -1450,7 +1450,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @return float
 	 */
 	public function get_authorized_amount( $order ) {
-		$order_data = $this->mpgs_api()->retrieve_order( $this->unique_order_id( $order ) );
+		$order_data = $this->retrieve_order( $order );
 
 		$this->validate_payment_status( $order, $order_data );
 
@@ -1458,5 +1458,21 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		$captured_amount   = $order_data['body']['totalCapturedAmount'] ?? 0;
 
 		return $authorized_amount - $captured_amount > 0 ? $authorized_amount - $captured_amount : 0;
+	}
+
+
+	/**
+	 * Get the captured amount.
+	 *
+	 * @param WC_Order $order Order object.
+	 *
+	 * @return float
+	 */
+	public function get_captured_amount( $order ) {
+		$order_data = $this->retrieve_order( $order );
+
+		$this->validate_payment_status( $order, $order_data );
+
+		return $order_data['body']['totalCapturedAmount'] ?? 0;
 	}
 }

@@ -297,6 +297,26 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 
 	/**
+	 * Retrieve order from the API.
+	 *
+	 * @param WC_Order $order Order object.
+	 *
+	 * @return array
+	 */
+	public function retrieve_order( $order ) {
+		static $orders = array();
+
+		if ( isset( $orders[ $order->get_id() ] ) ) {
+			return $orders[ $order->get_id() ];
+		}
+
+		$orders[ $order->get_id() ] = $this->mpgs_api()->retrieve_order( $this->unique_order_id( $order ) );
+
+		return $orders[ $order->get_id() ];
+	}
+
+
+	/**
 	 * Maybe flag the order as paid.
 	 *
 	 * @param WC_Order $order    Order object.
@@ -319,7 +339,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 				$unique_order_id = $this->unique_order_id( $order );
 			}
 
-			$order_data = $this->mpgs_api()->retrieve_order( $unique_order_id );
+			$order_data = $this->retrieve_order( $order );
 
 			$this->validate_payment_status( $order, $order_data );
 
@@ -427,7 +447,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 		}
 
 		if ( empty( $order_data ) ) {
-			$order_data = $this->mpgs_api()->retrieve_order( $this->unique_order_id( $order ) );
+			$order_data = $this->retrieve_order( $order );
 		}
 
 		if ( ! $order_data['success'] || empty( $order_data['body'] ) || empty( $order_data['body']['result'] ) ) {
