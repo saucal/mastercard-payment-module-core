@@ -73,6 +73,14 @@ abstract class MpgsPlugin {
 
 
 	/**
+	 * Registered payment gateways instances.
+	 *
+	 * @var array
+	 */
+	protected $registered_gateway_instances;
+
+
+	/**
 	 * Gateway settings instance.
 	 *
 	 * @var Admin\GatewaySettings
@@ -372,7 +380,38 @@ abstract class MpgsPlugin {
 			return $methods;
 		}
 
-		return array_merge( $methods, $this->registered_gateways );
+		foreach ( $this->registered_gateways as $gateway ) {
+			if ( ! class_exists( $gateway ) || ! is_subclass_of( $gateway, 'MPGSCore\Gateways\WC_Abstract_MPGS_Payment_Gateway' ) ) {
+				continue;
+			}
+
+			$gateway_instance = new $gateway( $this );
+			$this->registered_gateway_instances[ $gateway_instance->id ] = $gateway_instance;
+		}
+
+		return array_merge( $methods, $this->registered_gateway_instances );
+	}
+
+
+	/**
+	 * Get registered payment gateways instances.
+	 *
+	 * @return array
+	 */
+	public function registered_gateway_instances() {
+		return $this->registered_gateway_instances;
+	}
+
+
+	/**
+	 * Get registered payment gateways instance.
+	 *
+	 * @param string $gateway_id Gateway ID.
+	 *
+	 * @return WC_Abstract_MPGS_Payment_Gateway|bool
+	 */
+	public function registered_gateway_instance( $gateway_id ) {
+		return $this->registered_gateway_instances[ $gateway_id ] ?? false;
 	}
 
 
