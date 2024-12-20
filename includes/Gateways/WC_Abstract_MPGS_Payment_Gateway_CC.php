@@ -127,10 +127,17 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'process_admin_options' ) );
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'validate_credentials' ) );
 		add_action( 'woocommerce_receipt_' . $this->id, array( $this, 'payment_fields' ) );
+		add_action( $this->prefix_hook( 'process_payment_error' ), array( $this, 'handle_failed_payment' ) );
+
+		// Add API actions.
 		add_action( 'woocommerce_api_' . $this->prefix_hook( 'wc' ), array( $this, 'process_return_callback' ) );
 		add_action( 'woocommerce_api_' . $this->prefix_hook( 'wc-3ds' ), array( $this, 'process_threeds_callback' ) );
 		add_action( 'woocommerce_api_' . $this->prefix_hook( 'wc-webhook' ), array( $this, 'process_notification_callback' ) );
-		add_action( $this->prefix_hook( 'process_payment_error' ), array( $this, 'handle_failed_payment' ) );
+
+		// Order edit actions.
+		add_filter( 'woocommerce_order_actions', array( $this, 'register_order_actions' ), 10, 2 );
+		add_action( 'woocommerce_order_action_' . $this->prefix_hook( 'capture_payment' ), array( $this, 'process_capture_payment' ) );
+		add_action( 'woocommerce_order_action_' . $this->prefix_hook( 'void_payment' ), array( $this, 'process_void_payment' ) );
 
 		add_filter( $this->prefix_hook( 'enqueue_scripts' ), array( $this, 'enqueue_scripts' ), 20 );
 		add_filter( 'script_loader_tag', array( $this, 'maybe_add_callbacks_attr' ), 10, 3 );
@@ -495,8 +502,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			'order'        => $this->hosted_session_order_payload( $order ),
 			'session'      => $session,
 			'transaction'  => array(
-				'reference' => $transaction_id,
-				'source'    => 'INTERNET',
+				'source' => 'INTERNET',
 			),
 		);
 
@@ -507,6 +513,11 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 				'transactionId' => $transaction_id,
 			);
 		}
+
+		// Bump the transaction ID.
+		$transaction_id = $this->unique_transaction_id( $order );
+
+		$payment_data['transaction']['reference'] = $transaction_id;
 
 		$response = $this->mpgs_api()->create_transaction( $unique_order_id, $transaction_id, $payment_data );
 
@@ -1347,7 +1358,12 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 				return true;
 			}
 
-			$order_data = $this->mpgs_api()->retrieve_order( $this->unique_order_id( $order ) );
+			$unique_order_id = $order->get_meta( $this->prefix_hook( 'order_id' ) );
+			if ( ! $unique_order_id ) {
+				$unique_order_id = $this->unique_order_id( $order );
+			}
+
+			$order_data = $this->mpgs_api()->retrieve_order( $unique_order_id );
 
 			$this->validate_payment_status( $order, $order_data );
 
@@ -1384,7 +1400,29 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		}
 
 		foreach ( $transaction_data as $transaction ) {
-			if ( ! empty( $transaction['transaction']['type'] ) && 'PAYMENT' === $transaction['transaction']['type'] && ! empty( $transaction['result'] ) && 'SUCCESS' === $transaction['result'] ) {
+			if ( ! empty( $transaction['transaction']['type'] ) && in_array( $transaction['transaction']['type'], array( 'PAYMENT', 'CAPTURE' ), true ) && ! empty( $transaction['result'] ) && 'SUCCESS' === $transaction['result'] ) {
+				return $transaction['transaction'];
+			}
+		}
+
+		return array();
+	}
+
+
+	/**
+	 * Get authorized transaction.
+	 *
+	 * @param array $transaction_data Transaction data.
+	 *
+	 * @return array
+	 */
+	protected function get_authorized_transaction( $transaction_data ) {
+		if ( empty( $transaction_data ) || ! is_array( $transaction_data ) ) {
+			return array();
+		}
+
+		foreach ( $transaction_data as $transaction ) {
+			if ( ! empty( $transaction['transaction']['type'] ) && 'AUTHORIZATION' === $transaction['transaction']['type'] && ! empty( $transaction['result'] ) && 'SUCCESS' === $transaction['result'] ) {
 				return $transaction['transaction'];
 			}
 		}
@@ -1422,7 +1460,6 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		$order->add_meta_data( $this->prefix_hook( 'order_captured' ), $is_captured );
 		$order->add_meta_data( $this->prefix_hook( 'order_id' ), $order_data['id'] );
 		$order->add_meta_data( $this->prefix_hook( 'transaction_id' ), $transaction['id'] );
-		$order->add_meta_data( $this->prefix_hook( 'transaction_reference' ), $transaction['reference'] ?? '' );
 
 		if ( $is_captured ) {
 			$order->payment_complete( $order_data['id'] );
@@ -1545,4 +1582,107 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	public function is_save_card_available() {
 		return $this->supports( 'tokenization' ) && is_checkout() && $this->saved_cards;
 	}
+
+
+	/**
+	 * Register order actions.
+	 *
+	 * @param array    $actions Order actions.
+	 * @param WC_Order $order   Order object.
+	 *
+	 * @return array
+	 */
+	public function register_order_actions( $actions, $order ) {
+
+		if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
+			return $actions;
+		}
+
+		if ( $this->id !== $order->get_payment_method() ) {
+			return $actions;
+		}
+
+		if ( $order->get_meta( $this->prefix_hook( 'order_captured' ) ) || ! $order->get_meta( $this->prefix_hook( 'transaction_id' ) ) ) {
+			return $actions;
+		}
+
+		$actions[ $this->prefix_hook( 'capture_payment' ) ] = __( 'Capture Payment', $this->mpgs_plugin->text_domain() );
+		$actions[ $this->prefix_hook( 'void_payment' ) ]    = __( 'Void Payment', $this->mpgs_plugin->text_domain() );
+
+		return $actions;
+	}
+
+
+	/**
+	 * Process capture payment action.
+	 *
+	 * @param WC_Order $order Order object.
+	 *
+	 * @return void
+	 */
+	public function process_capture_payment( $order ) {
+
+		try {
+			if ( $this->id !== $order->get_payment_method() ) {
+				throw new Exception( __( 'The payment method is invalid.', $this->mpgs_plugin->text_domain() ) );
+			}
+
+			if ( $this->maybe_flag_order_as_paid( $order, false ) || $order->get_meta( $this->prefix_hook( 'order_captured' ) ) ) {
+				return;
+			}
+
+			$unique_order_id = $order->get_meta( $this->prefix_hook( 'order_id' ) );
+
+			if ( ! $unique_order_id || ! $order->get_meta( $this->prefix_hook( 'transaction_id' ) ) ) {
+				throw new Exception( __( 'The order data is missing or invalid.', $this->mpgs_plugin->text_domain() ) );
+			}
+
+			$transaction_id = $this->unique_transaction_id( $order );
+
+			$payload = array(
+				'apiOperation' => 'CAPTURE',
+				'transaction'  => array(
+					'amount'   => $order->get_total(),
+					'currency' => $order->get_currency(),
+				),
+			);
+
+			$response = $this->mpgs_api()->capture_payment( $unique_order_id, $transaction_id, $payload );
+
+			if ( ! $response['success'] || empty( $response['body']['result'] ) || 'SUCCESS' !== $response['body']['result'] ) {
+
+				if ( ! empty( $response['error'] ) ) {
+					throw new Exception( $response['error'] );
+				}
+
+				throw new Exception( __( 'There was an error capturing the payment.', $this->mpgs_plugin->text_domain() ) );
+			}
+
+			if ( empty( $response['body']['order'] ) || empty( $response['body']['transaction'] ) ) {
+				throw new Exception( __( 'There was an error parsing the capture response.', $this->mpgs_plugin->text_domain() ) );
+			}
+
+			$this->process_wc_order( $order, $response['body']['order'], $response['body']['transaction'] );
+		} catch ( Exception $e ) {
+			$this->mpgs_plugin->logger()->log( $e->getMessage(), 'error' );
+			$order->add_order_note(
+				sprintf(
+					// translators: %1$s: Gateway title, %2$s: Error message.
+					__( '%1$s payment capture failed: %2$s', $this->mpgs_plugin->text_domain() ),
+					$this->title,
+					$e->getMessage()
+				)
+			);
+		}
+	}
+
+
+	/**
+	 * Process void payment action.
+	 *
+	 * @param WC_Order $order Order object.
+	 *
+	 * @return void
+	 */
+	public function process_void_payment( $order ) {}
 }

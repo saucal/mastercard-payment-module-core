@@ -326,4 +326,16 @@ final class MpgsAPI {
 	public function authenticate_payer( $order_id, $transaction_id, $payload = array() ) {
 		return $this->request( 'order/' . $order_id . '/transaction/' . $transaction_id, 'PUT', $payload );
 	}
+
+
+	/**
+	 * Capture payment.
+	 *
+	 * @param string $order_id       Order ID.
+	 * @param string $transaction_id Transaction ID.
+	 * @param array  $payload        Payload.
+	 */
+	public function capture_payment( $order_id, $transaction_id, $payload = array() ) {
+		return $this->request( 'order/' . $order_id . '/transaction/' . $transaction_id, 'PUT', $payload );
+	}
 }
