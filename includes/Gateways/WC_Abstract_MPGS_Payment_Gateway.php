@@ -14,6 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 use Exception;
+use WP_Error;
 use MPGSCore\MpgsAPI;
 use MPGSCore\MpgsPlugin;
 use MPGSCore\PaymentToken;
@@ -317,6 +318,41 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 
 	/**
+	 * Get the authorized amount.
+	 *
+	 * @param WC_Order $order Order object.
+	 *
+	 * @return float
+	 */
+	public function get_authorized_amount( $order ) {
+		$order_data = $this->retrieve_order( $order );
+
+		$this->validate_payment_status( $order, $order_data );
+
+		$authorized_amount = $order_data['body']['totalAuthorizedAmount'] ?? 0;
+		$captured_amount   = $order_data['body']['totalCapturedAmount'] ?? 0;
+
+		return $authorized_amount - $captured_amount > 0 ? $authorized_amount - $captured_amount : 0;
+	}
+
+
+	/**
+	 * Get the captured amount.
+	 *
+	 * @param WC_Order $order Order object.
+	 *
+	 * @return float
+	 */
+	public function get_captured_amount( $order ) {
+		$order_data = $this->retrieve_order( $order );
+
+		$this->validate_payment_status( $order, $order_data );
+
+		return $order_data['body']['totalCapturedAmount'] ?? 0;
+	}
+
+
+	/**
 	 * Maybe flag the order as paid.
 	 *
 	 * @param WC_Order $order    Order object.
@@ -388,9 +424,9 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 			throw new Exception( __( 'The transaction data is not valid.', $this->mpgs_plugin->text_domain() ) );
 		}
 
-		$order->add_meta_data( $this->prefix_hook( 'order_captured' ), 'CAPTURED' === $order_data['status'] );
-		$order->add_meta_data( $this->prefix_hook( 'order_id' ), $order_data['id'] );
-		$order->add_meta_data( $this->prefix_hook( 'transaction_id' ), $transaction['id'] );
+		$order->update_meta_data( $this->prefix_hook( 'order_captured' ), 'CAPTURED' === $order_data['status'] );
+		$order->update_meta_data( $this->prefix_hook( 'order_id' ), $order_data['id'] );
+		$order->update_meta_data( $this->prefix_hook( 'transaction_id' ), $transaction['id'] );
 
 		switch ( $order_data['status'] ) {
 			case 'CAPTURED':
@@ -413,6 +449,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 						$transaction['id'],
 					)
 				);
+				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), $transaction['id'] );
 				$order->update_status( 'on-hold', __( 'Payment authorized, waiting for capture.', $this->mpgs_plugin->text_domain() ) );
 				break;
 			case 'PARTIALLY_CAPTURED':
@@ -427,6 +464,12 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 				);
 				$order->update_status( 'on-hold', __( 'Payment partially captured, waiting for full capture.', $this->mpgs_plugin->text_domain() ) );
 				break;
+			case 'CANCELLED':
+				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), null );
+				$order->update_status( 'cancelled', __( 'Authorization was cancelled successfully.', $this->mpgs_plugin->text_domain() ) );
+				break;
+			case 'DECLINED':
+				$this->handle_failed_payment( new WP_Error( 'payment_declined', $this->get_mapped_error_code( $order_data['error']['cause'] ?? 'error' ) ), $order );
 		}
 	}
 

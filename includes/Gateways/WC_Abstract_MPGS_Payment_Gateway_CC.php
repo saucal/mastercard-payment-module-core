@@ -1287,10 +1287,6 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 			$this->validate_payment_status( $order, $order_data );
 
-			if ( empty( $order_data['body'] ) ) {
-				throw new Exception( __( 'The order data is not valid.', $this->mpgs_plugin->text_domain() ) );
-			}
-
 			$transaction = ! empty( $order_data['body']['transaction'] ) ? $this->get_approved_transaction( $order_data['body']['transaction'] ) : array();
 
 			$this->process_wc_order( $order, $order_data['body'], $transaction );
@@ -1422,11 +1418,13 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			return $actions;
 		}
 
-		if ( $order->get_meta( $this->prefix_hook( 'order_captured' ) ) || $this->get_authorized_amount( $order ) <= 0 ) {
+		if ( $order->get_meta( $this->prefix_hook( 'order_captured' ) ) ) {
 			return $actions;
 		}
 
-		$actions[ $this->prefix_hook( 'void_payment' ) ] = __( 'Void Payment', $this->mpgs_plugin->text_domain() );
+		if ( $order->get_meta( $this->prefix_hook( 'authorize_transaction' ) ) ) {
+			$actions[ $this->prefix_hook( 'void_payment' ) ] = __( 'Void Payment', $this->mpgs_plugin->text_domain() );
+		}
 
 		return $actions;
 	}
@@ -1439,40 +1437,52 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 *
 	 * @return void
 	 */
-	public function process_void_payment( $order ) {}
+	public function process_void_payment( $order ) {
 
+		if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
+			return;
+		}
 
-	/**
-	 * Get the authorized amount.
-	 *
-	 * @param WC_Order $order Order object.
-	 *
-	 * @return float
-	 */
-	public function get_authorized_amount( $order ) {
-		$order_data = $this->retrieve_order( $order );
+		if ( $this->id !== $order->get_payment_method() ) {
+			return;
+		}
 
-		$this->validate_payment_status( $order, $order_data );
+		try {
+			$order_data = $this->retrieve_order( $order );
 
-		$authorized_amount = $order_data['body']['totalAuthorizedAmount'] ?? 0;
-		$captured_amount   = $order_data['body']['totalCapturedAmount'] ?? 0;
+			$this->validate_payment_status( $order, $order_data );
 
-		return $authorized_amount - $captured_amount > 0 ? $authorized_amount - $captured_amount : 0;
-	}
+			if ( 'AUTHORIZED' !== $order_data['body']['status'] ) {
+				throw new Exception( __( 'The order cannot be voided anymore.', $this->mpgs_plugin->text_domain() ) );
+			}
 
+			$transaction_id = $order->get_meta( $this->prefix_hook( 'authorize_transaction' ) );
+			if ( empty( $transaction_id ) ) {
+				throw new Exception( __( 'The Authorize transaction ID is missing. Try to void the authorization from the Merchant Portal.', $this->mpgs_plugin->text_domain() ) );
+			}
 
-	/**
-	 * Get the captured amount.
-	 *
-	 * @param WC_Order $order Order object.
-	 *
-	 * @return float
-	 */
-	public function get_captured_amount( $order ) {
-		$order_data = $this->retrieve_order( $order );
+			$void_data = array(
+				'apiOperation' => 'VOID',
+				'transaction'  => array(
+					'targetTransactionId' => $transaction_id,
+				),
+			);
 
-		$this->validate_payment_status( $order, $order_data );
+			$response = $this->mpgs_api()->create_transaction( $this->unique_order_id( $order ), $this->unique_transaction_id( $order ), $void_data );
 
-		return $order_data['body']['totalCapturedAmount'] ?? 0;
+			if ( ! $response['success'] || empty( $response['body']['result'] ) || 'SUCCESS' !== $response['body']['result'] ) {
+				throw new Exception( __( 'Void Payment failed. Please try again.', $this->mpgs_plugin->text_domain() ) );
+			}
+
+			$this->process_wc_order( $order, $response['body']['order'], $response['body']['transaction'] );
+		} catch ( Exception $e ) {
+			$order->add_order_note(
+				sprintf(
+					/* translators: %s: error message */
+					__( 'Void Payment failed: %s', $this->mpgs_plugin->text_domain() ),
+					$e->getMessage()
+				)
+			);
+		}
 	}
 }
