@@ -451,6 +451,59 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		);
 	}
 
+	/**
+	 * Process refund.
+	 *
+	 * Create a Refund transaction
+	 *
+	 * @param  int        $order_id Order ID.
+	 * @param  float|null $amount Refund amount.
+	 * @param  string     $reason Refund reason.
+	 * 
+	 * @return bool       True or false based on success.
+	 * 
+	 * @throws Exception Exception.
+	 */
+	public function process_refund( $order_id, $amount = null, $reason = '' ) {
+		try {
+			$order = wc_get_order( $order_id );
+
+			if ( ! $order || ! $amount ) {
+				return false;
+			}
+
+			$currency       = $order->get_currency();
+			$transaction_id = $this->unique_transaction_id( $order );
+
+			if ( ! $transaction_id ) {
+				return false;
+			}
+			
+			$refund_data = array(
+				'apiOperation' => 'REFUND',
+				'transaction'  => array(
+					'amount'    => $amount,
+					'currency'  => $currency,
+				),
+			);
+
+			$response = $this->mpgs_api()->create_transaction( $this->unique_order_id( $order ), $transaction_id, $refund_data );
+
+			if ( ! $response['success'] || empty( $response['body']['result'] ) || ! empty( $response['error'] ) ) {
+				$error = __( 'There was an error processing the payment refund. Please try again.', $this->mpgs_plugin->text_domain() );
+				throw new Exception( $error );
+				return false;
+			}
+
+		} catch ( Exception $e ) {
+			$this->mpgs_plugin->logger()->log( $e->getMessage(), 'error' );
+
+			return false;
+		}
+
+		return true;
+	}
+
 
 	/**
 	 * Process payment using the hosted checkout mode.
