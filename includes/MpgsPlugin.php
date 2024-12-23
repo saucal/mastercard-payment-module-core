@@ -11,6 +11,8 @@ namespace MPGSCore;
 use MPGSCore\Admin\CapturePaymentMetaBox;
 use MPGSCore\Admin\GatewaySettings;
 use MPGSCore\Admin\Notices;
+use MPGSCore\Compat\BlockCompatibility;
+use MPGSCore\Gateways\WC_Abstract_MPGS_Payment_Gateway;
 use WC_Order;
 
 /**
@@ -99,6 +101,14 @@ abstract class MpgsPlugin {
 
 
 	/**
+	 * Blocks compatibility instance.
+	 *
+	 * @var Compat\Block_Compatibility
+	 */
+	private $block_compatibility;
+
+
+	/**
 	 * Notices class instance.
 	 *
 	 * @var Admin\Notices
@@ -143,8 +153,12 @@ abstract class MpgsPlugin {
 
 		$this->init_core_instance();
 
-		$this->gateway_settings     = new GatewaySettings( $this );
-		$this->capture_payment_meta = new CapturePaymentMetaBox( $this );
+		$this->gateway_settings = new GatewaySettings( $this );
+
+		if ( $this->is_merchant_connected() ) {
+			$this->capture_payment_meta = new CapturePaymentMetaBox( $this );
+			$this->block_compatibility  = new BlockCompatibility( $this );
+		}
 
 		register_activation_hook( $this->plugin_file(), array( $this, 'install' ) );
 
@@ -407,10 +421,10 @@ abstract class MpgsPlugin {
 	/**
 	 * Get registered payment gateways instances.
 	 *
-	 * @return array
+	 * @return WC_Abstract_MPGS_Payment_Gateway[]
 	 */
 	public function registered_gateway_instances() {
-		return $this->registered_gateway_instances;
+		return $this->registered_gateway_instances ?? array();
 	}
 
 
@@ -423,6 +437,32 @@ abstract class MpgsPlugin {
 	 */
 	public function registered_gateway_instance( $gateway_id ) {
 		return $this->registered_gateway_instances[ $gateway_id ] ?? false;
+	}
+
+
+	/**
+	 * Get the gateway ID from the classname.
+	 *
+	 * @param string $gateway_class Gateway class.
+	 *
+	 * @return string
+	 */
+	public function get_registered_payment_id( $gateway_class ) {
+		foreach ( $this->registered_gateway_instances() as $gateway_instance ) {
+			if ( is_a( $gateway_instance, 'MPGSCore\Gateways\\' . $gateway_class ) ) {
+				return $gateway_instance->id;
+			}
+		}
+	}
+
+
+	/**
+	 * Get the block compatibility instance.
+	 *
+	 * @return Compat\BlockCompatibility
+	 */
+	public function block_compatibility() {
+		return $this->block_compatibility;
 	}
 
 
