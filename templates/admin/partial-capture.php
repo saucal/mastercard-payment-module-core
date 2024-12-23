@@ -29,7 +29,7 @@ if ( empty( $gateway ) || empty( $order ) || empty( $auth_amount ) ) {
 	<span><?php echo wp_kses_post( wc_price( $auth_amount, array( 'currency', $order->get_currency() ) ) ); ?></span>
 
 	<p>
-		<input type="number" step="0.01" min="0.01" max="<?php echo esc_attr( $auth_amount ); ?>" name="<?php echo esc_attr( $gateway->prefix_hook( 'capture_amount' ) ); ?>" id="<?php echo esc_attr( $gateway->prefix_hook( 'capture_amount' ) ); ?>" />
+		<input type="number" step="0.01" min="0.01" name="<?php echo esc_attr( $gateway->prefix_hook( 'capture_amount' ) ); ?>" id="<?php echo esc_attr( $gateway->prefix_hook( 'capture_amount' ) ); ?>" />
 		<button type="submit" class="button button-primary"><?php esc_html_e( 'Capture', $gateway->mpgs_plugin()->text_domain() ); ?></button>
 	</p>
 </div>

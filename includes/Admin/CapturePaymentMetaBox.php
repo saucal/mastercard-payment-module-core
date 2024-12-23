@@ -135,10 +135,10 @@ class CapturePaymentMetaBox {
 		}
 
 		$capture_amount = isset( $_POST[ $gateway->prefix_hook( 'capture_amount' ) ] ) ? wc_format_decimal( $_POST[ $gateway->prefix_hook( 'capture_amount' ) ] ) : 0;
-		if ( $capture_amount <= 0 || $capture_amount > $auth_amount ) {
+		if ( $capture_amount <= 0 ) {
 			return;
 		}
 
-		$gateway->process_capture_payment( $order, $capture_amount );
+		$gateway->process_capture_payment( $order, $capture_amount, $auth_amount );
 	}
 }

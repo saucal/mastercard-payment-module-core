@@ -532,12 +532,13 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 	/**
 	 * Process capture payment action.
 	 *
-	 * @param WC_Order $order  Order object.
-	 * @param float    $amount Amount to capture.
+	 * @param WC_Order $order       Order object.
+	 * @param float    $amount      Amount to capture.
+	 * @param float    $auth_amount Authorized amount.
 	 *
 	 * @return void
 	 */
-	public function process_capture_payment( $order, $amount = 0 ) {
+	public function process_capture_payment( $order, $amount = 0, $auth_amount = 0 ) {
 
 		try {
 			if ( $this->id !== $order->get_payment_method() ) {
@@ -556,13 +557,20 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 			$transaction_id = $this->unique_transaction_id( $order );
 
+			$amount_to_capture = $amount > 0 ? $amount : $order->get_total();
+
 			$payload = array(
 				'apiOperation' => 'CAPTURE',
 				'transaction'  => array(
-					'amount'   => $amount > 0 ? $amount : $order->get_total(),
-					'currency' => $order->get_currency(),
+					'amount'                         => $amount_to_capture,
+					'currency'                       => $order->get_currency(),
+					'authorizationAdjustmentActions' => 'NONE',
 				),
 			);
+
+			if ( $auth_amount && $amount_to_capture > $auth_amount ) {
+				$payload['transaction']['authorizationAdjustmentActions'] = 'INCREMENT';
+			}
 
 			$response = $this->mpgs_api()->capture_payment( $unique_order_id, $transaction_id, $payload );
 
