@@ -564,7 +564,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 				'transaction'  => array(
 					'amount'                         => $amount_to_capture,
 					'currency'                       => $order->get_currency(),
-					'authorizationAdjustmentActions' => 'NONE',
+					'authorizationAdjustmentActions' => 'NO_ACTION',
 				),
 			);
 
