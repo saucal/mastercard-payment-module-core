@@ -21,3 +21,15 @@ export const getTextDomain = () => {
 export const addPrefix = ( str ) => {
 	return `${ getPrefix() }_${ str }`;
 };
+
+export const isHostedSession = () => {
+	return settings?.checkoutMode === 'hosted_session';
+};
+
+export const isHostedCheckout = () => {
+	return settings?.checkoutMode === 'hosted_checkout';
+};
+
+export const isRedirectToPaymentPage = () => {
+	return settings?.hostedCheckoutMode === 'redirect';
+}
