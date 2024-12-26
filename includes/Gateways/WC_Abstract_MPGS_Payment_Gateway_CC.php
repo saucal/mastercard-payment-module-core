@@ -1173,7 +1173,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 					'billingAddress' => 'HIDE',
 					'shipping'       => 'HIDE',
 				),
-				// 'saveCardForCredentialOnFile' => 'PAYER_INITIATED_PAYMENTS',
+				'saveCardForCredentialOnFile' => 'PAYER_INITIATED_PAYMENTS',
 			)
 		);
 	}
