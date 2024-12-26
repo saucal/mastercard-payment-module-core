@@ -127,10 +127,16 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'process_admin_options' ) );
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'validate_credentials' ) );
 		add_action( 'woocommerce_receipt_' . $this->id, array( $this, 'payment_fields' ) );
+		add_action( $this->prefix_hook( 'process_payment_error' ), array( $this, 'handle_failed_payment' ) );
+
+		// Add API actions.
 		add_action( 'woocommerce_api_' . $this->prefix_hook( 'wc' ), array( $this, 'process_return_callback' ) );
 		add_action( 'woocommerce_api_' . $this->prefix_hook( 'wc-3ds' ), array( $this, 'process_threeds_callback' ) );
 		add_action( 'woocommerce_api_' . $this->prefix_hook( 'wc-webhook' ), array( $this, 'process_notification_callback' ) );
-		add_action( $this->prefix_hook( 'process_payment_error' ), array( $this, 'handle_failed_payment' ) );
+
+		// Order edit actions.
+		add_filter( 'woocommerce_order_actions', array( $this, 'register_order_actions' ), 10, 2 );
+		add_action( 'woocommerce_order_action_' . $this->prefix_hook( 'void_payment' ), array( $this, 'process_void_payment' ) );
 
 		add_filter( $this->prefix_hook( 'enqueue_scripts' ), array( $this, 'enqueue_scripts' ), 20 );
 		add_filter( 'script_loader_tag', array( $this, 'maybe_add_callbacks_attr' ), 10, 3 );
@@ -495,8 +501,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			'order'        => $this->hosted_session_order_payload( $order ),
 			'session'      => $session,
 			'transaction'  => array(
-				'reference' => $transaction_id,
-				'source'    => 'INTERNET',
+				'source' => 'INTERNET',
 			),
 		);
 
@@ -507,6 +512,11 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 				'transactionId' => $transaction_id,
 			);
 		}
+
+		// Bump the transaction ID.
+		$transaction_id = $this->unique_transaction_id( $order );
+
+		$payment_data['transaction']['reference'] = $transaction_id;
 
 		$response = $this->mpgs_api()->create_transaction( $unique_order_id, $transaction_id, $payment_data );
 
@@ -1273,13 +1283,9 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 				throw new Exception( __( 'The payment session is invalid.', $this->mpgs_plugin->text_domain() ) );
 			}
 
-			$order_data = $this->mpgs_api()->retrieve_order( $this->unique_order_id( $order ) );
+			$order_data = $this->retrieve_order( $order );
 
 			$this->validate_payment_status( $order, $order_data );
-
-			if ( empty( $order_data['body'] ) ) {
-				throw new Exception( __( 'The order data is not valid.', $this->mpgs_plugin->text_domain() ) );
-			}
 
 			$transaction = ! empty( $order_data['body']['transaction'] ) ? $this->get_approved_transaction( $order_data['body']['transaction'] ) : array();
 
@@ -1292,159 +1298,6 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			wc_add_notice( $e->getMessage(), 'error' );
 			wp_safe_redirect( wc_get_checkout_url() );
 			exit();
-		}
-	}
-
-
-	/**
-	 * Validate if the order was paid agains the API.
-	 *
-	 * @param WC_Order $order      Order object.
-	 * @param array    $order_data Order data.
-	 *
-	 * @return void
-	 * @throws Exception Exception.
-	 */
-	protected function validate_payment_status( $order, $order_data = array() ) {
-
-		if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
-			throw new Exception( __( 'The order object is not valid.', $this->mpgs_plugin->text_domain() ) );
-		}
-
-		if ( empty( $order_data ) ) {
-			$order_data = $this->mpgs_api()->retrieve_order( $this->unique_order_id( $order ) );
-		}
-
-		if ( ! $order_data['success'] || empty( $order_data['body'] ) || empty( $order_data['body']['result'] ) ) {
-			throw new Exception( __( 'Failed to retrieve the order.', $this->mpgs_plugin->text_domain() ) );
-		}
-
-		if ( 'SUCCESS' !== $order_data['body']['result'] ) {
-			throw new Exception( 'Payment was declined.', $this->mpgs_plugin->text_domain() );
-		}
-
-		if ( empty( $order_data['body']['transaction'] ) || ! is_array( $order_data['body']['transaction'] ) ) {
-			throw new Exception( __( 'The transaction data is not valid.', $this->mpgs_plugin->text_domain() ) );
-		}
-	}
-
-
-	/**
-	 * Maybe flag the order as paid.
-	 *
-	 * @param WC_Order $order    Order object.
-	 * @param bool     $redirect Wether to forcefully redirect the user or not.
-	 *
-	 * @return bool
-	 */
-	protected function maybe_flag_order_as_paid( $order, $redirect = true ) {
-		try {
-			if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
-				return false;
-			}
-
-			if ( $order->get_meta( $this->prefix_hook( 'order_captured' ) ) ) {
-				return true;
-			}
-
-			$order_data = $this->mpgs_api()->retrieve_order( $this->unique_order_id( $order ) );
-
-			$this->validate_payment_status( $order, $order_data );
-
-			$transaction_data = ! empty( $order_data['body']['transaction'] ) ? $this->get_approved_transaction( $order_data['body']['transaction'] ) : array();
-
-			$this->process_wc_order( $order, $order_data['body'], $transaction_data );
-
-			if ( ! $order->get_meta( $this->prefix_hook( 'order_captured' ) ) ) {
-				return false;
-			}
-
-			if ( $redirect ) {
-				wp_safe_redirect( $this->get_return_url( $order ) );
-				exit();
-			}
-
-			return true;
-		} catch ( Exception $e ) {
-			return false;
-		}
-	}
-
-
-	/**
-	 * Get approved transaction.
-	 *
-	 * @param array $transaction_data Transaction data.
-	 *
-	 * @return array
-	 */
-	protected function get_approved_transaction( $transaction_data ) {
-		if ( empty( $transaction_data ) || ! is_array( $transaction_data ) ) {
-			return array();
-		}
-
-		foreach ( $transaction_data as $transaction ) {
-			if ( ! empty( $transaction['transaction']['type'] ) && 'PAYMENT' === $transaction['transaction']['type'] && ! empty( $transaction['result'] ) && 'SUCCESS' === $transaction['result'] ) {
-				return $transaction['transaction'];
-			}
-		}
-
-		return array();
-	}
-
-
-	/**
-	 * This function processes a WooCommerce order.
-	 *
-	 * @param object $order       The WooCommerce order object.
-	 * @param array  $order_data  Order data retrieved from the API.
-	 * @param array  $transaction Transaction data retrieved from the API.
-	 *
-	 * @return void
-	 *
-	 * @throws Exception Exception.
-	 */
-	protected function process_wc_order( $order, $order_data, $transaction ) {
-
-		if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
-			throw new Exception( __( 'The order object is not valid.', $this->mpgs_plugin->text_domain() ) );
-		}
-
-		if ( ! isset( $order_data['status'] ) || ! isset( $order_data['id'] ) ) {
-			throw new Exception( __( 'The order data is not valid.', $this->mpgs_plugin->text_domain() ) );
-		}
-
-		if ( empty( $transaction['id'] ) ) {
-			throw new Exception( __( 'The transaction data is not valid.', $this->mpgs_plugin->text_domain() ) );
-		}
-
-		$is_captured = 'CAPTURED' === $order_data['status'];
-		$order->add_meta_data( $this->prefix_hook( 'order_captured' ), $is_captured );
-		$order->add_meta_data( $this->prefix_hook( 'order_id' ), $order_data['id'] );
-		$order->add_meta_data( $this->prefix_hook( 'transaction_id' ), $transaction['id'] );
-		$order->add_meta_data( $this->prefix_hook( 'transaction_reference' ), $transaction['reference'] ?? '' );
-
-		if ( $is_captured ) {
-			$order->payment_complete( $order_data['id'] );
-
-			$order->add_order_note(
-				sprintf(
-					// translators: %1$s: Gateway title, %2$s: Transaction ID.
-					__( '%1$s payment was Captured (ID: %2$s)', $this->mpgs_plugin->text_domain() ),
-					$this->title,
-					$order_data['id'],
-				)
-			);
-		} else {
-			$order->add_order_note(
-				sprintf(
-					// translators: %1$s: Gateway title, %2$s: Transaction ID.
-					__( '%1$s payment was Authorized (ID: %2$s)', $this->mpgs_plugin->text_domain() ),
-					$this->title,
-					$order_data['id'],
-				)
-			);
-			$order->update_status( 'on-hold', __( 'Payment authorized, waiting for capture.', $this->mpgs_plugin->text_domain() ) );
 		}
 	}
 
@@ -1544,5 +1397,92 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 */
 	public function is_save_card_available() {
 		return $this->supports( 'tokenization' ) && is_checkout() && $this->saved_cards;
+	}
+
+
+	/**
+	 * Register order actions.
+	 *
+	 * @param array    $actions Order actions.
+	 * @param WC_Order $order   Order object.
+	 *
+	 * @return array
+	 */
+	public function register_order_actions( $actions, $order ) {
+
+		if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
+			return $actions;
+		}
+
+		if ( $this->id !== $order->get_payment_method() ) {
+			return $actions;
+		}
+
+		if ( $order->get_meta( $this->prefix_hook( 'order_captured' ) ) ) {
+			return $actions;
+		}
+
+		if ( $order->get_meta( $this->prefix_hook( 'authorize_transaction' ) ) ) {
+			$actions[ $this->prefix_hook( 'void_payment' ) ] = __( 'Void Payment', $this->mpgs_plugin->text_domain() );
+		}
+
+		return $actions;
+	}
+
+
+	/**
+	 * Process void payment action.
+	 *
+	 * @param WC_Order $order Order object.
+	 *
+	 * @return void
+	 */
+	public function process_void_payment( $order ) {
+
+		if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
+			return;
+		}
+
+		if ( $this->id !== $order->get_payment_method() ) {
+			return;
+		}
+
+		try {
+			$order_data = $this->retrieve_order( $order );
+
+			$this->validate_payment_status( $order, $order_data );
+
+			if ( 'AUTHORIZED' !== $order_data['body']['status'] ) {
+				throw new Exception( __( 'The order cannot be voided anymore.', $this->mpgs_plugin->text_domain() ) );
+			}
+
+			$transaction_id = $order->get_meta( $this->prefix_hook( 'authorize_transaction' ) );
+			if ( empty( $transaction_id ) ) {
+				throw new Exception( __( 'The Authorize transaction ID is missing. Try to void the authorization from the Merchant Portal.', $this->mpgs_plugin->text_domain() ) );
+			}
+
+			$void_data = array(
+				'apiOperation' => 'VOID',
+				'transaction'  => array(
+					'targetTransactionId' => $transaction_id,
+				),
+			);
+
+			$response = $this->mpgs_api()->create_transaction( $this->unique_order_id( $order ), $this->unique_transaction_id( $order ), $void_data );
+
+			if ( ! $response['success'] || empty( $response['body']['result'] ) || 'SUCCESS' !== $response['body']['result'] ) {
+				throw new Exception( __( 'Void Payment failed. Please try again.', $this->mpgs_plugin->text_domain() ) );
+			}
+
+			$this->process_wc_order( $order, $response['body']['order'], $response['body']['transaction'] );
+		} catch ( Exception $e ) {
+			$order->add_order_note(
+				sprintf(
+					/* translators: %s: error message */
+					__( 'Void Payment failed: %s', $this->mpgs_plugin->text_domain() ),
+					$e->getMessage()
+				)
+			);
+		}
 	}
 }

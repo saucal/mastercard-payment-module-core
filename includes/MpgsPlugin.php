@@ -8,8 +8,10 @@
 
 namespace MPGSCore;
 
+use MPGSCore\Admin\CapturePaymentMetaBox;
 use MPGSCore\Admin\GatewaySettings;
 use MPGSCore\Admin\Notices;
+use WC_Order;
 
 /**
  * Abstract class for child MPGS plugins.
@@ -73,11 +75,27 @@ abstract class MpgsPlugin {
 
 
 	/**
+	 * Registered payment gateways instances.
+	 *
+	 * @var array
+	 */
+	protected $registered_gateway_instances;
+
+
+	/**
 	 * Gateway settings instance.
 	 *
 	 * @var Admin\GatewaySettings
 	 */
 	private $gateway_settings;
+
+
+	/**
+	 * Capture payment meta box instance.
+	 *
+	 * @var Admin\CapturePaymentMetaBox
+	 */
+	private $capture_payment_meta;
 
 
 	/**
@@ -125,7 +143,8 @@ abstract class MpgsPlugin {
 
 		$this->init_core_instance();
 
-		$this->gateway_settings = new GatewaySettings( $this );
+		$this->gateway_settings     = new GatewaySettings( $this );
+		$this->capture_payment_meta = new CapturePaymentMetaBox( $this );
 
 		register_activation_hook( $this->plugin_file(), array( $this, 'install' ) );
 
@@ -372,7 +391,38 @@ abstract class MpgsPlugin {
 			return $methods;
 		}
 
-		return array_merge( $methods, $this->registered_gateways );
+		foreach ( $this->registered_gateways as $gateway ) {
+			if ( ! class_exists( $gateway ) || ! is_subclass_of( $gateway, 'MPGSCore\Gateways\WC_Abstract_MPGS_Payment_Gateway' ) ) {
+				continue;
+			}
+
+			$gateway_instance = new $gateway( $this );
+			$this->registered_gateway_instances[ $gateway_instance->id ] = $gateway_instance;
+		}
+
+		return array_merge( $methods, $this->registered_gateway_instances );
+	}
+
+
+	/**
+	 * Get registered payment gateways instances.
+	 *
+	 * @return array
+	 */
+	public function registered_gateway_instances() {
+		return $this->registered_gateway_instances;
+	}
+
+
+	/**
+	 * Get registered payment gateways instance.
+	 *
+	 * @param string $gateway_id Gateway ID.
+	 *
+	 * @return WC_Abstract_MPGS_Payment_Gateway|bool
+	 */
+	public function registered_gateway_instance( $gateway_id ) {
+		return $this->registered_gateway_instances[ $gateway_id ] ?? false;
 	}
 
 
@@ -413,6 +463,16 @@ abstract class MpgsPlugin {
 	 */
 	public function gateway_settings() {
 		return $this->gateway_settings;
+	}
+
+
+	/**
+	 * Get the Capture Payment Meta Box instance.
+	 *
+	 * @return Admin\CapturePaymentMetaBox
+	 */
+	public function capture_payment_meta() {
+		return $this->capture_payment_meta;
 	}
 
 
@@ -571,6 +631,54 @@ abstract class MpgsPlugin {
 				continue;
 			}
 			$gateway->maybe_clean_hosted_cached_session();
+		}
+	}
+
+
+	/**
+	 * Check if the order was paid with a plugin's payment method.
+	 *
+	 * @param WC_Order $order The order.
+	 *
+	 * @return bool
+	 */
+	public function is_mpgs_order( $order ) {
+		return $order instanceof WC_Order && $this->registered_gateway_instance( $order->get_payment_method() );
+	}
+
+
+	/**
+	 * Get the gateway instance of the order.
+	 *
+	 * @param WC_Order $order The order.
+	 *
+	 * @return WC_Abstract_MPGS_Payment_Gateway|bool
+	 */
+	public function get_order_gateway_instance( $order ) {
+		if ( ! $this->is_mpgs_order( $order ) ) {
+			return false;
+		}
+
+		return $this->registered_gateway_instance( $order->get_payment_method() );
+	}
+
+
+	/**
+	 * Get the authorized amount pending of capture.
+	 *
+	 * @param WC_Order $order The order.
+	 *
+	 * @return float
+	 */
+	public function get_capturable_amount( $order ) {
+		if ( ! $this->is_mpgs_order( $order ) ) {
+			return 0;
+		}
+
+		try {
+			return $this->registered_gateway_instance( $order->get_payment_method() )->get_authorized_amount( $order );
+		} catch ( \Exception $e ) {
+			return 0;
 		}
 	}
 }

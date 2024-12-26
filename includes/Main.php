@@ -136,7 +136,7 @@ final class Main {
 			return;
 		}
 
-		add_action( 'woocommerce_init', array( $this, 'woocommerce_init' ) );
+		add_action( 'woocommerce_init', array( $this, 'woocommerce_init' ), 1 );
 
 		add_action( 'init', array( $this, 'init' ) );
 

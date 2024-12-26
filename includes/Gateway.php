@@ -9,6 +9,8 @@
 
 namespace MPGSCore;
 
+use MPGSCore\Gateways\WC_Abstract_MPGS_Payment_Gateway;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -67,7 +69,7 @@ final class Gateway {
 		return array_filter(
 			$gateways,
 			function ( $gateway ) {
-				return class_exists( $gateway ) && is_subclass_of( $gateway, 'MPGSCore\Gateways\WC_Abstract_MPGS_Payment_Gateway' );
+				return $gateway instanceof WC_Abstract_MPGS_Payment_Gateway;
 			}
 		);
 	}
