@@ -136,6 +136,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'validate_credentials' ) );
 		add_action( 'woocommerce_receipt_' . $this->id, array( $this, 'payment_fields' ) );
 		add_action( $this->prefix_hook( 'process_payment_error' ), array( $this, 'handle_failed_payment' ) );
+		add_action( $this->prefix_hook( 'process_refund_success' ), array( $this, 'handle_success_refund_payment' ) );
 
 		// Add API actions.
 		add_action( 'woocommerce_api_' . $this->prefix_hook( 'wc' ), array( $this, 'process_return_callback' ) );
@@ -494,6 +495,17 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 				throw new Exception( $error );
 				return false;
 			}
+
+			$note = sprintf(
+				// translators: %1$s: Currency of refund, %2$s: Refund amount, %2$s: Refund reason.
+				__( 'Refund of %1$s %2$s processed. Reason: %3$s', $this->mpgs_plugin->text_domain() ),
+				$currency,
+				$amount,
+				$reason
+			);
+       		$order->add_order_note( $note );
+
+			do_action( $this->prefix_hook( 'process_refund_success' ), $order, $currency, $amount, $reason );
 
 		} catch ( Exception $e ) {
 			$this->mpgs_plugin->logger()->log( $e->getMessage(), 'error' );
