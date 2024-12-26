@@ -72,17 +72,17 @@ class BlockCompatibility {
 	 * @return void
 	 */
 	public function init( PaymentMethodRegistry $registry ) {
-		$compats = apply_filters( $this->mpgs_plugin->mpgs_core()->prefix_hook( 'block_compatibility_classes' ), self::BLOCK_COMPAT_MAP );
+		$compats = apply_filters( $this->mpgs_plugin->mpgs_core()->prefix_hook( 'block_compatibility_classes' ), $this->mpgs_plugin->regisreted_block_gateways() );
 		if ( ! empty( $compats ) ) {
 			require_once __DIR__ . '/Abstract_Block_Compat.php';
 		}
-		foreach ( $compats as $filename ) {
+		foreach ( $compats as $id => $filename ) {
 			$path = __DIR__ . '/' . $filename . '.php';
 			if ( file_exists( $path ) ) {
 				require_once $path;
 				$class = __NAMESPACE__ . '\\' . $filename;
 				if ( class_exists( $class ) ) {
-					$registry->register( new $class( $this->mpgs_plugin ) );
+					$registry->register( new $class( $this->mpgs_plugin, $id ) );
 				}
 			}
 		}

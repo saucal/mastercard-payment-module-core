@@ -27,7 +27,7 @@ abstract class Abstract_Block_Compat extends AbstractPaymentMethodType {
 	 *
 	 * @var MpgsPlugin
 	 */
-	private $mpgs_plugin;
+	protected $mpgs_plugin;
 
 
 	/**
@@ -49,10 +49,12 @@ abstract class Abstract_Block_Compat extends AbstractPaymentMethodType {
 	/**
 	 * Constructor.
 	 *
-	 * @param MpgsPlugin $mpgs_plugin   MPGS Plugin instance.
+	 * @param MpgsPlugin $mpgs_plugin MPGS Plugin instance.
+	 * @param string     $gateway_id  The gateway ID.
 	 */
-	public function __construct( MpgsPlugin $mpgs_plugin ) {
+	public function __construct( MpgsPlugin $mpgs_plugin, string $gateway_id ) {
 		$this->mpgs_plugin = $mpgs_plugin;
+		$this->gateway_id  = $gateway_id;
 	}
 
 	/**
@@ -113,6 +115,7 @@ abstract class Abstract_Block_Compat extends AbstractPaymentMethodType {
 		return array(
 			'title'       => $this->settings['title'],
 			'description' => $this->settings['description'],
+			'textDomain'  => $this->mpgs_plugin->text_domain(),
 			'supports'    => $this->get_supported_features(),
 		);
 	}
@@ -120,9 +123,11 @@ abstract class Abstract_Block_Compat extends AbstractPaymentMethodType {
 	/**
 	 * Returns the scripts required by the payment method based on the $type param.
 	 *
+	 * @param string $type The type of scripts to return. Default is empty.
+	 *
 	 * @return array Return an array of script handles that have been registered already.
 	 */
-	protected function scripts_name_per_type() {
+	protected function scripts_name_per_type( $type = '' ) {
 		$scripts = array();
 
 		if ( ! $this->assets_folder ) {
@@ -133,7 +138,7 @@ abstract class Abstract_Block_Compat extends AbstractPaymentMethodType {
 		$asset_data    = $this->mpgs_plugin->mpgs_core()->utils()->core_package_path() . '/assets/js/payment-methods/' . $this->assets_folder . '/index.asset.php';
 		$script_data   = file_exists( $asset_data ) ? include $asset_data : array(
 			'dependencies' => array(),
-			'version'      => $this->mpgs_plugin->mpgs_core()->utils()->core_version(),
+			'version'      => $this->mpgs_plugin->mpgs_core()->version(),
 		);
 
 		wp_register_script( $script_handle, $this->mpgs_plugin->mpgs_core()->utils()->core_package_url() . '/assets/js/payment-methods/' . $this->assets_folder . '/index' . Utils::min_suffix() . '.js', $script_data['dependencies'], $script_data['version'], true );
@@ -171,5 +176,15 @@ abstract class Abstract_Block_Compat extends AbstractPaymentMethodType {
 			$this->gateway_id = $this->mpgs_plugin->get_registered_payment_id( $this->name );
 		}
 		return $this->gateway_id;
+	}
+
+
+	/**
+	 * Should render the payment method block.
+	 *
+	 * @return bool
+	 */
+	public function should_render() {
+		return $this->is_active() && Utils::is_request( 'frontend' ) && ( is_woocommerce() || is_cart() || is_checkout() || is_add_payment_method_page() || is_checkout_pay_page() );
 	}
 }

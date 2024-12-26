@@ -42,6 +42,14 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 
 	/**
+	 * Block compatibility class.
+	 *
+	 * @var string
+	 */
+	protected $block_compat_class = 'WC_MPGS_Payment_Gateway_Block_Compat_CC';
+
+
+	/**
 	 * Merchant ID.
 	 *
 	 * @var string
@@ -664,7 +672,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		// Validate the session values.
 		if ( empty( $session ) ) {
-			$errors->add( 'invalid_session', __( 'There was an error obtaining the Payment Session. Please try again.', $this->mpgs_plugin->text_domain() ) );
+			$errors->add( 'invalid_session', __( 'There was an error obtaining the payment session. Please try again.', $this->mpgs_plugin->text_domain() ) );
 		}
 
 		// Validate the session.
@@ -890,6 +898,34 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		}
 
 		return $scripts;
+	}
+
+
+	/**
+	 * Add payment method data for Woo Blocks compatibility.
+	 *
+	 * @param array $data Payment method data.
+	 *
+	 * @return array
+	 */
+	public function add_payment_method_data( $data ) {
+
+		$data['checkoutMode'] = $this->checkout_mode;
+		$data['pluginPrefix'] = $this->mpgs_plugin->plugin_id();
+
+		switch ( $this->checkout_mode ) {
+			case 'hosted_checkout':
+				$data['sessionId']          = $this->checkout_session_id();
+				$data['hostedCheckoutMode'] = $this->hosted_checkout_mode;
+				break;
+			case 'hosted_session':
+				$session_id             = $this->hosted_session_id();
+				$data['sessionId']      = $session_id;
+				$data['sessionAttempt'] = uniqid( $session_id );
+				break;
+		}
+
+		return $data;
 	}
 
 
