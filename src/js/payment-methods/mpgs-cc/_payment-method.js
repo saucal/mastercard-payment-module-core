@@ -55,10 +55,8 @@ const MpgsCC = ( {
 							} );
 						}
 
-						data[ addPrefix( 'session_id' ) ] =
-							hostedSessions.getSessionId();
-						data[ addPrefix( 'session_version' ) ] =
-							hostedSessions.getSessionVersion();
+						data[ addPrefix( 'session_id' ) ] = sessionId;
+						data[ addPrefix( 'session_version' ) ] = sessionVersion;
 
 						resolve( {
 							type: emitResponse.responseTypes.SUCCESS,
