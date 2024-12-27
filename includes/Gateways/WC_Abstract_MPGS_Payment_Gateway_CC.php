@@ -467,9 +467,10 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 */
 	public function process_refund( $order_id, $amount = null, $reason = '' ) {
 		try {
-			$order = wc_get_order( $order_id );
+			$order         = wc_get_order( $order_id );
+			$capturedAmout = $this->get_captured_amount( $order );
 
-			if ( ! $order || ! $amount ) {
+			if ( ! $order || ! $amount || ! $capturedAmout ) {
 				return false;
 			}
 
