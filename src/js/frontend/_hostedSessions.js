@@ -224,14 +224,26 @@ const hostedSessions = {
 
 		if ( result.isValid ) {
 			jQuery( fieldSelector )
-				.closest( '.form-row' )
-				.removeClass( 'woocommerce-invalid woocommerce-validated' )
+				.closest(
+					hostedSessions.isWooBlocks()
+						? '.wc-block-components-text-input'
+						: '.form-row'
+				)
+				.removeClass(
+					'woocommerce-invalid woocommerce-validated has-error'
+				)
 				.addClass( 'woocommerce-validated' );
 		} else {
 			jQuery( fieldSelector )
-				.closest( '.form-row' )
-				.removeClass( 'woocommerce-invalid woocommerce-validated' )
-				.addClass( 'woocommerce-invalid' );
+				.closest(
+					hostedSessions.isWooBlocks()
+						? '.wc-block-components-text-input'
+						: '.form-row'
+				)
+				.removeClass(
+					'woocommerce-invalid woocommerce-validated has-error'
+				)
+				.addClass( 'woocommerce-invalid has-error' );
 		}
 	},
 

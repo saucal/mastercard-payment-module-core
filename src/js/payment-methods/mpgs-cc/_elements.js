@@ -13,12 +13,12 @@ import { getPrefix, addPrefix, getSessionId, getTextDomain } from './_settings';
  */
 export const CardElements = () => {
 	return (
-		<fieldset
+		<div
 			id={ `wc-${ getPrefix() }-cc-form` }
-			className={ `wc-credit-card-form wc-payment-form ${ getPrefix() }-payment-form mpgs-payment-form` }
+			className={ `wc-credit-card-form wc-payment-form ${ getPrefix() }-payment-form mpgs-payment-form mpgs-payment-form-blocks` }
 			data-field-type="card"
 		>
-			<div className="form-row form-row-wide">
+			<div className="wc-block-components-text-input is-active">
 				<label htmlFor={ `${ getPrefix() }-card-number` }>
 					{ __( 'Card number', getTextDomain() ) }
 					<span className="required">*</span>
@@ -26,17 +26,17 @@ export const CardElements = () => {
 				<input
 					id={ `${ getPrefix() }-card-number-${ getSessionId() }` }
 					readOnly="readonly"
-					className="input-text wc-credit-card-form-card-number"
+					className="wc-credit-card-form-card wc-credit-card-form-card-number"
 					inputMode="numeric"
 					autoComplete="cc-number"
 					autoCorrect="no"
 					autoCapitalize="no"
 					spellCheck="no"
-					type="tel"
+					type="text"
 					placeholder="&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull;"
 				/>
 			</div>
-			<div className="form-row form-row-first">
+			<div className="wc-block-components-text-input is-small is-active">
 				<label htmlFor={ `${ getPrefix() }-card-expiry-month` }>
 					{ __( 'Expiry (MM)', getTextDomain() ) }
 					<span className="required">*</span>
@@ -44,17 +44,17 @@ export const CardElements = () => {
 				<input
 					id={ `${ getPrefix() }-card-expiry-month-${ getSessionId() }` }
 					readOnly="readonly"
-					className="input-text wc-credit-card-form-card-expiry"
+					className="wc-credit-card-form-card wc-credit-card-form-card-expiry"
 					inputMode="numeric"
 					autoComplete="cc-exp"
 					autoCorrect="no"
 					autoCapitalize="no"
 					spellCheck="no"
-					type="tel"
+					type="text"
 					placeholder="MM"
 				/>
 			</div>
-			<div className="form-row form-row-last">
+			<div className="wc-block-components-text-input is-small is-active">
 				<label htmlFor={ `${ getPrefix() }-card-expiry-year` }>
 					{ __( 'Expiry (MM)', getTextDomain() ) }
 					<span className="required">*</span>
@@ -62,17 +62,17 @@ export const CardElements = () => {
 				<input
 					id={ `${ getPrefix() }-card-expiry-year-${ getSessionId() }` }
 					readOnly="readonly"
-					className="input-text wc-credit-card-form-card-expiry"
+					className="wc-credit-card-form-card wc-credit-card-form-card-expiry"
 					inputMode="numeric"
 					autoComplete="cc-exp"
 					autoCorrect="no"
 					autoCapitalize="no"
 					spellCheck="no"
-					type="tel"
+					type="text"
 					placeholder="YY"
 				/>
 			</div>
-			<div className="form-row form-row-wide">
+			<div className="wc-block-components-text-input is-active">
 				<label htmlFor={ `${ getPrefix() }-card-cvc` }>
 					{ __( 'Expiry (MM)', getTextDomain() ) }
 					<span className="required">*</span>
@@ -80,13 +80,13 @@ export const CardElements = () => {
 				<input
 					id={ `${ getPrefix() }-card-cvc-${ getSessionId() }` }
 					readOnly="readonly"
-					className="input-text wc-credit-card-form-card-cvc"
+					className="wc-credit-card-form-card wc-credit-card-form-card-cvc"
 					inputMode="numeric"
 					autoComplete="off"
 					autoCorrect="no"
 					autoCapitalize="no"
 					spellCheck="no"
-					type="tel"
+					type="text"
 					maxLength="4"
 					placeholder="CVC"
 				/>
@@ -109,6 +109,6 @@ export const CardElements = () => {
 				id={ addPrefix( 'session_version' ) }
 				name={ addPrefix( 'session_version' ) }
 			/>
-		</fieldset>
+		</div>
 	);
 };
