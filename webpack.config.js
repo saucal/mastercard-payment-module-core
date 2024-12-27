@@ -1,141 +1,261 @@
-/**
- * SAU/CAL webpack configuration
- *
- * Version 0.0.1
- *
- */
-
-// Add dependencies
-const MiniCssExtractPlugin = require( 'mini-css-extract-plugin' );
-const RemoveEmptyScriptsPlugin = require('webpack-remove-empty-scripts');
-const CssMinimizerPlugin = require( 'css-minimizer-webpack-plugin' );
-const glob = require( 'glob' );
-const package = require( './package.json' );
-if ( ! package.assets ) {
-	console.log( 'Please define assets directories in package.json' );
-	return;
-}
-
-// Define paths
+const defaultConfig = require( '@wordpress/scripts/config/webpack.config' );
+const postcssPlugins = require( '@wordpress/postcss-plugins-preset' );
+const TerserPlugin = require( 'terser-webpack-plugin' );
+const MiniCSSExtractPlugin = require( 'mini-css-extract-plugin' );
 const path = require( 'path' );
-const cssPaths = package.assets.css ? package.assets.css : {};
-const jsPaths = package.assets.js ? package.assets.js : {};
+const { fromProjectRoot } = require( '@wordpress/scripts/utils/file' );
+const glob = require( 'glob' );
+const RemoveEmptyScriptsPlugin = require( 'webpack-remove-empty-scripts' );
 
-cssPaths.src = path.join( process.cwd(), cssPaths.src );
-jsPaths.src = path.join( process.cwd(), jsPaths.src );
-cssPaths.out = path.join( process.cwd(), cssPaths.out );
-jsPaths.out = path.join( process.cwd(), jsPaths.out );
+const {
+	hasCssnanoConfig,
+	hasPostCSSConfig,
+	hasBabelConfig,
+	hasArgInCLI,
+} = require( '@wordpress/scripts/utils' );
 
-// Define config variable
-const config = [];
+const isProduction = process.env.NODE_ENV === 'production';
+const hasReactFastRefresh = hasArgInCLI( '--hot' ) && ! isProduction;
 
-// Add SCSS file/s to config variable
-const cssEntries = {};
-
-// Add JS file/s to config variable
-const jsEntries = {};
-
-// ------------------------------------------------------------------------------------------------------------
-// Maybe add CSS assets to config variable
-
-if ( cssPaths.out ) {
-	const sassFiles = glob.sync(
-		path.join( cssPaths.src, '**', '[^_]*.scss' )
-	);
-
-	sassFiles.forEach( ( file ) => {
-		const relative = path.relative( cssPaths.src, file );
-		const relativeOut = path.relative( process.cwd(), cssPaths.out );
-		const name = path.join(
-			relativeOut,
-			relative.substring( 0, relative.length - 5 )
-		);
-		cssEntries[ name ] = file;
-	} );
-}
-
-// ------------------------------------------------------------------------------------------------------------
-// Maybe add JS assets to config variable
-
-if ( jsPaths.out ) {
-	const jsFiles = glob.sync( path.join( jsPaths.src, '**', '[^_]*.js' ) );
-	jsFiles.forEach( ( file ) => {
-		const relative = path.relative( jsPaths.src, file );
-		const relativeOut = path.relative( process.cwd(), jsPaths.out );
-		const name = path.join(
-			relativeOut,
-			relative.substring( 0, relative.length - 3 )
-		);
-		jsEntries[ name ] = file;
-	} );
-}
-
-const baseConfig = {
-	entry: {
-		...cssEntries,
-		...jsEntries,
+const cssLoaders = [
+	{
+		loader: MiniCSSExtractPlugin.loader,
 	},
+	{
+		loader: require.resolve( 'css-loader' ),
+		options: {
+			sourceMap: ! isProduction,
+			modules: {
+				auto: true,
+			},
+		},
+	},
+];
+
+const cssMinLoaders = [
+	...cssLoaders,
+	{
+		loader: require.resolve( 'postcss-loader' ),
+		options: {
+			// Provide a fallback configuration if there's not
+			// one explicitly available in the project.
+			...( ! hasPostCSSConfig() && {
+				postcssOptions: {
+					ident: 'postcss',
+					sourceMap: ! isProduction,
+					plugins: isProduction
+						? [
+								...postcssPlugins,
+								require( 'cssnano' )( {
+									// Provide a fallback configuration if there's not
+									// one explicitly available in the project.
+									...( ! hasCssnanoConfig() && {
+										preset: [
+											'default',
+											{
+												discardComments: {
+													removeAll: true,
+												},
+											},
+										],
+									} ),
+								} ),
+						  ]
+						: postcssPlugins,
+				},
+			} ),
+		},
+	},
+];
+
+function getWebpackEntryPoints() {
+	const entryPoints = {};
+
+	// Get path from entries fron package.json config file
+	const entryPaths = {
+		js: fromProjectRoot( process.env.npm_package_config_webpack_js ),
+		css: fromProjectRoot( process.env.npm_package_config_webpack_css ),
+	};
+
+	for ( const type in entryPaths ) {
+		var thisPath = entryPaths[ type ];
+		const typeFiles = glob.sync(
+			// Search for .js or .scss files that do not start with _ or .
+			path.join(
+				thisPath,
+				'**',
+				type === 'js' ? '[^_.]*.js' : '[^_.]*.scss'
+			)
+		);
+
+		typeFiles.forEach( ( file ) => {
+			const relative = path.relative( thisPath, file );
+			const relativeOut = path.join( type, relative );
+			const entryName =
+				relativeOut.substring( 0, relativeOut.lastIndexOf( '.' ) ) ||
+				relativeOut; // remove extension
+
+			entryPoints[ entryName ] = file;
+
+			// Produce minified versions of the files.
+			entryPoints[ entryName + '.min' ] = file;
+		} );
+	}
+
+	return entryPoints;
+}
+
+const scssFilesToMinify = [];
+const scssFilesMinified = [];
+
+module.exports = {
+	...defaultConfig,
+	entry: getWebpackEntryPoints(),
 	output: {
-		path: process.cwd(),
+		path: fromProjectRoot( 'assets' + path.sep ),
 		filename: '[name].js',
 	},
+	optimization: {
+		...defaultConfig.optimization,
+		minimize: true,
+		minimizer: [
+			new TerserPlugin( {
+				parallel: true,
+				terserOptions: {
+					output: {
+						comments: /translators:/i,
+					},
+					compress: {
+						passes: 2,
+					},
+					mangle: {
+						reserved: [ '__', '_n', '_nx', '_x' ],
+					},
+				},
+				extractComments: false,
+				include: [ /\.min\.js$/ ],
+			} ),
+		],
+	},
 	module: {
+		...defaultConfig.module,
 		rules: [
 			{
-				test: /\.(sc|sa|c)ss$/,
+				test: /\.(j|t)sx?$/,
+				exclude: /node_modules/,
 				use: [
-					MiniCssExtractPlugin.loader,
-					'css-loader',
-					'sass-loader',
+					{
+						loader: require.resolve( 'babel-loader' ),
+						options: {
+							// Babel uses a directory within local node_modules
+							// by default. Use the environment variable option
+							// to enable more persistent caching.
+							cacheDirectory:
+								process.env.BABEL_CACHE_DIRECTORY || true,
+
+							// Provide a fallback configuration if there's not
+							// one explicitly available in the project.
+							...( ! hasBabelConfig() && {
+								babelrc: false,
+								configFile: false,
+								presets: [
+									require.resolve(
+										'@wordpress/babel-preset-default'
+									),
+								],
+								plugins: [
+									hasReactFastRefresh &&
+										require.resolve(
+											'react-refresh/babel'
+										),
+								].filter( Boolean ),
+							} ),
+						},
+					},
 				],
 			},
 			{
-				loader: 'babel-loader',
-				test: /\.js$/,
-				exclude: /node_modules/,
+				test: /\.css$/,
+				use: cssLoaders,
+			},
+			{
+				test: /\.min\.css$/,
+				use: cssMinLoaders,
+			},
+			{
+				// Testing for scss files. Producing minified.
+				test: ( name ) => {
+					if ( name.split( '.' ).pop() !== 'scss' ) {
+						return false;
+					}
+
+					if ( scssFilesToMinify.includes( name ) ) {
+						scssFilesMinified.push( name );
+						return true;
+					}
+
+					scssFilesToMinify.push( name );
+					return false;
+				},
+				use: [
+					...cssMinLoaders,
+					{
+						loader: require.resolve( 'sass-loader' ),
+						options: {
+							sourceMap: ! isProduction,
+						},
+					},
+				],
+			},
+			{
+				// Testing for scss files. Producing not minified.
+				test: ( name ) => {
+					if ( name.split( '.' ).pop() !== 'scss' ) {
+						return false;
+					}
+
+					if ( scssFilesMinified.includes( name ) ) {
+						return false;
+					}
+
+					return true;
+				},
+				use: [
+					...cssLoaders,
+					{
+						loader: require.resolve( 'sass-loader' ),
+						options: {
+							sourceMap: ! isProduction,
+							sassOptions: {
+								minimize: false,
+								outputStyle: 'expanded',
+							},
+						},
+					},
+				],
+			},
+			{
+				test: /\.svg$/,
+				issuer: /\.(j|t)sx?$/,
+				use: [ '@svgr/webpack', 'url-loader' ],
+				type: 'javascript/auto',
 			},
 			{
 				test: /\.(bmp|png|jpe?g|gif|svg|webp)$/i,
 				type: 'asset/resource',
 				exclude: /node_modules/,
 				generator: {
-					filename: 'assets/images/[name][ext]',
+					filename: 'images/[name][ext]',
+				},
+			},
+			{
+				test: /\.(woff|woff2|eot|ttf|otf)$/i,
+				type: 'asset/resource',
+				generator: {
+					filename: 'fonts/[name].[hash:8][ext]',
 				},
 			},
 		],
 	},
-	plugins: [
-		new RemoveEmptyScriptsPlugin(),
-		new MiniCssExtractPlugin( {
-			filename: '[name].css',
-		} ),
-	],
-	optimization: {
-		minimize: false,
-	},
+	plugins: [ new RemoveEmptyScriptsPlugin(), ...defaultConfig.plugins ],
 };
-
-const minifiedConfig = {
-	...baseConfig,
-	mode: 'production',
-	plugins: [
-		new RemoveEmptyScriptsPlugin(),
-		new MiniCssExtractPlugin( {
-			filename: '[name].min.css',
-		} ),
-	],
-	output: {
-		...baseConfig.output,
-		filename: '[name].min.js',
-	},
-	optimization: {
-		minimize: true,
-		minimizer: [ `...`, new CssMinimizerPlugin() ],
-		removeEmptyChunks: true,
-	},
-};
-
-config.push( baseConfig );
-config.push( minifiedConfig );
-
-module.exports = config;
