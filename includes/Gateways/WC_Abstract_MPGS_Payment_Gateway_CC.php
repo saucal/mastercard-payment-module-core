@@ -136,7 +136,6 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'validate_credentials' ) );
 		add_action( 'woocommerce_receipt_' . $this->id, array( $this, 'payment_fields' ) );
 		add_action( $this->prefix_hook( 'process_payment_error' ), array( $this, 'handle_failed_payment' ) );
-		add_action( $this->prefix_hook( 'process_refund_success' ), array( $this, 'handle_success_refund_payment' ) );
 
 		// Add API actions.
 		add_action( 'woocommerce_api_' . $this->prefix_hook( 'wc' ), array( $this, 'process_return_callback' ) );
@@ -460,18 +459,23 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @param  int        $order_id Order ID.
 	 * @param  float|null $amount Refund amount.
 	 * @param  string     $reason Refund reason.
-	 * 
+	 *
 	 * @return bool       True or false based on success.
-	 * 
+	 *
 	 * @throws Exception Exception.
 	 */
 	public function process_refund( $order_id, $amount = null, $reason = '' ) {
 		try {
-			$order         = wc_get_order( $order_id );
-			$capturedAmout = $this->get_captured_amount( $order );
+			$order           = wc_get_order( $order_id );
+			$captured_amount = $this->get_captured_amount( $order );
 
-			if ( ! $order || ! $amount || ! $capturedAmout ) {
+			if ( ! $order || ! $amount || ! $captured_amount ) {
 				return false;
+			}
+
+			if ( $amount > $captured_amount ) {
+				$error = __( 'The amount to be refunded is greater than the captured amount.', $this->mpgs_plugin->text_domain() );
+				throw new Exception( $error );
 			}
 
 			$currency       = $order->get_currency();
@@ -480,12 +484,12 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			if ( ! $transaction_id ) {
 				return false;
 			}
-			
+
 			$refund_data = array(
 				'apiOperation' => 'REFUND',
 				'transaction'  => array(
-					'amount'    => $amount,
-					'currency'  => $currency,
+					'amount'   => $amount,
+					'currency' => $currency,
 				),
 			);
 
@@ -494,7 +498,6 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			if ( ! $response['success'] || empty( $response['body']['result'] ) || ! empty( $response['error'] ) ) {
 				$error = __( 'There was an error processing the payment refund. Please try again.', $this->mpgs_plugin->text_domain() );
 				throw new Exception( $error );
-				return false;
 			}
 
 			$note = sprintf(
@@ -504,17 +507,26 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 				$amount,
 				$reason
 			);
-       		$order->add_order_note( $note );
+
+			$order->add_order_note( $note );
 
 			do_action( $this->prefix_hook( 'process_refund_success' ), $order, $currency, $amount, $reason );
 
+			return true;
 		} catch ( Exception $e ) {
-			$this->mpgs_plugin->logger()->log( $e->getMessage(), 'error' );
+			$error_message = $e->getMessage();
 
-			return false;
+			$this->mpgs_plugin->logger()->log( $error_message, 'error' );
+
+			return new WP_Error(
+				'failed-refund',
+				sprintf(
+				// translators: %1$s: Currency of refund, %2$s: Refund amount, %2$s: Refund reason.
+					__( 'There was an error processing the refund. Reason: %1$s', $this->mpgs_plugin->text_domain() ),
+					$error_message
+				)
+			);
 		}
-
-		return true;
 	}
 
 
