@@ -152,7 +152,7 @@ const MpgsCC = ( {
 };
 
 /**
- * Returns the Components that will be used by Bluesnap.
+ * Returns the Components that will be used by MPGS.
  *
  * @param {Object} props
  * @return React Component
@@ -162,6 +162,19 @@ export const MpgsContent = ( props ) => {
 		<React.Fragment>
 			<Content description={ settings?.description } />
 			<MpgsCC { ...props } />
+		</React.Fragment>
+	);
+};
+
+/**
+ * Returns the Components that will be used by MPGS in edit mode.
+ *
+ * @return React Component
+ */
+export const MpgsEditContent = () => {
+	return (
+		<React.Fragment>
+			<Content description={ settings?.description } />
 		</React.Fragment>
 	);
 };

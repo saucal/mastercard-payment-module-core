@@ -11,7 +11,7 @@ const { registerPaymentMethod } = wc.wcBlocksRegistry;
 import { PAYMENT_METHOD_NAME } from './_constants';
 import { MpgsComponent, Label, canMakePayment } from '../_utils';
 import { getTextDomain, settings } from './_settings';
-import { MpgsContent } from './_payment-method';
+import { MpgsContent, MpgsEditContent } from './_payment-method';
 import { SavedTokenHandler } from './_saved-token-handler';
 
 const label =
@@ -26,7 +26,7 @@ const paymentMethod = {
 	name: PAYMENT_METHOD_NAME,
 	label: <Label label={ label } />,
 	content: <MpgsComponent RenderedComponent={ MpgsContent } />,
-	edit: <MpgsComponent RenderedComponent={ MpgsContent } />,
+	edit: <MpgsComponent RenderedComponent={ MpgsEditContent } />,
 	canMakePayment: ( props ) => {
 		return canMakePayment( props, settings );
 	},

@@ -82,7 +82,9 @@ class BlockCompatibility {
 				require_once $path;
 				$class = __NAMESPACE__ . '\\' . $filename;
 				if ( class_exists( $class ) ) {
-					$registry->register( new $class( $this->mpgs_plugin, $id ) );
+					$compat_class = new $class();
+					$compat_class->init_mpgs( $this->mpgs_plugin, $id );
+					$registry->register( $compat_class );
 				}
 			}
 		}

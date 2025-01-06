@@ -9,8 +9,6 @@
 
 namespace MPGSCore\Compat;
 
-use MPGSCore\Utils;
-
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
@@ -25,7 +23,7 @@ class WC_MPGS_Payment_Gateway_Block_Compat_CC extends Abstract_Block_Compat {
 	 *
 	 * @var string
 	 */
-	public $name = 'acme';
+	public $name;
 
 
 	/**
