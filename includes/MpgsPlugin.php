@@ -8,6 +8,7 @@
 
 namespace MPGSCore;
 
+use Automattic\WooCommerce\Utilities\FeaturesUtil;
 use MPGSCore\Admin\CapturePaymentMetaBox;
 use MPGSCore\Admin\GatewaySettings;
 use MPGSCore\Admin\Notices;
@@ -167,6 +168,17 @@ abstract class MpgsPlugin {
 
 		// Load the plugin.
 		add_action( 'plugins_loaded', array( $this, 'load' ) );
+
+		// Declare compatibility with WooCommerce Blocks and HPOS.
+		add_action(
+			'before_woocommerce_init',
+			function () {
+				if ( class_exists( '\Automattic\WooCommerce\Utilities\FeaturesUtil' ) ) {
+					\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'cart_checkout_blocks', __FILE__, true );
+					\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', __FILE__, true );
+				}
+			}
+		);
 	}
 
 

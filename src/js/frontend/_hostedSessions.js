@@ -4,13 +4,18 @@
 import { debounce, getWcAjaxUrl, supportedLogos, getCardLogo } from './_utils';
 
 const hostedSessions = {
-	pluginPrefix: mpgs_gateway_params.prefix,
+	pluginPrefix: null,
 	sessionId: null,
 	sessionIdAttempt: null,
 	$ccFieldset: null,
 	$wcForm: null,
 
 	init() {
+		if ( ! mpgs_gateway_params || ! mpgs_gateway_params.prefix ) {
+			return;
+		}
+		hostedSessions.pluginPrefix = mpgs_gateway_params.prefix;
+
 		if ( ! window.PaymentSession ) {
 			hostedSessions.reInit();
 			return;

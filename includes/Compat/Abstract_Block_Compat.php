@@ -47,13 +47,14 @@ abstract class Abstract_Block_Compat extends AbstractPaymentMethodType {
 
 
 	/**
-	 * Constructor.
+	 * Init MPGS method.
 	 *
 	 * @param MpgsPlugin $mpgs_plugin MPGS Plugin instance.
 	 * @param string     $gateway_id  The gateway ID.
 	 */
-	public function __construct( MpgsPlugin $mpgs_plugin, string $gateway_id ) {
+	public function init_mpgs( MpgsPlugin $mpgs_plugin, string $gateway_id ) {
 		$this->mpgs_plugin = $mpgs_plugin;
+		$this->name        = $gateway_id;
 		$this->gateway_id  = $gateway_id;
 	}
 
@@ -142,6 +143,14 @@ abstract class Abstract_Block_Compat extends AbstractPaymentMethodType {
 		);
 
 		wp_register_script( $script_handle, $this->mpgs_plugin->mpgs_core()->utils()->core_package_url() . '/assets/js/payment-methods/' . $this->assets_folder . '/index' . Utils::min_suffix() . '.js', $script_data['dependencies'], $script_data['version'], true );
+
+		wp_localize_script(
+			$script_handle,
+			'mpgs_data',
+			array(
+				'prefix' => $this->mpgs_plugin->mpgs_core()->get_prefix(),
+			)
+		);
 
 		$scripts[] = $script_handle;
 
