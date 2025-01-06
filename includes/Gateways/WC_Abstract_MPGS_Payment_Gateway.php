@@ -405,7 +405,12 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 				$unique_order_id = $this->unique_order_id( $order );
 			}
 
+			// Prevent error log if the order is not created yet.
+			$this->mpgs_plugin->logger()->force_disable();
+
 			$order_data = $this->retrieve_order( $order );
+
+			$this->mpgs_plugin->logger()->restore_force_disable();
 
 			$this->validate_payment_status( $order, $order_data );
 
