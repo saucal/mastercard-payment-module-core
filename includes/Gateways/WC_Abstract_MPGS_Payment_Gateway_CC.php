@@ -174,7 +174,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			'refunds',
 		);
 
-		if ( $this->is_hosted_session() && $this->saved_cards ) {
+		if ( $this->saved_cards ) {
 			$supports[] = 'tokenization';
 		}
 
@@ -377,7 +377,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		wp_enqueue_script( 'wc-credit-card-form' );
 
-		$display_tokenization = $this->is_save_card_available();
+		$display_tokenization = $this->display_saved_card_methods();
 
 		if ( $display_tokenization ) {
 			$this->saved_payment_methods();
@@ -1040,6 +1040,10 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			$payload['interaction']['merchant']['logo'] = str_replace( 'http:', 'https:', $this->icon );
 		}
 
+		if ( $this->saved_cards ) {
+			$payload['interaction']['saveCardForCredentialOnFile'] = 'PAYER_INITIATED_PAYMENTS';
+		}
+
 		$payload = $this->maybe_add_customer_data( $payload, $order );
 
 		$response = $this->mpgs_api()->create_session( $payload );
@@ -1173,7 +1177,6 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 					'billingAddress' => 'HIDE',
 					'shipping'       => 'HIDE',
 				),
-				'saveCardForCredentialOnFile' => 'PAYER_INITIATED_PAYMENTS',
 			)
 		);
 	}
@@ -1442,8 +1445,8 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 *
 	 * @return bool
 	 */
-	public function is_save_card_available() {
-		return $this->supports( 'tokenization' ) && is_checkout() && $this->saved_cards;
+	public function display_saved_card_methods() {
+		return is_checkout() && $this->saved_cards;
 	}
 
 
@@ -1542,7 +1545,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @return array
 	 */
 	public function hide_saved_token_hosted_checkout( $tokens ) {
-		if ( $this->is_save_card_available() ) {
+		if ( $this->display_saved_card_methods() ) {
 			return $tokens;
 		}
 
