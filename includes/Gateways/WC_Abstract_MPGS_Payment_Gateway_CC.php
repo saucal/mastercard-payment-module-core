@@ -198,12 +198,15 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @return void
 	 */
 	public function validate_credentials() {
-		$merchant_id = $this->get_option( 'merchant_id' );
-		$password    = $this->get_option( 'password' );
+		$merchant_id = isset( $_POST[ $this->prefix_hook( 'merchant_id', 'woocommerce_' ) ] ) ? wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'merchant_id', 'woocommerce_' ) ] ) ) : $this->get_option( 'merchant_id' ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$password    = isset( $_POST[ $this->prefix_hook( 'password', 'woocommerce_' ) ] ) ? wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'password', 'woocommerce_' ) ] ) ) : $this->get_option( 'password' ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
 
 		if ( empty( $merchant_id ) || empty( $password ) ) {
 			WC_Admin_Settings::add_error( __( 'Merchant ID and API Key are required.', $this->mpgs_plugin->text_domain() ) );
 		}
+
+		$this->mpgs_plugin->update_gateway_setting( 'merchant_id', $merchant_id );
+		$this->mpgs_plugin->update_gateway_setting( 'password', $password );
 
 		$response = $this->mpgs_api()->payment_options_inquiry();
 
@@ -211,6 +214,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			WC_Admin_Settings::add_error( __( 'Failed to validate API credentials. Please validate your credentials and save your account details again.', $this->mpgs_plugin->text_domain() ) );
 			$this->mpgs_plugin->update_validated_credentials( false );
 			$this->mpgs_plugin->update_payment_operations( array() );
+			$this->init_form_fields();
 			return;
 		}
 
@@ -219,6 +223,8 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		$this->mpgs_plugin->update_validated_credentials( true );
 
 		$this->mpgs_plugin->update_payment_operations( $response['body']['supportedPaymentOperations'] ?? array() );
+
+		$this->init_form_fields();
 	}
 
 
@@ -1158,8 +1164,8 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		return apply_filters(
 			$this->prefix_hook( 'checkout_session_interaction_payload' ),
 			array(
-				'operation'                   => $this->transaction_mode,
-				'returnUrl'                   => add_query_arg(
+				'operation'      => $this->transaction_mode,
+				'returnUrl'      => add_query_arg(
 					array(
 						'wc-api'   => $this->prefix_hook( 'wc' ),
 						'order-id' => $order->get_id(),
@@ -1167,12 +1173,12 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 					),
 					trailingslashit( get_home_url() )
 				),
-				'cancelUrl'                   => $order->get_checkout_payment_url(),
-				'timeoutUrl'                  => $order->get_checkout_payment_url(),
-				'merchant'                    => array(
+				'cancelUrl'      => $order->get_checkout_payment_url(),
+				'timeoutUrl'     => $order->get_checkout_payment_url(),
+				'merchant'       => array(
 					'name' => $this->merchant_name,
 				),
-				'displayControl'              => array(
+				'displayControl' => array(
 					'customerEmail'  => 'HIDE',
 					'billingAddress' => 'HIDE',
 					'shipping'       => 'HIDE',

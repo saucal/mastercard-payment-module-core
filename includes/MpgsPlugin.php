@@ -134,6 +134,14 @@ abstract class MpgsPlugin {
 
 
 	/**
+	 * Gateway settings.
+	 *
+	 * @var array
+	 */
+	private $settings = array();
+
+
+	/**
 	 * Constructor
 	 */
 	public function __construct() {
@@ -551,22 +559,20 @@ abstract class MpgsPlugin {
 	 * @return array
 	 */
 	public function get_gateway_settings() {
-		static $settings = array();
-
-		if ( ! empty( $settings ) ) {
-			return $settings;
+		if ( ! empty( $this->settings ) ) {
+			return $this->settings;
 		}
 
-		$settings = get_option( 'woocommerce_' . $this->plugin_id() . '_settings', array() );
+		$this->settings = get_option( 'woocommerce_' . $this->plugin_id() . '_settings', array() );
 
-		return $settings;
+		return $this->settings;
 	}
 
 
 	/**
 	 * Get gateway specific setting.
 	 *
-	 * @param  string $key Setting key.
+	 * @param string $key Setting key.
 	 *
 	 * @return mixed
 	 */
@@ -574,6 +580,27 @@ abstract class MpgsPlugin {
 		$settings = $this->get_gateway_settings();
 
 		return isset( $settings[ $key ] ) ? $settings[ $key ] : '';
+	}
+
+
+	/**
+	 * Update gateway settings.
+	 *
+	 * @param string $key   Setting key.
+	 * @param mixed  $value Setting value.
+	 *
+	 * @return void
+	 */
+	public function update_gateway_setting( $key, $value ) {
+		if ( empty( $key ) ) {
+			return;
+		}
+
+		if ( empty( $this->settings ) ) {
+			$this->get_gateway_settings();
+		}
+
+		$this->settings[ $key ] = $value;
 	}
 
 
