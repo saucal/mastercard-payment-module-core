@@ -70,6 +70,14 @@ abstract class MpgsPlugin {
 
 
 	/**
+	 * Merchant Registration URL.
+	 *
+	 * @var string
+	 */
+	protected $merchant_registration_url = '';
+
+
+	/**
 	 * Registered payment gateways.
 	 *
 	 * @var array
@@ -265,6 +273,16 @@ abstract class MpgsPlugin {
 	 */
 	public function plugin_title() {
 		return $this->plugin_title;
+	}
+
+
+	/**
+	 * Get the merchant registration URL.
+	 *
+	 * @return string
+	 */
+	public function merchant_registration_url() {
+		return $this->merchant_registration_url;
 	}
 
 

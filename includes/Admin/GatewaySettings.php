@@ -77,8 +77,9 @@ final class GatewaySettings {
 				'default' => 'eu',
 			),
 			'merchant_details' => array(
-				'title' => __( 'Merchant account details', $this->mpgs_plugin->mpgs_core()->text_domain() ),
-				'type'  => 'title',
+				'title'       => __( 'Merchant account details', $this->mpgs_plugin->mpgs_core()->text_domain() ),
+				'description' => $this->merchant_details_message(),
+				'type'        => 'title',
 			),
 			'sandbox'          => array(
 				'title'       => __( 'Test Sandbox', $this->mpgs_plugin->mpgs_core()->text_domain() ),
@@ -103,6 +104,27 @@ final class GatewaySettings {
 		);
 
 		return $this->maybe_add_advanced_settings( $settings );
+	}
+
+
+	/**
+	 * Merchant details message.
+	 *
+	 * @return string
+	 */
+	public function merchant_details_message() {
+		$message = __( 'Enter your Mastercard Payment Gateway Services account details.', $this->mpgs_plugin->mpgs_core()->text_domain() );
+
+		if ( ! empty( $this->mpgs_plugin->merchant_registration_url() ) ) {
+			$message .= ' ' . sprintf(
+				/* translators: %s: Merchant registration URL */
+				__( 'Don\'t have an account? %1$sSign up here%2$s', $this->mpgs_plugin->mpgs_core()->text_domain() ),
+				'<a href="' . esc_url( $this->mpgs_plugin->merchant_registration_url() ) . '" target="_blank">',
+				'</a>'
+			);
+		}
+
+		return $message;
 	}
 
 
