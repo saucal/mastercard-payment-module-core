@@ -750,4 +750,15 @@ abstract class MpgsPlugin {
 			return 0;
 		}
 	}
+
+
+	/**
+	 * Check if the admin is viewing the settings page.
+	 *
+	 * @return bool
+	 */
+	public function is_settings_page() {
+		// phpcs:disable WordPress.Security.NonceVerification
+		return isset( $_GET['page'] ) && 'wc-settings' === $_GET['page'] && isset( $_GET['tab'] ) && 'checkout' === $_GET['tab'] && isset( $_GET['section'] ) && $this->plugin_id === $_GET['section'];
+	}
 }
