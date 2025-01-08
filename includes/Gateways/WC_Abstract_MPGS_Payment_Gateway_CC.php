@@ -43,6 +43,14 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 
 	/**
+	 * Hosted session attempt limit.
+	 *
+	 * @var int
+	 */
+	const HOSTED_SESSION_ATTEMPT_LIMIT = 20;
+
+
+	/**
 	 * Block compatibility class.
 	 *
 	 * @var string
@@ -1087,8 +1095,10 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		if ( ! empty( WC()->session ) ) {
 			$session_id = WC()->session->get( $this->hosted_session_id_key() );
+			$attempts   = WC()->session->get( $this->hosted_session_attempt_key() ) ?? 0;
 
-			if ( $session_id && $this->is_session_valid( WC()->session->get( $this->hosted_session_duration_key() ) ) ) {
+			if ( $session_id && $this->is_session_valid( WC()->session->get( $this->hosted_session_duration_key() ) ) && $attempts < ( self::HOSTED_SESSION_ATTEMPT_LIMIT - 5 ) ) {
+				WC()->session->set( $this->hosted_session_attempt_key(), $attempts + 1 );
 				return $session_id;
 			}
 		}
@@ -1096,7 +1106,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		$response = $this->mpgs_api()->create_session(
 			array(
 				'session' => array(
-					'authenticationLimit' => 20,
+					'authenticationLimit' => self::HOSTED_SESSION_ATTEMPT_LIMIT,
 				),
 			)
 		);
@@ -1109,6 +1119,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		if ( ! empty( WC()->session ) ) {
 			WC()->session->set( $this->hosted_session_id_key(), $session_id );
+			WC()->session->set( $this->hosted_session_attempt_key(), 1 );
 			WC()->session->set( $this->hosted_session_duration_key(), time() + 3 * MINUTE_IN_SECONDS );
 		}
 
@@ -1243,6 +1254,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		}
 
 		WC()->session->set( $this->hosted_session_id_key(), null );
+		WC()->session->set( $this->hosted_session_attempt_key(), 0 );
 		WC()->session->set( $this->hosted_session_duration_key(), null );
 	}
 
@@ -1254,6 +1266,16 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 */
 	protected function hosted_session_id_key() {
 		return $this->mpgs_plugin()->mpgs_core()->utils()->hosted_session_id_key();
+	}
+
+
+	/**
+	 * Get hosted session attempt key.
+	 *
+	 * @return string
+	 */
+	protected function hosted_session_attempt_key() {
+		return $this->mpgs_plugin()->mpgs_core()->utils()->hosted_session_attempt_key();
 	}
 
 

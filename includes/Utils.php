@@ -353,6 +353,16 @@ final class Utils {
 
 
 	/**
+	 * Get hosted session attempt key.
+	 *
+	 * @return string
+	 */
+	public function hosted_session_attempt_key() {
+		return $this->mpgs_core->prefix_hook( 'session_attempt_' . $this->unique_cart_hash() );
+	}
+
+
+	/**
 	 * Get hosted session duration key.
 	 *
 	 * @return string
