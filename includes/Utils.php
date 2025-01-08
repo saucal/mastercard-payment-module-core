@@ -430,14 +430,4 @@ final class Utils {
 		? wc_get_page_screen_id( 'shop-order' )
 		: 'shop_order';
 	}
-
-
-	/**
-	 * Is .min suffix required?
-	 *
-	 * @return string
-	 */
-	public static function min_suffix() {
-		return defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ? '' : '.min';
-	}
 }

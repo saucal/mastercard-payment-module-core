@@ -27,15 +27,6 @@ final class Notices {
 	 */
 	private $mpgs_plugin;
 
-
-	/**
-	 * List of errors to be rendered.
-	 *
-	 * @var array
-	 */
-	private $errors = array();
-
-
 	/**
 	 * Constructor.
 	 *
@@ -44,19 +35,8 @@ final class Notices {
 	public function __construct( MpgsPlugin $mpgs_plugin ) {
 		$this->mpgs_plugin = $mpgs_plugin;
 
-		add_action( 'admin_notices', array( $this, 'maybe_add_not_connected_notice' ), 1 );
-		add_action( 'admin_notices', array( $this, 'maybe_no_supported_operation_notice' ), 1 );
-		add_action( 'admin_notices', array( $this, 'maybe_render_errors' ), 50 );
-	}
-
-
-	/**
-	 * Add an error notice.
-	 *
-	 * @param string $message The message to be rendered.
-	 */
-	public function add_error( $message ) {
-		$this->errors[] = $message;
+		add_action( 'admin_init', array( $this, 'maybe_add_not_connected_notice' ) );
+		add_action( 'admin_init', array( $this, 'maybe_no_supported_operation_notice' ) );
 	}
 
 
@@ -68,7 +48,7 @@ final class Notices {
 			return;
 		}
 
-		$this->add_error(
+		$this->render_error_notice(
 			sprintf(
 				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
 				__( 'The %1$s credentials are either empty or not valid. Verify your connection %2$shere%3$s', $this->mpgs_plugin->mpgs_core()->text_domain() ),
@@ -88,23 +68,9 @@ final class Notices {
 			return;
 		}
 
-		$this->add_error(
+		$this->render_error_notice(
 			__( 'There is no supported payment operation for your merchant account. Contact your adquirer to verify this issue.', $this->mpgs_plugin->mpgs_core()->text_domain() ),
 		);
-	}
-
-
-	/**
-	 * Render all errors.
-	 */
-	public function maybe_render_errors() {
-		if ( empty( $this->errors ) ) {
-			return;
-		}
-
-		foreach ( $this->errors as $error ) {
-			self::render_error_notice( $error );
-		}
 	}
 
 

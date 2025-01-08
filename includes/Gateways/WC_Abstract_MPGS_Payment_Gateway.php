@@ -60,14 +60,6 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 
 	/**
-	 * Block compatibility class.
-	 *
-	 * @var string
-	 */
-	protected $block_compat_class;
-
-
-	/**
 	 * Get the partner solution ID.
 	 *
 	 * @return string
@@ -133,28 +125,6 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 
 	/**
-	 * Get the block compatibility class.
-	 *
-	 * @return string
-	 */
-	public function block_compat_class() {
-		return $this->block_compat_class;
-	}
-
-
-	/**
-	 * Add payment method data for Woo Blocks compatibility.
-	 *
-	 * @param array $data Payment method data.
-	 *
-	 * @return array
-	 */
-	public function add_payment_method_data( $data ) {
-		return $data;
-	}
-
-
-	/**
 	 * Get the MPGS API instance.
 	 *
 	 * @return MpgsAPI
@@ -194,7 +164,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 			'reference'       => $order->get_id(),
 			'currency'        => get_woocommerce_currency(),
 			'amount'          => $order->get_total(),
-			'description'     => ! empty( $this->mpgs_plugin->get_gateway_setting( 'merchant_name' ) ) ? $this->mpgs_plugin->get_gateway_setting( 'merchant_name' ) : get_bloginfo( 'name', 'display' ),
+			'description'     => $this->mpgs_plugin->get_gateway_setting( 'merchant_name' ),
 			'notificationUrl' => add_query_arg(
 				array(
 					'wc-api'   => $this->prefix_hook( 'wc-webhook' ),
@@ -550,15 +520,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 		}
 
 		foreach ( $transaction_data as $transaction ) {
-			if ( empty( $transaction['result'] ) || 'SUCCESS' !== $transaction['result'] ) {
-				continue;
-			}
-
-			if ( empty( $transaction['transaction']['type'] ) ) {
-				continue;
-			}
-
-			if ( in_array( $transaction['transaction']['type'], array( 'PAYMENT', 'CAPTURE', 'AUTHORIZATION' ), true ) ) {
+			if ( ! empty( $transaction['transaction']['type'] ) && in_array( $transaction['transaction']['type'], array( 'PAYMENT', 'CAPTURE' ), true ) && ! empty( $transaction['result'] ) && 'SUCCESS' === $transaction['result'] ) {
 				return $transaction['transaction'];
 			}
 		}
