@@ -1452,7 +1452,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @return bool
 	 */
 	public function display_saved_card_methods() {
-		return is_checkout() && $this->saved_cards;
+		return $this->saved_cards && ! $this->is_hosted_checkout();
 	}
 
 
