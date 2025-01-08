@@ -159,17 +159,6 @@ final class GatewaySettings {
 						'data-show-if'  => 'hosted_checkout',
 					),
 				),
-				'merchant_name'        => array(
-					'title'             => __( 'Merchant Name', $this->mpgs_plugin->mpgs_core()->text_domain() ),
-					'type'              => 'text',
-					'description'       => __( 'The name of your business for display to the payer on the payment interaction (The website title will be used as default).', $this->mpgs_plugin->mpgs_core()->text_domain() ),
-					'default'           => get_bloginfo( 'name', 'display' ),
-					'class'             => 'conditional-hide',
-					'custom_attributes' => array(
-						'data-show-rel' => 'checkout_mode',
-						'data-show-if'  => 'hosted_checkout',
-					),
-				),
 				'display_logo'         => array(
 					'title'             => __( 'Display Plugin\'s Logo', $this->mpgs_plugin->mpgs_core()->text_domain() ),
 					'label'             => __( 'Check this to display the plugin\'s logo in the Hosted Checkout page.', $this->mpgs_plugin->mpgs_core()->text_domain() ),
@@ -205,6 +194,12 @@ final class GatewaySettings {
 						'data-show-rel' => 'checkout_mode',
 						'data-show-if'  => 'hosted_session',
 					),
+				),
+				'merchant_name'        => array(
+					'title'       => __( 'Merchant Name', $this->mpgs_plugin->mpgs_core()->text_domain() ),
+					'type'        => 'text',
+					'description' => __( 'The name of your business for display to the payer on the payment interaction (The website title will be used as default).', $this->mpgs_plugin->mpgs_core()->text_domain() ),
+					'default'     => get_bloginfo( 'name', 'display' ),
 				),
 				'advanced'             => array(
 					'title' => __( 'Advanced configurations', $this->mpgs_plugin->mpgs_core()->text_domain() ),

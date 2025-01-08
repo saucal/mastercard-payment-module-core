@@ -2,41 +2,75 @@
  * All of the CSS for your public-facing functionality should be
  * included in this file.
  */
-.mpgs-payment-form .wc-credit-card-form-card-number {
-    background-repeat: no-repeat !important;
-    background-position: bottom 50% right 0.5rem !important;
-    background-size: 2rem 1.4rem !important;
-    background-image: url('../../images/credit-cards/unknown.svg');
+.mpgs-payment-form {
+    .wc-credit-card-form-card-number {
+        background-repeat: no-repeat !important;
+        background-position: bottom 50% right 0.5rem !important;
+        background-size: 2rem 1.4rem !important;
+        background-image: url('../../images/credit-cards/unknown.svg');
 
-    &.visa {
-        background-image: url('../../images/credit-cards/visa.svg')
+        &.visa {
+            background-image: url('../../images/credit-cards/visa.svg')
+        }
+
+        &.mastercard {
+            background-image: url('../../images/credit-cards/mastercard.svg')
+        }
+
+        &.laser {
+            background-image: url('../../images/credit-cards/laser.svg')
+        }
+
+        &.dinersclub {
+            background-image: url('../../images/credit-cards/diners.svg')
+        }
+
+        &.maestro {
+            background-image: url('../../images/credit-cards/maestro.svg')
+        }
+
+        &.jcb {
+            background-image: url('../../images/credit-cards/jcb.svg')
+        }
+
+        &.amex {
+            background-image: url('../../images/credit-cards/amex.svg')
+        }
+
+        &.discover {
+            background-image: url('../../images/credit-cards/discover.svg')
+        }
     }
+}
 
-    &.mastercard {
-        background-image: url('../../images/credit-cards/mastercard.svg')
-    }
+.wc-block-components-form {
+    .mpgs-payment-form-blocks {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
 
-    &.laser {
-        background-image: url('../../images/credit-cards/laser.svg')
-    }
+        .wc-block-components-text-input {
+            flex: 1 0 100%;
 
-    &.dinersclub {
-        background-image: url('../../images/credit-cards/diners.svg')
-    }
+            &.is-small {
+                flex: 0 1 48%;
+                width: 48%;
+            }
 
-    &.maestro {
-        background-image: url('../../images/credit-cards/maestro.svg')
-    }
+            input[type="text"].wc-credit-card-form-card {
+                min-height: 60px;
+            }
 
-    &.jcb {
-        background-image: url('../../images/credit-cards/jcb.svg')
-    }
+            &.woocommerce-validated {
+                label {
+                    color: #305614;
+                }
 
-    &.amex {
-        background-image: url('../../images/credit-cards/amex.svg')
-    }
-
-    &.discover {
-        background-image: url('../../images/credit-cards/discover.svg')
+                input.wc-credit-card-form-card {
+                    border-color: #305614;
+                    height: 55px;
+                }
+            }
+        }
     }
 }

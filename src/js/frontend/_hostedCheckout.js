@@ -1,8 +1,13 @@
 const hostedCheckout = {
-	pluginPrefix: mpgs_gateway_params.prefix,
+	pluginPrefix: null,
 	isEmbedded: false,
 
 	init() {
+		if ( ! mpgs_gateway_params || ! mpgs_gateway_params.prefix ) {
+			return;
+		}
+		hostedCheckout.pluginPrefix = mpgs_gateway_params.prefix;
+
 		const $hostedCheckoutContainer = jQuery(
 			`#${ this.pluginPrefix }-hosted-checkout-container`
 		);
@@ -49,7 +54,7 @@ const hostedCheckout = {
 	},
 
 	cleanSessions() {
-		if ( 'undefined' !== typeof sessionStorage ) {
+		if ( typeof sessionStorage !== 'undefined' ) {
 			sessionStorage.removeItem( 'HostedCheckout_embedContainer' );
 			sessionStorage.removeItem( 'HostedCheckout_merchantState' );
 			sessionStorage.removeItem( 'HostedCheckout_sessionId' );
