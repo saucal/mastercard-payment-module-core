@@ -3,6 +3,9 @@
  * included in this file.
  */
 
-.mpgs-capture-form h4 {
-    margin-bottom: .1rem;
+.mpgs-void-form,
+.mpgs-capture-form {
+    h4 {
+        margin-bottom: .1rem;
+    }
 }

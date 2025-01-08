@@ -161,10 +161,6 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		add_action( 'woocommerce_api_' . $this->prefix_hook( 'wc-3ds' ), array( $this, 'process_threeds_callback' ) );
 		add_action( 'woocommerce_api_' . $this->prefix_hook( 'wc-webhook' ), array( $this, 'process_notification_callback' ) );
 
-		// Order edit actions.
-		add_filter( 'woocommerce_order_actions', array( $this, 'register_order_actions' ), 10, 2 );
-		add_action( 'woocommerce_order_action_' . $this->prefix_hook( 'void_payment' ), array( $this, 'process_void_payment' ) );
-
 		add_filter( $this->prefix_hook( 'enqueue_scripts' ), array( $this, 'enqueue_scripts' ), 20 );
 		add_filter( 'script_loader_tag', array( $this, 'maybe_add_callbacks_attr' ), 10, 3 );
 	}
@@ -895,6 +891,10 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		$gateway_script = $this->prefix_hook( 'gateway' );
 
+		if ( ! Utils::is_request( 'frontend' ) ) {
+			return $scripts;
+		}
+
 		if ( $this->is_hosted_checkout() ) {
 			$scripts[ $this->hosted_checkout_script_handle() ] = array(
 				'src' => $this->hosted_checkout_url(),
@@ -1475,36 +1475,6 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 */
 	public function display_saved_card_methods() {
 		return $this->saved_cards && ! $this->is_hosted_checkout();
-	}
-
-
-	/**
-	 * Register order actions.
-	 *
-	 * @param array    $actions Order actions.
-	 * @param WC_Order $order   Order object.
-	 *
-	 * @return array
-	 */
-	public function register_order_actions( $actions, $order ) {
-
-		if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
-			return $actions;
-		}
-
-		if ( $this->id !== $order->get_payment_method() ) {
-			return $actions;
-		}
-
-		if ( $order->get_meta( $this->prefix_hook( 'order_captured' ) ) ) {
-			return $actions;
-		}
-
-		if ( $order->get_meta( $this->prefix_hook( 'authorize_transaction' ) ) ) {
-			$actions[ $this->prefix_hook( 'void_payment' ) ] = __( 'Void Payment', $this->mpgs_plugin->text_domain() );
-		}
-
-		return $actions;
 	}
 
 

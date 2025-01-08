@@ -465,6 +465,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 		switch ( $order_data['status'] ) {
 			case 'CAPTURED':
+				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), null );
 				$order->payment_complete( $order_data['id'] );
 				$order->add_order_note(
 					sprintf(
@@ -497,6 +498,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 						wc_price( $transaction['amount'], array( 'currency' => $transaction['currency'] ) )
 					)
 				);
+				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), null );
 				$order->update_status( 'on-hold', __( 'Payment partially captured, waiting for full capture.', $this->mpgs_plugin->text_domain() ) );
 				break;
 			case 'CANCELLED':

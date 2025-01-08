@@ -19,7 +19,6 @@ const Settings = {
 
 	maybeShowHide( $el, $relElement ) {
 		const $row = $el.closest( 'tr' );
-		console.log( $row, $relElement.attr( 'type' ) );
 		if ( $relElement.attr( 'type' ) === 'checkbox' ) {
 			if ( $relElement.is( ':checked' ) ) {
 				$row.show();
