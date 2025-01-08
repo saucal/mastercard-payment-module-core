@@ -56,7 +56,7 @@ class CapturePaymentMetaBox {
 
 		add_action( 'add_meta_boxes', array( $this, 'add_meta_boxes' ), 10, 2 );
 
-		add_action( 'woocommerce_process_shop_order_meta', array( $this, 'maybe_capture_payment' ), 100 );
+		add_action( 'woocommerce_process_shop_order_meta', array( $this, 'maybe_process_actions' ), 100 );
 	}
 
 
@@ -79,12 +79,17 @@ class CapturePaymentMetaBox {
 		$this->order = $order;
 
 		$order_gateway = $this->mpgs_plugin->get_order_gateway_instance( $order );
-		if ( ! $order_gateway instanceof WC_Abstract_MPGS_Payment_Gateway || $this->mpgs_plugin->get_capturable_amount( $order ) <= 0 ) {
+		if ( ! $order_gateway instanceof WC_Abstract_MPGS_Payment_Gateway || $order->get_meta( $this->mpgs_plugin->mpgs_core()->prefix_hook( 'order_captured' ) ) ) {
 			return;
 		}
+
+		if ( $this->mpgs_plugin->get_capturable_amount( $order ) <= 0 && ! $order->get_meta( $this->mpgs_plugin->mpgs_core()->prefix_hook( 'authorize_transaction' ) ) ) {
+			return;
+		}
+
 		$this->gateway = $order_gateway;
 
-		add_meta_box( $this->mpgs_plugin->mpgs_core()->prefix_hook( 'order-capture' ), __( 'Capture Payment', $this->mpgs_plugin->text_domain() ), array( $this, 'output' ), Utils::get_edit_order_screen_id(), 'side', 'high' );
+		add_meta_box( $this->mpgs_plugin->mpgs_core()->prefix_hook( 'order-payment-actions' ), __( 'Payment Actions', $this->mpgs_plugin->text_domain() ), array( $this, 'output' ), Utils::get_edit_order_screen_id(), 'side', 'high' );
 	}
 
 
@@ -96,14 +101,13 @@ class CapturePaymentMetaBox {
 			return;
 		}
 
-		$authorized_amount = $this->mpgs_plugin->get_capturable_amount( $this->order );
-
 		$this->mpgs_plugin->mpgs_core()->template()->get(
-			'admin/partial-capture.php',
+			'admin/payment-actions.php',
 			array(
-				'gateway'     => $this->gateway,
-				'order'       => $this->order,
-				'auth_amount' => $authorized_amount,
+				'gateway'                => $this->gateway,
+				'order'                  => $this->order,
+				'authorized_transaction' => $this->order->get_meta( $this->mpgs_plugin->mpgs_core()->prefix_hook( 'authorize_transaction' ) ),
+				'auth_amount'            => $this->mpgs_plugin->get_capturable_amount( $this->order ),
 			)
 		);
 	}
@@ -114,7 +118,7 @@ class CapturePaymentMetaBox {
 	 *
 	 * @param int $post_id Post ID.
 	 */
-	public function maybe_capture_payment( $post_id ) {
+	public function maybe_process_actions( $post_id ) {
 		if ( ! $post_id ) {
 			return;
 		}
@@ -129,12 +133,21 @@ class CapturePaymentMetaBox {
 			return;
 		}
 
+		// phpcs:ignore WordPress.Security.NonceVerification
+		$void_transaction = isset( $_POST[ $gateway->prefix_hook( 'void_transaction' ) ] ) ? wc_clean( wp_unslash( $_POST[ $gateway->prefix_hook( 'void_transaction' ) ] ) ) : 0;
+		if ( $void_transaction ) {
+			// Void transaction takes precedence over capture.
+			$gateway->process_void_payment( $order );
+			return;
+		}
+
 		$auth_amount = $this->mpgs_plugin->get_capturable_amount( $order );
 		if ( $auth_amount <= 0 ) {
 			return;
 		}
 
-		$capture_amount = isset( $_POST[ $gateway->prefix_hook( 'capture_amount' ) ] ) ? wc_format_decimal( $_POST[ $gateway->prefix_hook( 'capture_amount' ) ] ) : 0;
+		// phpcs:ignore WordPress.Security.NonceVerification
+		$capture_amount = isset( $_POST[ $gateway->prefix_hook( 'capture_amount' ) ] ) ? wc_format_decimal( wc_clean( wp_unslash( $_POST[ $gateway->prefix_hook( 'capture_amount' ) ] ) ) ) : 0;
 		if ( $capture_amount <= 0 ) {
 			return;
 		}

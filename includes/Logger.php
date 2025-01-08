@@ -35,6 +35,14 @@ final class Logger {
 
 
 	/**
+	 * Force disabled logger.
+	 *
+	 * @var bool
+	 */
+	private $force_disabled = false;
+
+
+	/**
 	 * Constructor.
 	 *
 	 * @param MpgsPlugin $mpgs_plugin MPGS Plugin instance.
@@ -53,7 +61,7 @@ final class Logger {
 	 */
 	public function log( $message, $level = 'debug', $file = null ) {
 
-		if ( 'error' !== $level && ! $this->mpgs_plugin->is_debug() ) {
+		if ( $this->force_disabled || ( 'error' !== $level && ! $this->mpgs_plugin->is_debug() ) ) {
 			return;
 		}
 
@@ -117,5 +125,21 @@ final class Logger {
 	private static function maybe_mask_in_json( $data ) {
 		// TODO: Mask sensitive data in JSON.
 		return $data;
+	}
+
+
+	/**
+	 * Force disable logger.
+	 */
+	public function force_disable() {
+		$this->force_disabled = true;
+	}
+
+
+	/**
+	 * Restore force disable logger.
+	 */
+	public function restore_force_disable() {
+		$this->force_disabled = false;
 	}
 }

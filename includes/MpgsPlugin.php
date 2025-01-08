@@ -70,6 +70,14 @@ abstract class MpgsPlugin {
 
 
 	/**
+	 * Merchant Registration URL.
+	 *
+	 * @var string
+	 */
+	protected $merchant_registration_url = '';
+
+
+	/**
 	 * Registered payment gateways.
 	 *
 	 * @var array
@@ -134,6 +142,14 @@ abstract class MpgsPlugin {
 
 
 	/**
+	 * Gateway settings.
+	 *
+	 * @var array
+	 */
+	private $settings = array();
+
+
+	/**
 	 * Constructor
 	 */
 	public function __construct() {
@@ -174,8 +190,8 @@ abstract class MpgsPlugin {
 			'before_woocommerce_init',
 			function () {
 				if ( class_exists( '\Automattic\WooCommerce\Utilities\FeaturesUtil' ) ) {
-					\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'cart_checkout_blocks', __FILE__, true );
-					\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', __FILE__, true );
+					\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'cart_checkout_blocks', $this->plugin_file(), true );
+					\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', $this->plugin_file(), true );
 				}
 			}
 		);
@@ -261,6 +277,16 @@ abstract class MpgsPlugin {
 
 
 	/**
+	 * Get the merchant registration URL.
+	 *
+	 * @return string
+	 */
+	public function merchant_registration_url() {
+		return $this->merchant_registration_url;
+	}
+
+
+	/**
 	 * Register the payment gateways.
 	 *
 	 * @return WC_Abstract_MPGS_Payment_Gateway[]
@@ -278,9 +304,12 @@ abstract class MpgsPlugin {
 	public function regisreted_block_gateways() {
 		$mapped_gateways = array();
 
-		foreach ( $this->registered_gateways() as $gateway ) {
-			$instance                         = new $gateway( $this );
-			$mapped_gateways[ $instance->id ] = $instance->block_compat_class();
+		foreach ( $this->registered_gateways() as $gateway_id => $gateway ) {
+			if ( empty( $this->registered_gateway_instances[ $gateway_id ] ) ) {
+				$instance = new $gateway( $this );
+				$this->registered_gateway_instances[ $gateway_id ] = $instance;
+			}
+			$mapped_gateways[ $gateway_id ] = $this->registered_gateway_instances[ $gateway_id ]->block_compat_class();
 		}
 
 		return $mapped_gateways;
@@ -434,13 +463,17 @@ abstract class MpgsPlugin {
 			return $methods;
 		}
 
-		foreach ( $this->registered_gateways as $gateway ) {
+		foreach ( $this->registered_gateways as $gateway_id => $gateway ) {
 			if ( ! class_exists( $gateway ) || ! is_subclass_of( $gateway, 'MPGSCore\Gateways\WC_Abstract_MPGS_Payment_Gateway' ) ) {
 				continue;
 			}
 
-			$gateway_instance = new $gateway( $this );
-			$this->registered_gateway_instances[ $gateway_instance->id ] = $gateway_instance;
+			if ( ! empty( $this->registered_gateway_instances[ $gateway_id ] ) ) {
+				continue;
+			}
+
+			$gateway_instance                                  = new $gateway( $this );
+			$this->registered_gateway_instances[ $gateway_id ] = $gateway_instance;
 		}
 
 		return array_merge( $methods, $this->registered_gateway_instances );
@@ -551,22 +584,20 @@ abstract class MpgsPlugin {
 	 * @return array
 	 */
 	public function get_gateway_settings() {
-		static $settings = array();
-
-		if ( ! empty( $settings ) ) {
-			return $settings;
+		if ( ! empty( $this->settings ) ) {
+			return $this->settings;
 		}
 
-		$settings = get_option( 'woocommerce_' . $this->plugin_id() . '_settings', array() );
+		$this->settings = get_option( 'woocommerce_' . $this->plugin_id() . '_settings', array() );
 
-		return $settings;
+		return $this->settings;
 	}
 
 
 	/**
 	 * Get gateway specific setting.
 	 *
-	 * @param  string $key Setting key.
+	 * @param string $key Setting key.
 	 *
 	 * @return mixed
 	 */
@@ -574,6 +605,27 @@ abstract class MpgsPlugin {
 		$settings = $this->get_gateway_settings();
 
 		return isset( $settings[ $key ] ) ? $settings[ $key ] : '';
+	}
+
+
+	/**
+	 * Update gateway settings.
+	 *
+	 * @param string $key   Setting key.
+	 * @param mixed  $value Setting value.
+	 *
+	 * @return void
+	 */
+	public function update_gateway_setting( $key, $value ) {
+		if ( empty( $key ) ) {
+			return;
+		}
+
+		if ( empty( $this->settings ) ) {
+			$this->get_gateway_settings();
+		}
+
+		$this->settings[ $key ] = $value;
 	}
 
 
@@ -749,5 +801,16 @@ abstract class MpgsPlugin {
 		} catch ( \Exception $e ) {
 			return 0;
 		}
+	}
+
+
+	/**
+	 * Check if the admin is viewing the settings page.
+	 *
+	 * @return bool
+	 */
+	public function is_settings_page() {
+		// phpcs:disable WordPress.Security.NonceVerification
+		return isset( $_GET['page'] ) && 'wc-settings' === $_GET['page'] && isset( $_GET['tab'] ) && 'checkout' === $_GET['tab'] && isset( $_GET['section'] ) && $this->plugin_id === $_GET['section'];
 	}
 }

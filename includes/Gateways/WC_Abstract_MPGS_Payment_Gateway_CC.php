@@ -43,6 +43,14 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 
 	/**
+	 * Hosted session attempt limit.
+	 *
+	 * @var int
+	 */
+	const HOSTED_SESSION_ATTEMPT_LIMIT = 20;
+
+
+	/**
 	 * Block compatibility class.
 	 *
 	 * @var string
@@ -153,10 +161,6 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		add_action( 'woocommerce_api_' . $this->prefix_hook( 'wc-3ds' ), array( $this, 'process_threeds_callback' ) );
 		add_action( 'woocommerce_api_' . $this->prefix_hook( 'wc-webhook' ), array( $this, 'process_notification_callback' ) );
 
-		// Order edit actions.
-		add_filter( 'woocommerce_order_actions', array( $this, 'register_order_actions' ), 10, 2 );
-		add_action( 'woocommerce_order_action_' . $this->prefix_hook( 'void_payment' ), array( $this, 'process_void_payment' ) );
-
 		add_filter( $this->prefix_hook( 'enqueue_scripts' ), array( $this, 'enqueue_scripts' ), 20 );
 		add_filter( 'script_loader_tag', array( $this, 'maybe_add_callbacks_attr' ), 10, 3 );
 	}
@@ -174,7 +178,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			'refunds',
 		);
 
-		if ( $this->is_hosted_session() && $this->saved_cards ) {
+		if ( $this->saved_cards ) {
 			$supports[] = 'tokenization';
 		}
 
@@ -198,12 +202,15 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @return void
 	 */
 	public function validate_credentials() {
-		$merchant_id = $this->get_option( 'merchant_id' );
-		$password    = $this->get_option( 'password' );
+		$merchant_id = isset( $_POST[ $this->prefix_hook( 'merchant_id', 'woocommerce_' ) ] ) ? wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'merchant_id', 'woocommerce_' ) ] ) ) : $this->get_option( 'merchant_id' ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$password    = isset( $_POST[ $this->prefix_hook( 'password', 'woocommerce_' ) ] ) ? wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'password', 'woocommerce_' ) ] ) ) : $this->get_option( 'password' ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
 
 		if ( empty( $merchant_id ) || empty( $password ) ) {
 			WC_Admin_Settings::add_error( __( 'Merchant ID and API Key are required.', $this->mpgs_plugin->text_domain() ) );
 		}
+
+		$this->mpgs_plugin->update_gateway_setting( 'merchant_id', $merchant_id );
+		$this->mpgs_plugin->update_gateway_setting( 'password', $password );
 
 		$response = $this->mpgs_api()->payment_options_inquiry();
 
@@ -211,6 +218,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			WC_Admin_Settings::add_error( __( 'Failed to validate API credentials. Please validate your credentials and save your account details again.', $this->mpgs_plugin->text_domain() ) );
 			$this->mpgs_plugin->update_validated_credentials( false );
 			$this->mpgs_plugin->update_payment_operations( array() );
+			$this->init_form_fields();
 			return;
 		}
 
@@ -219,6 +227,8 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		$this->mpgs_plugin->update_validated_credentials( true );
 
 		$this->mpgs_plugin->update_payment_operations( $response['body']['supportedPaymentOperations'] ?? array() );
+
+		$this->init_form_fields();
 	}
 
 
@@ -377,7 +387,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		wp_enqueue_script( 'wc-credit-card-form' );
 
-		$display_tokenization = $this->is_save_card_available();
+		$display_tokenization = $this->display_saved_card_methods();
 
 		if ( $display_tokenization ) {
 			$this->saved_payment_methods();
@@ -881,6 +891,10 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		$gateway_script = $this->prefix_hook( 'gateway' );
 
+		if ( ! Utils::is_request( 'frontend' ) ) {
+			return $scripts;
+		}
+
 		if ( $this->is_hosted_checkout() ) {
 			$scripts[ $this->hosted_checkout_script_handle() ] = array(
 				'src' => $this->hosted_checkout_url(),
@@ -1040,6 +1054,10 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			$payload['interaction']['merchant']['logo'] = str_replace( 'http:', 'https:', $this->icon );
 		}
 
+		if ( $this->saved_cards ) {
+			$payload['interaction']['saveCardForCredentialOnFile'] = 'PAYER_INITIATED_PAYMENTS';
+		}
+
 		$payload = $this->maybe_add_customer_data( $payload, $order );
 
 		$response = $this->mpgs_api()->create_session( $payload );
@@ -1077,8 +1095,10 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		if ( ! empty( WC()->session ) ) {
 			$session_id = WC()->session->get( $this->hosted_session_id_key() );
+			$attempts   = WC()->session->get( $this->hosted_session_attempt_key() ) ?? 0;
 
-			if ( $session_id && $this->is_session_valid( WC()->session->get( $this->hosted_session_duration_key() ) ) ) {
+			if ( $session_id && $this->is_session_valid( WC()->session->get( $this->hosted_session_duration_key() ) ) && $attempts < ( self::HOSTED_SESSION_ATTEMPT_LIMIT - 5 ) ) {
+				WC()->session->set( $this->hosted_session_attempt_key(), $attempts + 1 );
 				return $session_id;
 			}
 		}
@@ -1086,7 +1106,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		$response = $this->mpgs_api()->create_session(
 			array(
 				'session' => array(
-					'authenticationLimit' => 20,
+					'authenticationLimit' => self::HOSTED_SESSION_ATTEMPT_LIMIT,
 				),
 			)
 		);
@@ -1099,6 +1119,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		if ( ! empty( WC()->session ) ) {
 			WC()->session->set( $this->hosted_session_id_key(), $session_id );
+			WC()->session->set( $this->hosted_session_attempt_key(), 1 );
 			WC()->session->set( $this->hosted_session_duration_key(), time() + 3 * MINUTE_IN_SECONDS );
 		}
 
@@ -1154,8 +1175,8 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		return apply_filters(
 			$this->prefix_hook( 'checkout_session_interaction_payload' ),
 			array(
-				'operation'                   => $this->transaction_mode,
-				'returnUrl'                   => add_query_arg(
+				'operation'      => $this->transaction_mode,
+				'returnUrl'      => add_query_arg(
 					array(
 						'wc-api'   => $this->prefix_hook( 'wc' ),
 						'order-id' => $order->get_id(),
@@ -1163,17 +1184,16 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 					),
 					trailingslashit( get_home_url() )
 				),
-				'cancelUrl'                   => $order->get_checkout_payment_url(),
-				'timeoutUrl'                  => $order->get_checkout_payment_url(),
-				'merchant'                    => array(
+				'cancelUrl'      => $order->get_checkout_payment_url(),
+				'timeoutUrl'     => $order->get_checkout_payment_url(),
+				'merchant'       => array(
 					'name' => $this->merchant_name,
 				),
-				'displayControl'              => array(
+				'displayControl' => array(
 					'customerEmail'  => 'HIDE',
 					'billingAddress' => 'HIDE',
 					'shipping'       => 'HIDE',
 				),
-				'saveCardForCredentialOnFile' => 'PAYER_INITIATED_PAYMENTS',
 			)
 		);
 	}
@@ -1234,6 +1254,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		}
 
 		WC()->session->set( $this->hosted_session_id_key(), null );
+		WC()->session->set( $this->hosted_session_attempt_key(), 0 );
 		WC()->session->set( $this->hosted_session_duration_key(), null );
 	}
 
@@ -1245,6 +1266,16 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 */
 	protected function hosted_session_id_key() {
 		return $this->mpgs_plugin()->mpgs_core()->utils()->hosted_session_id_key();
+	}
+
+
+	/**
+	 * Get hosted session attempt key.
+	 *
+	 * @return string
+	 */
+	protected function hosted_session_attempt_key() {
+		return $this->mpgs_plugin()->mpgs_core()->utils()->hosted_session_attempt_key();
 	}
 
 
@@ -1442,95 +1473,8 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 *
 	 * @return bool
 	 */
-	public function is_save_card_available() {
-		return $this->supports( 'tokenization' ) && is_checkout() && $this->saved_cards;
-	}
-
-
-	/**
-	 * Register order actions.
-	 *
-	 * @param array    $actions Order actions.
-	 * @param WC_Order $order   Order object.
-	 *
-	 * @return array
-	 */
-	public function register_order_actions( $actions, $order ) {
-
-		if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
-			return $actions;
-		}
-
-		if ( $this->id !== $order->get_payment_method() ) {
-			return $actions;
-		}
-
-		if ( $order->get_meta( $this->prefix_hook( 'order_captured' ) ) ) {
-			return $actions;
-		}
-
-		if ( $order->get_meta( $this->prefix_hook( 'authorize_transaction' ) ) ) {
-			$actions[ $this->prefix_hook( 'void_payment' ) ] = __( 'Void Payment', $this->mpgs_plugin->text_domain() );
-		}
-
-		return $actions;
-	}
-
-
-	/**
-	 * Process void payment action.
-	 *
-	 * @param WC_Order $order Order object.
-	 *
-	 * @return void
-	 */
-	public function process_void_payment( $order ) {
-
-		if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
-			return;
-		}
-
-		if ( $this->id !== $order->get_payment_method() ) {
-			return;
-		}
-
-		try {
-			$order_data = $this->retrieve_order( $order );
-
-			$this->validate_payment_status( $order, $order_data );
-
-			if ( 'AUTHORIZED' !== $order_data['body']['status'] ) {
-				throw new Exception( __( 'The order cannot be voided anymore.', $this->mpgs_plugin->text_domain() ) );
-			}
-
-			$transaction_id = $order->get_meta( $this->prefix_hook( 'authorize_transaction' ) );
-			if ( empty( $transaction_id ) ) {
-				throw new Exception( __( 'The Authorize transaction ID is missing. Try to void the authorization from the Merchant Portal.', $this->mpgs_plugin->text_domain() ) );
-			}
-
-			$void_data = array(
-				'apiOperation' => 'VOID',
-				'transaction'  => array(
-					'targetTransactionId' => $transaction_id,
-				),
-			);
-
-			$response = $this->mpgs_api()->create_transaction( $this->unique_order_id( $order ), $this->unique_transaction_id( $order ), $void_data );
-
-			if ( ! $response['success'] || empty( $response['body']['result'] ) || 'SUCCESS' !== $response['body']['result'] ) {
-				throw new Exception( __( 'Void Payment failed. Please try again.', $this->mpgs_plugin->text_domain() ) );
-			}
-
-			$this->process_wc_order( $order, $response['body']['order'], $response['body']['transaction'] );
-		} catch ( Exception $e ) {
-			$order->add_order_note(
-				sprintf(
-					/* translators: %s: error message */
-					__( 'Void Payment failed: %s', $this->mpgs_plugin->text_domain() ),
-					$e->getMessage()
-				)
-			);
-		}
+	public function display_saved_card_methods() {
+		return $this->saved_cards && ! $this->is_hosted_checkout();
 	}
 
 
@@ -1542,7 +1486,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @return array
 	 */
 	public function hide_saved_token_hosted_checkout( $tokens ) {
-		if ( $this->is_save_card_available() ) {
+		if ( $this->display_saved_card_methods() ) {
 			return $tokens;
 		}
 
