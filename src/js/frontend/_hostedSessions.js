@@ -4,23 +4,31 @@
 import { debounce, getWcAjaxUrl, supportedLogos, getCardLogo } from './_utils';
 
 const hostedSessions = {
-	pluginPrefix: mpgs_gateway_params.prefix,
+	pluginPrefix: null,
 	sessionId: null,
 	sessionIdAttempt: null,
 	$ccFieldset: null,
 	$wcForm: null,
 
 	init() {
+		if ( ! mpgs_gateway_params || ! mpgs_gateway_params.prefix ) {
+			return;
+		}
+		hostedSessions.pluginPrefix = mpgs_gateway_params.prefix;
+
 		if ( ! window.PaymentSession ) {
-			this.reInit();
+			hostedSessions.reInit();
 			return;
 		}
 
-		this.initElements();
-		jQuery( document.body ).on( 'updated_checkout', this.initElements );
+		hostedSessions.initWcForm();
+		hostedSessions.initElements();
+		jQuery( document.body ).on(
+			'updated_checkout',
+			hostedSessions.initElements
+		);
 
 		if ( hostedSessions.sessionId ) {
-			hostedSessions.initWcForm();
 			hostedSessions.unblockForm();
 		}
 	},
@@ -97,16 +105,18 @@ const hostedSessions = {
 	},
 
 	initHostedSession() {
-		jQuery( document.body ).off(
-			'change',
-			`input[name="payment_method"], input[name="radio-control-wc-payment-method-options"], input[name="wc-${ hostedSessions.pluginPrefix }-payment-token"]`,
-			hostedSessions.initHostedSession
-		);
-		jQuery( document.body ).on(
-			'change',
-			`input[name="payment_method"], input[name="radio-control-wc-payment-method-options"], input[name="wc-${ hostedSessions.pluginPrefix }-payment-token"]`,
-			hostedSessions.initHostedSession
-		);
+		if ( ! hostedSessions.isWooBlocks() ) {
+			jQuery( document.body ).off(
+				'change',
+				`input[name="payment_method"], input[name="radio-control-wc-payment-method-options"], input[name="wc-${ hostedSessions.pluginPrefix }-payment-token"]`,
+				hostedSessions.initHostedSession
+			);
+			jQuery( document.body ).on(
+				'change',
+				`input[name="payment_method"], input[name="radio-control-wc-payment-method-options"], input[name="wc-${ hostedSessions.pluginPrefix }-payment-token"]`,
+				hostedSessions.initHostedSession
+			);
+		}
 
 		if (
 			! hostedSessions.isPaymentMethodSelected() ||
@@ -116,24 +126,30 @@ const hostedSessions = {
 		}
 
 		hostedSessions.blockFieldset();
-		PaymentSession.configure(
-			{
-				session: hostedSessions.sessionId,
-				fields: hostedSessions.fields(),
-				frameEmbeddingMitigation: [ 'javascript' ],
-				callbacks: {
-					initialized: hostedSessions.unblockFieldset,
-					formSessionUpdate: hostedSessions.handlePaymentResponse,
-				},
-				interaction: {
-					displayControl: {
-						formatCard: 'EMBOSSED',
-						invalidFieldCharacters: 'REJECT',
+		try {
+			PaymentSession.configure(
+				{
+					session: hostedSessions.sessionId,
+					fields: hostedSessions.fields(),
+					frameEmbeddingMitigation: [ 'javascript' ],
+					callbacks: {
+						initialized: hostedSessions.unblockFieldset,
+						formSessionUpdate: hostedSessions.handlePaymentResponse,
+					},
+					interaction: {
+						displayControl: {
+							formatCard: 'EMBOSSED',
+							invalidFieldCharacters: 'REJECT',
+						},
 					},
 				},
-			},
-			hostedSessions.paymentScope()
-		);
+				hostedSessions.paymentScope()
+			);
+		} catch ( error ) {
+			hostedSessions.submitError(
+				`${ mpgs_gateway_params.hostedSessionErrors.default }: ${ error }`
+			);
+		}
 
 		PaymentSession.onBlur(
 			[
@@ -213,14 +229,26 @@ const hostedSessions = {
 
 		if ( result.isValid ) {
 			jQuery( fieldSelector )
-				.closest( '.form-row' )
-				.removeClass( 'woocommerce-invalid woocommerce-validated' )
+				.closest(
+					hostedSessions.isWooBlocks()
+						? '.wc-block-components-text-input'
+						: '.form-row'
+				)
+				.removeClass(
+					'woocommerce-invalid woocommerce-validated has-error'
+				)
 				.addClass( 'woocommerce-validated' );
 		} else {
 			jQuery( fieldSelector )
-				.closest( '.form-row' )
-				.removeClass( 'woocommerce-invalid woocommerce-validated' )
-				.addClass( 'woocommerce-invalid' );
+				.closest(
+					hostedSessions.isWooBlocks()
+						? '.wc-block-components-text-input'
+						: '.form-row'
+				)
+				.removeClass(
+					'woocommerce-invalid woocommerce-validated has-error'
+				)
+				.addClass( 'woocommerce-invalid has-error' );
 		}
 	},
 
@@ -238,7 +266,12 @@ const hostedSessions = {
 
 		hostedSessions.$wcForm.addClass( 'is-processing' );
 		hostedSessions.blockForm();
+		hostedSessions.triggerPay();
 
+		return false;
+	},
+
+	triggerPay() {
 		try {
 			PaymentSession.updateSessionFromForm(
 				'card',
@@ -251,8 +284,6 @@ const hostedSessions = {
 			);
 			hostedSessions.unblockForm();
 		}
-
-		return false;
 	},
 
 	handlePaymentResponse( response ) {
@@ -285,7 +316,11 @@ const hostedSessions = {
 			response.session.version
 		);
 
-		hostedSessions.$wcForm.trigger( 'submit' );
+		if ( hostedSessions.isWooBlocks() ) {
+			hostedSessions.$wcForm.trigger( 'submit_payment' );
+		} else {
+			hostedSessions.$wcForm.trigger( 'submit' );
+		}
 	},
 
 	isPaymentMethodSelected() {
@@ -417,6 +452,11 @@ const hostedSessions = {
 			.trigger( 'blur' );
 		hostedSessions.scrollToNotices();
 		jQuery( document.body ).trigger( 'checkout_error', [ error_message ] );
+		if ( hostedSessions.isWooBlocks() ) {
+			hostedSessions.$wcForm.trigger( 'checkout_error', [
+				error_message,
+			] );
+		}
 	},
 
 	scrollToNotices() {
@@ -489,6 +529,23 @@ const hostedSessions = {
 		if ( cardLogo !== 'unknown' ) {
 			$cardField.addClass( cardLogo );
 		}
+	},
+
+	isWooBlocks() {
+		return (
+			hostedSessions.$wcForm &&
+			hostedSessions.$wcForm.hasClass( 'wc-block-checkout__form' )
+		);
+	},
+
+	getSessionId() {
+		return jQuery( `#${ hostedSessions.pluginPrefix }_session_id` ).val();
+	},
+
+	getSessionVersion() {
+		return jQuery(
+			`#${ hostedSessions.pluginPrefix }_session_version`
+		).val();
 	},
 };
 
