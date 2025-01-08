@@ -304,9 +304,12 @@ abstract class MpgsPlugin {
 	public function regisreted_block_gateways() {
 		$mapped_gateways = array();
 
-		foreach ( $this->registered_gateways() as $gateway ) {
-			$instance                         = new $gateway( $this );
-			$mapped_gateways[ $instance->id ] = $instance->block_compat_class();
+		foreach ( $this->registered_gateways() as $gateway_id => $gateway ) {
+			if ( empty( $this->registered_gateway_instances[ $gateway_id ] ) ) {
+				$instance = new $gateway( $this );
+				$this->registered_gateway_instances[ $gateway_id ] = $instance;
+			}
+			$mapped_gateways[ $gateway_id ] = $this->registered_gateway_instances[ $gateway_id ]->block_compat_class();
 		}
 
 		return $mapped_gateways;
@@ -460,13 +463,17 @@ abstract class MpgsPlugin {
 			return $methods;
 		}
 
-		foreach ( $this->registered_gateways as $gateway ) {
+		foreach ( $this->registered_gateways as $gateway_id => $gateway ) {
 			if ( ! class_exists( $gateway ) || ! is_subclass_of( $gateway, 'MPGSCore\Gateways\WC_Abstract_MPGS_Payment_Gateway' ) ) {
 				continue;
 			}
 
-			$gateway_instance = new $gateway( $this );
-			$this->registered_gateway_instances[ $gateway_instance->id ] = $gateway_instance;
+			if ( ! empty( $this->registered_gateway_instances[ $gateway_id ] ) ) {
+				continue;
+			}
+
+			$gateway_instance                                  = new $gateway( $this );
+			$this->registered_gateway_instances[ $gateway_id ] = $gateway_instance;
 		}
 
 		return array_merge( $methods, $this->registered_gateway_instances );

@@ -1509,63 +1509,6 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 
 	/**
-	 * Process void payment action.
-	 *
-	 * @param WC_Order $order Order object.
-	 *
-	 * @return void
-	 */
-	public function process_void_payment( $order ) {
-
-		if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
-			return;
-		}
-
-		if ( $this->id !== $order->get_payment_method() ) {
-			return;
-		}
-
-		try {
-			$order_data = $this->retrieve_order( $order );
-
-			$this->validate_payment_status( $order, $order_data );
-
-			if ( 'AUTHORIZED' !== $order_data['body']['status'] ) {
-				throw new Exception( __( 'The order cannot be voided anymore.', $this->mpgs_plugin->text_domain() ) );
-			}
-
-			$transaction_id = $order->get_meta( $this->prefix_hook( 'authorize_transaction' ) );
-			if ( empty( $transaction_id ) ) {
-				throw new Exception( __( 'The Authorize transaction ID is missing. Try to void the authorization from the Merchant Portal.', $this->mpgs_plugin->text_domain() ) );
-			}
-
-			$void_data = array(
-				'apiOperation' => 'VOID',
-				'transaction'  => array(
-					'targetTransactionId' => $transaction_id,
-				),
-			);
-
-			$response = $this->mpgs_api()->create_transaction( $this->unique_order_id( $order ), $this->unique_transaction_id( $order ), $void_data );
-
-			if ( ! $response['success'] || empty( $response['body']['result'] ) || 'SUCCESS' !== $response['body']['result'] ) {
-				throw new Exception( __( 'Void Payment failed. Please try again.', $this->mpgs_plugin->text_domain() ) );
-			}
-
-			$this->process_wc_order( $order, $response['body']['order'], $response['body']['transaction'] );
-		} catch ( Exception $e ) {
-			$order->add_order_note(
-				sprintf(
-					/* translators: %s: error message */
-					__( 'Void Payment failed: %s', $this->mpgs_plugin->text_domain() ),
-					$e->getMessage()
-				)
-			);
-		}
-	}
-
-
-	/**
 	 * Hide saved token hosted checkout.
 	 *
 	 * @param array $tokens The tokens.
