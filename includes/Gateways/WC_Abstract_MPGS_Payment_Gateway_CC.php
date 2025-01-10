@@ -1120,7 +1120,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		if ( ! empty( WC()->session ) ) {
 			WC()->session->set( $this->hosted_session_id_key(), $session_id );
 			WC()->session->set( $this->hosted_session_attempt_key(), 1 );
-			WC()->session->set( $this->hosted_session_duration_key(), time() + 3 * MINUTE_IN_SECONDS );
+			WC()->session->set( $this->hosted_session_duration_key(), time() + 5 * MINUTE_IN_SECONDS );
 		}
 
 		return $session_id;

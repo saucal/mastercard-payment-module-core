@@ -158,7 +158,7 @@ final class GatewaySettings {
 					'title'       => __( 'Payment capture', $this->mpgs_plugin->mpgs_core()->text_domain() ),
 					'type'        => 'select',
 					'options'     => $supported_operations,
-					'default'     => 'purchase',
+					'default'     => 'PURCHASE',
 					'description' => __( 'Choose "Authorize and Capture" to authorize and capture the payment immediately. Choose "Authorize" to only authorize the payment, and capture it manually later from the WC admin panel.', $this->mpgs_plugin->mpgs_core()->text_domain() ),
 				),
 				'checkout_mode'        => array(
