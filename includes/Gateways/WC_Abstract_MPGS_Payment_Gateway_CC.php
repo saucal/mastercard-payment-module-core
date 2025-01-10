@@ -255,6 +255,17 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 
 	/**
+	 * Get the merchant ID.
+	 *
+	 * @return string
+	 */
+	public function merchant_id() {
+		$prefix_test = $this->mpgs_plugin->is_sandbox() && ! ( defined( 'MGPS_MID_FORCE_TEST' ) && MGPS_MID_FORCE_TEST ) ? 'TEST' : '';
+		return $prefix_test . $this->merchant_id;
+	}
+
+
+	/**
 	 * Get checkout mode.
 	 *
 	 * @return string
@@ -350,8 +361,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		$session_id = $this->checkout_session_id();
 
 		if ( ! $session_id ) {
-			wc_add_notice( __( 'There was an error creating the payment session. Please review your data and try again or try a different payment method.', $this->mpgs_plugin->text_domain() ), 'error' );
-			echo wp_kses_post( $this->description );
+			wc_print_notice( __( 'There was an error creating the payment session. Please review your data and try again or try a different payment method.', $this->mpgs_plugin->text_domain() ), 'error' );
 			return;
 		}
 
@@ -998,7 +1008,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			'%1$s/form/version/%2$s/merchant/%3$s/session.js',
 			untrailingslashit( $this->mpgs_plugin->gateway_url() ),
 			100,
-			$this->get_option( 'merchant_id' )
+			$this->merchant_id()
 		);
 	}
 
@@ -1011,6 +1021,8 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @return string Session ID.
 	 */
 	protected function checkout_session_id( $order = null ) {
+		static $session_id;
+
 		// Bail if the cart is not defined.
 		if ( ! function_exists( 'WC' ) || ! WC()->cart ) {
 			return '';
@@ -1022,6 +1034,10 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		if ( ! $order ) {
 			return '';
+		}
+
+		if ( $session_id ) {
+			return $session_id;
 		}
 
 		$order_id = $order->get_id();

@@ -45,13 +45,7 @@ final class MpgsAPI {
 	 * @return string
 	 */
 	private function get_merchant_id() {
-		$merchant_id = $this->mpgs_plugin->get_gateway_setting( 'merchant_id' );
-
-		if ( $this->is_sandbox() && ! ( defined( 'MGPS_MID_FORCE_TEST' ) && MGPS_MID_FORCE_TEST ) ) {
-			$merchant_id = 'TEST' . $merchant_id;
-		}
-
-		return $merchant_id;
+		return $this->mpgs_plugin->merchant_id();
 	}
 
 

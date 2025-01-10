@@ -8,7 +8,6 @@
 
 namespace MPGSCore;
 
-use Automattic\WooCommerce\Utilities\FeaturesUtil;
 use MPGSCore\Admin\CapturePaymentMetaBox;
 use MPGSCore\Admin\GatewaySettings;
 use MPGSCore\Admin\Notices;
@@ -628,6 +627,27 @@ abstract class MpgsPlugin {
 		$this->settings[ $key ] = $value;
 	}
 
+
+	/**
+	 * Get the merchant ID.
+	 *
+	 * @return string
+	 */
+	public function merchant_id() {
+		static $merchant_id;
+
+		if ( ! empty( $merchant_id ) ) {
+			return $merchant_id;
+		}
+
+		if ( $this->is_sandbox() && ! ( defined( 'MGPS_MID_FORCE_TEST' ) && MGPS_MID_FORCE_TEST ) ) {
+			$merchant_id = 'TEST';
+		}
+
+		$merchant_id .= $this->get_gateway_setting( 'merchant_id' );
+
+		return $merchant_id;
+	}
 
 	/**
 	 * Get validated credentials.
