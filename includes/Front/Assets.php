@@ -87,6 +87,7 @@ final class Assets {
 				'checkoutMode'        => $this->mpgs_plugin->get_checkout_mode(),
 				'orderCancelUrl'      => ! empty( Utils::get_current_order() ) ? Utils::get_current_order()->get_cancel_order_url() : '',
 				'hostedSessionErrors' => $this->mpgs_plugin->mpgs_core()->utils()->hosted_session_errors(),
+				'threeDsEnabled'      => $this->mpgs_plugin->is_3ds_enabled(),
 			),
 		);
 
