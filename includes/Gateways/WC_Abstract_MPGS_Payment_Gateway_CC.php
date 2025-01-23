@@ -179,7 +179,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			'refunds',
 		);
 
-		if ( $this->saved_cards ) {
+		if ( $this->saved_cards && ! $this->is_hosted_checkout() ) {
 			$supports[] = 'tokenization';
 		}
 
@@ -1733,6 +1733,12 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @return bool
 	 */
 	public function display_saved_card_methods() {
+		global $wp;
+
+		if ( is_add_payment_method_page() && isset( $wp->query_vars['add-payment-method'] ) ) {
+			return false;
+		}
+
 		return $this->saved_cards && ! $this->is_hosted_checkout();
 	}
 
