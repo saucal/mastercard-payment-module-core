@@ -39,9 +39,7 @@ const MpgsCC = ( { activePaymentMethod, eventRegistration, emitResponse } ) => {
 			}
 
 			if ( isHostedCheckout() && isRedirectToPaymentPage() ) {
-				return () => {
-					hostedCheckoutHandler( emitResponse, onCheckoutSuccess );
-				};
+				return hostedCheckoutHandler( emitResponse, onCheckoutSuccess );
 			}
 		},
 		// eslint-disable-next-line react-hooks/exhaustive-deps

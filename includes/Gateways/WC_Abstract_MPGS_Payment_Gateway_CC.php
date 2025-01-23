@@ -1521,9 +1521,9 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 */
 	public function process_return_callback() {
 		try {
-			// if ( ! isset( $_REQUEST['nonce'] ) || ! wp_verify_nonce( wc_clean( wp_unslash( $_REQUEST['nonce'] ) ), $this->prefix_hook( 'nonce' ) ) ) {
-			// throw new Exception( __( 'Nonce verification is missing or invalid.', $this->mpgs_plugin->text_domain() ) );
-			// }
+			if ( ! isset( $_REQUEST['nonce'] ) || ! wp_verify_nonce( wc_clean( wp_unslash( $_REQUEST['nonce'] ) ), $this->prefix_hook( 'nonce' ) ) ) {
+				throw new Exception( __( 'Nonce verification is missing or invalid.', $this->mpgs_plugin->text_domain() ) );
+			}
 
 			if ( ! isset( $_REQUEST['order-id'] ) || ! isset( $_REQUEST['resultIndicator'] ) ) {
 				throw new Exception( __( 'Missing arguments.', $this->mpgs_plugin->text_domain() ) );
@@ -1541,7 +1541,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 				throw new Exception( __( 'The order cannot be found.', $this->mpgs_plugin->text_domain() ) );
 			}
 
-			if ( ! $order->is_paid() ) {
+			if ( $order->is_paid() ) {
 				throw new Exception( __( 'The order has already been processed.', $this->mpgs_plugin->text_domain() ) );
 			}
 
@@ -1639,8 +1639,12 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			exit();
 		} catch ( Exception $e ) {
 			$this->mpgs_plugin->logger()->log( $e->getMessage(), 'error' );
+
 			wc_add_notice( $e->getMessage(), 'error' );
-			wp_safe_redirect( wc_get_checkout_url() );
+
+			$redirect_url = ( is_checkout_pay_page() && $order ) ? $order->get_checkout_payment_url() : wc_get_checkout_url();
+			wp_safe_redirect( $redirect_url );
+
 			exit();
 		}
 	}

@@ -7,6 +7,7 @@ import { getTextDomain } from './_settings';
 export const hostedCheckoutHandler = ( emitResponse, onCheckoutSuccess ) => {
 	const unsuscribeCheckoutSuccess = onCheckoutSuccess(
 		( { processingResponse } ) => {
+			hostedCheckout.init();
 			const sessionId = processingResponse?.paymentDetails?.sessionId;
 			if ( ! sessionId ) {
 				return new Promise( ( resolve ) => {
