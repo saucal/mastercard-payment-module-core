@@ -549,8 +549,14 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		$unique_order_id = $this->unique_order_id( $order );
 
 		if ( $this->enable_3ds ) {
+			$authentication_transaction_id = $this->get_3ds_authentication( $order, $session, $unique_order_id, $processing_3ds_callback );
+
+			if ( is_array( $authentication_transaction_id ) ) {
+				return $authentication_transaction_id;
+			}
+
 			$payment_data['authentication'] = array(
-				'transactionId' => $this->get_3ds_authentication( $order, $session, $unique_order_id, $processing_3ds_callback ),
+				'transactionId' => $authentication_transaction_id,
 			);
 		}
 
@@ -630,11 +636,13 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		$transaction_id = $this->unique_transaction_id( $order );
 
-		if ( $this->process_3ds_authentication( $order, $session, $unique_order_id, $transaction_id ) ) {
-			return $transaction_id;
+		$processed_3ds = $this->process_3ds_authentication( $order, $session, $unique_order_id, $transaction_id );
+
+		if ( is_array( $processed_3ds ) ) {
+			return $processed_3ds;
 		}
 
-		return '';
+		return $processed_3ds ? $transaction_id : '';
 	}
 
 
@@ -810,13 +818,11 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 			$this->maybe_save_cards( $order, $session );
 
-			wp_send_json(
-				array(
-					'result'                         => 'success',
-					'redirect'                       => '#',
-					$this->prefix_hook( '3ds_url' )  => $response['body']['authentication']['redirect']['customizedHtml']['3ds2']['acsUrl'],
-					$this->prefix_hook( '3ds_data' ) => $response['body']['authentication']['redirect']['customizedHtml']['3ds2']['cReq'],
-				)
+			return array(
+				'result'                         => 'success',
+				'redirect'                       => '#',
+				$this->prefix_hook( '3ds_url' )  => $response['body']['authentication']['redirect']['customizedHtml']['3ds2']['acsUrl'],
+				$this->prefix_hook( '3ds_data' ) => $response['body']['authentication']['redirect']['customizedHtml']['3ds2']['cReq'],
 			);
 		}
 

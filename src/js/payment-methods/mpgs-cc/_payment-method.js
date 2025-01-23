@@ -9,16 +9,14 @@ import { __ } from '@wordpress/i18n';
  */
 import { CardElements } from './_elements';
 import {
-	getTextDomain,
 	settings,
-	addPrefix,
 	isHostedSession,
 	isHostedCheckout,
 	isRedirectToPaymentPage,
 } from './_settings';
 import { Content } from '../_utils';
-import hostedSessions from '../../frontend/_hostedSessions';
-import hostedCheckout from '../../frontend/_hostedCheckout';
+import { hostedSessionHandler } from './_hosted-session-handler';
+import { hostedCheckoutHandler } from './_hosted-checkout-handler';
 
 /**
  * Returns a react component and also sets an observer for the onPaymentSetup event.
@@ -26,127 +24,35 @@ import hostedCheckout from '../../frontend/_hostedCheckout';
  * @param {Object} props
  * @return React component
  */
-const MpgsCC = ( {
-	activePaymentMethod,
-	eventRegistration,
-	billing,
-	emitResponse,
-} ) => {
+const MpgsCC = ( { activePaymentMethod, eventRegistration, emitResponse } ) => {
 	const { onPaymentSetup, onCheckoutSuccess } = eventRegistration;
 
-	useEffect( () => {
-		if ( isHostedSession() ) {
-			hostedSessions.init();
-			return onPaymentSetup( () => {
-				return new Promise( ( resolve ) => {
-					hostedSessions.triggerPay();
-					jQuery( document.body ).on(
-						'submit_payment',
-						hostedSessions.$wcForm,
-						() => {
-							const data = {};
+	useEffect(
+		() => {
+			if ( isHostedSession() ) {
+				return hostedSessionHandler(
+					onPaymentSetup,
+					onCheckoutSuccess,
+					emitResponse.responseTypes.SUCCESS,
+					emitResponse.responseTypes.ERROR
+				);
+			}
 
-							const sessionId = hostedSessions.getSessionId();
-							const sessionVersion =
-								hostedSessions.getSessionVersion();
-
-							if ( ! sessionId || ! sessionVersion ) {
-								resolve( {
-									type: emitResponse.responseTypes.ERROR,
-									meta: {
-										error: {
-											message: __(
-												'There was an error obtaining the payment session. Please try again.',
-												getTextDomain()
-											),
-										},
-									},
-								} );
-							}
-
-							data[ addPrefix( 'session_id' ) ] = sessionId;
-							data[ addPrefix( 'session_version' ) ] =
-								sessionVersion;
-
-							resolve( {
-								type: emitResponse.responseTypes.SUCCESS,
-								meta: {
-									paymentMethodData: data,
-								},
-							} );
-						}
-					);
-					jQuery( document.body ).on(
-						'checkout_error',
-						hostedSessions.$wcForm,
-						( event, errorMessage ) => {
-							resolve( {
-								type: emitResponse.responseTypes.ERROR,
-								meta: {
-									error: {
-										message:
-											errorMessage ||
-											__(
-												'There was an error obtaining the payment session. Please try again.',
-												getTextDomain()
-											),
-									},
-								},
-							} );
-						}
-					);
-				} );
-			} );
-		}
-
-		if ( isHostedCheckout() && isRedirectToPaymentPage() ) {
-			return onCheckoutSuccess( ( { processingResponse } ) => {
-				const sessionId = processingResponse?.paymentDetails?.sessionId;
-				if ( ! sessionId ) {
-					return new Promise( ( resolve ) => {
-						resolve( {
-							type: emitResponse.responseTypes.ERROR,
-							meta: {
-								error: {
-									message: __(
-										'There was an error obtaining the payment session. Please try again.',
-										getTextDomain()
-									),
-								},
-							},
-						} );
-					} );
-				}
-				if (
-					! hostedCheckout.processRedirectToPaymentPage(
-						new Event( 'Redirect' ),
-						processingResponse.paymentDetails
-					)
-				) {
-					return new Promise( ( resolve ) => {
-						resolve( {
-							type: emitResponse.responseTypes.ERROR,
-							meta: {
-								error: {
-									message: __(
-										'There was an error redirecting to the payment page. Please try again.',
-										getTextDomain()
-									),
-								},
-							},
-						} );
-					} );
-				}
-			} );
-		}
-	}, [
-		activePaymentMethod,
-		onPaymentSetup,
-		billing.billingDatam,
-		emitResponse.responseTypes.SUCCESS,
-		emitResponse.responseTypes.ERROR,
-		onCheckoutSuccess,
-	] );
+			if ( isHostedCheckout() && isRedirectToPaymentPage() ) {
+				return () => {
+					hostedCheckoutHandler( emitResponse, onCheckoutSuccess );
+				};
+			}
+		},
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+		[
+			activePaymentMethod,
+			onPaymentSetup,
+			onCheckoutSuccess,
+			emitResponse.responseTypes.SUCCESS,
+			emitResponse.responseTypes.ERROR,
+		]
+	);
 
 	return <>{ isHostedSession() && <CardElements /> }</>;
 };
