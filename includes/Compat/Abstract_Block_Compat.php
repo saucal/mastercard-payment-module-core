@@ -194,6 +194,6 @@ abstract class Abstract_Block_Compat extends AbstractPaymentMethodType {
 	 * @return bool
 	 */
 	public function should_render() {
-		return $this->is_active() && Utils::is_request( 'frontend' ) && ( is_woocommerce() || is_cart() || is_checkout() || is_add_payment_method_page() || is_checkout_pay_page() );
+		return $this->is_active() && Utils::is_request( 'frontend' );
 	}
 }

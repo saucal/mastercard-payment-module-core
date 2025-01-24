@@ -279,6 +279,17 @@ final class MpgsAPI {
 
 
 	/**
+	 * Retrieve transaction.
+	 *
+	 * @param string $order_id       Order ID.
+	 * @param string $transaction_id Transaction ID.
+	 */
+	public function retrieve_transaction( $order_id, $transaction_id ) {
+		return $this->request( 'order/' . $order_id . '/transaction/' . $transaction_id, 'GET' );
+	}
+
+
+	/**
 	 * Retrieve order.
 	 *
 	 * @param string $order_id Order ID.

@@ -283,11 +283,12 @@ final class Main {
 	/**
 	 * Get prefixed hook name.
 	 *
-	 * @param string $hook   The name of the hook.
-	 * @param string $prefix Prefix for the hook.
+	 * @param string $hook      The name of the hook.
+	 * @param string $prefix    Prefix for the hook.
+	 * @param string $separator Separator for the hook.
 	 */
-	public function prefix_hook( $hook, $prefix = '' ) {
-		return $prefix . $this->prefix . '_' . $hook;
+	public function prefix_hook( $hook, $prefix = '', $separator = '_' ) {
+		return $prefix . $this->prefix . $separator . $hook;
 	}
 
 

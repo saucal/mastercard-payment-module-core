@@ -122,13 +122,14 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 	/**
 	 * Prefix hook.
 	 *
-	 * @param string $hook   Hook name.
-	 * @param string $prefix Prefix.
+	 * @param string $hook      Hook name.
+	 * @param string $prefix    Prefix.
+	 * @param string $separator Separator.
 	 *
 	 * @return string
 	 */
-	public function prefix_hook( $hook, $prefix = '' ) {
-		return $this->mpgs_plugin->mpgs_core()->prefix_hook( $hook, $prefix );
+	public function prefix_hook( $hook, $prefix = '', $separator = '_' ) {
+		return $this->mpgs_plugin->mpgs_core()->prefix_hook( $hook, $prefix, $separator );
 	}
 
 
@@ -272,6 +273,21 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 		$order->save();
 
 		return $this->unique_order_id( $order ) . '-' . ( $last_transaction_id + 1 );
+	}
+
+
+	/**
+	 * Hashed signature for specific transaction.
+	 *
+	 * @param WC_Order $order          Order.
+	 * @param string   $transaction_id Transaction ID.
+	 *
+	 * @return string
+	 */
+	protected function hashed_signature( $order, $transaction_id ) {
+		$unique_order_id = $this->unique_order_id( $order );
+
+		return hash( 'sha256', $unique_order_id . $transaction_id );
 	}
 
 

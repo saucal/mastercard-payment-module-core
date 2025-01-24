@@ -730,6 +730,16 @@ abstract class MpgsPlugin {
 
 
 	/**
+	 * Is 3DS enabled.
+	 *
+	 * @return bool
+	 */
+	public function is_3ds_enabled() {
+		return 'yes' === $this->get_gateway_setting( '_3d_secure' );
+	}
+
+
+	/**
 	 * Get the gateway URL.
 	 *
 	 * @return string

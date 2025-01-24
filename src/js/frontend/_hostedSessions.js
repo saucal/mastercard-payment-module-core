@@ -255,6 +255,7 @@ const hostedSessions = {
 	submitPay( event ) {
 		if (
 			hostedSessions.$wcForm.hasClass( 'is-processing' ) ||
+			hostedSessions.$wcForm.hasClass( 'is-processing-3ds' ) ||
 			! hostedSessions.isPaymentMethodSelected() ||
 			! hostedSessions.selectedField() ||
 			hostedSessions.isSavedToken()
@@ -314,6 +315,15 @@ const hostedSessions = {
 		);
 		jQuery( `#${ hostedSessions.pluginPrefix }_session_version` ).val(
 			response.session.version
+		);
+		jQuery( `#${ hostedSessions.pluginPrefix }_3ds_data` ).val(
+			hostedSessions.get3DSData()
+		);
+
+		// Handle 3DS redirect if needed.
+		hostedSessions.$wcForm.on(
+			'checkout_place_order_success',
+			hostedSessions.process3DsAuthentication
 		);
 
 		if ( hostedSessions.isWooBlocks() ) {
@@ -546,6 +556,51 @@ const hostedSessions = {
 		return jQuery(
 			`#${ hostedSessions.pluginPrefix }_session_version`
 		).val();
+	},
+
+	get3DSData() {
+		return mpgs_gateway_params.threeDsEnabled
+			? JSON.stringify( {
+					colorDepth: window.screen.colorDepth,
+					javaScriptEnabled: true,
+					language: window.navigator.language,
+					screenHeight: window.screen.height,
+					screenWidth: window.screen.width,
+					timeZone: new Date().getTimezoneOffset(),
+			  } )
+			: '';
+	},
+
+	process3DsAuthentication( e, result ) {
+		if (
+			! result[ `${ hostedSessions.pluginPrefix }_3ds_url` ] ||
+			! result[ `${ hostedSessions.pluginPrefix }_3ds_data` ]
+		) {
+			return true;
+		}
+
+		hostedSessions.$wcForm.addClass( 'is-processing-3ds' );
+
+		const $threeDsForm = jQuery( '<form />', {
+			id: `${ hostedSessions.pluginPrefix }-3ds-form`,
+			name: `${ hostedSessions.pluginPrefix }-3ds-form`,
+			method: 'post',
+			action: result[ `${ hostedSessions.pluginPrefix }_3ds_url` ],
+		} );
+
+		jQuery( document.body ).append( $threeDsForm );
+
+		$threeDsForm.append(
+			jQuery( '<input />', {
+				type: 'hidden',
+				name: 'creq',
+				value: result[ `${ hostedSessions.pluginPrefix }_3ds_data` ],
+			} )
+		);
+
+		$threeDsForm.trigger( 'submit' );
+
+		return true;
 	},
 };
 
