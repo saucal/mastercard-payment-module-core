@@ -1557,6 +1557,16 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 			$transaction = ! empty( $order_data['body']['transaction'] ) ? $this->get_approved_transaction( $order_data['body']['transaction'] ) : array();
 
+			WC()->customer->set_props(
+				array(
+					'billing_country'  => $order->get_billing_country() ? $order->get_billing_country() : null,
+					'billing_state'    => $order->get_billing_state() ? $order->get_billing_state() : null,
+					'billing_postcode' => $order->get_billing_postcode() ? $order->get_billing_postcode() : null,
+					'billing_city'     => $order->get_billing_city() ? $order->get_billing_city() : null,
+				)
+			);
+			WC()->customer->save();
+
 			$this->process_wc_order( $order, $order_data['body'], $transaction );
 
 			wp_safe_redirect( $this->get_return_url( $order ) );
