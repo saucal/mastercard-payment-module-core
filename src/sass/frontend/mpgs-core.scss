@@ -54,11 +54,14 @@
 
             &.is-small {
                 flex: 0 1 48%;
-                width: 48%;
+            }
+
+            iframe {
+                border-radius: 0 !important;
             }
 
             input[type="text"].wc-credit-card-form-card {
-                min-height: 60px;
+                font-size: 1em;
             }
 
             &.woocommerce-validated {
