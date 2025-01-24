@@ -479,6 +479,9 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 		$order->update_meta_data( $this->prefix_hook( 'order_id' ), $order_data['id'] );
 		$order->update_meta_data( $this->prefix_hook( 'transaction_id' ), $transaction['id'] );
 
+		$order->set_payment_method( $this->id );
+		$order->save();
+
 		switch ( $order_data['status'] ) {
 			case 'CAPTURED':
 				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), null );
