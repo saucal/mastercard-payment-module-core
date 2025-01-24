@@ -547,7 +547,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		$unique_order_id = $this->unique_order_id( $order );
 
-		if ( $this->enable_3ds ) {
+		if ( $this->enable_3ds && ! $this->is_saved_payment_method() ) {
 			$authentication_transaction_id = $this->get_3ds_authentication( $order, $session, $unique_order_id, $processing_3ds_callback );
 
 			if ( is_array( $authentication_transaction_id ) ) {
