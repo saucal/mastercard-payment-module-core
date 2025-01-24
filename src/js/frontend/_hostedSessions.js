@@ -498,7 +498,11 @@ const hostedSessions = {
 	unblockForm() {
 		if ( hostedSessions.$wcForm ) {
 			hostedSessions.$wcForm.removeClass( 'is-processing' );
-			if ( jQuery( hostedSessions.$wcForm ).unblock === 'function' ) {
+			if ( typeof hostedSessions.$wcForm.unblock === 'function' ) {
+				hostedSessions.$wcForm.unblock();
+			} else if (
+				jQuery( hostedSessions.$wcForm ).unblock === 'function'
+			) {
 				jQuery( hostedSessions.$wcForm ).unblock();
 			}
 		}
