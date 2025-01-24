@@ -535,8 +535,6 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			throw new Exception( __( 'There was an error validating the payment session. Please refresh the page and try again.', $this->mpgs_plugin->text_domain() ) );
 		}
 
-		$transaction_id = $this->unique_transaction_id( $order );
-
 		$payment_data = array(
 			'apiOperation' => 'AUTHORIZE' === $this->transaction_mode ? 'AUTHORIZE' : 'PAY',
 			'order'        => $this->hosted_session_order_payload( $order ),
@@ -559,6 +557,8 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 				'transactionId' => $authentication_transaction_id,
 			);
 		}
+
+		$transaction_id = $this->unique_transaction_id( $order );
 
 		$payment_data['transaction']['reference'] = $transaction_id;
 
