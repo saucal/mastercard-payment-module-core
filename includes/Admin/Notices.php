@@ -70,14 +70,14 @@ final class Notices {
 
 		$message = sprintf(
 				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
-			__( 'The %1$s credentials are either empty or not valid.', $this->mpgs_plugin->mpgs_core()->text_domain() ),
+			__( 'The %1$s credentials are either empty or not valid.', $this->mpgs_plugin->text_domain() ),
 			$this->mpgs_plugin->plugin_title(),
 		);
 
 		if ( ! $this->mpgs_plugin->is_settings_page() ) {
 			$message .= ' ' . sprintf(
 				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
-				__( 'Verify your connection %1$shere%2$s', $this->mpgs_plugin->mpgs_core()->text_domain() ),
+				__( 'Verify your connection %1$shere%2$s', $this->mpgs_plugin->text_domain() ),
 				'<a href="' . $this->mpgs_plugin->settings_url() . '">',
 				'</a>',
 			);
@@ -98,7 +98,7 @@ final class Notices {
 		}
 
 		$this->add_error(
-			__( 'There is no supported payment operation for your merchant account. Contact your adquirer to verify this issue.', $this->mpgs_plugin->mpgs_core()->text_domain() ),
+			__( 'There is no supported payment operation for your merchant account. Contact your adquirer to verify this issue.', $this->mpgs_plugin->text_domain() ),
 		);
 	}
 
