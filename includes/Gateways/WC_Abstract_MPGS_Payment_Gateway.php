@@ -479,6 +479,9 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 		$order->update_meta_data( $this->prefix_hook( 'order_id' ), $order_data['id'] );
 		$order->update_meta_data( $this->prefix_hook( 'transaction_id' ), $transaction['id'] );
 
+		$order->set_payment_method( $this->id );
+		$order->save();
+
 		switch ( $order_data['status'] ) {
 			case 'CAPTURED':
 				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), null );
@@ -486,8 +489,9 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 				$order->add_order_note(
 					sprintf(
 						// translators: %1$s: Gateway title, %2$s: Transaction ID.
-						__( '%1$s payment was Captured (ID: %2$s)', $this->mpgs_plugin->text_domain() ),
+						__( '%1$s payment was Captured (Order ID: %2$s, Transaction ID: %2$s)', $this->mpgs_plugin->text_domain() ),
 						$this->title,
+						$order_data['id'],
 						$transaction['id'],
 					)
 				);
@@ -496,8 +500,9 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 				$order->add_order_note(
 					sprintf(
 						// translators: %1$s: Gateway title, %2$s: Transaction ID.
-						__( '%1$s payment was Authorized (ID: %2$s)', $this->mpgs_plugin->text_domain() ),
+						__( '%1$s payment was Authorized (Order ID: %2$s, Transaction ID: %2$s)', $this->mpgs_plugin->text_domain() ),
 						$this->title,
+						$order_data['id'],
 						$transaction['id'],
 					)
 				);
@@ -508,7 +513,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 				$order->add_order_note(
 					sprintf(
 						// translators: %1$s: Gateway title, %2$s: Transaction ID.
-						__( '%1$s payment was Partially Captured (ID: %2$s). Captured Amount: %3$s', $this->mpgs_plugin->text_domain() ),
+						__( '%1$s payment was Partially Captured (Transaction ID: %2$s). Captured Amount: %3$s', $this->mpgs_plugin->text_domain() ),
 						$this->title,
 						$transaction['id'],
 						wc_price( $transaction['amount'], array( 'currency' => $transaction['currency'] ) )

@@ -153,8 +153,9 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'process_admin_options' ) );
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'validate_credentials' ) );
 		add_action( 'woocommerce_receipt_' . $this->id, array( $this, 'payment_fields' ) );
-		add_action( $this->prefix_hook( 'process_payment_error' ), array( $this, 'handle_failed_payment' ) );
+		add_action( $this->prefix_hook( 'process_payment_error' ), array( $this, 'handle_failed_payment' ), 10, 2 );
 		add_filter( 'woocommerce_get_customer_payment_tokens', array( $this, 'hide_saved_token_hosted_checkout' ), 10 );
+		add_action( 'set_logged_in_cookie', array( $this, 'set_cookie_on_current_request' ) );
 
 		// Add plugin return callbacks.
 		add_action( 'template_redirect', array( $this, 'maybe_handle_return_callback' ) );
@@ -179,7 +180,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			'refunds',
 		);
 
-		if ( $this->saved_cards ) {
+		if ( $this->saved_cards && ! $this->is_hosted_checkout() ) {
 			$supports[] = 'tokenization';
 		}
 
@@ -535,8 +536,6 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			throw new Exception( __( 'There was an error validating the payment session. Please refresh the page and try again.', $this->mpgs_plugin->text_domain() ) );
 		}
 
-		$transaction_id = $this->unique_transaction_id( $order );
-
 		$payment_data = array(
 			'apiOperation' => 'AUTHORIZE' === $this->transaction_mode ? 'AUTHORIZE' : 'PAY',
 			'order'        => $this->hosted_session_order_payload( $order ),
@@ -548,10 +547,13 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		$unique_order_id = $this->unique_order_id( $order );
 
-		if ( $this->enable_3ds ) {
+		if ( $this->enable_3ds && ! $this->is_saved_payment_method() ) {
 			$authentication_transaction_id = $this->get_3ds_authentication( $order, $session, $unique_order_id, $processing_3ds_callback );
 
 			if ( is_array( $authentication_transaction_id ) ) {
+
+				$this->maybe_cache_saving_card( $order );
+
 				return $authentication_transaction_id;
 			}
 
@@ -559,6 +561,8 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 				'transactionId' => $authentication_transaction_id,
 			);
 		}
+
+		$transaction_id = $this->unique_transaction_id( $order );
 
 		$payment_data['transaction']['reference'] = $transaction_id;
 
@@ -605,11 +609,35 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @param array    $session Session data.
 	 */
 	public function maybe_save_cards( $order, $session ) {
-		if ( ! $this->saved_cards || ! $this->is_saving_payment_method() ) {
+		if ( ! $this->saved_cards ) {
+			return;
+		}
+
+		if ( ! $this->is_saving_payment_method() && ! WC()->session->get( $this->prefix_hook( 'saving_payment_method' ) ) ) {
 			return;
 		}
 
 		$this->payment_token()->process_saved_cards( $session['id'], $order->get_user_id( 'system' ) );
+
+		WC()->session->__unset( $this->prefix_hook( 'saving_payment_method' ) );
+	}
+
+
+	/**
+	 * Maybe cache the saving card.
+	 *
+	 * @param WC_Order $order Order object.
+	 */
+	public function maybe_cache_saving_card( $order ) {
+		if ( ! $this->saved_cards ) {
+			return;
+		}
+
+		if ( ! $this->is_saving_payment_method() ) {
+			return;
+		}
+
+		WC()->session->set( $this->prefix_hook( 'saving_payment_method' ), true );
 	}
 
 
@@ -815,8 +843,6 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			$order->update_meta_data( $this->prefix_hook( 'payment_session' ), $session );
 			$order->update_meta_data( $this->prefix_hook( '3ds_transaction_id' ), $transaction_id );
 			$order->save();
-
-			$this->maybe_save_cards( $order, $session );
 
 			return array(
 				'result'                         => 'success',
@@ -1192,7 +1218,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		$session_key          = $this->prefix_hook( 'session_id_' . $order_id );
 		$session_duration_key = $this->prefix_hook( 'session_duration_' . $order_id );
 
-		if ( ! empty( WC()->session ) ) {
+		if ( ! isset( $_POST['createaccount'] ) && ! empty( WC()->session ) ) {
 			$session_id = WC()->session->get( $session_key );
 
 			if ( $session_id && $this->is_session_valid( WC()->session->get( $session_duration_key ) ) ) {
@@ -1557,6 +1583,16 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 			$transaction = ! empty( $order_data['body']['transaction'] ) ? $this->get_approved_transaction( $order_data['body']['transaction'] ) : array();
 
+			WC()->customer->set_props(
+				array(
+					'billing_country'  => $order->get_billing_country() ? $order->get_billing_country() : null,
+					'billing_state'    => $order->get_billing_state() ? $order->get_billing_state() : null,
+					'billing_postcode' => $order->get_billing_postcode() ? $order->get_billing_postcode() : null,
+					'billing_city'     => $order->get_billing_city() ? $order->get_billing_city() : null,
+				)
+			);
+			WC()->customer->save();
+
 			$this->process_wc_order( $order, $order_data['body'], $transaction );
 
 			wp_safe_redirect( $this->get_return_url( $order ) );
@@ -1733,6 +1769,12 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @return bool
 	 */
 	public function display_saved_card_methods() {
+		global $wp;
+
+		if ( is_add_payment_method_page() && isset( $wp->query_vars['add-payment-method'] ) ) {
+			return false;
+		}
+
 		return $this->saved_cards && ! $this->is_hosted_checkout();
 	}
 
@@ -1757,5 +1799,15 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		}
 
 		return $tokens;
+	}
+
+
+	/**
+	 * Proceed with current request using new login session (to ensure consistent nonce).
+	 *
+	 * @param string $cookie The cookie.
+	 */
+	public function set_cookie_on_current_request( $cookie ) {
+		$_COOKIE[ LOGGED_IN_COOKIE ] = $cookie;
 	}
 }

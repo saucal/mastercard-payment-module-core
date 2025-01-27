@@ -211,7 +211,7 @@ abstract class MpgsPlugin {
 	 * @return bool
 	 */
 	private function is_valid() {
-		return ! empty( $this->plugin_id() ) && ! empty( $this->text_domain() ) && ! empty( $this->plugin_file() ) && ! empty( $this->core_plugin_file() ) && ! empty( $this->plugin_title() );
+		return ! empty( $this->plugin_id() ) && ! empty( $this->text_domain() ) && ! empty( $this->plugin_file() ) && ! empty( $this->core_plugin_file() );
 	}
 
 
@@ -383,8 +383,7 @@ abstract class MpgsPlugin {
 	 */
 	public function load() {
 
-		// Load Localisation files.
-		$this->load_plugin_textdomain();
+		add_action( 'init', array( $this, 'load_plugin_textdomain' ) );
 
 		add_filter( 'plugin_action_links_' . plugin_basename( $this->plugin_file() ), array( $this, 'plugin_action_links' ) );
 
