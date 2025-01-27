@@ -488,8 +488,8 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 				$order->payment_complete( $order_data['id'] );
 				$order->add_order_note(
 					sprintf(
-						// translators: %1$s: Gateway title, %2$s: Transaction ID.
-						__( '%1$s payment was Captured (Order ID: %2$s, Transaction ID: %2$s)', $this->mpgs_plugin->text_domain() ),
+						// translators: %1$s: Gateway title, %2$s: Order ID, %3$s: Transaction ID.
+						__( '%1$s payment was Captured (Order ID: %2$s, Transaction ID: %3$s)', $this->mpgs_plugin->text_domain() ),
 						$this->title,
 						$order_data['id'],
 						$transaction['id'],
@@ -499,8 +499,8 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 			case 'AUTHORIZED':
 				$order->add_order_note(
 					sprintf(
-						// translators: %1$s: Gateway title, %2$s: Transaction ID.
-						__( '%1$s payment was Authorized (Order ID: %2$s, Transaction ID: %2$s)', $this->mpgs_plugin->text_domain() ),
+						// translators: %1$s: Gateway title, %2$s: Order ID, %3$s: Transaction ID.
+						__( '%1$s payment was Authorized (Order ID: %2$s, Transaction ID: %3$s)', $this->mpgs_plugin->text_domain() ),
 						$this->title,
 						$order_data['id'],
 						$transaction['id'],
