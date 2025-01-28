@@ -716,10 +716,10 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 			$note = sprintf(
 				// translators: %1$s: Currency of refund, %2$s: Refund amount, %2$s: Refund reason.
-				__( 'Refund of %1$s %2$s processed. Reason: %3$s', $this->mpgs_plugin->text_domain() ),
+				__( 'Refund of %1$s %2$s processed. %3$s', $this->mpgs_plugin->text_domain() ),
 				$currency,
 				$amount,
-				$reason
+				$reason ? __( 'Reason: ', $this->mpgs_plugin->text_domain() ) . $reason : '',
 			);
 
 			$order->add_order_note( $note );
