@@ -562,7 +562,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		$unique_order_id = $this->unique_order_id( $order );
 
-		if ( $this->enable_3ds && ! $this->is_saved_payment_method() ) {
+		if ( $this->enable_3ds ) {
 			$authentication_transaction_id = $this->get_3ds_authentication( $order, $session, $unique_order_id, $processing_3ds_callback );
 
 			if ( is_array( $authentication_transaction_id ) ) {
@@ -864,6 +864,12 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 				'redirect'                       => '#',
 				$this->prefix_hook( '3ds_url' )  => $response['body']['authentication']['redirect']['customizedHtml']['3ds2']['acsUrl'],
 				$this->prefix_hook( '3ds_data' ) => $response['body']['authentication']['redirect']['customizedHtml']['3ds2']['cReq'],
+			);
+		} elseif ( ! empty( $response['body']['authentication']['redirect']['html'] ) ) {
+			return array(
+				'result'                         => 'success',
+				'redirect'                       => $this->get_return_url( $order ),
+				$this->prefix_hook( '3ds_html' ) => $response['body']['authentication']['redirect']['html'],
 			);
 		}
 

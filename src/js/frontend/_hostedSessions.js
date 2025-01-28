@@ -257,9 +257,16 @@ const hostedSessions = {
 			hostedSessions.$wcForm.hasClass( 'is-processing' ) ||
 			hostedSessions.$wcForm.hasClass( 'is-processing-3ds' ) ||
 			! hostedSessions.isPaymentMethodSelected() ||
-			! hostedSessions.selectedField() ||
-			hostedSessions.isSavedToken()
+			! hostedSessions.selectedField()
 		) {
+			return;
+		}
+
+		jQuery( `#${ hostedSessions.pluginPrefix }_3ds_data` ).val(
+			hostedSessions.get3DSData()
+		);
+
+		if ( hostedSessions.isSavedToken() ) {
 			return;
 		}
 
@@ -315,9 +322,6 @@ const hostedSessions = {
 		);
 		jQuery( `#${ hostedSessions.pluginPrefix }_session_version` ).val(
 			response.session.version
-		);
-		jQuery( `#${ hostedSessions.pluginPrefix }_3ds_data` ).val(
-			hostedSessions.get3DSData()
 		);
 
 		// Handle 3DS redirect if needed.
@@ -576,6 +580,13 @@ const hostedSessions = {
 	},
 
 	process3DsAuthentication( e, result ) {
+		if ( result[ `${ hostedSessions.pluginPrefix }_3ds_html` ] ) {
+			jQuery( 'body' ).append(
+				result[ `${ hostedSessions.pluginPrefix }_3ds_html` ]
+			);
+			return true;
+		}
+
 		if (
 			! result[ `${ hostedSessions.pluginPrefix }_3ds_url` ] ||
 			! result[ `${ hostedSessions.pluginPrefix }_3ds_data` ]
