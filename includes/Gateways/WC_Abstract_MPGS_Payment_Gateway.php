@@ -488,22 +488,20 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 				$order->payment_complete( $order_data['id'] );
 				$order->add_order_note(
 					sprintf(
-						// translators: %1$s: Gateway title, %2$s: Order ID, %3$s: Transaction ID.
-						__( '%1$s payment was Captured (Order ID: %2$s, Transaction ID: %3$s)', $this->mpgs_plugin->text_domain() ),
+						// translators: %1$s: Gateway title, %2$s: Order ID.
+						__( '%1$s payment was Captured (Order ID: %2$s)', $this->mpgs_plugin->text_domain() ),
 						$this->title,
 						$order_data['id'],
-						$transaction['id'],
 					)
 				);
 				break;
 			case 'AUTHORIZED':
 				$order->add_order_note(
 					sprintf(
-						// translators: %1$s: Gateway title, %2$s: Order ID, %3$s: Transaction ID.
-						__( '%1$s payment was Authorized (Order ID: %2$s, Transaction ID: %3$s)', $this->mpgs_plugin->text_domain() ),
+						// translators: %1$s: Gateway title, %2$s: Order ID.
+						__( '%1$s payment was Authorized (Order ID: %2$s)', $this->mpgs_plugin->text_domain() ),
 						$this->title,
 						$order_data['id'],
-						$transaction['id'],
 					)
 				);
 				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), $transaction['id'] );
@@ -512,10 +510,9 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 			case 'PARTIALLY_CAPTURED':
 				$order->add_order_note(
 					sprintf(
-						// translators: %1$s: Gateway title, %2$s: Transaction ID.
-						__( '%1$s payment was Partially Captured (Transaction ID: %2$s). Captured Amount: %3$s', $this->mpgs_plugin->text_domain() ),
+						// translators: %1$s: Gateway title, %2$s: Captured amount.
+						__( '%1$s payment was Partially Captured. Captured Amount: %2$s', $this->mpgs_plugin->text_domain() ),
 						$this->title,
-						$transaction['id'],
 						wc_price( $transaction['amount'], array( 'currency' => $transaction['currency'] ) )
 					)
 				);
@@ -801,5 +798,59 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 				)
 			);
 		}
+	}
+
+
+	/**
+	 * Linking transaction id order to BlueSnap.
+	 *
+	 * @param WC_Order $order
+	 *
+	 * @return string
+	 */
+	public function get_transaction_url( $order ) {
+		if ( ! $order ) {
+			return parent::get_transaction_url( $order );
+		}
+
+		$order_id = $order->get_meta( $this->prefix_hook( 'order_id' ) );
+
+		if ( ! $order_id ) {
+			$order_id = $this->unique_order_id( $order );
+		}
+
+		if ( ! $order_id ) {
+			return parent::get_transaction_url( $order );
+		}
+
+		$this->view_transaction_url = $this->merchant_portal_order_id( $order_id );
+
+		return parent::get_transaction_url( $order );
+	}
+
+
+	/**
+	 * Build the URL to point to an order in the merchant's portal.
+	 *
+	 * @param string $order_id    The order ID.
+	 * @param bool   $return_html Wether to return an HTML link or not.
+	 *
+	 * @return string
+	 */
+	public function merchant_portal_order_id( $order_id, $return_html = false ) {
+		$order_url = add_query_arg(
+			array(
+				'_authDomain' => 'ma',
+				'merchantId'  => $this->mpgs_plugin->merchant_id(),
+				'orderId'     => $order_id,
+			),
+			untrailingslashit( $this->mpgs_plugin->gateway_url() ) . '/historyV2/detail'
+		);
+
+		if ( ! $return_html ) {
+			return $order_url;
+		}
+
+		return sprintf( '<a href="%s" target="_blank">%s</a>', esc_url( $order_url ), $order_id );
 	}
 }
