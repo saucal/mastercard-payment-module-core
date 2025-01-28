@@ -199,6 +199,21 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 
 	/**
+	 * Process the admin options.
+	 *
+	 * @return void
+	 */
+	public function process_admin_options() {
+		// Update settings that needs to be updated before saving to correctly display the notices.
+		$notification_secret = isset( $_POST[ $this->prefix_hook( 'notification_secret', 'woocommerce_' ) ] ) ? wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'notification_secret', 'woocommerce_' ) ] ) ) : $this->get_option( 'notification_secret' ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+
+		$this->mpgs_plugin->update_gateway_setting( 'notification_secret', $notification_secret );
+
+		parent::process_admin_options();
+	}
+
+
+	/**
 	 * Validate API keys.
 	 *
 	 * @return void
@@ -1683,17 +1698,6 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 			exit();
 		}
-	}
-
-
-	/**
-	 * Process the return callback.
-	 *
-	 * @return void
-	 * @throws Exception Exception.
-	 */
-	public function process_notification_api_callback() {
-		// TODO: Implement process notification.
 	}
 
 

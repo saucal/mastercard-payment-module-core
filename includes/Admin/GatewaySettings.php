@@ -112,7 +112,7 @@ final class GatewaySettings {
 	 *
 	 * @return string
 	 */
-	public function merchant_details_message() {
+	protected function merchant_details_message() {
 		$message = __( 'Enter your Mastercard Payment Gateway Services account details.', $this->mpgs_plugin->text_domain() );
 
 		if ( ! empty( $this->mpgs_plugin->merchant_registration_url() ) ) {
@@ -125,6 +125,22 @@ final class GatewaySettings {
 		}
 
 		return $message;
+	}
+
+
+	/**
+	 * Webhook notification URL.
+	 *
+	 * @return string
+	 */
+	public function webhook_notification_url() {
+		return add_query_arg(
+			array(
+				'_authDomain'      => 'ma',
+				'selectedMenuItem' => 'notificationMerchantApiNotifications',
+			),
+			untrailingslashit( $this->mpgs_plugin->gateway_url() ) . '/notification/ui/merchant/apiNotifications'
+		);
 	}
 
 
@@ -150,6 +166,19 @@ final class GatewaySettings {
 		return array_merge(
 			$settings,
 			array(
+				'webhook'              => array(
+					'title' => __( 'Webhook notifications', $this->mpgs_plugin->text_domain() ),
+					'type'  => 'title',
+				),
+				'notification_secret'  => array(
+					'title'       => __( 'Notification secret', $this->mpgs_plugin->text_domain() ),
+					'type'        => 'text',
+					'description' => sprintf(
+						__( 'You can obtain or generate your notification secret %1$shere%2$s', $this->mpgs_plugin->text_domain() ),
+						'<a href="' . esc_url( $this->webhook_notification_url() ) . '" target="_blank">',
+						'</a>'
+					),
+				),
 				'payments'             => array(
 					'title' => __( 'Payment configurations', $this->mpgs_plugin->text_domain() ),
 					'type'  => 'title',

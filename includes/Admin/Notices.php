@@ -29,11 +29,11 @@ final class Notices {
 
 
 	/**
-	 * List of errors to be rendered.
+	 * List of messages to be rendered.
 	 *
 	 * @var array
 	 */
-	private $errors = array();
+	private $messages = array();
 
 
 	/**
@@ -46,17 +46,22 @@ final class Notices {
 
 		add_action( 'admin_notices', array( $this, 'maybe_add_not_connected_notice' ), 1 );
 		add_action( 'admin_notices', array( $this, 'maybe_no_supported_operation_notice' ), 1 );
-		add_action( 'admin_notices', array( $this, 'maybe_render_errors' ), 50 );
+		add_action( 'admin_notices', array( $this, 'maybe_no_webhook_secret_notice' ), 5 );
+		add_action( 'admin_notices', array( $this, 'maybe_render_messages' ), 50 );
 	}
 
 
 	/**
-	 * Add an error notice.
+	 * Add a message notice.
 	 *
 	 * @param string $message The message to be rendered.
+	 * @param string $type    The type of the message.
 	 */
-	public function add_error( $message ) {
-		$this->errors[] = $message;
+	public function add_message( $message, $type = 'error' ) {
+		$this->messages[] = array(
+			'message' => $message,
+			'type'    => $type,
+		);
 	}
 
 
@@ -83,7 +88,7 @@ final class Notices {
 			);
 		}
 
-		$this->add_error(
+		$this->add_message(
 			$message,
 		);
 	}
@@ -97,22 +102,56 @@ final class Notices {
 			return;
 		}
 
-		$this->add_error(
-			__( 'There is no supported payment operation for your merchant account. Contact your adquirer to verify this issue.', $this->mpgs_plugin->text_domain() ),
+		$this->add_message(
+			sprintf(
+				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
+				__( '%1$s - There is no supported payment operation for your merchant account. Contact your adquirer to verify this issue.', $this->mpgs_plugin->text_domain() ),
+				$this->mpgs_plugin->plugin_title(),
+			)
 		);
 	}
 
 
 	/**
-	 * Render all errors.
+	 * Display an admin notice if the webhook secret is not set.
 	 */
-	public function maybe_render_errors() {
-		if ( empty( $this->errors ) ) {
+	public function maybe_no_webhook_secret_notice() {
+		if ( ! $this->mpgs_plugin->is_merchant_connected() || ! empty( $this->mpgs_plugin->get_gateway_setting( 'notification_secret' ) ) ) {
 			return;
 		}
 
-		foreach ( $this->errors as $error ) {
-			self::render_error_notice( $error );
+		$message = sprintf(
+				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
+			__( '%1$s - The Notification Secret is not set.', $this->mpgs_plugin->text_domain() ),
+			$this->mpgs_plugin->plugin_title(),
+		);
+
+		if ( ! $this->mpgs_plugin->is_settings_page() ) {
+			$message .= ' ' . sprintf(
+				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
+				__( 'Set the Notification Secret %1$shere%2$s.', $this->mpgs_plugin->text_domain() ),
+				'<a href="' . $this->mpgs_plugin->settings_url() . '">',
+				'</a>',
+			);
+		}
+
+		$this->add_message(
+			$message,
+			'warning',
+		);
+	}
+
+
+	/**
+	 * Render all messages.
+	 */
+	public function maybe_render_messages() {
+		if ( empty( $this->messages ) ) {
+			return;
+		}
+
+		foreach ( $this->messages as $message ) {
+			self::render_admin_notice( $message['message'], $message['type'] );
 		}
 	}
 
@@ -121,12 +160,13 @@ final class Notices {
 	 * Render error notice.
 	 *
 	 * @param string $message The message to be rendered.
+	 * @param string $type    The type of the message.
 	 *
 	 * @return void
 	 */
-	public static function render_error_notice( $message ) {
+	public static function render_admin_notice( $message, $type = 'error' ) {
 		?>
-		<div class="notice notice-error">
+		<div class="notice notice-<?php echo esc_attr( $type ); ?>">
 			<p><?php echo wp_kses_post( $message ); ?></p>
 		</div>
 		<?php

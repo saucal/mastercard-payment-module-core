@@ -206,6 +206,14 @@ abstract class MpgsPlugin {
 
 
 	/**
+	 * Get the plugin's title.
+	 *
+	 * @return string
+	 */
+	abstract public function get_plugin_title();
+
+
+	/**
 	 * Is valid instance?
 	 *
 	 * @return bool
@@ -271,7 +279,7 @@ abstract class MpgsPlugin {
 	 * @return string
 	 */
 	public function plugin_title() {
-		return $this->plugin_title;
+		return $this->get_plugin_title();
 	}
 
 
