@@ -490,6 +490,9 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 		$order->update_meta_data( $this->prefix_hook( 'order_id' ), $order_data['id'] );
 
 		$order->set_payment_method( $this->id );
+		$order->set_payment_method_title( $this->title );
+
+		// Add this transaction to the processed transactions.
 		$this->flag_transaction_as_processed( $order, $transaction['id'] );
 
 		switch ( $order_data['status'] ) {
