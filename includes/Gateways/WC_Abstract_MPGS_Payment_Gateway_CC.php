@@ -852,28 +852,45 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			throw new Exception( __( 'The payment method was declined.', $this->mpgs_plugin->text_domain() ) );
 		}
 
-		// Send the ACS form to the client.
-		if ( ! empty( $response['body']['authentication']['redirect']['customizedHtml']['3ds2']['acsUrl'] ) || ! empty( $response['body']['authentication']['redirect']['customizedHtml']['3ds2']['cReq'] ) ) {
+		$data = $this->formatted_3ds_data( $response );
 
-			$order->update_meta_data( $this->prefix_hook( 'payment_session' ), $session );
-			$order->update_meta_data( $this->prefix_hook( '3ds_transaction_id' ), $transaction_id );
-			$order->save();
-
-			return array(
-				'result'                         => 'success',
-				'redirect'                       => '#',
-				$this->prefix_hook( '3ds_url' )  => $response['body']['authentication']['redirect']['customizedHtml']['3ds2']['acsUrl'],
-				$this->prefix_hook( '3ds_data' ) => $response['body']['authentication']['redirect']['customizedHtml']['3ds2']['cReq'],
-			);
-		} elseif ( ! empty( $response['body']['authentication']['redirect']['html'] ) ) {
-			return array(
-				'result'                         => 'success',
-				'redirect'                       => $this->get_return_url( $order ),
-				$this->prefix_hook( '3ds_html' ) => $response['body']['authentication']['redirect']['html'],
-			);
+		if ( empty( $data ) || 'SUCCESS' === $response['body']['result'] ) {
+			return true;
 		}
 
-		return true;
+		if ( 'PENDING' === $response['body']['result'] && empty( $data['action'] ) ) {
+			throw new Exception( __( 'There was an error with the payment authentication.', $this->mpgs_plugin->text_domain() ) );
+		}
+
+		// Send the ACS form to the client.
+		$order->update_meta_data( $this->prefix_hook( 'payment_session' ), $session );
+		$order->update_meta_data( $this->prefix_hook( '3ds_transaction_id' ), $transaction_id );
+		$order->save();
+
+		return array(
+			'result'                    => 'success',
+			'redirect'                  => '#',
+			$this->prefix_hook( '3ds' ) => $data,
+		);
+	}
+
+
+	/**
+	 * Format the 3DS response data.
+	 *
+	 * @param array $response The response data of the 3DS authentication.
+	 *
+	 * @return array
+	 */
+	public function formatted_3ds_data( $response ) {
+
+		$data = array();
+
+		// Challenge authentication.
+		$data['action'] = $response['body']['authentication']['redirect']['customizedHtml']['3ds2']['acsUrl'] ?? '';
+		$data['creq']   = $response['body']['authentication']['redirect']['customizedHtml']['3ds2']['cReq'] ?? '';
+
+		return array_filter( $data );
 	}
 
 

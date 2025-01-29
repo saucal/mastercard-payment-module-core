@@ -266,6 +266,12 @@ const hostedSessions = {
 			hostedSessions.get3DSData()
 		);
 
+		// Handle 3DS redirect if needed.
+		hostedSessions.$wcForm.on(
+			'checkout_place_order_success',
+			hostedSessions.process3DsAuthentication
+		);
+
 		if ( hostedSessions.isSavedToken() ) {
 			return;
 		}
@@ -322,12 +328,6 @@ const hostedSessions = {
 		);
 		jQuery( `#${ hostedSessions.pluginPrefix }_session_version` ).val(
 			response.session.version
-		);
-
-		// Handle 3DS redirect if needed.
-		hostedSessions.$wcForm.on(
-			'checkout_place_order_success',
-			hostedSessions.process3DsAuthentication
 		);
 
 		if ( hostedSessions.isWooBlocks() ) {
@@ -580,38 +580,44 @@ const hostedSessions = {
 	},
 
 	process3DsAuthentication( e, result ) {
-		if ( result[ `${ hostedSessions.pluginPrefix }_3ds_html` ] ) {
-			jQuery( 'body' ).append(
-				result[ `${ hostedSessions.pluginPrefix }_3ds_html` ]
-			);
-			return true;
-		}
-
 		if (
-			! result[ `${ hostedSessions.pluginPrefix }_3ds_url` ] ||
-			! result[ `${ hostedSessions.pluginPrefix }_3ds_data` ]
+			! result[ `${ hostedSessions.pluginPrefix }_3ds` ] ||
+			! Object.keys( result[ `${ hostedSessions.pluginPrefix }_3ds` ] )
+				.length
 		) {
 			return true;
 		}
 
+		const data = result[ `${ hostedSessions.pluginPrefix }_3ds` ];
+
+		hostedSessions.process3DsAuthenticationRedirect( data.action, data );
+
+		return true;
+	},
+
+	process3DsAuthenticationRedirect( action, data ) {
 		hostedSessions.$wcForm.addClass( 'is-processing-3ds' );
 
 		const $threeDsForm = jQuery( '<form />', {
 			id: `${ hostedSessions.pluginPrefix }-3ds-form`,
 			name: `${ hostedSessions.pluginPrefix }-3ds-form`,
 			method: 'post',
-			action: result[ `${ hostedSessions.pluginPrefix }_3ds_url` ],
+			action,
 		} );
 
 		jQuery( document.body ).append( $threeDsForm );
 
-		$threeDsForm.append(
-			jQuery( '<input />', {
-				type: 'hidden',
-				name: 'creq',
-				value: result[ `${ hostedSessions.pluginPrefix }_3ds_data` ],
-			} )
-		);
+		Object.keys( data ).forEach( ( key ) => {
+			if ( key !== 'action' ) {
+				$threeDsForm.append(
+					jQuery( '<input />', {
+						type: 'hidden',
+						name: key,
+						value: data[ key ],
+					} )
+				);
+			}
+		} );
 
 		$threeDsForm.trigger( 'submit' );
 
