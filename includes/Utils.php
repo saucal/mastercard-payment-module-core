@@ -345,40 +345,36 @@ final class Utils {
 	/**
 	 * Get hosted session ID key.
 	 *
+	 * @param string $cart_hash The cart hash.
+	 *
 	 * @return string
 	 */
-	public function hosted_session_id_key() {
-		return $this->mpgs_core->prefix_hook( 'session_id_' . $this->unique_cart_hash() );
+	public function hosted_session_id_key( $cart_hash = '' ) {
+		return $this->mpgs_core->prefix_hook( 'session_id_' . ( $cart_hash ? $cart_hash : $this->unique_cart_hash() ) );
 	}
 
 
 	/**
 	 * Get hosted session attempt key.
 	 *
+	 * @param string $cart_hash The cart hash.
+	 *
 	 * @return string
 	 */
-	public function hosted_session_attempt_key() {
-		return $this->mpgs_core->prefix_hook( 'session_attempt_' . $this->unique_cart_hash() );
+	public function hosted_session_attempt_key( $cart_hash = '' ) {
+		return $this->mpgs_core->prefix_hook( 'session_attempt_' . ( $cart_hash ? $cart_hash : $this->unique_cart_hash() ) );
 	}
 
 
 	/**
 	 * Get hosted session duration key.
 	 *
-	 * @return string
-	 */
-	public function hosted_session_duration_key() {
-		return $this->mpgs_core->prefix_hook( 'session_duration_' . $this->unique_cart_hash() );
-	}
-
-
-	/**
-	 * Get hosted session data hash key.
+	 * @param string $cart_hash The cart hash.
 	 *
 	 * @return string
 	 */
-	public function hosted_session_data_hash_key() {
-		return $this->mpgs_core->prefix_hook( 'session_data_hash_' . $this->unique_cart_hash() );
+	public function hosted_session_duration_key( $cart_hash = '' ) {
+		return $this->mpgs_core->prefix_hook( 'session_duration_' . ( $cart_hash ? $cart_hash : $this->unique_cart_hash() ) );
 	}
 
 
@@ -387,7 +383,7 @@ final class Utils {
 	 *
 	 * @return string
 	 */
-	protected function unique_cart_hash() {
+	public function unique_cart_hash() {
 		return md5( get_site_url() . '-' . WC()->cart->get_cart_hash() );
 	}
 
