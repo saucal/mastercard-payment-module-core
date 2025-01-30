@@ -14,37 +14,59 @@
             background-position: bottom 50% right 0.5rem !important;
             background-size: 2rem 1.4rem !important;
             background-image: url('../../images/credit-cards/unknown.svg');
-    
+
             &.visa {
                 background-image: url('../../images/credit-cards/visa.svg')
             }
-    
+
             &.mastercard {
                 background-image: url('../../images/credit-cards/mastercard.svg')
             }
-    
+
             &.laser {
                 background-image: url('../../images/credit-cards/laser.svg')
             }
-    
+
             &.dinersclub {
                 background-image: url('../../images/credit-cards/diners.svg')
             }
-    
+
             &.maestro {
                 background-image: url('../../images/credit-cards/maestro.svg')
             }
-    
+
             &.jcb {
                 background-image: url('../../images/credit-cards/jcb.svg')
             }
-    
+
             &.amex {
                 background-image: url('../../images/credit-cards/amex.svg')
             }
-    
+
             &.discover {
                 background-image: url('../../images/credit-cards/discover.svg')
+            }
+        }
+    }
+}
+
+#add_payment_method,
+.woocommerce-cart,
+.woocommerce-checkout {
+    #payment div.payment_box {
+        .mpgs-payment-form-elements {
+            .form-row {
+                display: inline-block;
+                padding: 0;
+
+                &.form-row-wide {
+                    width: 100%;
+                }
+
+                input.input-text {
+                    font-size: 1em;
+                    margin: 0;
+                }
             }
         }
     }
