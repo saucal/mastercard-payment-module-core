@@ -1363,16 +1363,15 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		$current_hash = $this->get_hosted_session_data_hash();
 
-		if ( $current_hash && $current_hash !== $this->mpgs_plugin()->mpgs_core()->utils()->unique_cart_hash() ) {
-			$this->maybe_clean_hosted_cached_session( $current_hash );
-			return '';
+		if ( ! $current_hash ) {
+			$current_hash = $this->mpgs_plugin()->mpgs_core()->utils()->unique_cart_hash();
 		}
 
-		$session_id = WC()->session->get( $this->hosted_session_id_key() );
-		$attempts   = WC()->session->get( $this->hosted_session_attempt_key() ) ?? 0;
+		$session_id = WC()->session->get( $this->hosted_session_id_key( $current_hash ) );
+		$attempts   = WC()->session->get( $this->hosted_session_attempt_key( $current_hash ) ) ?? 0;
 
-		if ( $session_id && $this->is_session_valid( WC()->session->get( $this->hosted_session_duration_key() ) ) && $attempts < ( self::HOSTED_SESSION_ATTEMPT_LIMIT - 5 ) ) {
-			WC()->session->set( $this->hosted_session_attempt_key(), $attempts + 1 );
+		if ( $session_id && $this->is_session_valid( WC()->session->get( $this->hosted_session_duration_key( $current_hash ) ) ) && $attempts < ( self::HOSTED_SESSION_ATTEMPT_LIMIT - 5 ) ) {
+			WC()->session->set( $this->hosted_session_attempt_key( $current_hash ), $attempts + 1 );
 			return $session_id;
 		}
 	}
