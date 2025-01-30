@@ -402,7 +402,7 @@ final class Utils {
 					'number'       => __( 'Card number invalid or missing', $this->mpgs_core->text_domain() ),
 					'expiryMonth'  => __( 'Expiry month invalid or missing', $this->mpgs_core->text_domain() ),
 					'expiryYear'   => __( 'Expiry year invalid or missing', $this->mpgs_core->text_domain() ),
-					'securityCode' => __( 'CVV invalid or missing', $this->mpgs_core->text_domain() ),
+					'securityCode' => __( 'Security code is invalid or missing', $this->mpgs_core->text_domain() ),
 					'default'      => __( 'There was an error updating the payment details', $this->mpgs_core->text_domain() ),
 				),
 				'payment_type_required' => __( 'Payment type is required', $this->mpgs_core->text_domain() ),

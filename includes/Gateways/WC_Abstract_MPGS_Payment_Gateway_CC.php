@@ -486,9 +486,10 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			do_action( $this->prefix_hook( 'process_payment_error' ), $e, ! empty( $order ) ? $order : null );
 
 			return array(
-				'result'   => 'failure',
-				'redirect' => '',
-				'messages' => array( $e->getMessage() ),
+				'result'       => 'failure',
+				'redirect'     => '',
+				'messages'     => (array) $e->getMessage(),
+				'errorMessage' => $e->getMessage(),
 			);
 		}
 
@@ -549,6 +550,15 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		if ( empty( $session_data['sourceOfFunds'] ) ) {
 			throw new Exception( __( 'There was an error validating the payment session. Please refresh the page and try again.', $this->mpgs_plugin->text_domain() ) );
+		}
+
+		// Forcefully validate CVC value.
+		if (
+			! $this->is_saved_payment_method() &&
+			! empty( $session_data['sourceOfFunds']['provided']['card'] ) &&
+			empty( $session_data['sourceOfFunds']['provided']['card']['securityCode'] )
+		) {
+			throw new Exception( __( 'Security code is missing.', $this->mpgs_plugin->text_domain() ) );
 		}
 
 		$payment_data = array(
@@ -870,7 +880,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		return array(
 			'result'                    => 'success',
 			'redirect'                  => '#',
-			$this->prefix_hook( '3ds' ) => $data,
+			$this->prefix_hook( '3ds' ) => wp_json_encode( $data ),
 		);
 	}
 

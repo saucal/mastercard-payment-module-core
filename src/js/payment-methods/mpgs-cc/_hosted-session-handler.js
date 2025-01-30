@@ -7,6 +7,7 @@ import { addPrefix, getTextDomain } from './_settings';
 export const hostedSessionHandler = (
 	onPaymentSetup,
 	onCheckoutSuccess,
+	onCheckoutFail,
 	emitResponseSuccess,
 	emitResponseError
 ) => {
@@ -76,8 +77,7 @@ export const hostedSessionHandler = (
 		( { processingResponse } ) => {
 			if (
 				! processingResponse?.paymentDetails ||
-				! processingResponse.paymentDetails[ addPrefix( '3ds_url' ) ] ||
-				! processingResponse.paymentDetails[ addPrefix( '3ds_data' ) ]
+				! processingResponse.paymentDetails[ addPrefix( '3ds' ) ]
 			) {
 				return;
 			}
@@ -105,8 +105,22 @@ export const hostedSessionHandler = (
 		}
 	);
 
+	const unsuscribeCheckoutFail = onCheckoutFail(
+		async ( { processingResponse } ) => {
+			if ( ! processingResponse?.paymentDetails?.errorMessage ) {
+				return true;
+			}
+
+			processingResponse.message =
+				processingResponse.paymentDetails.errorMessage;
+
+			return true;
+		}
+	);
+
 	return () => {
 		unsuscribePaymentSetup();
 		unsuscribeCheckoutSuccess();
+		unsuscribeCheckoutFail();
 	};
 };

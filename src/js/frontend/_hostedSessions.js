@@ -317,12 +317,6 @@ const hostedSessions = {
 			error = mpgs_gateway_params.hostedSessionErrors.default;
 		}
 
-		if ( ! response?.sourceOfFunds?.provided?.card?.securityCode ) {
-			error =
-				mpgs_gateway_params.hostedSessionErrors.fields_in_error
-					.securityCode;
-		}
-
 		if ( error ) {
 			hostedSessions.submitError( error );
 			hostedSessions.unblockForm();
@@ -586,15 +580,17 @@ const hostedSessions = {
 	},
 
 	process3DsAuthentication( e, result ) {
-		if (
-			! result[ `${ hostedSessions.pluginPrefix }_3ds` ] ||
-			! Object.keys( result[ `${ hostedSessions.pluginPrefix }_3ds` ] )
-				.length
-		) {
+		if ( ! result[ `${ hostedSessions.pluginPrefix }_3ds` ] ) {
 			return true;
 		}
 
-		const data = result[ `${ hostedSessions.pluginPrefix }_3ds` ];
+		const data = JSON.parse(
+			result[ `${ hostedSessions.pluginPrefix }_3ds` ]
+		);
+
+		if ( ! Object.keys( data ).length ) {
+			return true;
+		}
 
 		hostedSessions.process3DsAuthenticationRedirect( data.action, data );
 
