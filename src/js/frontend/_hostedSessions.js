@@ -317,6 +317,12 @@ const hostedSessions = {
 			error = mpgs_gateway_params.hostedSessionErrors.default;
 		}
 
+		if ( ! response?.sourceOfFunds?.provided?.card?.securityCode ) {
+			error =
+				mpgs_gateway_params.hostedSessionErrors.fields_in_error
+					.securityCode;
+		}
+
 		if ( error ) {
 			hostedSessions.submitError( error );
 			hostedSessions.unblockForm();
