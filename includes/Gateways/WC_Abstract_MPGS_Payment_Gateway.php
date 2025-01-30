@@ -19,6 +19,7 @@ use MPGSCore\MpgsAPI;
 use MPGSCore\MpgsPlugin;
 use MPGSCore\PaymentToken;
 use MPGSCore\Utils;
+use WC_HTTPS;
 use WC_Payment_Gateway_CC;
 
 /**
@@ -174,6 +175,18 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 		}
 
 		return $this->mpgs_api;
+	}
+
+
+	/**
+	 * Return the gateway's icon.
+	 *
+	 * @return string
+	 */
+	public function get_icon() {
+		$icon = $this->icon ? '<img src="' . esc_url( WC_HTTPS::force_https_url( $this->icon ) ) . '" class="mpgs-icon ' . $this->id . '-icon" alt="' . esc_attr( $this->get_title() ) . '" />' : '';
+
+		return apply_filters( 'woocommerce_gateway_icon', $icon, $this->id );
 	}
 
 
