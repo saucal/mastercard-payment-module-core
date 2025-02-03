@@ -343,6 +343,32 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 
 	/**
+	 * Should render hosted session.
+	 *
+	 * @return bool
+	 */
+	public function should_render_hosted_session() {
+		if ( ! $this->is_hosted_session() ) {
+			return false;
+		}
+
+		if ( is_order_received_page() ) {
+			return false;
+		}
+
+		if ( is_cart() || is_checkout() || is_add_payment_method_page() || is_checkout_pay_page() ) {
+			return true;
+		}
+
+		if ( function_exists( 'has_block' ) && ( has_block( 'woocommerce/cart' ) || has_block( 'woocommerce/checkout' ) ) ) {
+			return true;
+		}
+
+		return false;
+	}
+
+
+	/**
 	 * Payment fields.
 	 *
 	 * @return void
@@ -1173,13 +1199,17 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		switch ( $this->checkout_mode ) {
 			case 'hosted_checkout':
-				$data['sessionId']          = $this->checkout_session_id();
-				$data['hostedCheckoutMode'] = $this->hosted_checkout_mode;
+				if ( $this->should_render_hosted_checkout() ) {
+					$data['sessionId']          = $this->checkout_session_id();
+					$data['hostedCheckoutMode'] = $this->hosted_checkout_mode;
+				}
 				break;
 			case 'hosted_session':
-				$session_id             = $this->hosted_session_id();
-				$data['sessionId']      = $session_id;
-				$data['sessionAttempt'] = uniqid( $session_id );
+				if ( $this->should_render_hosted_session() ) {
+					$session_id             = $this->hosted_session_id();
+					$data['sessionId']      = $session_id;
+					$data['sessionAttempt'] = uniqid( $session_id );
+				}
 				break;
 		}
 
