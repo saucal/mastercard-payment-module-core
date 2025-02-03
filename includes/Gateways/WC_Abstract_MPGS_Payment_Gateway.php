@@ -489,15 +489,17 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 	/**
 	 * This function processes a WooCommerce order.
 	 *
-	 * @param object $order       The WooCommerce order object.
-	 * @param array  $order_data  Order data retrieved from the API.
-	 * @param array  $transaction Transaction data retrieved from the API.
+	 * @param object $order            The WooCommerce order object.
+	 * @param array  $order_data       Order data retrieved from the API.
+	 * @param array  $transaction      Transaction data retrieved from the API.
+	 * @param string $order_note_msg   Order note message.
+	 * @param string $order_status_msg Order status message.
 	 *
 	 * @return void
 	 *
 	 * @throws Exception Exception.
 	 */
-	protected function process_wc_order( $order, $order_data, $transaction ) {
+	protected function process_wc_order( $order, $order_data, $transaction, $order_note_msg = '', $order_status_msg = '' ) {
 
 		if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
 			throw new Exception( __( 'The order object is not valid.', $this->mpgs_plugin->text_domain() ) );
@@ -524,10 +526,12 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 		// Add this transaction to the processed transactions.
 		$this->flag_transaction_as_processed( $order, $transaction['id'] );
 
+		$new_order_status     = false;
+		$new_order_status_msg = '';
+		$new_order_note_msg   = '';
+
 		switch ( $order_data['status'] ) {
 			case 'CAPTURED':
-				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), null );
-				$order->payment_complete( $order_data['id'] );
 				$order->add_order_note(
 					sprintf(
 						// translators: %1$s: Gateway title, %2$s: Order ID.
@@ -536,40 +540,51 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 						$order_data['id'],
 					)
 				);
+				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), null );
+				$order->payment_complete( $order_data['id'] );
 				break;
 			case 'AUTHORIZED':
-				$order->add_order_note(
-					sprintf(
-						// translators: %1$s: Gateway title, %2$s: Order ID.
-						__( '%1$s payment was Authorized (Order ID: %2$s)', $this->mpgs_plugin->text_domain() ),
-						$this->title,
-						$order_data['id'],
-					)
-				);
 				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), $transaction['id'] );
-				$order->update_status( 'on-hold', __( 'Payment authorized, waiting for capture.', $this->mpgs_plugin->text_domain() ) );
+				$new_order_status     = 'on-hold';
+				$new_order_status_msg = __( 'Payment authorized, waiting for capture.', $this->mpgs_plugin->text_domain() );
+				$new_order_note_msg   = sprintf(
+					// translators: %1$s: Gateway title, %2$s: Order ID.
+					__( '%1$s payment was Authorized (Order ID: %2$s)', $this->mpgs_plugin->text_domain() ),
+					$this->title,
+					$order_data['id'],
+				);
 				break;
 			case 'PARTIALLY_CAPTURED':
-				$order->add_order_note(
-					sprintf(
-						// translators: %1$s: Gateway title, %2$s: Captured amount.
-						__( '%1$s payment was Partially Captured. Captured Amount: %2$s', $this->mpgs_plugin->text_domain() ),
-						$this->title,
-						wc_price( $transaction['amount'], array( 'currency' => $transaction['currency'] ) )
-					)
-				);
 				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), null );
-				$order->update_status( 'on-hold', __( 'Payment partially captured, waiting for full capture.', $this->mpgs_plugin->text_domain() ) );
+				$new_order_status     = 'on-hold';
+				$new_order_status_msg = __( 'Payment partially captured, waiting for full capture.', $this->mpgs_plugin->text_domain() );
+				$new_order_note_msg   = sprintf(
+					// translators: %1$s: Gateway title, %2$s: Captured amount.
+					__( '%1$s payment was Partially Captured. Captured Amount: %2$s', $this->mpgs_plugin->text_domain() ),
+					$this->title,
+					wc_price( $transaction['amount'], array( 'currency' => $transaction['currency'] ) )
+				);
 				break;
 			case 'CANCELLED':
-				if ( 'cancelled' !== $order->get_status() ) {
-					$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), null );
-					$order->update_status( 'cancelled', __( 'Authorization was cancelled successfully.', $this->mpgs_plugin->text_domain() ) );
-				}
+				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), null );
+				$new_order_status     = 'cancelled';
+				$new_order_status_msg = __( 'Authorization was cancelled successfully.', $this->mpgs_plugin->text_domain() );
 				break;
 			case 'DECLINED':
 				$this->handle_failed_payment( new WP_Error( 'payment_declined', $this->get_mapped_error_code( $order_data['error']['cause'] ?? 'error' ) ), $order );
 		}
+
+		if ( ! empty( $order_note_msg ) ) {
+			$order->add_order_note( $order_note_msg );
+		} elseif ( ! empty( $new_order_note_msg ) ) {
+			$order->add_order_note( $new_order_note_msg );
+		}
+
+		if ( empty( $new_order_status ) || $order->get_status() === $new_order_status ) {
+			return;
+		}
+
+		$order->update_status( $new_order_status, ! empty( $order_status_msg ) ? $order_status_msg : $new_order_status_msg );
 	}
 
 
@@ -1019,31 +1034,6 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 
 	/**
-	 * Void an Authorize transaction when receiving a webhook notification.
-	 *
-	 * @param WC_Order $order       Order object.
-	 * @param array    $transaction Transaction data.
-	 *
-	 * @return void
-	 */
-	protected function void_payment( $order, $transaction ) {
-		if ( ! $order || 'cancelled' === $order->get_status() ) {
-			return;
-		}
-
-		if ( empty( $transaction['id'] ) ) {
-			return;
-		}
-
-		$order->add_order_note( __( 'Void Authorization Webhook notification received.', $this->mpgs_plugin->text_domain() ) );
-
-		$order->update_status( 'cancelled', __( 'Authorization was cancelled successfully.', $this->mpgs_plugin->text_domain() ) );
-
-		$this->flag_transaction_as_processed( $order, $transaction['id'] );
-	}
-
-
-	/**
 	 * Process chargeback payment action.
 	 *
 	 * @param WC_Order $order       Order object.
@@ -1251,26 +1241,58 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 			return;
 		}
 
+		$should_process_order = true;
+		$order_note_msg       = '';
+		$order_status_msg     = '';
+
 		switch ( $transaction['type'] ) {
-			case 'CAPTURE':
-			case 'PAYMENT':
-			case 'AUTHORIZATION':
-			case 'VOID_PAYMENT':
-			case 'VOID_CAPTURE':
-				$this->process_wc_order( $order, $order_data, $transaction );
-				break;
-			case 'VOID_AUTHORIZATION':
-				$this->void_payment( $order, $transaction );
-				break;
 			case 'REFUND':
 				$this->refund( $order, $transaction );
+				$should_process_order = false;
 				break;
 			case 'VOID_REFUND':
 				$this->void_refund( $order, $transaction );
+				$should_process_order = false;
 				break;
 			case 'CHARGEBACK':
 				$this->process_chargeback( $order, $transaction );
+				$should_process_order = false;
 				break;
+			case 'VOID_PAYMENT':
+				$order_note_msg   = sprintf(
+					__( 'Webhook Notification: Payment Transaction ID: %1$s was voided (Void Transaction ID: %2$s)', $this->mpgs_plugin->text_domain() ),
+					$transaction['targetTransactionId'] ?? '',
+					$transaction['id'] ?? '',
+				);
+				$order_status_msg = __( 'Payment was voided.', $this->mpgs_plugin->text_domain() );
+				break;
+			case 'VOID_CAPTURE':
+				$order_note_msg   = sprintf(
+					__( 'Webhook Notification: Capture Transaction ID: %1$s was voided (Void Transaction ID: %2$s)', $this->mpgs_plugin->text_domain() ),
+					$transaction['targetTransactionId'] ?? '',
+					$transaction['id'] ?? '',
+				);
+				$order_status_msg = __( 'Capture was voided.', $this->mpgs_plugin->text_domain() );
+				break;
+			case 'VOID_AUTHORIZATION':
+				$order_note_msg   = sprintf(
+					__( 'Webhook Notification: Authorization Transaction ID: %1$s was voided (Void Transaction ID: %2$s)', $this->mpgs_plugin->text_domain() ),
+					$transaction['targetTransactionId'] ?? '',
+					$transaction['id'] ?? '',
+				);
+				$order_status_msg = __( 'Authorization was voided.', $this->mpgs_plugin->text_domain() );
+				break;
+			case 'CAPTURE':
+			case 'PAYMENT':
+			case 'AUTHORIZATION':
+				break;
+			default:
+				$should_process_order = false;
+				break;
+		}
+
+		if ( $should_process_order ) {
+			$this->process_wc_order( $order, $order_data, $transaction, $order_note_msg, $order_status_msg );
 		}
 	}
 
