@@ -77,6 +77,22 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 
 	/**
+	 * Transaction debounce key.
+	 *
+	 * @var string
+	 */
+	protected $debounce_key_transaction;
+
+
+	/**
+	 * Transaction ID of the currently processed refund.
+	 *
+	 * @var string
+	 */
+	protected $refund_transaction_id;
+
+
+	/**
 	 * Get the partner solution ID.
 	 *
 	 * @return string
@@ -546,8 +562,10 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 				$order->update_status( 'on-hold', __( 'Payment partially captured, waiting for full capture.', $this->mpgs_plugin->text_domain() ) );
 				break;
 			case 'CANCELLED':
-				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), null );
-				$order->update_status( 'cancelled', __( 'Authorization was cancelled successfully.', $this->mpgs_plugin->text_domain() ) );
+				if ( 'cancelled' !== $order->get_status() ) {
+					$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), null );
+					$order->update_status( 'cancelled', __( 'Authorization was cancelled successfully.', $this->mpgs_plugin->text_domain() ) );
+				}
 				break;
 			case 'DECLINED':
 				$this->handle_failed_payment( new WP_Error( 'payment_declined', $this->get_mapped_error_code( $order_data['error']['cause'] ?? 'error' ) ), $order );
@@ -783,14 +801,17 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 			$note = sprintf(
 				// translators: %1$s: Currency of refund, %2$s: Refund amount, %2$s: Refund reason.
-				__( 'Refund of %1$s %2$s processed. %3$s', $this->mpgs_plugin->text_domain() ),
-				$currency,
-				$amount,
+				__( 'Refund of %1$s processed. %2$s', $this->mpgs_plugin->text_domain() ),
+				wc_price( $amount, array( 'currency' => $currency ) ),
 				$reason ? __( 'Reason: ', $this->mpgs_plugin->text_domain() ) . $reason : '',
 			);
 			$order->add_order_note( $note );
 
 			$this->flag_transaction_as_processed( $order, $transaction_id );
+
+			// Add the transaction ID to the refund meta.
+			$this->refund_transaction_id = $transaction_id;
+			add_action( 'woocommerce_order_refunded', array( $this, 'add_refund_meta' ), 10, 2 );
 
 			do_action( $this->prefix_hook( 'process_refund_success' ), $order, $currency, $amount, $reason );
 
@@ -809,6 +830,134 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 				)
 			);
 		}
+	}
+
+
+	/**
+	 * Add refund meta.
+	 *
+	 * @param int $order_id Order ID.
+	 * @param int $refund_id Refund ID.
+	 *
+	 * @return void
+	 */
+	public function add_refund_meta( $order_id, $refund_id ) {
+		if ( ! $this->refund_transaction_id ) {
+			return;
+		}
+
+		$refund = wc_get_order( $refund_id );
+
+		if ( ! $refund ) {
+			return;
+		}
+
+		$refund->update_meta_data( $this->prefix_hook( 'transaction_id' ), $this->refund_transaction_id );
+		$refund->save();
+	}
+
+
+	/**
+	 * Create a refund for an order when receiving a webhook notification.
+	 *
+	 * @param WC_Order $order       Order object.
+	 * @param array    $transaction Transaction data.
+	 *
+	 * @return void
+	 */
+	protected function refund( $order, $transaction ) {
+		if ( ! $order ) {
+			return;
+		}
+
+		if ( empty( $transaction['id'] ) ) {
+			return;
+		}
+
+		$amount = $transaction['amount'] ?? 0;
+		$reason = $transaction['reason'] ?? '';
+
+		$order_note = sprintf(
+			// translators: %1$s: Refund reason, %2$s: Refund amount.
+			__( 'Refund Webhook notification received. Refund amount: %2$s.', $this->mpgs_plugin->text_domain() ),
+			$reason,
+			wc_price( $amount, array( 'currency' => $order->get_currency() ) )
+		);
+
+		if ( ! empty( $reason ) ) {
+			$order_note .= ' ' . sprintf(
+				// translators: %s: Refund reason.
+				__( 'Reason: %s', $this->mpgs_plugin->text_domain() ),
+				$reason
+			);
+		}
+
+		$order->add_order_note( $order_note );
+
+		if ( 'refunded' === $order->get_status() ) {
+			return;
+		}
+
+		$refund = wc_create_refund(
+			array(
+				'amount'   => $amount,
+				'reason'   => $reason,
+				'order_id' => $order->get_id(),
+			)
+		);
+
+		if ( is_wp_error( $refund ) ) {
+			/* translators: %1$s reason */
+			throw new Exception( sprintf( __( 'Create refund failed: %1$s.', $this->mpgs_plugin->text_domain() ), $refund->get_error_message() ) );
+		}
+
+		$refund->update_meta_data( $this->prefix_hook( 'transaction_id' ), $transaction['id'] );
+		$refund->save();
+
+		$this->flag_transaction_as_processed( $order, $transaction['id'] );
+	}
+
+
+	/**
+	 * Cancel a refund for an order when receiving a webhook notification.
+	 *
+	 * @param WC_Order $order       Order object.
+	 * @param array    $transaction Transaction data.
+	 *
+	 * @return void
+	 */
+	protected function void_refund( $order, $transaction ) {
+		if ( ! $order ) {
+			return;
+		}
+
+		if ( empty( $transaction['id'] ) || empty( $transaction['targetTransactionId'] ) ) {
+			return;
+		}
+
+		$voided_refund = null;
+
+		foreach ( $order->get_refunds() as $refund ) {
+			if ( $transaction['targetTransactionId'] === $refund->get_meta( $this->prefix_hook( 'transaction_id' ) ) ) {
+				$voided_refund = $refund;
+				break;
+			}
+		}
+
+		if ( ! $voided_refund ) {
+			throw new Exception(
+				sprintf(
+					__( 'Refund with Transaction ID (%s) not found.', $this->mpgs_plugin->text_domain() ),
+					$transaction['id']
+				)
+			);
+		}
+
+		$voided_refund->delete( true );
+
+		$order->add_order_note( sprintf( __( 'Refund was cancelled. Transaction ID: %s', $this->mpgs_plugin->text_domain() ), $transaction['id'] ) );
+
+		$this->flag_transaction_as_processed( $order, $transaction['id'] );
 	}
 
 
@@ -866,6 +1015,31 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 				)
 			);
 		}
+	}
+
+
+	/**
+	 * Void a transaction when receiving a webhook notification.
+	 *
+	 * @param WC_Order $order       Order object.
+	 * @param array    $transaction Transaction data.
+	 *
+	 * @return void
+	 */
+	protected function void_payment( $order, $transaction ) {
+		if ( ! $order || 'cancelled' === $order->get_status() ) {
+			return;
+		}
+
+		if ( empty( $transaction['id'] ) ) {
+			return;
+		}
+
+		$order->add_order_note( __( 'Void Authorization Webhook notification received.', $this->mpgs_plugin->text_domain() ) );
+
+		$order->update_status( 'cancelled', __( 'Authorization was cancelled successfully.', $this->mpgs_plugin->text_domain() ) );
+
+		$this->flag_transaction_as_processed( $order, $transaction['id'] );
 	}
 
 
@@ -1004,26 +1178,6 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 
 	/**
-	 * Do not allow the same Webhook request to be processed concurrently.
-	 *
-	 * @param string $raw_body Raw body of the Webhook request.
-	 * @return void
-	 *
-	 * @throws Exception
-	 */
-	protected function debounce_webhook_request( $raw_body ) {
-
-		$this->debounce_key = $this->prefix_hook( 'webhook_debounce_' . md5( $raw_body ) );
-
-		if ( false !== get_transient( $this->debounce_key ) ) {
-			throw new Exception( __( 'Notification Webhook repeated too soon or previous request exited abnormally.', $this->mpgs_plugin->text_domain() ) );
-		}
-
-		set_transient( $this->debounce_key, time(), 10 * MINUTE_IN_SECONDS );
-	}
-
-
-	/**
 	 * Validate incoming request against IP and User-Agent.
 	 *
 	 * @return WC_Order|false
@@ -1087,6 +1241,8 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 			return;
 		}
 
+		$this->debounce_webhook_transaction( $transaction );
+
 		if ( empty( $transaction['id'] ) || empty( $transaction['type'] ) ) {
 			return;
 		}
@@ -1099,13 +1255,68 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 			case 'CAPTURE':
 			case 'PAYMENT':
 			case 'AUTHORIZATION':
+			case 'VOID_PAYMENT':
 				$this->process_wc_order( $order, $order_data, $transaction );
+				break;
+			case 'VOID_AUTHORIZATION':
+				$this->void_payment( $order, $transaction );
+				break;
+			case 'REFUND':
+				$this->refund( $order, $transaction );
+				break;
+			case 'VOID_REFUND':
+				$this->void_refund( $order, $transaction );
 				break;
 			case 'CHARGEBACK':
 				$this->process_chargeback( $order, $transaction );
 				break;
 		}
 	}
+
+
+	/**
+	 * Do not allow the same Webhook request to be processed concurrently.
+	 *
+	 * @param string $raw_body Raw body of the Webhook request.
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	protected function debounce_webhook_request( $raw_body ) {
+
+		$this->debounce_key = $this->prefix_hook( 'webhook_debounce_' . md5( $raw_body ) );
+
+		if ( false !== get_transient( $this->debounce_key ) ) {
+			throw new Exception( __( 'Notification Webhook repeated too soon or previous request exited abnormally.', $this->mpgs_plugin->text_domain() ) );
+		}
+
+		set_transient( $this->debounce_key, time(), MINUTE_IN_SECONDS );
+	}
+
+
+	/**
+	 * Do not allow the same Transaction to be processed concurrently.
+	 *
+	 * @param array $transaction Transaction data.
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	protected function debounce_webhook_transaction( $transaction ) {
+
+		if ( empty( $transaction['id'] ) ) {
+			return;
+		}
+
+		$this->debounce_key_transaction = $this->prefix_hook( 'webhook_debounce_transaction_' . $transaction['id'] );
+
+		if ( false !== get_transient( $this->debounce_key_transaction ) ) {
+			throw new Exception( __( 'Notification Webhook repeated too soon or previous request exited abnormally.', $this->mpgs_plugin->text_domain() ) );
+		}
+
+		set_transient( $this->debounce_key_transaction, time(), MINUTE_IN_SECONDS );
+	}
+
 
 
 	/**
@@ -1116,6 +1327,10 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 	protected function webhook_cleanup() {
 		if ( $this->debounce_key ) {
 			delete_transient( $this->debounce_key );
+		}
+
+		if ( $this->debounce_key_transaction ) {
+			delete_transient( $this->debounce_key_transaction );
 		}
 	}
 }
