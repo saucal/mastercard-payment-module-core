@@ -618,6 +618,8 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		$this->process_wc_order( $order, $response['body']['order'], $response['body']['transaction'] );
 
+		$this->maybe_clean_hosted_cached_session( $this->get_hosted_session_data_hash() );
+
 		$this->maybe_save_cards( $order, $session );
 
 		return array(
@@ -674,7 +676,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @param string   $unique_order_id         Unique order ID.
 	 * @param bool     $processing_3ds_callback Processing 3DS callback.
 	 *
-	 * @return string
+	 * @return string|array
 	 */
 	public function get_3ds_authentication( $order, $session, $unique_order_id, $processing_3ds_callback ) {
 		if ( $processing_3ds_callback ) {
@@ -1373,10 +1375,6 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		$current_hash = $this->get_hosted_session_data_hash();
 
-		if ( ! $current_hash ) {
-			$current_hash = $this->mpgs_plugin()->mpgs_core()->utils()->unique_cart_hash();
-		}
-
 		$session_id = WC()->session->get( $this->hosted_session_id_key( $current_hash ) );
 		$attempts   = WC()->session->get( $this->hosted_session_attempt_key( $current_hash ) ) ?? 0;
 
@@ -1563,6 +1561,22 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @return string
 	 */
 	protected function get_hosted_session_data_hash() {
+		$current_hash = $this->get_current_hosted_session_data_hash();
+
+		if ( ! $current_hash ) {
+			$current_hash = $this->mpgs_plugin()->mpgs_core()->utils()->unique_cart_hash();
+		}
+
+		return $current_hash;
+	}
+
+
+	/**
+	 * Get hosted session data hash.
+	 *
+	 * @return string
+	 */
+	protected function get_current_hosted_session_data_hash() {
 		return ! empty( WC()->session ) ? WC()->session->get( $this->prefix_hook( 'session_data_hash' ), '' ) : '';
 	}
 
