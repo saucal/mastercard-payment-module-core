@@ -1019,7 +1019,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 
 	/**
-	 * Void a transaction when receiving a webhook notification.
+	 * Void an Authorize transaction when receiving a webhook notification.
 	 *
 	 * @param WC_Order $order       Order object.
 	 * @param array    $transaction Transaction data.
@@ -1256,6 +1256,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 			case 'PAYMENT':
 			case 'AUTHORIZATION':
 			case 'VOID_PAYMENT':
+			case 'VOID_CAPTURE':
 				$this->process_wc_order( $order, $order_data, $transaction );
 				break;
 			case 'VOID_AUTHORIZATION':
