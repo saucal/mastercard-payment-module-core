@@ -234,12 +234,17 @@ final class GatewaySettings {
 					),
 				),
 				'saved_cards'          => array(
-					'title'       => __( 'Saved Cards', $this->mpgs_plugin->text_domain() ),
-					'label'       => __( 'Enable payment via saved tokenized cards', $this->mpgs_plugin->text_domain() ),
-					'type'        => 'checkbox',
-					'description' => __( 'If enabled, users will be able to pay with a saved card during checkout. Card details are saved in the payment gateway, not on your store.', $this->mpgs_plugin->text_domain() ),
-					'default'     => 'yes',
-					'desc_tip'    => true,
+					'title'             => __( 'Saved Cards', $this->mpgs_plugin->text_domain() ),
+					'label'             => __( 'Enable payment via saved tokenized cards', $this->mpgs_plugin->text_domain() ),
+					'type'              => 'checkbox',
+					'description'       => __( 'If enabled, users will be able to pay with a saved card during checkout. Card details are saved in the payment gateway, not on your store.', $this->mpgs_plugin->text_domain() ),
+					'default'           => 'yes',
+					'desc_tip'          => true,
+					'class'             => 'conditional-hide',
+					'custom_attributes' => array(
+						'data-show-rel' => 'checkout_mode',
+						'data-show-if'  => 'hosted_session',
+					),
 				),
 				'merchant_name'        => array(
 					'title'       => __( 'Merchant Name', $this->mpgs_plugin->text_domain() ),

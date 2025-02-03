@@ -1199,10 +1199,8 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		switch ( $this->checkout_mode ) {
 			case 'hosted_checkout':
-				if ( $this->should_render_hosted_checkout() ) {
-					$data['sessionId']          = $this->checkout_session_id();
-					$data['hostedCheckoutMode'] = $this->hosted_checkout_mode;
-				}
+				$data['sessionId']          = $this->checkout_session_id();
+				$data['hostedCheckoutMode'] = $this->hosted_checkout_mode;
 				break;
 			case 'hosted_session':
 				if ( $this->should_render_hosted_session() ) {
@@ -1321,10 +1319,6 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		if ( $this->is_hosted_checkout() && 'yes' === $this->mpgs_plugin->get_gateway_setting( 'display_logo' ) && ! empty( $this->icon ) ) {
 			$payload['interaction']['merchant']['logo'] = str_replace( 'http:', 'https:', $this->icon );
-		}
-
-		if ( $this->saved_cards ) {
-			$payload['interaction']['saveCardForCredentialOnFile'] = 'PAYER_INITIATED_PAYMENTS';
 		}
 
 		$payload = $this->maybe_add_customer_data( $payload, $order );
