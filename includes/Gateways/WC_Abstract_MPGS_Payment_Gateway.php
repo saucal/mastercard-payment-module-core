@@ -545,7 +545,10 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 				break;
 			case 'AUTHORIZED':
 				$order->set_transaction_id( $order_data['id'] );
-				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), $transaction['id'] );
+				$authorize_transaction = $this->get_authorize_transaction( $order_data['transaction'] ?? array() );
+				if ( ! empty( $authorize_transaction['id'] ) ) {
+					$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), $authorize_transaction['id'] );
+				}
 				$new_order_status     = 'on-hold';
 				$new_order_status_msg = __( 'Payment authorized, waiting for capture.', $this->mpgs_plugin->text_domain() );
 				$new_order_note_msg   = sprintf(
@@ -644,6 +647,36 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 			}
 
 			if ( in_array( $transaction['transaction']['type'], array( 'PAYMENT', 'CAPTURE', 'AUTHORIZATION' ), true ) ) {
+				return $transaction['transaction'];
+			}
+		}
+
+		return array();
+	}
+
+
+	/**
+	 * Get approved transaction.
+	 *
+	 * @param array $transaction_data Transaction data.
+	 *
+	 * @return array
+	 */
+	protected function get_authorize_transaction( $transaction_data ) {
+		if ( empty( $transaction_data ) || ! is_array( $transaction_data ) ) {
+			return array();
+		}
+
+		foreach ( $transaction_data as $transaction ) {
+			if ( empty( $transaction['result'] ) || 'SUCCESS' !== $transaction['result'] ) {
+				continue;
+			}
+
+			if ( empty( $transaction['transaction']['type'] ) ) {
+				continue;
+			}
+
+			if ( 'AUTHORIZATION' === $transaction['transaction']['type'] ) {
 				return $transaction['transaction'];
 			}
 		}
@@ -1225,10 +1258,10 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 			return;
 		}
 
-		$order_data  = $body['order'] ?? array();
+		$order_data  = $this->retrieve_order( $order );
 		$transaction = $body['transaction'] ?? array();
 
-		if ( empty( $order_data ) || empty( $transaction ) ) {
+		if ( empty( $order_data['body'] ) || empty( $transaction ) ) {
 			return;
 		}
 
@@ -1293,7 +1326,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 		}
 
 		if ( $should_process_order ) {
-			$this->process_wc_order( $order, $order_data, $transaction, $order_note_msg, $order_status_msg );
+			$this->process_wc_order( $order, $order_data['body'], $transaction, $order_note_msg, $order_status_msg );
 		}
 	}
 

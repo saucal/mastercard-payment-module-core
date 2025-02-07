@@ -644,7 +644,14 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			throw new Exception( __( 'There was an error obtaining the order data.', $this->mpgs_plugin->text_domain() ) );
 		}
 
-		$this->process_wc_order( $order, $response['body']['order'], $response['body']['transaction'] );
+		$order_data = $this->mpgs_api()->retrieve_order( $unique_order_id );
+		if ( ! empty( $order_data['body'] ) ) {
+			$order_data = $order_data['body'];
+		} else {
+			$order_data = $response['body']['order'];
+		}
+
+		$this->process_wc_order( $order, $order_data, $response['body']['transaction'] );
 
 		$this->maybe_clean_hosted_cached_session( $this->get_hosted_session_data_hash() );
 
@@ -708,7 +715,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 */
 	public function get_3ds_authentication( $order, $session, $unique_order_id, $processing_3ds_callback ) {
 		if ( $processing_3ds_callback ) {
-			$transaction_id = $order->get_meta( $this->prefix_hook( '3ds_transaction_id' ) );
+			$transaction_id = $order->get_meta( $this->prefix_hook( 'authentication_transaction' ) );
 
 			if ( empty( $transaction_id ) || ! $this->validate_authentication( $unique_order_id, $transaction_id ) ) {
 				throw new Exception( __( 'There was an error with the payment authentication. Please try again.', $this->mpgs_plugin->text_domain() ) );
@@ -717,15 +724,13 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			return $transaction_id;
 		}
 
-		$transaction_id = $this->unique_transaction_id( $order );
-
-		$processed_3ds = $this->process_3ds_authentication( $order, $session, $unique_order_id, $transaction_id );
+		$processed_3ds = $this->process_3ds_authentication( $order, $session, $unique_order_id );
 
 		if ( is_array( $processed_3ds ) ) {
 			return $processed_3ds;
 		}
 
-		return $processed_3ds ? $transaction_id : '';
+		return $processed_3ds ? $order->get_meta( $this->prefix_hook( 'authentication_transaction' ) ) : '';
 	}
 
 
@@ -735,25 +740,35 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @param WC_Order $order          Order object.
 	 * @param array    $session        Session data (ID and version).
 	 * @param int      $order_id       Order ID.
-	 * @param string   $transaction_id Transaction ID.
 	 *
 	 * @return bool
 	 * @throws Exception Exception.
 	 */
-	protected function process_3ds_authentication( $order, $session, $order_id, $transaction_id ) {
+	protected function process_3ds_authentication( $order, $session, $order_id ) {
 
-		$init_authentication = array(
-			'apiOperation'   => 'INITIATE_AUTHENTICATION',
-			'authentication' => array(
-				'channel' => 'PAYER_BROWSER',
-			),
-			'order'          => array(
-				'currency' => $order->get_currency(),
-			),
-			'session'        => $session,
-		);
+		$transaction_id = $order->get_meta( $this->prefix_hook( 'authentication_transaction' ) );
 
-		$response = $this->mpgs_api()->init_authentication( $order_id, $transaction_id, $init_authentication );
+		if ( empty( $transaction_id ) ) {
+			$transaction_id = $this->unique_transaction_id( $order );
+
+			$init_authentication = array(
+				'apiOperation'   => 'INITIATE_AUTHENTICATION',
+				'authentication' => array(
+					'channel' => 'PAYER_BROWSER',
+				),
+				'order'          => array(
+					'currency' => $order->get_currency(),
+				),
+				'session'        => $session,
+			);
+
+			$response = $this->mpgs_api()->init_authentication( $order_id, $transaction_id, $init_authentication );
+
+			$order->update_meta_data( $this->prefix_hook( 'authentication_transaction' ), $transaction_id );
+			$order->save_meta_data();
+		} else {
+			$response = $this->mpgs_api()->retrieve_transaction( $order_id, $transaction_id );
+		}
 
 		if ( ! $this->validate_authentication_response( $response ) ) {
 			return false;
@@ -904,7 +919,6 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		// Send the ACS form to the client.
 		$order->update_meta_data( $this->prefix_hook( 'payment_session' ), $session );
-		$order->update_meta_data( $this->prefix_hook( '3ds_transaction_id' ), $transaction_id );
 		$order->save();
 
 		return array(
@@ -1783,7 +1797,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 			$signature = wc_clean( wp_unslash( $_REQUEST['signature'] ) ) ?? '';
 
-			if ( ! $signature || ! hash_equals( $signature, $this->hashed_signature( $order, $order->get_meta( $this->prefix_hook( '3ds_transaction_id' ) ) ) ) ) {
+			if ( ! $signature || ! hash_equals( $signature, $this->hashed_signature( $order, $order->get_meta( $this->prefix_hook( 'authentication_transaction' ) ) ) ) ) {
 				throw new Exception( __( 'There was an error validating the authentication request.', $this->mpgs_plugin->text_domain() ) );
 			}
 
