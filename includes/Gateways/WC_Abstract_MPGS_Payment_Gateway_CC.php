@@ -1092,6 +1092,19 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 				throw new Exception( __( 'There was an error obtaining the payment details.', $this->mpgs_plugin->text_domain() ) );
 			}
 
+			$session_data = $this->retrieve_payment_session( $session['id'] );
+
+			// Forcefully validate CVC value.
+			if (
+				! empty( $session_data['sourceOfFunds']['provided']['card'] ) &&
+				empty( $session_data['sourceOfFunds']['provided']['card']['securityCode'] )
+			) {
+				wc_add_notice( __( 'Security code is missing.', $this->mpgs_plugin->text_domain() ), 'error' );
+				return array(
+					'result' => 'invalid_data',
+				);
+			}
+
 			$token_id = $this->payment_token()->process_saved_cards( $session['id'], get_current_user_id() );
 
 			if ( ! $token_id ) {
