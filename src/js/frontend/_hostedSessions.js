@@ -315,6 +315,13 @@ const hostedSessions = {
 			! response.session.version
 		) {
 			error = mpgs_gateway_params.hostedSessionErrors.default;
+		} else if (
+			response?.sourceOfFunds?.provided?.card &&
+			! response.sourceOfFunds.provided.card.securityCode
+		) {
+			error =
+				mpgs_gateway_params.hostedSessionErrors.fields_in_error
+					.securityCode;
 		}
 
 		if ( error ) {
