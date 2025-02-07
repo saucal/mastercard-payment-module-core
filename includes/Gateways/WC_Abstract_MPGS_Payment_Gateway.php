@@ -544,6 +544,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 				$order->payment_complete( $order_data['id'] );
 				break;
 			case 'AUTHORIZED':
+				$order->set_transaction_id( $order_data['id'] );
 				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), $transaction['id'] );
 				$new_order_status     = 'on-hold';
 				$new_order_status_msg = __( 'Payment authorized, waiting for capture.', $this->mpgs_plugin->text_domain() );
