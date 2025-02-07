@@ -509,6 +509,8 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			$this->mpgs_plugin->logger()->log( $e->getMessage(), 'error' );
 			wc_add_notice( $e->getMessage(), 'error' );
 
+			$this->maybe_clean_hosted_cached_session( $this->get_hosted_session_data_hash() );
+
 			do_action( $this->prefix_hook( 'process_payment_error' ), $e, ! empty( $order ) ? $order : null );
 
 			return array(
@@ -1801,6 +1803,8 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 			$redirect_url = ( is_checkout_pay_page() && $order ) ? $order->get_checkout_payment_url() : wc_get_checkout_url();
 			wp_safe_redirect( $redirect_url );
 
+			$this->maybe_clean_hosted_cached_session( $this->get_hosted_session_data_hash() );
+
 			exit();
 		}
 	}
@@ -1896,7 +1900,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @return array
 	 */
 	public function hide_saved_token_hosted_checkout( $tokens ) {
-		if ( $this->display_saved_card_methods() ) {
+		if ( $this->saved_cards && ! $this->is_hosted_checkout() ) {
 			return $tokens;
 		}
 
