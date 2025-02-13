@@ -13,7 +13,18 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( empty( $gateway ) || empty( $session_id ) || empty( $session_attempt ) ) {
+if ( empty( $gateway ) ) {
+	return;
+}
+
+if ( isset( $threeds_data ) && ! empty( $threeds_data ) ) {
+	?>
+	<div id="<?php echo esc_attr( $gateway->id ); ?>_3ds_form" style="display: none;" data-3ds-data="<?php echo esc_attr( wp_json_encode( $threeds_data ) ); ?>"></div>
+	<?php
+	return;
+}
+
+if ( empty( $session_id ) || empty( $session_attempt ) ) {
 	return;
 }
 

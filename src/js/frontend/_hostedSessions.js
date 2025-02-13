@@ -40,6 +40,22 @@ const hostedSessions = {
 	},
 
 	initElements() {
+		const threeDsForm = jQuery(
+			`#${ hostedSessions.pluginPrefix }_3ds_form`
+		);
+
+		if ( threeDsForm.length ) {
+			const data = threeDsForm.data( '3ds-data' );
+
+			if ( Object.keys( data ).length && data.action ) {
+				hostedSessions.process3DsAuthenticationRedirect(
+					data.action,
+					data
+				);
+				return;
+			}
+		}
+
 		hostedSessions.sessionId = jQuery(
 			`#${ mpgs_gateway_params.prefix }_session_id`
 		).val();
