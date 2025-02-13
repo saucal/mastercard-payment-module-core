@@ -429,15 +429,16 @@ const hostedSessions = {
 	},
 
 	maybeResetPaymentSession( fieldResults ) {
-		if (
-			! fieldResults ||
-			! fieldResults.errorReason ||
-			fieldResults.errorReason !== 'SESSION_AUTHENTICATION_LIMIT_EXCEEDED'
-		) {
-			return;
-		}
+		const invalidSessionCodes = [
+			'SESSION_AUTHENTICATION_LIMIT_EXCEEDED',
+			'SYSTEM_ERROR',
+			'NOT_AUTHORIZED',
+			'TIMEOUT',
+		];
 
-		hostedSessions.resetPaymentSession();
+		if ( invalidSessionCodes.includes( fieldResults?.errorReason ) ) {
+			hostedSessions.resetPaymentSession();
+		}
 	},
 
 	resetPaymentSession() {
