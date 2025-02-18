@@ -1258,6 +1258,8 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 			do_action( $this->prefix_hook( 'add_payment_method_success', 'wc_' ), $token_id, $this );
 
+			$this->maybe_clean_hosted_cached_session();
+
 			return array(
 				'result'   => 'success',
 				'redirect' => wc_get_endpoint_url( 'payment-methods' ),
