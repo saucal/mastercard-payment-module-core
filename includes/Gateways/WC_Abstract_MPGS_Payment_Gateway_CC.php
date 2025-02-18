@@ -165,6 +165,9 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		add_filter( $this->prefix_hook( 'enqueue_scripts' ), array( $this, 'enqueue_scripts' ), 20 );
 		add_filter( 'script_loader_tag', array( $this, 'maybe_add_callbacks_attr' ), 10, 3 );
+
+		// Gateway AJAX actions.
+		add_action( 'wc_ajax_' . $this->prefix_hook( 'reset_hosted_session' ), array( $this, 'ajax_clean_hosted_cached_session' ) );
 	}
 
 
@@ -2064,5 +2067,18 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 */
 	public function set_cookie_on_current_request( $cookie ) {
 		$_COOKIE[ LOGGED_IN_COOKIE ] = $cookie;
+	}
+
+
+	/**
+	 * Maybe clean hosted cached session.
+	 *
+	 * @return void
+	 */
+	public function ajax_clean_hosted_cached_session() {
+		$this->maybe_clean_hosted_cached_session();
+		wp_send_json(
+			$this->hosted_session_id()
+		);
 	}
 }

@@ -460,11 +460,15 @@ const hostedSessions = {
 					),
 					method: 'POST',
 				} )
-				.done( function () {
-					hostedSessions.sessionId = '';
+				.done( function ( res ) {
+					hostedSessions.sessionId = res;
+					jQuery( `#${ mpgs_gateway_params.prefix }_session_id` ).val(
+						res
+					);
 					hostedSessions.submitError(
 						mpgs_gateway_params.hostedSessionErrors.session_expired
 					);
+					hostedSessions.initHostedSession();
 				} )
 				.always( function () {
 					hostedSessions.unblockFieldset();
