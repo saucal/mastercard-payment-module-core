@@ -19,6 +19,7 @@ use MPGSCore\MpgsAPI;
 use MPGSCore\MpgsPlugin;
 use MPGSCore\PaymentToken;
 use MPGSCore\Utils;
+use WC_HTTPS;
 use WC_Payment_Gateway_CC;
 
 /**
@@ -65,6 +66,30 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * @var string
 	 */
 	protected $block_compat_class;
+
+
+	/**
+	 * Debounce key.
+	 *
+	 * @var string
+	 */
+	protected $debounce_key;
+
+
+	/**
+	 * Transaction debounce key.
+	 *
+	 * @var string
+	 */
+	protected $debounce_key_transaction;
+
+
+	/**
+	 * Transaction ID of the currently processed refund.
+	 *
+	 * @var string
+	 */
+	protected $refund_transaction_id;
 
 
 	/**
@@ -170,6 +195,18 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 
 	/**
+	 * Return the gateway's icon.
+	 *
+	 * @return string
+	 */
+	public function get_icon() {
+		$icon = $this->icon ? '<img src="' . esc_url( WC_HTTPS::force_https_url( $this->icon ) ) . '" class="mpgs-icon ' . $this->id . '-icon" alt="' . esc_attr( $this->get_title() ) . '" />' : '';
+
+		return apply_filters( 'woocommerce_gateway_icon', $icon, $this->id );
+	}
+
+
+	/**
 	 * Get the Payment Token instance.
 	 *
 	 * @return PaymentToken
@@ -200,7 +237,6 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 				array(
 					'wc-api'   => $this->prefix_hook( 'wc-webhook' ),
 					'order-id' => $order->get_id(),
-					'nonce'    => wp_create_nonce( $this->prefix_hook( 'webhook-nonce' ) ),
 				),
 				trailingslashit( get_home_url() )
 			),
@@ -453,15 +489,17 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 	/**
 	 * This function processes a WooCommerce order.
 	 *
-	 * @param object $order       The WooCommerce order object.
-	 * @param array  $order_data  Order data retrieved from the API.
-	 * @param array  $transaction Transaction data retrieved from the API.
+	 * @param object $order            The WooCommerce order object.
+	 * @param array  $order_data       Order data retrieved from the API.
+	 * @param array  $transaction      Transaction data retrieved from the API.
+	 * @param string $order_note_msg   Order note message.
+	 * @param string $order_status_msg Order status message.
 	 *
 	 * @return void
 	 *
 	 * @throws Exception Exception.
 	 */
-	protected function process_wc_order( $order, $order_data, $transaction ) {
+	protected function process_wc_order( $order, $order_data, $transaction, $order_note_msg = '', $order_status_msg = '' ) {
 
 		if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
 			throw new Exception( __( 'The order object is not valid.', $this->mpgs_plugin->text_domain() ) );
@@ -475,60 +513,82 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 			throw new Exception( __( 'The transaction data is not valid.', $this->mpgs_plugin->text_domain() ) );
 		}
 
+		if ( $this->is_transaction_processed( $order, $transaction['id'] ) ) {
+			return;
+		}
+
 		$order->update_meta_data( $this->prefix_hook( 'order_captured' ), 'CAPTURED' === $order_data['status'] );
 		$order->update_meta_data( $this->prefix_hook( 'order_id' ), $order_data['id'] );
-		$order->update_meta_data( $this->prefix_hook( 'transaction_id' ), $transaction['id'] );
 
 		$order->set_payment_method( $this->id );
-		$order->save();
+		$order->set_payment_method_title( $this->title );
+
+		// Add this transaction to the processed transactions.
+		$this->flag_transaction_as_processed( $order, $transaction['id'] );
+
+		$new_order_status     = false;
+		$new_order_status_msg = '';
+		$new_order_note_msg   = '';
 
 		switch ( $order_data['status'] ) {
 			case 'CAPTURED':
-				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), null );
-				$order->payment_complete( $order_data['id'] );
 				$order->add_order_note(
 					sprintf(
-						// translators: %1$s: Gateway title, %2$s: Transaction ID.
-						__( '%1$s payment was Captured (Order ID: %2$s, Transaction ID: %2$s)', $this->mpgs_plugin->text_domain() ),
+						// translators: %1$s: Gateway title, %2$s: Order ID.
+						__( '%1$s payment was Captured (Order ID: %2$s)', $this->mpgs_plugin->text_domain() ),
 						$this->title,
 						$order_data['id'],
-						$transaction['id'],
 					)
 				);
+				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), null );
+				$order->payment_complete( $order_data['id'] );
 				break;
 			case 'AUTHORIZED':
-				$order->add_order_note(
-					sprintf(
-						// translators: %1$s: Gateway title, %2$s: Transaction ID.
-						__( '%1$s payment was Authorized (Order ID: %2$s, Transaction ID: %2$s)', $this->mpgs_plugin->text_domain() ),
-						$this->title,
-						$order_data['id'],
-						$transaction['id'],
-					)
+				$order->set_transaction_id( $order_data['id'] );
+				$authorize_transaction = $this->get_authorize_transaction( $order_data['transaction'] ?? array() );
+				if ( ! empty( $authorize_transaction['id'] ) ) {
+					$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), $authorize_transaction['id'] );
+				}
+				$new_order_status     = 'on-hold';
+				$new_order_status_msg = __( 'Payment authorized, waiting for capture.', $this->mpgs_plugin->text_domain() );
+				$new_order_note_msg   = sprintf(
+					// translators: %1$s: Gateway title, %2$s: Order ID.
+					__( '%1$s payment was Authorized (Order ID: %2$s)', $this->mpgs_plugin->text_domain() ),
+					$this->title,
+					$order_data['id'],
 				);
-				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), $transaction['id'] );
-				$order->update_status( 'on-hold', __( 'Payment authorized, waiting for capture.', $this->mpgs_plugin->text_domain() ) );
 				break;
 			case 'PARTIALLY_CAPTURED':
-				$order->add_order_note(
-					sprintf(
-						// translators: %1$s: Gateway title, %2$s: Transaction ID.
-						__( '%1$s payment was Partially Captured (Transaction ID: %2$s). Captured Amount: %3$s', $this->mpgs_plugin->text_domain() ),
-						$this->title,
-						$transaction['id'],
-						wc_price( $transaction['amount'], array( 'currency' => $transaction['currency'] ) )
-					)
-				);
 				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), null );
-				$order->update_status( 'on-hold', __( 'Payment partially captured, waiting for full capture.', $this->mpgs_plugin->text_domain() ) );
+				$new_order_status     = 'on-hold';
+				$new_order_status_msg = __( 'Payment partially captured, waiting for full capture.', $this->mpgs_plugin->text_domain() );
+				$new_order_note_msg   = sprintf(
+					// translators: %1$s: Gateway title, %2$s: Captured amount.
+					__( '%1$s payment was Partially Captured. Captured Amount: %2$s', $this->mpgs_plugin->text_domain() ),
+					$this->title,
+					wc_price( $transaction['amount'], array( 'currency' => $transaction['currency'] ) )
+				);
 				break;
 			case 'CANCELLED':
 				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), null );
-				$order->update_status( 'cancelled', __( 'Authorization was cancelled successfully.', $this->mpgs_plugin->text_domain() ) );
+				$new_order_status     = 'cancelled';
+				$new_order_status_msg = __( 'Authorization was cancelled successfully.', $this->mpgs_plugin->text_domain() );
 				break;
 			case 'DECLINED':
 				$this->handle_failed_payment( new WP_Error( 'payment_declined', $this->get_mapped_error_code( $order_data['error']['cause'] ?? 'error' ) ), $order );
 		}
+
+		if ( ! empty( $order_note_msg ) ) {
+			$order->add_order_note( $order_note_msg );
+		} elseif ( ! empty( $new_order_note_msg ) ) {
+			$order->add_order_note( $new_order_note_msg );
+		}
+
+		if ( empty( $new_order_status ) || $order->get_status() === $new_order_status ) {
+			return;
+		}
+
+		$order->update_status( $new_order_status, ! empty( $order_status_msg ) ? $order_status_msg : $new_order_status_msg );
 	}
 
 
@@ -596,6 +656,77 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 
 	/**
+	 * Get approved transaction.
+	 *
+	 * @param array $transaction_data Transaction data.
+	 *
+	 * @return array
+	 */
+	protected function get_authorize_transaction( $transaction_data ) {
+		if ( empty( $transaction_data ) || ! is_array( $transaction_data ) ) {
+			return array();
+		}
+
+		foreach ( $transaction_data as $transaction ) {
+			if ( empty( $transaction['result'] ) || 'SUCCESS' !== $transaction['result'] ) {
+				continue;
+			}
+
+			if ( empty( $transaction['transaction']['type'] ) ) {
+				continue;
+			}
+
+			if ( 'AUTHORIZATION' === $transaction['transaction']['type'] ) {
+				return $transaction['transaction'];
+			}
+		}
+
+		return array();
+	}
+
+
+	/**
+	 * Check if certain transaction was already processed.
+	 *
+	 * @param WC_Order $order          Order object.
+	 * @param string   $transaction_id Transaction ID.
+	 *
+	 * @return bool
+	 */
+	protected function is_transaction_processed( $order, $transaction_id ) {
+		$processed_transactions = $order->get_meta( $this->prefix_hook( 'processed_transactions' ) );
+
+		if ( ! $processed_transactions ) {
+			return false;
+		}
+
+		return in_array( $transaction_id, $processed_transactions, true );
+	}
+
+
+	/**
+	 * Flag transaction as processed.
+	 *
+	 * @param WC_Order $order          Order object.
+	 * @param string   $transaction_id Transaction ID.
+	 *
+	 * @return void
+	 */
+	protected function flag_transaction_as_processed( $order, $transaction_id ) {
+		$processed_transactions = $order->get_meta( $this->prefix_hook( 'processed_transactions' ) );
+
+		if ( ! $processed_transactions ) {
+			$processed_transactions = array();
+		}
+
+		$processed_transactions[] = $transaction_id;
+
+		$order->update_meta_data( $this->prefix_hook( 'processed_transactions' ), $processed_transactions );
+		$order->save();
+	}
+
+
+	/**
 	 * Process capture payment action.
 	 *
 	 * @param WC_Order $order       Order object.
@@ -617,7 +748,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 			$unique_order_id = $order->get_meta( $this->prefix_hook( 'order_id' ) );
 
-			if ( ! $unique_order_id || ! $order->get_meta( $this->prefix_hook( 'transaction_id' ) ) ) {
+			if ( ! $unique_order_id ) {
 				throw new Exception( __( 'The order data is missing or invalid.', $this->mpgs_plugin->text_domain() ) );
 			}
 
@@ -719,13 +850,17 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 			$note = sprintf(
 				// translators: %1$s: Currency of refund, %2$s: Refund amount, %2$s: Refund reason.
-				__( 'Refund of %1$s %2$s processed. Reason: %3$s', $this->mpgs_plugin->text_domain() ),
-				$currency,
-				$amount,
-				$reason
+				__( 'Refund of %1$s processed. %2$s', $this->mpgs_plugin->text_domain() ),
+				wc_price( $amount, array( 'currency' => $currency ) ),
+				$reason ? __( 'Reason: ', $this->mpgs_plugin->text_domain() ) . $reason : '',
 			);
-
 			$order->add_order_note( $note );
+
+			$this->flag_transaction_as_processed( $order, $transaction_id );
+
+			// Add the transaction ID to the refund meta.
+			$this->refund_transaction_id = $transaction_id;
+			add_action( 'woocommerce_order_refunded', array( $this, 'add_refund_meta' ), 10, 2 );
 
 			do_action( $this->prefix_hook( 'process_refund_success' ), $order, $currency, $amount, $reason );
 
@@ -744,6 +879,134 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 				)
 			);
 		}
+	}
+
+
+	/**
+	 * Add refund meta.
+	 *
+	 * @param int $order_id Order ID.
+	 * @param int $refund_id Refund ID.
+	 *
+	 * @return void
+	 */
+	public function add_refund_meta( $order_id, $refund_id ) {
+		if ( ! $this->refund_transaction_id ) {
+			return;
+		}
+
+		$refund = wc_get_order( $refund_id );
+
+		if ( ! $refund ) {
+			return;
+		}
+
+		$refund->update_meta_data( $this->prefix_hook( 'transaction_id' ), $this->refund_transaction_id );
+		$refund->save();
+	}
+
+
+	/**
+	 * Create a refund for an order when receiving a webhook notification.
+	 *
+	 * @param WC_Order $order       Order object.
+	 * @param array    $transaction Transaction data.
+	 *
+	 * @return void
+	 */
+	protected function refund( $order, $transaction ) {
+		if ( ! $order ) {
+			return;
+		}
+
+		if ( empty( $transaction['id'] ) ) {
+			return;
+		}
+
+		$amount = $transaction['amount'] ?? 0;
+		$reason = $transaction['reason'] ?? '';
+
+		$order_note = sprintf(
+			// translators: %1$s: Refund reason, %2$s: Refund amount.
+			__( 'Refund Webhook notification received. Refund amount: %2$s.', $this->mpgs_plugin->text_domain() ),
+			$reason,
+			wc_price( $amount, array( 'currency' => $order->get_currency() ) )
+		);
+
+		if ( ! empty( $reason ) ) {
+			$order_note .= ' ' . sprintf(
+				// translators: %s: Refund reason.
+				__( 'Reason: %s', $this->mpgs_plugin->text_domain() ),
+				$reason
+			);
+		}
+
+		$order->add_order_note( $order_note );
+
+		if ( 'refunded' === $order->get_status() ) {
+			return;
+		}
+
+		$refund = wc_create_refund(
+			array(
+				'amount'   => $amount,
+				'reason'   => $reason,
+				'order_id' => $order->get_id(),
+			)
+		);
+
+		if ( is_wp_error( $refund ) ) {
+			/* translators: %1$s reason */
+			throw new Exception( sprintf( __( 'Create refund failed: %1$s.', $this->mpgs_plugin->text_domain() ), $refund->get_error_message() ) );
+		}
+
+		$refund->update_meta_data( $this->prefix_hook( 'transaction_id' ), $transaction['id'] );
+		$refund->save();
+
+		$this->flag_transaction_as_processed( $order, $transaction['id'] );
+	}
+
+
+	/**
+	 * Cancel a refund for an order when receiving a webhook notification.
+	 *
+	 * @param WC_Order $order       Order object.
+	 * @param array    $transaction Transaction data.
+	 *
+	 * @return void
+	 */
+	protected function void_refund( $order, $transaction ) {
+		if ( ! $order ) {
+			return;
+		}
+
+		if ( empty( $transaction['id'] ) || empty( $transaction['targetTransactionId'] ) ) {
+			return;
+		}
+
+		$voided_refund = null;
+
+		foreach ( $order->get_refunds() as $refund ) {
+			if ( $transaction['targetTransactionId'] === $refund->get_meta( $this->prefix_hook( 'transaction_id' ) ) ) {
+				$voided_refund = $refund;
+				break;
+			}
+		}
+
+		if ( ! $voided_refund ) {
+			throw new Exception(
+				sprintf(
+					__( 'Refund with Transaction ID (%s) not found.', $this->mpgs_plugin->text_domain() ),
+					$transaction['id']
+				)
+			);
+		}
+
+		$voided_refund->delete( true );
+
+		$order->add_order_note( sprintf( __( 'Refund was cancelled. Transaction ID: %s', $this->mpgs_plugin->text_domain() ), $transaction['id'] ) );
+
+		$this->flag_transaction_as_processed( $order, $transaction['id'] );
 	}
 
 
@@ -800,6 +1063,331 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 					$e->getMessage()
 				)
 			);
+		}
+	}
+
+
+	/**
+	 * Process chargeback payment action.
+	 *
+	 * @param WC_Order $order       Order object.
+	 * @param array    $transaction Transaction data.
+	 *
+	 * @return void
+	 */
+	public function process_chargeback( $order, $transaction ) {
+		if ( empty( $transaction['dispute'] ) ) {
+			return;
+		}
+
+		if ( empty( $transaction['dispute']['event'] ) || 'CHARGEBACK_DEBITED' !== $transaction['dispute']['event'] ) {
+			return;
+		}
+
+		$message = sprintf(
+			__( '%s payment was charged back.', $this->mpgs_plugin->text_domain() ),
+			$this->title,
+		);
+
+		if ( ! empty( $transaction['dispute']['amount'] ) && ! empty( $transaction['dispute']['currency'] ) ) {
+			$message .= ' ' . sprintf(
+				__( 'Chargeback Amount: %s', $this->mpgs_plugin->text_domain() ),
+				wc_price( $transaction['dispute']['amount'], array( 'currency' => $transaction['dispute']['currency'] ) )
+			);
+		}
+
+		if ( ! empty( $transaction['dispute']['reason'] ) ) {
+			$message .= ' ' . sprintf(
+				__( 'Reason: %s', $this->mpgs_plugin->text_domain() ),
+				$transaction['dispute']['reason']
+			);
+		}
+
+		$order->update_status(
+			'on-hold',
+			$message
+		);
+	}
+
+
+	/**
+	 * Process the return callback.
+	 *
+	 * @return void
+	 * @throws Exception Exception.
+	 */
+	public function process_notification_api_callback() {
+		$order = $this->validate_source();
+
+		if ( ! $order ) {
+			return;
+		}
+
+		try {
+			$raw_body = file_get_contents( 'php://input' );
+			$this->debounce_webhook_request( $raw_body );
+
+			$body = json_decode( $raw_body, true );
+
+			if ( empty( $body ) ) {
+				throw new Exception( __( 'The request body is empty.', $this->mpgs_plugin->text_domain() ) );
+			}
+
+			$this->mpgs_plugin->logger()->log( __( 'Webhook Notification: ', $this->mpgs_plugin->text_domain() ) . $raw_body, 'info', $this->prefix_hook( 'webhooks', '', '-' ) );
+
+			$this->handle_webhook_request( $body, $order );
+
+			status_header( 200 );
+			$this->webhook_cleanup();
+		} catch ( Exception $e ) {
+			$this->mpgs_plugin->logger()->log( $e->getMessage(), 'error' );
+			status_header( is_numeric( $e->getCode() ) ? $e->getCode() : 400 );
+			die();
+		}
+	}
+
+
+	/**
+	 * Linking transaction id order to BlueSnap.
+	 *
+	 * @param WC_Order $order
+	 *
+	 * @return string
+	 */
+	public function get_transaction_url( $order ) {
+		if ( ! $order ) {
+			return parent::get_transaction_url( $order );
+		}
+
+		$order_id = $order->get_meta( $this->prefix_hook( 'order_id' ) );
+
+		if ( ! $order_id ) {
+			$order_id = $this->unique_order_id( $order );
+		}
+
+		if ( ! $order_id ) {
+			return parent::get_transaction_url( $order );
+		}
+
+		$this->view_transaction_url = $this->merchant_portal_order_id( $order_id );
+
+		return parent::get_transaction_url( $order );
+	}
+
+
+	/**
+	 * Build the URL to point to an order in the merchant's portal.
+	 *
+	 * @param string $order_id    The order ID.
+	 * @param bool   $return_html Wether to return an HTML link or not.
+	 *
+	 * @return string
+	 */
+	public function merchant_portal_order_id( $order_id, $return_html = false ) {
+		$order_url = add_query_arg(
+			array(
+				'_authDomain' => 'ma',
+				'merchantId'  => $this->mpgs_plugin->merchant_id(),
+				'orderId'     => $order_id,
+			),
+			untrailingslashit( $this->mpgs_plugin->gateway_url() ) . '/historyV2/detail'
+		);
+
+		if ( ! $return_html ) {
+			return $order_url;
+		}
+
+		return sprintf( '<a href="%s" target="_blank">%s</a>', esc_url( $order_url ), $order_id );
+	}
+
+
+	/**
+	 * Validate incoming request against IP and User-Agent.
+	 *
+	 * @return WC_Order|false
+	 */
+	private function validate_source() {
+		if ( ( 'POST' !== $_SERVER['REQUEST_METHOD'] ) ) {
+			return false;
+		}
+
+		if ( empty( $_SERVER['HTTP_X_NOTIFICATION_SECRET'] ) ) {
+			return false;
+		}
+
+		$notification_secret = $this->get_option( 'notification_secret' );
+
+		if ( empty( $notification_secret ) || $notification_secret !== wc_clean( wp_unslash( $_SERVER['HTTP_X_NOTIFICATION_SECRET'] ) ) ) {
+			return false;
+		}
+
+		if ( ! isset( $_GET['order-id'] ) ) {
+			return false;
+		}
+
+		$order_id = absint( wp_unslash( $_GET['order-id'] ) );
+
+		if ( ! $order_id ) {
+			return false;
+		}
+
+		$order = wc_get_order( $order_id );
+
+		if ( ! $order ) {
+			return false;
+		}
+
+		return $order;
+	}
+
+
+	/**
+	 * Handle the Webhook request.
+	 *
+	 * @param array    $body  Request body.
+	 * @param WC_Order $order Order object.
+	 *
+	 * @return void
+	 */
+	protected function handle_webhook_request( $body, $order ) {
+		if ( ! $order ) {
+			return;
+		}
+
+		if ( empty( $body['result'] ) || 'SUCCESS' !== $body['result'] ) {
+			return;
+		}
+
+		$order_data  = $this->retrieve_order( $order );
+		$transaction = $body['transaction'] ?? array();
+
+		if ( empty( $order_data['body'] ) || empty( $transaction ) ) {
+			return;
+		}
+
+		$this->debounce_webhook_transaction( $transaction );
+
+		if ( empty( $transaction['id'] ) || empty( $transaction['type'] ) ) {
+			return;
+		}
+
+		if ( $this->is_transaction_processed( $order, $transaction['id'] ) ) {
+			return;
+		}
+
+		$should_process_order = true;
+		$order_note_msg       = '';
+		$order_status_msg     = '';
+
+		switch ( $transaction['type'] ) {
+			case 'REFUND':
+				$this->refund( $order, $transaction );
+				$should_process_order = false;
+				break;
+			case 'VOID_REFUND':
+				$this->void_refund( $order, $transaction );
+				$should_process_order = false;
+				break;
+			case 'CHARGEBACK':
+				$this->process_chargeback( $order, $transaction );
+				$should_process_order = false;
+				break;
+			case 'VOID_PAYMENT':
+				$order_note_msg   = sprintf(
+					__( 'Webhook Notification: Payment Transaction ID: %1$s was voided (Void Transaction ID: %2$s)', $this->mpgs_plugin->text_domain() ),
+					$transaction['targetTransactionId'] ?? '',
+					$transaction['id'] ?? '',
+				);
+				$order_status_msg = __( 'Payment was voided.', $this->mpgs_plugin->text_domain() );
+				break;
+			case 'VOID_CAPTURE':
+				$order_note_msg   = sprintf(
+					__( 'Webhook Notification: Capture Transaction ID: %1$s was voided (Void Transaction ID: %2$s)', $this->mpgs_plugin->text_domain() ),
+					$transaction['targetTransactionId'] ?? '',
+					$transaction['id'] ?? '',
+				);
+				$order_status_msg = __( 'Capture was voided.', $this->mpgs_plugin->text_domain() );
+				break;
+			case 'VOID_AUTHORIZATION':
+				$order_note_msg   = sprintf(
+					__( 'Webhook Notification: Authorization Transaction ID: %1$s was voided (Void Transaction ID: %2$s)', $this->mpgs_plugin->text_domain() ),
+					$transaction['targetTransactionId'] ?? '',
+					$transaction['id'] ?? '',
+				);
+				$order_status_msg = __( 'Authorization was voided.', $this->mpgs_plugin->text_domain() );
+				break;
+			case 'CAPTURE':
+			case 'PAYMENT':
+			case 'AUTHORIZATION':
+				break;
+			default:
+				$should_process_order = false;
+				break;
+		}
+
+		if ( $should_process_order ) {
+			$this->process_wc_order( $order, $order_data['body'], $transaction, $order_note_msg, $order_status_msg );
+		}
+	}
+
+
+	/**
+	 * Do not allow the same Webhook request to be processed concurrently.
+	 *
+	 * @param string $raw_body Raw body of the Webhook request.
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	protected function debounce_webhook_request( $raw_body ) {
+
+		$this->debounce_key = $this->prefix_hook( 'webhook_debounce_' . md5( $raw_body ) );
+
+		if ( false !== get_transient( $this->debounce_key ) ) {
+			throw new Exception( __( 'Notification Webhook repeated too soon or previous request exited abnormally.', $this->mpgs_plugin->text_domain() ) );
+		}
+
+		set_transient( $this->debounce_key, time(), MINUTE_IN_SECONDS );
+	}
+
+
+	/**
+	 * Do not allow the same Transaction to be processed concurrently.
+	 *
+	 * @param array $transaction Transaction data.
+	 *
+	 * @return void
+	 * @throws Exception
+	 */
+	protected function debounce_webhook_transaction( $transaction ) {
+
+		if ( empty( $transaction['id'] ) ) {
+			return;
+		}
+
+		$this->debounce_key_transaction = $this->prefix_hook( 'webhook_debounce_transaction_' . $transaction['id'] );
+
+		if ( false !== get_transient( $this->debounce_key_transaction ) ) {
+			throw new Exception( __( 'Notification Webhook repeated too soon or previous request exited abnormally.', $this->mpgs_plugin->text_domain() ) );
+		}
+
+		set_transient( $this->debounce_key_transaction, time(), MINUTE_IN_SECONDS );
+	}
+
+
+
+	/**
+	 * Cleanup debounce transient after Webhook was processed.
+	 *
+	 * @return void
+	 */
+	protected function webhook_cleanup() {
+		if ( $this->debounce_key ) {
+			delete_transient( $this->debounce_key );
+		}
+
+		if ( $this->debounce_key_transaction ) {
+			delete_transient( $this->debounce_key_transaction );
 		}
 	}
 }

@@ -56,7 +56,7 @@ export const CardElements = () => {
 			</div>
 			<div className="wc-block-components-text-input is-small is-active">
 				<label htmlFor={ `${ getPrefix() }-card-expiry-year` }>
-					{ __( 'Expiry (MM)', getTextDomain() ) }
+					{ __( 'Expiry (YY)', getTextDomain() ) }
 					<span className="required">*</span>
 				</label>
 				<input
@@ -74,7 +74,7 @@ export const CardElements = () => {
 			</div>
 			<div className="wc-block-components-text-input is-active">
 				<label htmlFor={ `${ getPrefix() }-card-cvc` }>
-					{ __( 'Expiry (MM)', getTextDomain() ) }
+					{ __( 'Card code', getTextDomain() ) }
 					<span className="required">*</span>
 				</label>
 				<input

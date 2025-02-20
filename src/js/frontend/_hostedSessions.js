@@ -40,6 +40,22 @@ const hostedSessions = {
 	},
 
 	initElements() {
+		const threeDsForm = jQuery(
+			`#${ hostedSessions.pluginPrefix }_3ds_form`
+		);
+
+		if ( threeDsForm.length ) {
+			const data = threeDsForm.data( '3ds-data' );
+
+			if ( Object.keys( data ).length && data.action ) {
+				hostedSessions.process3DsAuthenticationRedirect(
+					data.action,
+					data
+				);
+				return;
+			}
+		}
+
 		hostedSessions.sessionId = jQuery(
 			`#${ mpgs_gateway_params.prefix }_session_id`
 		).val();
@@ -257,9 +273,22 @@ const hostedSessions = {
 			hostedSessions.$wcForm.hasClass( 'is-processing' ) ||
 			hostedSessions.$wcForm.hasClass( 'is-processing-3ds' ) ||
 			! hostedSessions.isPaymentMethodSelected() ||
-			! hostedSessions.selectedField() ||
-			hostedSessions.isSavedToken()
+			! hostedSessions.selectedField()
 		) {
+			return;
+		}
+
+		jQuery( `#${ hostedSessions.pluginPrefix }_3ds_data` ).val(
+			hostedSessions.get3DSData()
+		);
+
+		// Handle 3DS redirect if needed.
+		hostedSessions.$wcForm.on(
+			'checkout_place_order_success',
+			hostedSessions.process3DsAuthentication
+		);
+
+		if ( hostedSessions.isSavedToken() ) {
 			return;
 		}
 
@@ -302,6 +331,13 @@ const hostedSessions = {
 			! response.session.version
 		) {
 			error = mpgs_gateway_params.hostedSessionErrors.default;
+		} else if (
+			response?.sourceOfFunds?.provided?.card &&
+			! response.sourceOfFunds.provided.card.securityCode
+		) {
+			error =
+				mpgs_gateway_params.hostedSessionErrors.fields_in_error
+					.securityCode;
 		}
 
 		if ( error ) {
@@ -315,15 +351,6 @@ const hostedSessions = {
 		);
 		jQuery( `#${ hostedSessions.pluginPrefix }_session_version` ).val(
 			response.session.version
-		);
-		jQuery( `#${ hostedSessions.pluginPrefix }_3ds_data` ).val(
-			hostedSessions.get3DSData()
-		);
-
-		// Handle 3DS redirect if needed.
-		hostedSessions.$wcForm.on(
-			'checkout_place_order_success',
-			hostedSessions.process3DsAuthentication
 		);
 
 		if ( hostedSessions.isWooBlocks() ) {
@@ -402,15 +429,16 @@ const hostedSessions = {
 	},
 
 	maybeResetPaymentSession( fieldResults ) {
-		if (
-			! fieldResults ||
-			! fieldResults.errorReason ||
-			fieldResults.errorReason !== 'SESSION_AUTHENTICATION_LIMIT_EXCEEDED'
-		) {
-			return;
-		}
+		const invalidSessionCodes = [
+			'SESSION_AUTHENTICATION_LIMIT_EXCEEDED',
+			'SYSTEM_ERROR',
+			'NOT_AUTHORIZED',
+			'TIMEOUT',
+		];
 
-		hostedSessions.resetPaymentSession();
+		if ( invalidSessionCodes.includes( fieldResults?.errorReason ) ) {
+			hostedSessions.resetPaymentSession();
+		}
 	},
 
 	resetPaymentSession() {
@@ -432,11 +460,15 @@ const hostedSessions = {
 					),
 					method: 'POST',
 				} )
-				.done( function () {
-					hostedSessions.sessionId = '';
+				.done( function ( res ) {
+					hostedSessions.sessionId = res;
+					jQuery( `#${ mpgs_gateway_params.prefix }_session_id` ).val(
+						res
+					);
 					hostedSessions.submitError(
 						mpgs_gateway_params.hostedSessionErrors.session_expired
 					);
+					hostedSessions.initHostedSession();
 				} )
 				.always( function () {
 					hostedSessions.unblockFieldset();
@@ -576,31 +608,46 @@ const hostedSessions = {
 	},
 
 	process3DsAuthentication( e, result ) {
-		if (
-			! result[ `${ hostedSessions.pluginPrefix }_3ds_url` ] ||
-			! result[ `${ hostedSessions.pluginPrefix }_3ds_data` ]
-		) {
+		if ( ! result[ `${ hostedSessions.pluginPrefix }_3ds` ] ) {
 			return true;
 		}
 
+		const data = JSON.parse(
+			result[ `${ hostedSessions.pluginPrefix }_3ds` ]
+		);
+
+		if ( ! Object.keys( data ).length ) {
+			return true;
+		}
+
+		hostedSessions.process3DsAuthenticationRedirect( data.action, data );
+
+		return true;
+	},
+
+	process3DsAuthenticationRedirect( action, data ) {
 		hostedSessions.$wcForm.addClass( 'is-processing-3ds' );
 
 		const $threeDsForm = jQuery( '<form />', {
 			id: `${ hostedSessions.pluginPrefix }-3ds-form`,
 			name: `${ hostedSessions.pluginPrefix }-3ds-form`,
 			method: 'post',
-			action: result[ `${ hostedSessions.pluginPrefix }_3ds_url` ],
+			action,
 		} );
 
 		jQuery( document.body ).append( $threeDsForm );
 
-		$threeDsForm.append(
-			jQuery( '<input />', {
-				type: 'hidden',
-				name: 'creq',
-				value: result[ `${ hostedSessions.pluginPrefix }_3ds_data` ],
-			} )
-		);
+		Object.keys( data ).forEach( ( key ) => {
+			if ( key !== 'action' ) {
+				$threeDsForm.append(
+					jQuery( '<input />', {
+						type: 'hidden',
+						name: key,
+						value: data[ key ],
+					} )
+				);
+			}
+		} );
 
 		$threeDsForm.trigger( 'submit' );
 

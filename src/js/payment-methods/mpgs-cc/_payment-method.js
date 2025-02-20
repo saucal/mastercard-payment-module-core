@@ -25,7 +25,8 @@ import { hostedCheckoutHandler } from './_hosted-checkout-handler';
  * @return React component
  */
 const MpgsCC = ( { activePaymentMethod, eventRegistration, emitResponse } ) => {
-	const { onPaymentSetup, onCheckoutSuccess } = eventRegistration;
+	const { onPaymentSetup, onCheckoutSuccess, onCheckoutFail } =
+		eventRegistration;
 
 	useEffect(
 		() => {
@@ -33,8 +34,9 @@ const MpgsCC = ( { activePaymentMethod, eventRegistration, emitResponse } ) => {
 				return hostedSessionHandler(
 					onPaymentSetup,
 					onCheckoutSuccess,
+					onCheckoutFail,
 					emitResponse.responseTypes.SUCCESS,
-					emitResponse.responseTypes.ERROR
+					emitResponse.responseTypes.ERROR,
 				);
 			}
 
@@ -47,6 +49,7 @@ const MpgsCC = ( { activePaymentMethod, eventRegistration, emitResponse } ) => {
 			activePaymentMethod,
 			onPaymentSetup,
 			onCheckoutSuccess,
+			onCheckoutFail,
 			emitResponse.responseTypes.SUCCESS,
 			emitResponse.responseTypes.ERROR,
 		]

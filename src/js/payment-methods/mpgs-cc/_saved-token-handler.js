@@ -7,6 +7,7 @@ const { useEffect } = window.wp.element;
  * Internal dependencies
  */
 import { addPrefix, getPrefix, getSessionId } from './_settings';
+import hostedSessions from '../../frontend/_hostedSessions';
 
 export const SavedTokenHandler = ( {
 	activePaymentMethod,
@@ -20,6 +21,7 @@ export const SavedTokenHandler = ( {
 				const data = {};
 				data[ addPrefix( 'session_id' ) ] = getSessionId();
 				data[ `wc-${ getPrefix() }-payment-token` ] = token;
+				data[ addPrefix( '3ds_data' ) ] = hostedSessions.get3DSData();
 
 				resolve( {
 					type: emitResponse.responseTypes.SUCCESS,
