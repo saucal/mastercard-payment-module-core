@@ -111,7 +111,7 @@ final class GatewaySettings {
 	 * @return void
 	 */
 	private function init_settings() {
-		$settings = array(
+		$this->settings = array(
 			'enabled'          => array(
 				'title'       => __( 'Enable/Disable', $this->mpgs_plugin->text_domain() ),
 				'label'       => __( 'Enable', $this->mpgs_plugin->text_domain() ),
@@ -166,7 +166,7 @@ final class GatewaySettings {
 			),
 		);
 
-		$this->settings = $this->maybe_add_advanced_settings( $settings );
+		$this->maybe_add_advanced_settings();
 	}
 
 
@@ -189,24 +189,22 @@ final class GatewaySettings {
 	/**
 	 * Add advanced settings if the credentials are valid.
 	 *
-	 * @param array $settings Settings.
-	 *
 	 * @return array
 	 */
-	private function maybe_add_advanced_settings( $settings ) {
+	private function maybe_add_advanced_settings() {
 
 		if ( ! $this->mpgs_plugin->get_validated_credentials() ) {
-			return $settings;
+			return $this->settings;
 		}
 
 		$supported_operations = self::supported_payment_operations();
 
 		if ( empty( $supported_operations ) ) {
-			return $settings;
+			return $this->settings;
 		}
 
-		return array_merge(
-			$settings,
+		$this->settings = array_merge(
+			$this->settings,
 			array(
 				'webhook'              => array(
 					'title' => __( 'Webhook notifications', $this->mpgs_plugin->text_domain() ),

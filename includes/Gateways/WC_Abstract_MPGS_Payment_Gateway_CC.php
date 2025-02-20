@@ -224,6 +224,8 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	public function validate_credentials() {
 		$merchant_id = isset( $_POST[ $this->prefix_hook( 'merchant_id', 'woocommerce_' ) ] ) ? wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'merchant_id', 'woocommerce_' ) ] ) ) : $this->get_option( 'merchant_id' ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
 		$password    = isset( $_POST[ $this->prefix_hook( 'password', 'woocommerce_' ) ] ) ? wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'password', 'woocommerce_' ) ] ) ) : $this->get_option( 'password' ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$is_sandbox  = isset( $_POST[ $this->prefix_hook( 'sandbox', 'woocommerce_' ) ] ) ? wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'sandbox', 'woocommerce_' ) ] ) ) : $this->get_option( 'sandbox' ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$region      = isset( $_POST[ $this->prefix_hook( 'region', 'woocommerce_' ) ] ) ? wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'region', 'woocommerce_' ) ] ) ) : $this->get_option( 'region' ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
 
 		if ( empty( $merchant_id ) || empty( $password ) ) {
 			WC_Admin_Settings::add_error( __( 'Merchant ID and API Key are required.', $this->mpgs_plugin->text_domain() ) );
@@ -231,6 +233,8 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 
 		$this->mpgs_plugin->update_gateway_setting( 'merchant_id', $merchant_id );
 		$this->mpgs_plugin->update_gateway_setting( 'password', $password );
+		$this->mpgs_plugin->update_gateway_setting( 'sandbox', ! empty( $is_sandbox ) ? 'yes' : 'no' );
+		$this->mpgs_plugin->update_gateway_setting( 'region', $region );
 
 		$response = $this->mpgs_api()->payment_options_inquiry();
 
