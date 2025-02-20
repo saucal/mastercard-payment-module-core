@@ -29,6 +29,14 @@ final class GatewaySettings {
 
 
 	/**
+	 * Settings array.
+	 *
+	 * @var array
+	 */
+	private $settings = array();
+
+
+	/**
 	 * Constructor.
 	 *
 	 * @param MpgsPlugin $mpgs_plugin Plugin instance.
@@ -40,14 +48,69 @@ final class GatewaySettings {
 	/**
 	 * Get the gateway settings.
 	 *
+	 * @param bool $force Force to refresh the settings.
+	 *
 	 * @return array
 	 */
-	public function get_settings() {
+	public function get_settings( $force = true ) {
 
 		if ( empty( $this->mpgs_plugin->mpgs_core() ) ) {
 			return array();
 		}
 
+		if ( empty( $this->settings ) || $force ) {
+			$this->init_settings();
+		}
+
+		return $this->settings;
+	}
+
+
+	/**
+	 * Get default setting.
+	 *
+	 * @param string $key Setting key.
+	 *
+	 * @return mixed
+	 */
+	public function get_default_setting( $key ) {
+		$settings = $this->get_settings();
+
+		if ( empty( $settings[ $key ] ) ) {
+			return '';
+		}
+
+		return $settings[ $key ]['default'] ?? '';
+	}
+
+
+	/**
+	 * Merchant details message.
+	 *
+	 * @return string
+	 */
+	public function merchant_details_message() {
+		$message = __( 'Enter your Mastercard Payment Gateway Services account details.', $this->mpgs_plugin->mpgs_core()->text_domain() );
+
+		if ( ! empty( $this->mpgs_plugin->merchant_registration_url() ) ) {
+			$message .= ' ' . sprintf(
+				/* translators: %s: Merchant registration URL */
+				__( 'Don\'t have an account? %1$sSign up here%2$s', $this->mpgs_plugin->mpgs_core()->text_domain() ),
+				'<a href="' . esc_url( $this->mpgs_plugin->merchant_registration_url() ) . '" target="_blank">',
+				'</a>'
+			);
+		}
+
+		return $message;
+	}
+
+
+	/**
+	 * Initialize the settings.
+	 *
+	 * @return void
+	 */
+	private function init_settings() {
 		$settings = array(
 			'enabled'          => array(
 				'title'       => __( 'Enable/Disable', $this->mpgs_plugin->mpgs_core()->text_domain() ),
@@ -103,28 +166,7 @@ final class GatewaySettings {
 			),
 		);
 
-		return $this->maybe_add_advanced_settings( $settings );
-	}
-
-
-	/**
-	 * Merchant details message.
-	 *
-	 * @return string
-	 */
-	public function merchant_details_message() {
-		$message = __( 'Enter your Mastercard Payment Gateway Services account details.', $this->mpgs_plugin->mpgs_core()->text_domain() );
-
-		if ( ! empty( $this->mpgs_plugin->merchant_registration_url() ) ) {
-			$message .= ' ' . sprintf(
-				/* translators: %s: Merchant registration URL */
-				__( 'Don\'t have an account? %1$sSign up here%2$s', $this->mpgs_plugin->mpgs_core()->text_domain() ),
-				'<a href="' . esc_url( $this->mpgs_plugin->merchant_registration_url() ) . '" target="_blank">',
-				'</a>'
-			);
-		}
-
-		return $message;
+		$this->settings = $this->maybe_add_advanced_settings( $settings );
 	}
 
 

@@ -194,7 +194,7 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 	 * @return void
 	 */
 	public function init_form_fields() {
-		$this->form_fields = $this->mpgs_plugin->gateway_settings()->get_settings();
+		$this->form_fields = $this->mpgs_plugin->gateway_settings()->get_settings( true );
 	}
 
 

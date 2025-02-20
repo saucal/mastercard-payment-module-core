@@ -602,7 +602,7 @@ abstract class MpgsPlugin {
 	public function get_gateway_setting( $key ) {
 		$settings = $this->get_gateway_settings();
 
-		return isset( $settings[ $key ] ) ? $settings[ $key ] : '';
+		return isset( $settings[ $key ] ) ? $settings[ $key ] : $this->gateway_settings()->get_default_setting( $key );
 	}
 
 
