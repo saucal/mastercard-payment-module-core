@@ -1,12 +1,12 @@
 {
-	"name": "saucal/mpgs-core",
-	"description": "MPGS Core Module",
+	"name": "saucal/payment-module-core",
+	"description": "Payment Module Core",
 	"homepage": "https://saucal.com/",
 	"type": "wordpress-plugin",
 	"keywords": [],
 	"license": "GPL-2.0-or-later",
 	"require": {
-		"php": ">=7.3"
+		"php": ">=8.0"
 	},
 	"require-dev": {
 		"composer/installers": "^2.3.0",
@@ -21,7 +21,7 @@
 	},
 	"config": {
 		"platform": {
-			"php": "7.3.0"
+			"php": "8.0"
 		},
 		"allow-plugins": {
 			"composer/installers": true,
