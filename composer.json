@@ -1,8 +1,9 @@
 {
 	"name": "saucal/payment-module-core",
 	"description": "Payment Module Core",
+	"version": "1.0.0",
 	"homepage": "https://saucal.com/",
-	"type": "wordpress-plugin",
+	"type": "package",
 	"keywords": [],
 	"license": "GPL-2.0-or-later",
 	"require": {
