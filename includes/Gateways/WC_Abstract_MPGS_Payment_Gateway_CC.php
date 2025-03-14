@@ -1621,8 +1621,8 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 		return apply_filters(
 			$this->prefix_hook( 'checkout_session_interaction_payload' ),
 			array(
-				'operation'      => $this->transaction_mode,
-				'returnUrl'      => add_query_arg(
+				'operation'           => $this->transaction_mode,
+				'returnUrl'           => add_query_arg(
 					array(
 						$this->prefix_hook( 'callback', '', '-' ) => 'wc',
 						'order-id' => $order->get_id(),
@@ -1630,12 +1630,13 @@ abstract class WC_Abstract_MPGS_Payment_Gateway_CC extends WC_Abstract_MPGS_Paym
 					),
 					trailingslashit( get_home_url() )
 				),
-				'cancelUrl'      => $order->get_checkout_payment_url(),
-				'timeoutUrl'     => $order->get_checkout_payment_url(),
-				'merchant'       => array(
+				'redirectMerchantUrl' => $order->get_checkout_payment_url(),
+				'cancelUrl'           => $order->get_checkout_payment_url(),
+				'timeoutUrl'          => $order->get_checkout_payment_url(),
+				'merchant'            => array(
 					'name' => $this->merchant_name,
 				),
-				'displayControl' => array(
+				'displayControl'      => array(
 					'customerEmail'  => 'HIDE',
 					'billingAddress' => 'HIDE',
 					'shipping'       => 'HIDE',
