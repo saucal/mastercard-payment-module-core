@@ -660,11 +660,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		}
 
 		if ( empty( $response['body']['transaction'] ) || empty( $response['body']['transaction']['id'] ) ) {
-			throw new Exception( __( 'There was an error obtaining the transaction.', $this->core_plugin->text_domain() ) );
+			throw new Exception( __( 'There was an error obtaining the transaction. Please try again.', $this->core_plugin->text_domain() ) );
 		}
 
 		if ( empty( $response['body']['order'] ) ) {
-			throw new Exception( __( 'There was an error obtaining the order data.', $this->core_plugin->text_domain() ) );
+			throw new Exception( __( 'There was an error obtaining the order data. Please try again.', $this->core_plugin->text_domain() ) );
 		}
 
 		$order_data = $this->api()->retrieve_order( $unique_order_id );
@@ -867,7 +867,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	protected function get_device_details() {
 		if ( ! isset( $_SERVER['HTTP_USER_AGENT'] ) || empty( $_POST[ $this->prefix_hook( '3ds_data' ) ] ) ) {
-			throw new Exception( __( 'There was an error with the payment authentication.', $this->core_plugin->text_domain() ) );
+			throw new Exception( __( 'There was an error with the payment authentication. Please try again.', $this->core_plugin->text_domain() ) );
 		}
 
 		return array(
@@ -895,7 +895,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	public function validate_authentication_response( $response ) {
 		if ( ! $response['success'] ) {
-			throw new Exception( __( 'There was an error with the payment authentication.', $this->core_plugin->text_domain() ) );
+			throw new Exception( __( 'There was an error with the payment authentication. Please try again.', $this->core_plugin->text_domain() ) );
 		}
 
 		if ( ! empty( $response['body']['authentication'] ) && ! is_array( $response['body']['authentication'] ) && 'NONE' === $response['body']['authentication'] ) {
@@ -916,7 +916,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		}
 
 		if ( empty( $response['body']['result'] ) || 'SUCCESS' !== $response['body']['result'] ) {
-			throw new Exception( __( 'There was an error with the payment authentication.', $this->core_plugin->text_domain() ) );
+			throw new Exception( __( 'There was an error with the payment authentication. Please try again.', $this->core_plugin->text_domain() ) );
 		}
 
 		return true;
@@ -936,11 +936,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	public function process_authentication_response( $response, $order, $transaction_id, $session ) {
 		if ( ! $response['success'] ) {
-			throw new Exception( __( 'There was an error with the payment authentication.', $this->core_plugin->text_domain() ) );
+			throw new Exception( __( 'There was an error with the payment authentication. Please try again.', $this->core_plugin->text_domain() ) );
 		}
 
 		if ( empty( $response['body']['result'] ) || ! in_array( $response['body']['result'], array( 'SUCCESS', 'PENDING' ), true ) ) {
-			throw new Exception( __( 'There was an error with the payment authentication.', $this->core_plugin->text_domain() ) );
+			throw new Exception( __( 'There was an error with the payment authentication. Please try again.', $this->core_plugin->text_domain() ) );
 		}
 
 		if ( 'PROCEED' !== $response['body']['response']['gatewayRecommendation'] ) {
@@ -959,7 +959,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		}
 
 		if ( 'PENDING' === $response['body']['result'] && empty( $data['action'] ) ) {
-			throw new Exception( __( 'There was an error with the payment authentication.', $this->core_plugin->text_domain() ) );
+			throw new Exception( __( 'There was an error with the payment authentication. Please try again.', $this->core_plugin->text_domain() ) );
 		}
 
 		// Send the ACS form to the client.
@@ -1237,7 +1237,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$session = $this->get_posted_session_data();
 
 			if ( empty( $session ) ) {
-				throw new Exception( __( 'There was an error obtaining the payment details.', $this->core_plugin->text_domain() ) );
+				throw new Exception( __( 'There was an error obtaining the payment details. Please try again.', $this->core_plugin->text_domain() ) );
 			}
 
 			$session_data = $this->retrieve_payment_session( $session['id'] );
@@ -1256,7 +1256,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$token_id = $this->payment_token()->process_saved_cards( $session['id'], get_current_user_id() );
 
 			if ( ! $token_id ) {
-				throw new Exception( __( 'There was an error saving the card.', $this->core_plugin->text_domain() ) );
+				throw new Exception( __( 'There was an error saving the card. Please try again.', $this->core_plugin->text_domain() ) );
 			}
 
 			do_action( $this->prefix_hook( 'add_payment_method_success', 'wc_' ), $token_id, $this );
@@ -1932,13 +1932,13 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$signature = wc_clean( wp_unslash( $_REQUEST['signature'] ) ) ?? '';
 
 			if ( ! $signature || ! hash_equals( $signature, $this->hashed_signature( $order, $order->get_meta( $this->prefix_hook( 'authentication_transaction' ) ) ) ) ) {
-				throw new Exception( __( 'There was an error validating the authentication request.', $this->core_plugin->text_domain() ) );
+				throw new Exception( __( 'There was an error validating the authentication request. Please try again.', $this->core_plugin->text_domain() ) );
 			}
 
 			$result = $this->process_payment_hosted_session( $order, true );
 
 			if ( empty( $result['result'] ) || 'success' !== $result['result'] || empty( $result['redirect'] ) ) {
-				throw new Exception( __( 'There was an error processing the payment.', $this->core_plugin->text_domain() ) );
+				throw new Exception( __( 'There was an error processing the payment. Please try again.', $this->core_plugin->text_domain() ) );
 			}
 
 			wp_safe_redirect( $result['redirect'] );

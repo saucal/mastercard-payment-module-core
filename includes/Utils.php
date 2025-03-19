@@ -403,12 +403,12 @@ final class Utils {
 					'expiryMonth'  => __( 'Expiry month invalid or missing', $this->payment_core->text_domain() ),
 					'expiryYear'   => __( 'Expiry year invalid or missing', $this->payment_core->text_domain() ),
 					'securityCode' => __( 'Security code is invalid or missing', $this->payment_core->text_domain() ),
-					'default'      => __( 'There was an error updating the payment details', $this->payment_core->text_domain() ),
+					'default'      => __( 'There was an error updating the payment details. Please try again.', $this->payment_core->text_domain() ),
 				),
 				'payment_type_required' => __( 'Payment type is required', $this->payment_core->text_domain() ),
 				'request_timeout'       => __( 'Session update failed with request timeout', $this->payment_core->text_domain() ),
 				'system_error'          => __( 'Session update failed with system error', $this->payment_core->text_domain() ),
-				'default'               => __( 'There was an error updating the payment details.', $this->payment_core->text_domain() ),
+				'default'               => __( 'There was an error updating the payment details. Please try again.', $this->payment_core->text_domain() ),
 				'session_expired'       => __( 'The Payment Session expired. Please try again.', $this->payment_core->text_domain() ),
 			)
 		);
