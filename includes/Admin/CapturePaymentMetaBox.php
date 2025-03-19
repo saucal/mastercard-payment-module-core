@@ -4,18 +4,18 @@
  *
  * @class       CapturePaymentMetaBox
  * @version     1.0.0
- * @package     MPGSCore/Classes/
+ * @package     GatewayPaymentCore/Classes/
  */
 
-namespace MPGSCore\Admin;
+namespace GatewayPaymentCore\Admin;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-use MPGSCore\Gateways\WC_Abstract_MPGS_Payment_Gateway;
-use MPGSCore\MpgsPlugin;
-use MPGSCore\Utils;
+use GatewayPaymentCore\Gateways\WC_Abstract_Payment_Gateway;
+use GatewayPaymentCore\CorePlugin;
+use GatewayPaymentCore\Utils;
 
 /**
  * Capture Payment Meta Box class
@@ -25,9 +25,9 @@ class CapturePaymentMetaBox {
 	/**
 	 * Plugin instance.
 	 *
-	 * @var MpgsPlugin
+	 * @var CorePlugin
 	 */
-	private $mpgs_plugin;
+	private $core_plugin;
 
 
 	/**
@@ -41,7 +41,7 @@ class CapturePaymentMetaBox {
 	/**
 	 * Gateway instance.
 	 *
-	 * @var WC_Abstract_MPGS_Payment_Gateway
+	 * @var WC_Abstract_Payment_Gateway
 	 */
 	private $gateway;
 
@@ -49,10 +49,10 @@ class CapturePaymentMetaBox {
 	/**
 	 * Constructor.
 	 *
-	 * @param MpgsPlugin $mpgs_plugin Plugin instance.
+	 * @param CorePlugin $core_plugin Plugin instance.
 	 */
-	public function __construct( MpgsPlugin $mpgs_plugin ) {
-		$this->mpgs_plugin = $mpgs_plugin;
+	public function __construct( CorePlugin $core_plugin ) {
+		$this->core_plugin = $core_plugin;
 
 		add_action( 'add_meta_boxes', array( $this, 'add_meta_boxes' ), 10, 2 );
 
@@ -73,23 +73,23 @@ class CapturePaymentMetaBox {
 			return;
 		}
 
-		if ( ! $this->mpgs_plugin->is_mpgs_order( $order ) ) {
+		if ( ! $this->core_plugin->is_gateway_order( $order ) ) {
 			return;
 		}
 		$this->order = $order;
 
-		$order_gateway = $this->mpgs_plugin->get_order_gateway_instance( $order );
-		if ( ! $order_gateway instanceof WC_Abstract_MPGS_Payment_Gateway || $order->get_meta( $this->mpgs_plugin->mpgs_core()->prefix_hook( 'order_captured' ) ) ) {
+		$order_gateway = $this->core_plugin->get_order_gateway_instance( $order );
+		if ( ! $order_gateway instanceof WC_Abstract_Payment_Gateway || $order->get_meta( $this->core_plugin->payment_core()->prefix_hook( 'order_captured' ) ) ) {
 			return;
 		}
 
-		if ( $this->mpgs_plugin->get_capturable_amount( $order ) <= 0 && ! $order->get_meta( $this->mpgs_plugin->mpgs_core()->prefix_hook( 'authorize_transaction' ) ) ) {
+		if ( $this->core_plugin->get_capturable_amount( $order ) <= 0 && ! $order->get_meta( $this->core_plugin->payment_core()->prefix_hook( 'authorize_transaction' ) ) ) {
 			return;
 		}
 
 		$this->gateway = $order_gateway;
 
-		add_meta_box( $this->mpgs_plugin->mpgs_core()->prefix_hook( 'order-payment-actions' ), __( 'Payment Actions', $this->mpgs_plugin->text_domain() ), array( $this, 'output' ), Utils::get_edit_order_screen_id(), 'side', 'high' );
+		add_meta_box( $this->core_plugin->payment_core()->prefix_hook( 'order-payment-actions' ), __( 'Payment Actions', $this->core_plugin->text_domain() ), array( $this, 'output' ), Utils::get_edit_order_screen_id(), 'side', 'high' );
 	}
 
 
@@ -101,13 +101,13 @@ class CapturePaymentMetaBox {
 			return;
 		}
 
-		$this->mpgs_plugin->mpgs_core()->template()->get(
+		$this->core_plugin->payment_core()->template()->get(
 			'admin/payment-actions.php',
 			array(
 				'gateway'                => $this->gateway,
 				'order'                  => $this->order,
-				'authorized_transaction' => $this->order->get_meta( $this->mpgs_plugin->mpgs_core()->prefix_hook( 'authorize_transaction' ) ),
-				'auth_amount'            => $this->mpgs_plugin->get_capturable_amount( $this->order ),
+				'authorized_transaction' => $this->order->get_meta( $this->core_plugin->payment_core()->prefix_hook( 'authorize_transaction' ) ),
+				'auth_amount'            => $this->core_plugin->get_capturable_amount( $this->order ),
 			)
 		);
 	}
@@ -124,12 +124,12 @@ class CapturePaymentMetaBox {
 		}
 
 		$order = wc_get_order( $post_id );
-		if ( ! $order instanceof \WC_Order || ! $this->mpgs_plugin->is_mpgs_order( $order ) ) {
+		if ( ! $order instanceof \WC_Order || ! $this->core_plugin->is_gateway_order( $order ) ) {
 			return;
 		}
 
-		$gateway = $this->mpgs_plugin->get_order_gateway_instance( $order );
-		if ( ! $gateway instanceof WC_Abstract_MPGS_Payment_Gateway ) {
+		$gateway = $this->core_plugin->get_order_gateway_instance( $order );
+		if ( ! $gateway instanceof WC_Abstract_Payment_Gateway ) {
 			return;
 		}
 
@@ -141,7 +141,7 @@ class CapturePaymentMetaBox {
 			return;
 		}
 
-		$auth_amount = $this->mpgs_plugin->get_capturable_amount( $order );
+		$auth_amount = $this->core_plugin->get_capturable_amount( $order );
 		if ( $auth_amount <= 0 ) {
 			return;
 		}

@@ -9,9 +9,9 @@ const { registerPaymentMethod } = wc.wcBlocksRegistry;
  * Internal dependencies
  */
 import { PAYMENT_METHOD_NAME } from './_constants';
-import { MpgsComponent, Label, canMakePayment } from '../_utils';
+import { PaymentCoreComponent, Label, canMakePayment } from '../_utils';
 import { getTextDomain, settings } from './_settings';
-import { MpgsContent, MpgsEditContent } from './_payment-method';
+import { PaymentCoreContent, PaymentCoreEditContent } from './_payment-method';
 import { SavedTokenHandler } from './_saved-token-handler';
 
 const label =
@@ -25,13 +25,13 @@ const supportsTokenization =
 const paymentMethod = {
 	name: PAYMENT_METHOD_NAME,
 	label: <Label label={ label } />,
-	content: <MpgsComponent RenderedComponent={ MpgsContent } />,
-	edit: <MpgsComponent RenderedComponent={ MpgsEditContent } />,
+	content: <PaymentCoreComponent RenderedComponent={ PaymentCoreContent } />,
+	edit: <PaymentCoreComponent RenderedComponent={ PaymentCoreEditContent } />,
 	canMakePayment: ( props ) => {
 		return canMakePayment( props, settings );
 	},
 	savedTokenComponent: (
-		<MpgsComponent
+		<PaymentCoreComponent
 			RenderedComponent={ SavedTokenHandler }
 			settings={ settings }
 		/>
@@ -44,5 +44,5 @@ const paymentMethod = {
 	},
 };
 
-// Register MPGS CC gateway.
+// Register the CC gateway.
 registerPaymentMethod( paymentMethod );

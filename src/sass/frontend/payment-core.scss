@@ -4,7 +4,7 @@
  */
 .wc_payment_method {
 
-    .mpgs-icon {
+    .payment-core-icon {
         max-width: 40px;
     }
 }
@@ -13,7 +13,7 @@
 .woocommerce-cart,
 .woocommerce-checkout {
     #payment div.payment_box {
-        .mpgs-payment-form {
+        .payment-core-payment-form {
             .wc-credit-card-form-card-number {
                 background-repeat: no-repeat !important;
                 background-position: bottom 50% right 0.5rem !important;
@@ -54,7 +54,7 @@
             }
         }
 
-        .mpgs-payment-form-elements {
+        .payment-core-payment-form-elements {
             .form-row {
                 display: inline-block;
                 padding: 0;
@@ -77,7 +77,7 @@
 }
 
 .wc-block-components-form {
-    .mpgs-payment-form-blocks {
+    .payment-core-payment-form-blocks {
         display: flex;
         flex-wrap: wrap;
         justify-content: space-between;

@@ -4,12 +4,12 @@
  *
  * @class       Gateway
  * @version     1.0.0
- * @package     MPGSCore/Classes/
+ * @package     GatewayPaymentCore/Classes/
  */
 
-namespace MPGSCore;
+namespace GatewayPaymentCore;
 
-use MPGSCore\Gateways\WC_Abstract_MPGS_Payment_Gateway;
+use GatewayPaymentCore\Gateways\WC_Abstract_Payment_Gateway;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -60,7 +60,7 @@ final class Gateway {
 	 * @return array
 	 */
 	private static function init_gateways() {
-		$gateways = apply_filters( 'mpgs_core_payment_gateways', array() );
+		$gateways = apply_filters( 'payment_core_payment_gateways', array() );
 
 		if ( empty( $gateways ) || ! is_array( $gateways ) ) {
 			return;
@@ -69,7 +69,7 @@ final class Gateway {
 		return array_filter(
 			$gateways,
 			function ( $gateway ) {
-				return $gateway instanceof WC_Abstract_MPGS_Payment_Gateway;
+				return $gateway instanceof WC_Abstract_Payment_Gateway;
 			}
 		);
 	}

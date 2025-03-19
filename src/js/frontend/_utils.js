@@ -14,8 +14,8 @@ function debounce( func, wait, immediate ) {
 	};
 }
 
-function getWcAjaxUrl( method, prefix = mpgs_gateway_params.prefix ) {
-	return mpgs_gateway_params.wcAjaxUrl
+function getWcAjaxUrl( method, prefix = core_gateway_params.prefix ) {
+	return core_gateway_params.wcAjaxUrl
 		.toString()
 		.replace( '%%endpoint%%', `${ prefix }_${ method }` );
 }

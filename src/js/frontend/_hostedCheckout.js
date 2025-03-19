@@ -3,10 +3,10 @@ const hostedCheckout = {
 	isEmbedded: false,
 
 	init() {
-		if ( ! mpgs_gateway_params || ! mpgs_gateway_params.prefix ) {
+		if ( ! core_gateway_params || ! core_gateway_params.prefix ) {
 			return;
 		}
-		hostedCheckout.pluginPrefix = mpgs_gateway_params.prefix;
+		hostedCheckout.pluginPrefix = core_gateway_params.prefix;
 
 		const $hostedCheckoutContainer = jQuery(
 			`#${ this.pluginPrefix }-hosted-checkout-container`
@@ -63,11 +63,11 @@ const hostedCheckout = {
 
 	initErrorCallbacks() {
 		jQuery( document ).on(
-			`${ mpgs_gateway_params.prefix }_error_callback`,
+			`${ core_gateway_params.prefix }_error_callback`,
 			this.handleError
 		);
 		jQuery( document ).on(
-			`${ mpgs_gateway_params.prefix }_cancel_callback`,
+			`${ core_gateway_params.prefix }_cancel_callback`,
 			this.handleCancel
 		);
 	},
@@ -174,11 +174,11 @@ const hostedCheckout = {
 
 	handleCancel( error ) {
 		console.error( error );
-		if ( ! mpgs_gateway_params.orderCancelUrl ) {
+		if ( ! core_gateway_params.orderCancelUrl ) {
 			return;
 		}
 
-		window.location.href = mpgs_gateway_params.orderCancelUrl;
+		window.location.href = core_gateway_params.orderCancelUrl;
 	},
 };
 

@@ -1,6 +1,6 @@
 const Settings = {
 	init() {
-		const prefix = mpgs_gateway_admin_params?.prefix;
+		const prefix = core_gateway_admin_params?.prefix;
 
 		jQuery( '.conditional-hide' ).each( function () {
 			const $el = jQuery( this );

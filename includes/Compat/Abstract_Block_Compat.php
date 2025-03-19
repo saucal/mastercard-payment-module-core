@@ -4,18 +4,18 @@
  *
  * @class       AbstractPaymentGateway
  * @version     1.0.0
- * @package     MPGSCore/Compat/
+ * @package     GatewayPaymentCore/Compat/
  */
 
-namespace MPGSCore\Compat;
+namespace GatewayPaymentCore\Compat;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
 use Automattic\WooCommerce\Blocks\Payments\Integrations\AbstractPaymentMethodType;
-use MPGSCore\MpgsPlugin;
-use MPGSCore\Utils;
+use GatewayPaymentCore\CorePlugin;
+use GatewayPaymentCore\Utils;
 
 /**
  * WooCommerce Blocks compatibility Abstract.
@@ -23,11 +23,11 @@ use MPGSCore\Utils;
 abstract class Abstract_Block_Compat extends AbstractPaymentMethodType {
 
 	/**
-	 * MPGS Plugin instance.
+	 * Core Plugin instance.
 	 *
-	 * @var MpgsPlugin
+	 * @var CorePlugin
 	 */
-	protected $mpgs_plugin;
+	protected $core_plugin;
 
 
 	/**
@@ -47,13 +47,13 @@ abstract class Abstract_Block_Compat extends AbstractPaymentMethodType {
 
 
 	/**
-	 * Init MPGS method.
+	 * Init method.
 	 *
-	 * @param MpgsPlugin $mpgs_plugin MPGS Plugin instance.
+	 * @param CorePlugin $core_plugin Core Plugin instance.
 	 * @param string     $gateway_id  The gateway ID.
 	 */
-	public function init_mpgs( MpgsPlugin $mpgs_plugin, string $gateway_id ) {
-		$this->mpgs_plugin = $mpgs_plugin;
+	public function init_core( CorePlugin $core_plugin, string $gateway_id ) {
+		$this->core_plugin = $core_plugin;
 		$this->name        = $gateway_id;
 		$this->gateway_id  = $gateway_id;
 	}
@@ -66,7 +66,7 @@ abstract class Abstract_Block_Compat extends AbstractPaymentMethodType {
 	 * @return void
 	 */
 	public function initialize() {
-		$this->settings = $this->mpgs_plugin->get_gateway_settings();
+		$this->settings = $this->core_plugin->get_gateway_settings();
 	}
 
 
@@ -78,7 +78,7 @@ abstract class Abstract_Block_Compat extends AbstractPaymentMethodType {
 	 * @return boolean
 	 */
 	public function is_active() {
-		return $this->name && $this->mpgs_plugin->is_enabled();
+		return $this->name && $this->core_plugin->is_enabled();
 	}
 
 	/**
@@ -116,7 +116,7 @@ abstract class Abstract_Block_Compat extends AbstractPaymentMethodType {
 		return array(
 			'title'       => $this->settings['title'],
 			'description' => $this->settings['description'],
-			'textDomain'  => $this->mpgs_plugin->text_domain(),
+			'textDomain'  => $this->core_plugin->text_domain(),
 			'supports'    => $this->get_supported_features(),
 		);
 	}
@@ -136,26 +136,26 @@ abstract class Abstract_Block_Compat extends AbstractPaymentMethodType {
 		}
 
 		$script_handle = 'wc_' . $this->name . '_block_compat';
-		$asset_data    = $this->mpgs_plugin->mpgs_core()->utils()->core_package_path() . '/assets/js/payment-methods/' . $this->assets_folder . '/index.asset.php';
+		$asset_data    = $this->core_plugin->payment_core()->utils()->core_package_path() . '/assets/js/payment-methods/' . $this->assets_folder . '/index.asset.php';
 		$script_data   = file_exists( $asset_data ) ? include $asset_data : array(
 			'dependencies' => array(),
-			'version'      => $this->mpgs_plugin->mpgs_core()->version(),
+			'version'      => $this->core_plugin->payment_core()->version(),
 		);
 
-		wp_register_script( $script_handle, $this->mpgs_plugin->mpgs_core()->utils()->core_package_url() . '/assets/js/payment-methods/' . $this->assets_folder . '/index' . Utils::min_suffix() . '.js', $script_data['dependencies'], $script_data['version'], true );
+		wp_register_script( $script_handle, $this->core_plugin->payment_core()->utils()->core_package_url() . '/assets/js/payment-methods/' . $this->assets_folder . '/index' . Utils::min_suffix() . '.js', $script_data['dependencies'], $script_data['version'], true );
 
 		wp_localize_script(
 			$script_handle,
-			'mpgs_data',
+			'core_data',
 			array(
-				'prefix' => $this->mpgs_plugin->mpgs_core()->get_prefix(),
+				'prefix' => $this->core_plugin->payment_core()->get_prefix(),
 			)
 		);
 
 		$scripts[] = $script_handle;
 
 		if ( Utils::is_request( 'frontend' ) ) {
-			$scripts[] = $this->mpgs_plugin->mpgs_core()->prefix_hook( 'gateway' );
+			$scripts[] = $this->core_plugin->payment_core()->prefix_hook( 'gateway' );
 		}
 
 		return $scripts;
@@ -182,7 +182,7 @@ abstract class Abstract_Block_Compat extends AbstractPaymentMethodType {
 	 */
 	public function gateway_id() {
 		if ( ! $this->gateway_id ) {
-			$this->gateway_id = $this->mpgs_plugin->get_registered_payment_id( $this->name );
+			$this->gateway_id = $this->core_plugin->get_registered_payment_id( $this->name );
 		}
 		return $this->gateway_id;
 	}

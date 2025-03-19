@@ -4,10 +4,10 @@
  *
  * @class       Template
  * @version     1.0.0
- * @package     MPGSCore/Classes/
+ * @package     GatewayPaymentCore/Classes/
  */
 
-namespace MPGSCore;
+namespace GatewayPaymentCore;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -24,16 +24,16 @@ final class Template {
 	 *
 	 * @var Main
 	 */
-	private $mpgs_core;
+	private $payment_core;
 
 
 	/**
 	 * Constructor.
 	 *
-	 * @param Main $mpgs_core Main instance.
+	 * @param Main $payment_core Main instance.
 	 */
-	public function __construct( Main $mpgs_core ) {
-		$this->mpgs_core = $mpgs_core;
+	public function __construct( Main $payment_core ) {
+		$this->payment_core = $payment_core;
 	}
 
 
@@ -49,23 +49,23 @@ final class Template {
 
 		$template = '';
 
-		// Look in yourtheme/slug-name.php and yourtheme/mpgs-core/slug-name.php .
+		// Look in yourtheme/slug-name.php and yourtheme/payment-core/slug-name.php .
 		if ( $name ) {
-			$template = locate_template( array( "{$slug}-{$name}.php", $this->mpgs_core->utils()->template_path() . "{$slug}-{$name}.php" ) );
+			$template = locate_template( array( "{$slug}-{$name}.php", $this->payment_core->utils()->template_path() . "{$slug}-{$name}.php" ) );
 		}
 
 		// Get default slug-name.php .
-		if ( ! $template && $name && file_exists( $this->mpgs_core->utils()->plugin_path() . "/templates/{$slug}-{$name}.php" ) ) {
-			$template = $this->mpgs_core->utils()->plugin_path() . "/templates/{$slug}-{$name}.php";
+		if ( ! $template && $name && file_exists( $this->payment_core->utils()->plugin_path() . "/templates/{$slug}-{$name}.php" ) ) {
+			$template = $this->payment_core->utils()->plugin_path() . "/templates/{$slug}-{$name}.php";
 		}
 
-		// If template file doesn't exist, look in yourtheme/slug.php and yourtheme/mpgs-core/slug.php .
+		// If template file doesn't exist, look in yourtheme/slug.php and yourtheme/payment-core/slug.php .
 		if ( ! $template ) {
-			$template = locate_template( array( "{$slug}.php", $this->mpgs_core->utils()->template_path() . "{$slug}.php" ) );
+			$template = locate_template( array( "{$slug}.php", $this->payment_core->utils()->template_path() . "{$slug}.php" ) );
 		}
 
 		// Allow 3rd party plugins to filter template file from their plugin.
-		$template = apply_filters( 'mpgs_core_get_template_part', $template, $slug, $name );
+		$template = apply_filters( 'payment_core_get_template_part', $template, $slug, $name );
 
 		if ( $template ) {
 			load_template( $template, false );
@@ -98,15 +98,15 @@ final class Template {
 		}
 
 		// Allow 3rd party plugin filter template file from their plugin.
-		$located = apply_filters( 'mpgs_core_get_template', $located, $template_name, $args, $template_path, $default_path );
+		$located = apply_filters( 'payment_core_get_template', $located, $template_name, $args, $template_path, $default_path );
 
 		// Perform other actions before template part is included.
-		do_action( 'mpgs_core_before_template_part', $template_name, $template_path, $located, $args );
+		do_action( 'payment_core_before_template_part', $template_name, $template_path, $located, $args );
 
 		include $located;
 
 		// Perform other actions after template part is included.
-		do_action( 'mpgs_core_after_template_part', $template_name, $template_path, $located, $args );
+		do_action( 'payment_core_after_template_part', $template_name, $template_path, $located, $args );
 	}
 
 
@@ -149,11 +149,11 @@ final class Template {
 	public function locate( $template_name, $template_path = '', $default_path = '' ) {
 
 		if ( ! $template_path ) {
-			$template_path = $this->mpgs_core->utils()->core_package_path();
+			$template_path = $this->payment_core->utils()->core_package_path();
 		}
 
 		if ( ! $default_path ) {
-			$default_path = $this->mpgs_core->utils()->core_package_path() . '/templates/';
+			$default_path = $this->payment_core->utils()->core_package_path() . '/templates/';
 		}
 
 		// Look within passed path within the theme - this is priority.
@@ -170,6 +170,6 @@ final class Template {
 		}
 
 		// Return what we found.
-		return apply_filters( 'mpgs_core_locate_template', $template, $template_name, $template_path );
+		return apply_filters( 'payment_core_locate_template', $template, $template_name, $template_path );
 	}
 }

@@ -4,17 +4,17 @@
  *
  * @class       AbstractPaymentGateway
  * @version     1.0.0
- * @package     MPGSCore/Compat/
+ * @package     GatewayPaymentCore/Compat/
  */
 
-namespace MPGSCore\Compat;
+namespace GatewayPaymentCore\Compat;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
 use Automattic\WooCommerce\Blocks\Payments\PaymentMethodRegistry;
-use MPGSCore\MpgsPlugin;
+use GatewayPaymentCore\CorePlugin;
 
 /**
  * WooCommerce Blocks Compatibility Class.
@@ -23,25 +23,25 @@ class BlockCompatibility {
 
 
 	const BLOCK_COMPAT_MAP = array(
-		'WC_MPGS_Payment_Gateway_Block_Compat_CC',
+		'WC_Payment_Gateway_Block_Compat_CC',
 	);
 
 
 	/**
-	 * MPGS Plugin instance.
+	 * Core Plugin instance.
 	 *
-	 * @var MpgsPlugin
+	 * @var CorePlugin
 	 */
-	private $mpgs_plugin;
+	private $core_plugin;
 
 
 	/**
 	 * Constructor.
 	 *
-	 * @param MpgsPlugin $mpgs_plugin MPGS Plugin instance.
+	 * @param CorePlugin $core_plugin Core Plugin instance.
 	 */
-	public function __construct( MpgsPlugin $mpgs_plugin ) {
-		$this->mpgs_plugin = $mpgs_plugin;
+	public function __construct( CorePlugin $core_plugin ) {
+		$this->core_plugin = $core_plugin;
 
 		// Add compatibility with WooCommerce Blocks.
 		add_action( 'woocommerce_blocks_loaded', array( $this, 'load_block_compatibility' ) );
@@ -72,7 +72,7 @@ class BlockCompatibility {
 	 * @return void
 	 */
 	public function init( PaymentMethodRegistry $registry ) {
-		$compats = apply_filters( $this->mpgs_plugin->mpgs_core()->prefix_hook( 'block_compatibility_classes' ), $this->mpgs_plugin->regisreted_block_gateways() );
+		$compats = apply_filters( $this->core_plugin->payment_core()->prefix_hook( 'block_compatibility_classes' ), $this->core_plugin->regisreted_block_gateways() );
 		if ( ! empty( $compats ) ) {
 			require_once __DIR__ . '/Abstract_Block_Compat.php';
 		}
@@ -83,7 +83,7 @@ class BlockCompatibility {
 				$class = __NAMESPACE__ . '\\' . $filename;
 				if ( class_exists( $class ) ) {
 					$compat_class = new $class();
-					$compat_class->init_mpgs( $this->mpgs_plugin, $id );
+					$compat_class->init_core( $this->core_plugin, $id );
 					$registry->register( $compat_class );
 				}
 			}

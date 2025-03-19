@@ -1,7 +1,7 @@
 {
-	"name": "mpgs-core",
+	"name": "payment-core",
 	"version": "1.0.0",
-	"description": "MPGS Core",
+	"description": "Payment Core",
 	"scripts": {
 		"watch": "wp-scripts start",
 		"build:assets": "wp-scripts build",
@@ -21,7 +21,7 @@
 		"prearchive": "cross-var rm -rf $npm_package_config_wp_org_slug.zip vendor/ node_modules/ && composer install --no-dev --optimize-autoloader && npm install --only=prod --ignore-scripts"
 	},
 	"keywords": [
-		"mpgs core"
+		"payment core"
 	],
 	"eslintConfig": {
 		"extends": [
@@ -88,10 +88,10 @@
 			"js": "src/js/",
 			"css": "src/sass/"
 		},
-		"wp_org_slug": "mpgs-core",
+		"wp_org_slug": "payment-core",
 		"version_replace_paths": [
 			"includes",
-			"mpgs-core.php",
+			"payment-core.php",
 			"uninstall.php"
 		]
 	}

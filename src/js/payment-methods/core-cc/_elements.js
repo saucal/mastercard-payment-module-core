@@ -15,7 +15,7 @@ export const CardElements = () => {
 	return (
 		<div
 			id={ `wc-${ getPrefix() }-cc-form` }
-			className={ `wc-credit-card-form wc-payment-form ${ getPrefix() }-payment-form mpgs-payment-form mpgs-payment-form-blocks` }
+			className={ `wc-credit-card-form wc-payment-form ${ getPrefix() }-payment-form payment-core-payment-form payment-core-payment-form-blocks` }
 			data-field-type="card"
 		>
 			<div className="wc-block-components-text-input is-active">

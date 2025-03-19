@@ -4,17 +4,17 @@
  *
  * @class       Assets
  * @version     1.0.0
- * @package     MPGSCore/Classes/
+ * @package     GatewayPaymentCore/Classes/
  */
 
-namespace MPGSCore;
+namespace GatewayPaymentCore;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-use MPGSCore\Admin\Assets as Admin;
-use MPGSCore\Front\Assets as Front;
+use GatewayPaymentCore\Admin\Assets as Admin;
+use GatewayPaymentCore\Front\Assets as Front;
 
 /**
  * Main assets class
@@ -60,20 +60,20 @@ class Assets {
 
 
 	/**
-	 * MPGS Plugin instance.
+	 * Core Plugin instance.
 	 *
-	 * @var MpgsPlugin
+	 * @var CorePlugin
 	 */
-	private $mpgs_plugin;
+	private $core_plugin;
 
 
 	/**
 	 * Constructor.
 	 *
-	 * @param MpgsPlugin $mpgs_plugin MPGS Plugin instance.
+	 * @param CorePlugin $core_plugin Core Plugin instance.
 	 */
-	public function __construct( MpgsPlugin $mpgs_plugin ) {
-		$this->mpgs_plugin = $mpgs_plugin;
+	public function __construct( CorePlugin $core_plugin ) {
+		$this->core_plugin = $core_plugin;
 
 		$this->init_controllers();
 	}
@@ -86,11 +86,11 @@ class Assets {
 	 */
 	private function init_controllers() {
 		if ( Utils::is_request( 'admin' ) ) {
-			$this->admin_assets_controller = new Admin( $this->mpgs_plugin );
+			$this->admin_assets_controller = new Admin( $this->core_plugin );
 		}
 
 		if ( Utils::is_request( 'frontend' ) ) {
-			$this->front_assets_controller = new Front( $this->mpgs_plugin );
+			$this->front_assets_controller = new Front( $this->core_plugin );
 		}
 	}
 
@@ -103,8 +103,8 @@ class Assets {
 	 */
 	public function localize_asset( $path ) {
 
-		$assets_path     = $this->mpgs_plugin->mpgs_core()->utils()->core_package_path() . '/assets/';
-		$assets_path_url = str_replace( array( 'http:', 'https:' ), '', $this->mpgs_plugin->mpgs_core()->utils()->core_package_url() ) . '/assets/';
+		$assets_path     = $this->core_plugin->payment_core()->utils()->core_package_path() . '/assets/';
+		$assets_path_url = str_replace( array( 'http:', 'https:' ), '', $this->core_plugin->payment_core()->utils()->core_package_url() ) . '/assets/';
 
 		if ( ! ( defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ) ) {
 
@@ -133,7 +133,7 @@ class Assets {
 	 */
 	public function get_styles() {
 		// Allow to change the list of styles.
-		return apply_filters( $this->mpgs_plugin->mpgs_core()->prefix_hook( 'enqueue_styles' ), array() );
+		return apply_filters( $this->core_plugin->payment_core()->prefix_hook( 'enqueue_styles' ), array() );
 	}
 
 
@@ -144,7 +144,7 @@ class Assets {
 	 */
 	public function get_scripts() {
 		// Allow to change the list of scripts.
-		return apply_filters( $this->mpgs_plugin->mpgs_core()->prefix_hook( 'enqueue_scripts' ), array() );
+		return apply_filters( $this->core_plugin->payment_core()->prefix_hook( 'enqueue_scripts' ), array() );
 	}
 
 
@@ -246,7 +246,7 @@ class Assets {
 	 */
 	public function load_scripts() {
 
-		if ( ! $this->mpgs_plugin || ! did_action( $this->mpgs_plugin->mpgs_core()->prefix_hook( 'init' ) ) ) {
+		if ( ! $this->core_plugin || ! did_action( $this->core_plugin->payment_core()->prefix_hook( 'init' ) ) ) {
 			return;
 		}
 
@@ -260,7 +260,7 @@ class Assets {
 					array(
 						'src'       => '',
 						'deps'      => array( 'jquery' ),
-						'version'   => $this->mpgs_plugin->mpgs_core()->version(),
+						'version'   => $this->core_plugin->payment_core()->version(),
 						'in_footer' => true,
 						'enqueue'   => true,
 					)
@@ -284,7 +284,7 @@ class Assets {
 					array(
 						'src'     => '',
 						'deps'    => '',
-						'version' => $this->mpgs_plugin->mpgs_core()->version(),
+						'version' => $this->core_plugin->payment_core()->version(),
 						'media'   => 'all',
 						'enqueue' => true,
 					)
@@ -314,7 +314,7 @@ class Assets {
 
 			$data = $this->get_script_data( $handle );
 			if ( $data ) {
-				$name                        = str_replace( array( $this->mpgs_plugin->mpgs_core()->get_prefix(), '-' ), array( 'mpgs', '_' ), $handle ) . '_params';
+				$name                        = str_replace( array( $this->core_plugin->payment_core()->get_prefix(), '-' ), array( 'core', '_' ), $handle ) . '_params';
 				$this->wp_localize_scripts[] = $handle;
 				// Let plugins to filter the script data.
 				wp_localize_script( $handle, $name, apply_filters( $name, $data ) );

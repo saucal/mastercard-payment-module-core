@@ -1,41 +1,41 @@
 <?php
 /**
- * Class to interact with the MPGS API.
+ * Class to interact with the API.
  *
- * @class       MpgsAPI
+ * @class       API
  * @version     1.0.0
- * @package     MPGSCore/Classes/
+ * @package     GatewayPaymentCore/Classes/
  */
 
-namespace MPGSCore;
+namespace GatewayPaymentCore;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
 /**
- * Mpgs API class
+ * API class
  */
-final class MpgsAPI {
+final class API {
 
 	const API_VERSION = '100';
 
 
 	/**
-	 * MPGS Plugin instance.
+	 * Core Plugin instance.
 	 *
-	 * @var MpgsPlugin
+	 * @var CorePlugin
 	 */
-	private $mpgs_plugin;
+	private $core_plugin;
 
 
 	/**
 	 * Constructor.
 	 *
-	 * @param MpgsPlugin $mpgs_plugin MPGS Plugin instance.
+	 * @param CorePlugin $core_plugin Core Plugin instance.
 	 */
-	public function __construct( MpgsPlugin $mpgs_plugin ) {
-		$this->mpgs_plugin = $mpgs_plugin;
+	public function __construct( CorePlugin $core_plugin ) {
+		$this->core_plugin = $core_plugin;
 	}
 
 
@@ -45,7 +45,7 @@ final class MpgsAPI {
 	 * @return string
 	 */
 	private function get_merchant_id() {
-		return $this->mpgs_plugin->merchant_id();
+		return $this->core_plugin->merchant_id();
 	}
 
 
@@ -55,7 +55,7 @@ final class MpgsAPI {
 	 * @return string
 	 */
 	private function get_password() {
-		return $this->mpgs_plugin->get_gateway_setting( 'password' );
+		return $this->core_plugin->get_gateway_setting( 'password' );
 	}
 
 
@@ -81,7 +81,7 @@ final class MpgsAPI {
 	protected function get_headers( $content_type = 'application/json', $endpoint = null, $payload = array() ) {
 
 		return apply_filters(
-			$this->mpgs_plugin->mpgs_core()->prefix_hook( 'request_headers' ),
+			$this->core_plugin->payment_core()->prefix_hook( 'request_headers' ),
 			array(
 				'Authorization' => 'Basic ' . $this->get_authorization(),
 				'Content-Type'  => $content_type,
@@ -99,7 +99,7 @@ final class MpgsAPI {
 	 * @return bool
 	 */
 	private function is_sandbox() {
-		return $this->mpgs_plugin->is_sandbox();
+		return $this->core_plugin->is_sandbox();
 	}
 
 
@@ -112,7 +112,7 @@ final class MpgsAPI {
 		return trailingslashit(
 			sprintf(
 				'%1$s/api/rest/version/%2$s/merchant/%3$s',
-				untrailingslashit( $this->mpgs_plugin->gateway_url() ),
+				untrailingslashit( $this->core_plugin->gateway_url() ),
 				self::API_VERSION,
 				$this->get_merchant_id()
 			)
@@ -121,7 +121,7 @@ final class MpgsAPI {
 
 
 	/**
-	 * Request to MPGS API.
+	 * Request to the API.
 	 *
 	 * @param string $endpoint API endpoint.
 	 * @param string $method   Method.
@@ -134,16 +134,16 @@ final class MpgsAPI {
 		$args = array(
 			'method'  => $method,
 			'headers' => $this->get_headers( 'application/json', $endpoint, $payload ),
-			'body'    => apply_filters( $this->mpgs_plugin->mpgs_core()->prefix_hook( 'request_body' ), $this->maybe_json_encode( $payload ) ),
+			'body'    => apply_filters( $this->core_plugin->payment_core()->prefix_hook( 'request_body' ), $this->maybe_json_encode( $payload ) ),
 		);
 
 		// Logging request.
-		$this->mpgs_plugin->logger()->log_request( $url, $args );
+		$this->core_plugin->logger()->log_request( $url, $args );
 
 		$response = wp_safe_remote_request( $url, $args );
 
 		// Logging responses.
-		$this->mpgs_plugin->logger()->log_response( $response );
+		$this->core_plugin->logger()->log_response( $response );
 
 		if ( is_wp_error( $response ) ) {
 			return array(
@@ -155,7 +155,7 @@ final class MpgsAPI {
 		$response = $this->process_response( $response );
 
 		if ( ! $response['success'] ) {
-			$this->mpgs_plugin->logger()->log( 'Request failed: ' . $response['error'], 'error' );
+			$this->core_plugin->logger()->log( 'Request failed: ' . $response['error'], 'error' );
 		}
 
 		return $response;
@@ -197,7 +197,7 @@ final class MpgsAPI {
 		if ( empty( $response['response']['code'] ) ) {
 			return array(
 				'success' => false,
-				'error'   => __( 'Empty response code.', 'mpgs-core' ),
+				'error'   => __( 'Empty response code.', 'payment-core' ),
 			);
 		}
 
@@ -208,7 +208,7 @@ final class MpgsAPI {
 				'success' => false,
 				'error'   => sprintf(
 					// Translators: %1$s: Response code, %2$s: Response message.
-					__( 'Request failed with status code %1$s and message: %2$s', $this->mpgs_plugin->text_domain() ),
+					__( 'Request failed with status code %1$s and message: %2$s', $this->core_plugin->text_domain() ),
 					$body['error']['cause'] ?? $response['response']['code'],
 					$body['error']['explanation'] ?? '',
 				),

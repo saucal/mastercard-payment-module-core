@@ -1,13 +1,13 @@
 <?php
 /**
- * MPGS Core module.
+ * Core module.
  *
  * @link    https://saucal.com/
  * @since   1.0.0
- * @package MPGSCore
+ * @package GatewayPaymentCore
  */
 
-namespace MPGSCore;
+namespace GatewayPaymentCore;
 
 // If this file is called directly, abort.
 if ( ! defined( 'ABSPATH' ) ) {
@@ -15,6 +15,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Define constants.
-if ( ! defined( 'MPGS_CORE_VERSION' ) ) {
-	define( 'MPGS_CORE_VERSION', '1.0.0' );
+if ( ! defined( 'CORE_VERSION' ) ) {
+	define( 'CORE_VERSION', '1.0.0' );
 }

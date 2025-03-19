@@ -37,7 +37,7 @@ export const Label = ( { label, ...props } ) => {
  * @param {Object} param0 RenderedComponent and props
  * @return {RenderedComponent}
  */
-export const MpgsComponent = ( { RenderedComponent, ...props } ) => {
+export const PaymentCoreComponent = ( { RenderedComponent, ...props } ) => {
 	return <RenderedComponent { ...props } />;
 };
 
