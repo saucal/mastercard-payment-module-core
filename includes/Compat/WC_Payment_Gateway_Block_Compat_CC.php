@@ -31,7 +31,7 @@ class WC_Payment_Gateway_Block_Compat_CC extends Abstract_Block_Compat {
 	 *
 	 * @var string
 	 */
-	protected $assets_folder = 'payment-core-cc';
+	protected $assets_folder = 'core-cc';
 
 
 	/**
