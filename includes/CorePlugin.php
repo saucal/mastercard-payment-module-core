@@ -650,11 +650,7 @@ abstract class CorePlugin {
 			return $merchant_id;
 		}
 
-		if ( $this->is_sandbox() && ! ( defined( 'MGPS_MID_FORCE_TEST' ) && MGPS_MID_FORCE_TEST ) ) {
-			$merchant_id = 'TEST';
-		}
-
-		$merchant_id .= $this->get_gateway_setting( 'merchant_id' );
+		$merchant_id = $this->get_gateway_setting( 'merchant_id' );
 
 		return $merchant_id;
 	}

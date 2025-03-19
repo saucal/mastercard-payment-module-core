@@ -284,8 +284,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return string
 	 */
 	public function merchant_id() {
-		$prefix_test = $this->core_plugin->is_sandbox() && ! ( defined( 'MGPS_MID_FORCE_TEST' ) && MGPS_MID_FORCE_TEST ) ? 'TEST' : '';
-		return $prefix_test . $this->merchant_id;
+		return $this->merchant_id;
 	}
 
 
