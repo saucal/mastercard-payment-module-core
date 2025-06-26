@@ -207,6 +207,19 @@ class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 
 	/**
+	 * Get gateway support features.
+	 *
+	 * @return array
+	 */
+	public function get_supports() {
+		return array(
+			'products',
+			'refunds',
+		);
+	}
+
+
+	/**
 	 * Get the Payment Token instance.
 	 *
 	 * @return PaymentToken

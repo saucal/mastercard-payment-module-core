@@ -25,6 +25,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gateway {
 
+	// Register the Subscriptions trait.
+	use \GatewayPaymentCore\GatewayAddons\Subscriptions;
+
 
 	/**
 	 * Hosted checkout handle.
@@ -149,6 +152,9 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		// Load the gateway support features.
 		$this->init_supports();
 
+		// Initialize the Addons.
+		$this->init_addons();
+
 		// Add hooks.
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'process_admin_options' ) );
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'validate_credentials' ) );
@@ -178,16 +184,23 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	public function init_supports() {
 
-		$supports = array(
-			'products',
-			'refunds',
-		);
+		$supports = $this->get_supports();
 
 		if ( $this->saved_cards && ! $this->is_hosted_checkout() ) {
 			$supports[] = 'tokenization';
 		}
 
 		$this->supports = $supports;
+	}
+
+
+	/**
+	 * Initialize addons.
+	 *
+	 * @return void
+	 */
+	public function init_addons() {
+		$this->init_addon_subscriptions();
 	}
 
 
