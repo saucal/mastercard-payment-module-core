@@ -4,12 +4,12 @@
  *
  * @class       AdminAssets
  * @version     1.0.0
- * @package     MPGSCore/Classes/
+ * @package     GatewayPaymentCore/Classes/
  */
 
-namespace MPGSCore\Admin;
+namespace GatewayPaymentCore\Admin;
 
-use MPGSCore\MpgsPlugin;
+use GatewayPaymentCore\CorePlugin;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -21,20 +21,20 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Assets {
 
 	/**
-	 * MPGS Plugin instance.
+	 * Core Plugin instance.
 	 *
-	 * @var MpgsPlugin
+	 * @var CorePlugin
 	 */
-	private $mpgs_plugin;
+	private $core_plugin;
 
 
 	/**
 	 * Constructor.
 	 *
-	 * @param MpgsPlugin $mpgs_plugin MPGS Plugin instance.
+	 * @param CorePlugin $core_plugin Core Plugin instance.
 	 */
-	public function __construct( MpgsPlugin $mpgs_plugin ) {
-		$this->mpgs_plugin = $mpgs_plugin;
+	public function __construct( CorePlugin $core_plugin ) {
+		$this->core_plugin = $core_plugin;
 
 		add_action( 'plugins_loaded', array( $this, 'init_hooks' ) );
 	}
@@ -44,11 +44,11 @@ final class Assets {
 	 * Init hooks.
 	 */
 	public function init_hooks() {
-		add_filter( $this->mpgs_plugin->mpgs_core()->prefix_hook( 'enqueue_styles' ), array( $this, 'add_styles' ), 9 );
-		add_filter( $this->mpgs_plugin->mpgs_core()->prefix_hook( 'enqueue_scripts' ), array( $this, 'add_scripts' ), 9 );
-		add_action( 'admin_enqueue_scripts', array( $this->mpgs_plugin->assets_controller(), 'load_scripts' ) );
-		add_action( 'admin_print_scripts', array( $this->mpgs_plugin->assets_controller(), 'localize_printed_scripts' ), 5 );
-		add_action( 'admin_print_footer_scripts', array( $this->mpgs_plugin->assets_controller(), 'localize_printed_scripts' ), 5 );
+		add_filter( $this->core_plugin->payment_core()->prefix_hook( 'enqueue_styles' ), array( $this, 'add_styles' ), 9 );
+		add_filter( $this->core_plugin->payment_core()->prefix_hook( 'enqueue_scripts' ), array( $this, 'add_scripts' ), 9 );
+		add_action( 'admin_enqueue_scripts', array( $this->core_plugin->assets_controller(), 'load_scripts' ) );
+		add_action( 'admin_print_scripts', array( $this->core_plugin->assets_controller(), 'localize_printed_scripts' ), 5 );
+		add_action( 'admin_print_footer_scripts', array( $this->core_plugin->assets_controller(), 'localize_printed_scripts' ), 5 );
 	}
 
 
@@ -60,8 +60,8 @@ final class Assets {
 	 */
 	public function add_styles( $styles ) {
 
-		$styles[ $this->mpgs_plugin->mpgs_core()->prefix_hook( 'gateway-admin' ) ] = array(
-			'src' => $this->mpgs_plugin->assets_controller()->localize_asset( 'css/admin/mpgs-core.css' ),
+		$styles[ $this->core_plugin->payment_core()->prefix_hook( 'gateway-admin' ) ] = array(
+			'src' => $this->core_plugin->assets_controller()->localize_asset( 'css/admin/payment-core.css' ),
 		);
 
 		return $styles;
@@ -76,12 +76,12 @@ final class Assets {
 	 */
 	public function add_scripts( $scripts ) {
 
-		$scripts[ $this->mpgs_plugin->mpgs_core()->prefix_hook( 'gateway-admin' ) ] = array(
-			'src'  => $this->mpgs_plugin->assets_controller()->localize_asset( 'js/admin/mpgs-core.js' ),
+		$scripts[ $this->core_plugin->payment_core()->prefix_hook( 'gateway-admin' ) ] = array(
+			'src'  => $this->core_plugin->assets_controller()->localize_asset( 'js/admin/payment-core.js' ),
 			'data' => array(
-				'ajaxUrl'    => $this->mpgs_plugin->mpgs_core()->utils()->ajax_url(),
-				'prefix'     => $this->mpgs_plugin->mpgs_core()->get_prefix(),
-				'textDomain' => $this->mpgs_plugin->text_domain(),
+				'ajaxUrl'    => $this->core_plugin->payment_core()->utils()->ajax_url(),
+				'prefix'     => $this->core_plugin->payment_core()->get_prefix(),
+				'textDomain' => $this->core_plugin->text_domain(),
 			),
 		);
 

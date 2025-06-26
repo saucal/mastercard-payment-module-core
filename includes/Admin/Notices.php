@@ -4,12 +4,12 @@
  *
  * @class       Notices
  * @version     1.0.0
- * @package     MPGSCore/Classes/
+ * @package     GatewayPaymentCore/Classes/
  */
 
-namespace MPGSCore\Admin;
+namespace GatewayPaymentCore\Admin;
 
-use MPGSCore\MpgsPlugin;
+use GatewayPaymentCore\CorePlugin;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -23,9 +23,9 @@ final class Notices {
 	/**
 	 * Main instance.
 	 *
-	 * @var MpgsPlugin
+	 * @var CorePlugin
 	 */
-	private $mpgs_plugin;
+	private $core_plugin;
 
 
 	/**
@@ -39,10 +39,10 @@ final class Notices {
 	/**
 	 * Constructor.
 	 *
-	 * @param MpgsPlugin $mpgs_plugin Child plugin instance.
+	 * @param CorePlugin $core_plugin Child plugin instance.
 	 */
-	public function __construct( MpgsPlugin $mpgs_plugin ) {
-		$this->mpgs_plugin = $mpgs_plugin;
+	public function __construct( CorePlugin $core_plugin ) {
+		$this->core_plugin = $core_plugin;
 
 		add_action( 'admin_notices', array( $this, 'maybe_add_not_connected_notice' ), 1 );
 		add_action( 'admin_notices', array( $this, 'maybe_no_supported_operation_notice' ), 1 );
@@ -69,21 +69,21 @@ final class Notices {
 	 * Display an admin notice if the gateway is not connected.
 	 */
 	public function maybe_add_not_connected_notice() {
-		if ( ! $this->mpgs_plugin->is_enabled() || $this->mpgs_plugin->is_merchant_connected() ) {
+		if ( ! $this->core_plugin->is_enabled() || $this->core_plugin->is_merchant_connected() ) {
 			return;
 		}
 
 		$message = sprintf(
 				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
-			__( 'The %1$s credentials are either empty or not valid.', $this->mpgs_plugin->text_domain() ),
-			$this->mpgs_plugin->plugin_title(),
+			__( 'The %1$s credentials are either empty or not valid.', $this->core_plugin->text_domain() ),
+			$this->core_plugin->plugin_title(),
 		);
 
-		if ( ! $this->mpgs_plugin->is_settings_page() ) {
+		if ( ! $this->core_plugin->is_settings_page() ) {
 			$message .= ' ' . sprintf(
 				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
-				__( 'Verify your connection %1$shere%2$s', $this->mpgs_plugin->text_domain() ),
-				'<a href="' . $this->mpgs_plugin->settings_url() . '">',
+				__( 'Verify your connection %1$shere%2$s', $this->core_plugin->text_domain() ),
+				'<a href="' . $this->core_plugin->settings_url() . '">',
 				'</a>',
 			);
 		}
@@ -98,15 +98,15 @@ final class Notices {
 	 * Display an admin notice if the gateway is connected but there is no supported payment operation for the merchant.
 	 */
 	public function maybe_no_supported_operation_notice() {
-		if ( ! $this->mpgs_plugin->is_merchant_connected() || ! empty( $this->mpgs_plugin->get_payment_operations() ) ) {
+		if ( ! $this->core_plugin->is_merchant_connected() || ! empty( $this->core_plugin->get_payment_operations() ) ) {
 			return;
 		}
 
 		$this->add_message(
 			sprintf(
 				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
-				__( '%1$s - There is no supported payment operation for your merchant account. Contact your adquirer to verify this issue.', $this->mpgs_plugin->text_domain() ),
-				$this->mpgs_plugin->plugin_title(),
+				__( '%1$s - There is no supported payment operation for your merchant account. Contact your adquirer to verify this issue.', $this->core_plugin->text_domain() ),
+				$this->core_plugin->plugin_title(),
 			)
 		);
 	}
@@ -116,21 +116,21 @@ final class Notices {
 	 * Display an admin notice if the webhook secret is not set.
 	 */
 	public function maybe_no_webhook_secret_notice() {
-		if ( ! $this->mpgs_plugin->is_merchant_connected() || ! empty( $this->mpgs_plugin->get_gateway_setting( 'notification_secret' ) ) ) {
+		if ( ! $this->core_plugin->is_merchant_connected() || ! empty( $this->core_plugin->get_gateway_setting( 'notification_secret' ) ) ) {
 			return;
 		}
 
 		$message = sprintf(
 				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
-			__( '%1$s - The Notification Secret is not set.', $this->mpgs_plugin->text_domain() ),
-			$this->mpgs_plugin->plugin_title(),
+			__( '%1$s - The Notification Secret is not set.', $this->core_plugin->text_domain() ),
+			$this->core_plugin->plugin_title(),
 		);
 
-		if ( ! $this->mpgs_plugin->is_settings_page() ) {
+		if ( ! $this->core_plugin->is_settings_page() ) {
 			$message .= ' ' . sprintf(
 				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
-				__( 'Set the Notification Secret %1$shere%2$s.', $this->mpgs_plugin->text_domain() ),
-				'<a href="' . $this->mpgs_plugin->settings_url() . '">',
+				__( 'Set the Notification Secret %1$shere%2$s.', $this->core_plugin->text_domain() ),
+				'<a href="' . $this->core_plugin->settings_url() . '">',
 				'</a>',
 			);
 		}

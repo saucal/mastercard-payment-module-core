@@ -4,16 +4,16 @@
  *
  * @class       PaymentToken
  * @version     1.0.0
- * @package     MPGSCore/Classes/
+ * @package     GatewayPaymentCore/Classes/
  */
 
-namespace MPGSCore;
+namespace GatewayPaymentCore;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-use MPGSCore\Gateways\WC_Abstract_MPGS_Payment_Gateway;
+use GatewayPaymentCore\Gateways\WC_Abstract_Payment_Gateway;
 use WC_Payment_Token_CC;
 use Exception;
 
@@ -23,16 +23,16 @@ use Exception;
 class PaymentToken {
 
 	/**
-	 * MPGS Plugin instance.
+	 * Core Plugin instance.
 	 *
-	 * @var WC_Abstract_MPGS_Payment_Gateway
+	 * @var WC_Abstract_Payment_Gateway
 	 */
 	private $gateway;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param WC_Abstract_MPGS_Payment_Gateway $gateway Gateway instance.
+	 * @param WC_Abstract_Payment_Gateway $gateway Gateway instance.
 	 */
 	public function __construct( $gateway ) {
 		$this->gateway = $gateway;
@@ -51,10 +51,10 @@ class PaymentToken {
 		try {
 
 			if ( ! $this->gateway ) {
-				throw new Exception( 'The gateway object is invalid', $this->gateway->mpgs_plugin()->text_domain() );
+				throw new Exception( 'The gateway object is invalid', $this->gateway->core_plugin()->text_domain() );
 			}
 
-			$response = $this->gateway->mpgs_api()->create_token(
+			$response = $this->gateway->api()->create_token(
 				array(
 					'session'       => array(
 						'id' => $session_id,
@@ -90,7 +90,7 @@ class PaymentToken {
 
 			return $token->get_id();
 		} catch ( Exception $e ) {
-			$this->gateway->mpgs_plugin()->logger()->log( 'Error processing saved cards: ' . $e->getMessage(), 'error' );
+			$this->gateway->core_plugin()->logger()->log( 'Error processing saved cards: ' . $e->getMessage(), 'error' );
 			return false;
 		}
 	}

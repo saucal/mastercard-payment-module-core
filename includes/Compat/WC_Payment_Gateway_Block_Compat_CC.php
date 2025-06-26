@@ -4,19 +4,19 @@
  *
  * @class       AbstractPaymentGateway
  * @version     1.0.0
- * @package     MPGSCore/Compat/
+ * @package     GatewayPaymentCore/Compat/
  */
 
-namespace MPGSCore\Compat;
+namespace GatewayPaymentCore\Compat;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
 /**
- * Adds support for the MPGS CC Gateway in the checkout Block of WooCommerce Blocks.
+ * Adds support for the Core CC Gateway in the checkout Block of WooCommerce Blocks.
  */
-class WC_MPGS_Payment_Gateway_Block_Compat_CC extends Abstract_Block_Compat {
+class WC_Payment_Gateway_Block_Compat_CC extends Abstract_Block_Compat {
 
 	/**
 	 * The payment method's name.
@@ -31,7 +31,7 @@ class WC_MPGS_Payment_Gateway_Block_Compat_CC extends Abstract_Block_Compat {
 	 *
 	 * @var string
 	 */
-	protected $assets_folder = 'mpgs-cc';
+	protected $assets_folder = 'core-cc';
 
 
 	/**
@@ -50,7 +50,7 @@ class WC_MPGS_Payment_Gateway_Block_Compat_CC extends Abstract_Block_Compat {
 			return $data;
 		}
 
-		$gateway = $this->mpgs_plugin->registered_gateway_instance( $this->gateway_id );
+		$gateway = $this->core_plugin->registered_gateway_instance( $this->gateway_id );
 		if ( ! $gateway ) {
 			return $data;
 		}

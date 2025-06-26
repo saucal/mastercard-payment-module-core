@@ -2,13 +2,13 @@
 /**
  * Main class.
  *
- * @package  MPGSCore
+ * @package  GatewayPaymentCore
  * @version  1.0.0
  */
 
-namespace MPGSCore;
+namespace GatewayPaymentCore;
 
-use MPGSCore\Admin\Notices;
+use GatewayPaymentCore\Admin\Notices;
 
 /**
  * Base Plugin class holding generic functionality
@@ -57,7 +57,7 @@ final class Main {
 
 
 	/**
-	 * MPGS Core instance.
+	 * Core instance.
 	 *
 	 * @param string $prefix Prefix for the instance.
 	 *
@@ -194,18 +194,18 @@ final class Main {
 		global $wp_version;
 
 		if ( ! version_compare( PHP_VERSION, self::PLUGIN_REQUIREMENTS['php_version'], '>=' ) ) {
-			/* Translators: The minimum PHP version */
-			$errors[] = sprintf( esc_html__( 'MPGS Core requires a minimum PHP version of %s.', $this->text_domain() ), self::PLUGIN_REQUIREMENTS['php_version'] );
+			/* Translators: 1: The Plugin's Name 2: The minimum PHP version */
+			$errors[] = sprintf( esc_html__( '%1$s requires a minimum PHP version of %2$s.', $this->text_domain() ), $this->plugin_title(), self::PLUGIN_REQUIREMENTS['php_version'] );
 		}
 
 		if ( ! version_compare( $wp_version, self::PLUGIN_REQUIREMENTS['wp_version'], '>=' ) ) {
-			/* Translators: The minimum WP version */
-			$errors[] = sprintf( esc_html__( 'MPGS Core requires a minimum WordPress version of %s.', $this->text_domain() ), self::PLUGIN_REQUIREMENTS['wp_version'] );
+			/* Translators: 1: The Plugin's Name 2: The minimum WP version */
+			$errors[] = sprintf( esc_html__( '%1$s requires a minimum WordPress version of %2$s.', $this->text_domain() ), $this->plugin_title(), self::PLUGIN_REQUIREMENTS['wp_version'] );
 		}
 
 		if ( isset( self::PLUGIN_REQUIREMENTS['wc_version'] ) && ( ! defined( 'WC_VERSION' ) || ! version_compare( WC_VERSION, self::PLUGIN_REQUIREMENTS['wc_version'], '>=' ) ) ) {
-			/* Translators: The minimum WC version */
-			$errors[] = sprintf( esc_html__( 'MPGS Core requires a minimum WooCommerce version of %s.', $this->text_domain() ), self::PLUGIN_REQUIREMENTS['wc_version'] );
+			/* Translators: 1: The Plugin's Name 2: The minimum WC version */
+			$errors[] = sprintf( esc_html__( '%1$s requires a minimum WooCommerce version of %2$s.', $this->text_domain() ), $this->plugin_title(), self::PLUGIN_REQUIREMENTS['wc_version'] );
 		}
 
 		if ( empty( $errors ) ) {
@@ -241,12 +241,12 @@ final class Main {
 
 
 	/**
-	 * MPGS Core plugin file.
+	 * Core plugin file.
 	 *
 	 * @return string
 	 */
 	public function core_plugin_file() {
-		return apply_filters( $this->prefix_hook( 'core_plugin_file' ), __DIR__ . '../mpgs-core.php' );
+		return apply_filters( $this->prefix_hook( 'core_plugin_file' ), __DIR__ . '../payment-core.php' );
 	}
 
 
@@ -256,7 +256,7 @@ final class Main {
 	 * @return string
 	 */
 	public static function version() {
-		return apply_filters( 'mpgs_core_version', MPGS_CORE_VERSION );
+		return apply_filters( 'payment_core_version', CORE_VERSION );
 	}
 
 
@@ -266,7 +266,7 @@ final class Main {
 	 * @return string
 	 */
 	public function plugin_title() {
-		return apply_filters( $this->prefix_hook( 'plugin_title' ), 'MPGS Core' );
+		return apply_filters( $this->prefix_hook( 'plugin_title' ), 'Payment Core' );
 	}
 
 
@@ -276,7 +276,7 @@ final class Main {
 	 * @return string
 	 */
 	public function text_domain() {
-		return apply_filters( $this->prefix_hook( '_text_domain' ), 'mpgs-core' );
+		return apply_filters( $this->prefix_hook( '_text_domain' ), 'payment-core' );
 	}
 
 

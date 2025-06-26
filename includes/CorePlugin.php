@@ -1,31 +1,31 @@
 <?php
 /**
- * Mpgs Plugin abstract class.
+ * Core plugin abstract class.
  *
- * @package  MPGSCore
+ * @package  GatewayPaymentCore
  * @version  1.0.0
  */
 
-namespace MPGSCore;
+namespace GatewayPaymentCore;
 
-use MPGSCore\Admin\CapturePaymentMetaBox;
-use MPGSCore\Admin\GatewaySettings;
-use MPGSCore\Admin\Notices;
-use MPGSCore\Compat\BlockCompatibility;
-use MPGSCore\Gateways\WC_Abstract_MPGS_Payment_Gateway;
+use GatewayPaymentCore\Admin\CapturePaymentMetaBox;
+use GatewayPaymentCore\Admin\GatewaySettings;
+use GatewayPaymentCore\Admin\Notices;
+use GatewayPaymentCore\Compat\BlockCompatibility;
+use GatewayPaymentCore\Gateways\WC_Abstract_Payment_Gateway;
 use WC_Order;
 
 /**
- * Abstract class for child MPGS plugins.
+ * Abstract class for child plugins.
  */
-abstract class MpgsPlugin {
+abstract class CorePlugin {
 
 	/**
-	 * MPGS Core instance.
+	 * Core instance.
 	 *
 	 * @var Main
 	 */
-	protected $mpgs_core;
+	protected $payment_core;
 
 
 	/**
@@ -127,7 +127,7 @@ abstract class MpgsPlugin {
 	/**
 	 * Assets class instance.
 	 *
-	 * @var MpgsCore\Assets
+	 * @var GatewayPaymentCore\Assets
 	 */
 	private $assets_controller;
 
@@ -159,11 +159,17 @@ abstract class MpgsPlugin {
 			return;
 		}
 
+		$this->core_plugin_file = dirname( $this->plugin_file() ) . '/packages/payment-core/payment-core.php';
+
+		if ( ! file_exists( $this->core_plugin_file ) ) {
+			return;
+		}
+
 		$this->notices           = new Notices( $this );
 		$this->logger            = new Logger( $this );
 		$this->assets_controller = new Assets( $this );
 
-		if ( ! $this->load_mpgs_core() || empty( $this->plugin_id() ) ) {
+		if ( ! $this->load_payment_core() || empty( $this->plugin_id() ) ) {
 			return;
 		}
 
@@ -219,17 +225,17 @@ abstract class MpgsPlugin {
 	 * @return bool
 	 */
 	private function is_valid() {
-		return ! empty( $this->plugin_id() ) && ! empty( $this->text_domain() ) && ! empty( $this->plugin_file() ) && ! empty( $this->core_plugin_file() );
+		return ! empty( $this->plugin_id() ) && ! empty( $this->text_domain() ) && ! empty( $this->plugin_file() );
 	}
 
 
 	/**
-	 * Get the MPGS Core instance.
+	 * Get the Core instance.
 	 *
 	 * @return Main
 	 */
-	public function mpgs_core() {
-		return $this->mpgs_core;
+	public function payment_core() {
+		return $this->payment_core;
 	}
 
 
@@ -296,7 +302,7 @@ abstract class MpgsPlugin {
 	/**
 	 * Register the payment gateways.
 	 *
-	 * @return WC_Abstract_MPGS_Payment_Gateway[]
+	 * @return WC_Abstract_Payment_Gateway[]
 	 */
 	public function registered_gateways() {
 		return $this->registered_gateways;
@@ -329,39 +335,39 @@ abstract class MpgsPlugin {
 	 * @return void
 	 */
 	public function install() {
-		do_action( $this->mpgs_core()->prefix_hook( 'installed' ) );
+		do_action( $this->payment_core()->prefix_hook( 'installed' ) );
 	}
 
 
 	/**
-	 * Load the MPGSCore package.
+	 * Load the GatewayPaymentCore package.
 	 *
 	 * @return bool
 	 */
-	private function load_mpgs_core() {
-		if ( ! file_exists( dirname( $this->plugin_file() ) . '/packages/mpgs-core/mpgs-core.php' ) ) {
-			add_action( 'admin_notices', array( $this->notices(), 'missing_mpgs_core_notice' ) );
+	private function load_payment_core() {
+		if ( ! file_exists( dirname( $this->plugin_file() ) . '/packages/payment-core/payment-core.php' ) ) {
+			add_action( 'admin_notices', array( $this->notices(), 'missing_payment_core_notice' ) );
 			return false;
 		}
 
-		return include_once dirname( $this->plugin_file() ) . '/packages/mpgs-core/mpgs-core.php';
+		return include_once dirname( $this->plugin_file() ) . '/packages/payment-core/payment-core.php';
 	}
 
 
 	/**
-	 * Initialize the MPGS Core instance.
+	 * Initialize the Core instance.
 	 */
 	private function init_core_instance() {
-		$this->mpgs_core = Main::instance( $this->plugin_id() );
+		$this->payment_core = Main::instance( $this->plugin_id() );
 
 		// Add filters for the core class.
-		add_filter( $this->mpgs_core()->prefix_hook( 'plugin_file' ), array( $this, 'plugin_file' ) );
-		add_filter( $this->mpgs_core()->prefix_hook( 'core_plugin_file' ), array( $this, 'core_plugin_file' ) );
-		add_filter( $this->mpgs_core()->prefix_hook( 'plugin_title' ), array( $this, 'plugin_title' ) );
-		add_filter( $this->mpgs_core()->prefix_hook( 'text_domain' ), array( $this, 'text_domain' ) );
+		add_filter( $this->payment_core()->prefix_hook( 'plugin_file' ), array( $this, 'plugin_file' ) );
+		add_filter( $this->payment_core()->prefix_hook( 'core_plugin_file' ), array( $this, 'core_plugin_file' ) );
+		add_filter( $this->payment_core()->prefix_hook( 'plugin_title' ), array( $this, 'plugin_title' ) );
+		add_filter( $this->payment_core()->prefix_hook( 'text_domain' ), array( $this, 'text_domain' ) );
 
 		// Register the payment gateways.
-		add_filter( 'mpgs_core_payment_gateways', array( $this, 'add_gateways' ) );
+		add_filter( 'payment_core_payment_gateways', array( $this, 'add_gateways' ) );
 	}
 
 
@@ -371,13 +377,13 @@ abstract class MpgsPlugin {
 	 * @return void
 	 */
 	public function maybe_redirect_to_settings() {
-		$already_redirected = get_option( $this->mpgs_core()->prefix_hook( 'installed', 'woocommerce_' ) );
+		$already_redirected = get_option( $this->payment_core()->prefix_hook( 'installed', 'woocommerce_' ) );
 
 		if ( $already_redirected ) {
 			return;
 		}
 
-		update_option( $this->mpgs_core()->prefix_hook( 'installed', 'woocommerce_' ), true );
+		update_option( $this->payment_core()->prefix_hook( 'installed', 'woocommerce_' ), true );
 
 		// Redirect to the settings page.
 		exit( wp_safe_redirect( $this->settings_url() ) );
@@ -467,7 +473,7 @@ abstract class MpgsPlugin {
 		}
 
 		foreach ( $this->registered_gateways as $gateway_id => $gateway ) {
-			if ( ! class_exists( $gateway ) || ! is_subclass_of( $gateway, 'MPGSCore\Gateways\WC_Abstract_MPGS_Payment_Gateway' ) ) {
+			if ( ! class_exists( $gateway ) || ! is_subclass_of( $gateway, 'GatewayPaymentCore\Gateways\WC_Abstract_Payment_Gateway' ) ) {
 				continue;
 			}
 
@@ -486,7 +492,7 @@ abstract class MpgsPlugin {
 	/**
 	 * Get registered payment gateways instances.
 	 *
-	 * @return WC_Abstract_MPGS_Payment_Gateway[]
+	 * @return WC_Abstract_Payment_Gateway[]
 	 */
 	public function registered_gateway_instances() {
 		return $this->registered_gateway_instances ?? array();
@@ -498,7 +504,7 @@ abstract class MpgsPlugin {
 	 *
 	 * @param string $gateway_id Gateway ID.
 	 *
-	 * @return WC_Abstract_MPGS_Payment_Gateway|null
+	 * @return WC_Abstract_Payment_Gateway|null
 	 */
 	public function registered_gateway_instance( $gateway_id ) {
 		return $this->registered_gateway_instances[ $gateway_id ] ?? null;
@@ -514,7 +520,7 @@ abstract class MpgsPlugin {
 	 */
 	public function get_registered_payment_id( $gateway_class ) {
 		foreach ( $this->registered_gateway_instances() as $gateway_instance ) {
-			if ( is_a( $gateway_instance, 'MPGSCore\Gateways\\' . $gateway_class ) ) {
+			if ( is_a( $gateway_instance, 'GatewayPaymentCore\Gateways\\' . $gateway_class ) ) {
 				return $gateway_instance->id;
 			}
 		}
@@ -644,11 +650,7 @@ abstract class MpgsPlugin {
 			return $merchant_id;
 		}
 
-		if ( $this->is_sandbox() && ! ( defined( 'MGPS_MID_FORCE_TEST' ) && MGPS_MID_FORCE_TEST ) ) {
-			$merchant_id = 'TEST';
-		}
-
-		$merchant_id .= $this->get_gateway_setting( 'merchant_id' );
+		$merchant_id = $this->get_gateway_setting( 'merchant_id' );
 
 		return $merchant_id;
 	}
@@ -751,8 +753,8 @@ abstract class MpgsPlugin {
 	public function gateway_url() {
 		$gateway_url = $this->gateway_settings()->payment_region_url( $this->get_gateway_setting( 'region' ) );
 
-		if ( defined( 'MPGS_GATEWAY_URL' ) && ! empty( \MPGS_GATEWAY_URL ) ) {
-			$gateway_url = \MPGS_GATEWAY_URL;
+		if ( defined( 'PAYMENT_CORE_GATEWAY_URL' ) && ! empty( \PAYMENT_CORE_GATEWAY_URL ) ) {
+			$gateway_url = \PAYMENT_CORE_GATEWAY_URL;
 		}
 
 		return $gateway_url;
@@ -782,7 +784,7 @@ abstract class MpgsPlugin {
 	 *
 	 * @return bool
 	 */
-	public function is_mpgs_order( $order ) {
+	public function is_gateway_order( $order ) {
 		return $order instanceof WC_Order && $this->registered_gateway_instance( $order->get_payment_method() );
 	}
 
@@ -792,10 +794,10 @@ abstract class MpgsPlugin {
 	 *
 	 * @param WC_Order $order The order.
 	 *
-	 * @return WC_Abstract_MPGS_Payment_Gateway|bool
+	 * @return WC_Abstract_Payment_Gateway|bool
 	 */
 	public function get_order_gateway_instance( $order ) {
-		if ( ! $this->is_mpgs_order( $order ) ) {
+		if ( ! $this->is_gateway_order( $order ) ) {
 			return false;
 		}
 
@@ -811,7 +813,7 @@ abstract class MpgsPlugin {
 	 * @return float
 	 */
 	public function get_capturable_amount( $order ) {
-		if ( ! $this->is_mpgs_order( $order ) ) {
+		if ( ! $this->is_gateway_order( $order ) ) {
 			return 0;
 		}
 

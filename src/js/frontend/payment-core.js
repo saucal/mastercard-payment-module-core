@@ -8,14 +8,14 @@ import hostedSessions from './_hostedSessions';
 	'use strict';
 
 	if (
-		! mpgs_gateway_params ||
-		! mpgs_gateway_params.prefix ||
-		! mpgs_gateway_params.checkoutMode
+		! core_gateway_params ||
+		! core_gateway_params.prefix ||
+		! core_gateway_params.checkoutMode
 	) {
 		return false;
 	}
 
-	switch ( mpgs_gateway_params.checkoutMode ) {
+	switch ( core_gateway_params.checkoutMode ) {
 		case 'hosted_checkout':
 			hostedCheckout.init();
 			break;

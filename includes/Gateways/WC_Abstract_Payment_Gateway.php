@@ -4,10 +4,10 @@
  *
  * @class       AbstractPaymentGateway
  * @version     1.0.0
- * @package     MPGSCore/Gateways/
+ * @package     GatewayPaymentCore/Gateways/
  */
 
-namespace MPGSCore\Gateways;
+namespace GatewayPaymentCore\Gateways;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
@@ -15,33 +15,33 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 use Exception;
 use WP_Error;
-use MPGSCore\MpgsAPI;
-use MPGSCore\MpgsPlugin;
-use MPGSCore\PaymentToken;
-use MPGSCore\Utils;
+use GatewayPaymentCore\API;
+use GatewayPaymentCore\CorePlugin;
+use GatewayPaymentCore\PaymentToken;
+use GatewayPaymentCore\Utils;
 use WC_HTTPS;
 use WC_Payment_Gateway_CC;
 
 /**
- * Show the payment form for Mastercard Payment Gateway.
+ * Show the payment form for the Payment Gateway.
  */
-class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
+class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 
 	/**
 	 * Plugin instance.
 	 *
-	 * @var MpgsPlugin
+	 * @var CorePlugin
 	 */
-	protected $mpgs_plugin;
+	protected $core_plugin;
 
 
 	/**
-	 * MPGS API instance.
+	 * API instance.
 	 *
-	 * @var MpgsAPI
+	 * @var API
 	 */
-	protected $mpgs_api;
+	protected $api;
 
 
 	/**
@@ -122,11 +122,11 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 			return false;
 		}
 
-		if ( empty( $this->mpgs_plugin ) ) {
+		if ( empty( $this->core_plugin ) ) {
 			return false;
 		}
 
-		if ( empty( $this->mpgs_api() ) ) {
+		if ( empty( $this->api() ) ) {
 			return false;
 		}
 
@@ -135,12 +135,12 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 
 	/**
-	 * Get the MPGS Plugin instance.
+	 * Get the Core Plugin instance.
 	 *
-	 * @return MpgsPlugin
+	 * @return CorePlugin
 	 */
-	public function mpgs_plugin() {
-		return $this->mpgs_plugin;
+	public function core_plugin() {
+		return $this->core_plugin;
 	}
 
 
@@ -154,7 +154,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * @return string
 	 */
 	public function prefix_hook( $hook, $prefix = '', $separator = '_' ) {
-		return $this->mpgs_plugin->mpgs_core()->prefix_hook( $hook, $prefix, $separator );
+		return $this->core_plugin->payment_core()->prefix_hook( $hook, $prefix, $separator );
 	}
 
 
@@ -181,16 +181,16 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 
 	/**
-	 * Get the MPGS API instance.
+	 * Get the API instance.
 	 *
-	 * @return MpgsAPI
+	 * @return API
 	 */
-	public function mpgs_api() {
-		if ( ! $this->mpgs_api ) {
-			$this->mpgs_api = new MpgsAPI( $this->mpgs_plugin );
+	public function api() {
+		if ( ! $this->api ) {
+			$this->api = new API( $this->core_plugin );
 		}
 
-		return $this->mpgs_api;
+		return $this->api;
 	}
 
 
@@ -200,7 +200,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * @return string
 	 */
 	public function get_icon() {
-		$icon = $this->icon ? '<img src="' . esc_url( WC_HTTPS::force_https_url( $this->icon ) ) . '" class="mpgs-icon ' . $this->id . '-icon" alt="' . esc_attr( $this->get_title() ) . '" />' : '';
+		$icon = $this->icon ? '<img src="' . esc_url( WC_HTTPS::force_https_url( $this->icon ) ) . '" class="payment-core-icon ' . $this->id . '-icon" alt="' . esc_attr( $this->get_title() ) . '" />' : '';
 
 		return apply_filters( 'woocommerce_gateway_icon', $icon, $this->id );
 	}
@@ -232,7 +232,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 			'reference'       => $order->get_id(),
 			'currency'        => get_woocommerce_currency(),
 			'amount'          => $order->get_total(),
-			'description'     => ! empty( $this->mpgs_plugin->get_gateway_setting( 'merchant_name' ) ) ? $this->mpgs_plugin->get_gateway_setting( 'merchant_name' ) : get_bloginfo( 'name', 'display' ),
+			'description'     => ! empty( $this->core_plugin->get_gateway_setting( 'merchant_name' ) ) ? $this->core_plugin->get_gateway_setting( 'merchant_name' ) : get_bloginfo( 'name', 'display' ),
 			'notificationUrl' => add_query_arg(
 				array(
 					'wc-api'   => $this->prefix_hook( 'wc-webhook' ),
@@ -264,7 +264,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 		}
 
 		$formatted_customer_info = Utils::get_formatted_info_customer( $order );
-		if ( ! $this->mpgs_plugin->is_sandbox() && ! empty( $formatted_customer_info ) ) {
+		if ( ! $this->core_plugin->is_sandbox() && ! empty( $formatted_customer_info ) ) {
 			$payload['customer'] = $formatted_customer_info;
 		}
 
@@ -341,7 +341,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 			return;
 		}
 
-		$order_note = __( 'Error processing payment. Reason: ', $this->mpgs_plugin->text_domain() ) . $error_message->getMessage();
+		$order_note = __( 'Error processing payment. Reason: ', $this->core_plugin->text_domain() ) . $error_message->getMessage();
 
 		if ( ! $order->has_status( 'failed' ) ) {
 			$order->update_status( 'failed', $order_note );
@@ -362,19 +362,19 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 		switch ( $error_code ) {
 			case 'DECLINED':
-				return __( 'Payment unsuccessful; your card has been declined.', $this->mpgs_plugin->text_domain() );
+				return __( 'Payment unsuccessful; your card has been declined.', $this->core_plugin->text_domain() );
 			case 'EXPIRED_CARD':
-				return __( 'The card has expired. Please enter a new card for payment.', $this->mpgs_plugin->text_domain() );
+				return __( 'The card has expired. Please enter a new card for payment.', $this->core_plugin->text_domain() );
 			case 'TIMED_OUT':
-				return __( 'We couldn\'t process your card request within the allotted time, and it timed out.', $this->mpgs_plugin->text_domain() );
+				return __( 'We couldn\'t process your card request within the allotted time, and it timed out.', $this->core_plugin->text_domain() );
 			case 'ACQUIRER_SYSTEM_ERROR':
-				return __( 'The transaction was disrupted due to an issue in the acquirer\'s system.', $this->mpgs_plugin->text_domain() );
+				return __( 'The transaction was disrupted due to an issue in the acquirer\'s system.', $this->core_plugin->text_domain() );
 			case 'UNSPECIFIED_FAILURE':
-				return __( 'An unspecified issue has occurred with your card. Please check the details and try again.', $this->mpgs_plugin->text_domain() );
+				return __( 'An unspecified issue has occurred with your card. Please check the details and try again.', $this->core_plugin->text_domain() );
 			case 'EXPIRED_CARD':
-				return __( 'The card not authorized. Please enter a new card for payment.', $this->mpgs_plugin->text_domain() );
+				return __( 'The card not authorized. Please enter a new card for payment.', $this->core_plugin->text_domain() );
 			default:
-				return __( 'The payment was declined.', $this->mpgs_plugin->text_domain() );
+				return __( 'The payment was declined.', $this->core_plugin->text_domain() );
 		}
 	}
 
@@ -393,7 +393,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 			return $orders[ $order->get_id() ];
 		}
 
-		$orders[ $order->get_id() ] = $this->mpgs_api()->retrieve_order( $this->unique_order_id( $order ) );
+		$orders[ $order->get_id() ] = $this->api()->retrieve_order( $this->unique_order_id( $order ) );
 
 		return $orders[ $order->get_id() ];
 	}
@@ -458,11 +458,11 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 			}
 
 			// Prevent error log if the order is not created yet.
-			$this->mpgs_plugin->logger()->force_disable();
+			$this->core_plugin->logger()->force_disable();
 
 			$order_data = $this->retrieve_order( $order );
 
-			$this->mpgs_plugin->logger()->restore_force_disable();
+			$this->core_plugin->logger()->restore_force_disable();
 
 			$this->validate_payment_status( $order, $order_data );
 
@@ -502,15 +502,15 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 	protected function process_wc_order( $order, $order_data, $transaction, $order_note_msg = '', $order_status_msg = '' ) {
 
 		if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
-			throw new Exception( __( 'The order object is not valid.', $this->mpgs_plugin->text_domain() ) );
+			throw new Exception( __( 'The order object is not valid.', $this->core_plugin->text_domain() ) );
 		}
 
 		if ( ! isset( $order_data['status'] ) || ! isset( $order_data['id'] ) ) {
-			throw new Exception( __( 'The order data is not valid.', $this->mpgs_plugin->text_domain() ) );
+			throw new Exception( __( 'The order data is not valid.', $this->core_plugin->text_domain() ) );
 		}
 
 		if ( empty( $transaction['id'] ) ) {
-			throw new Exception( __( 'The transaction data is not valid.', $this->mpgs_plugin->text_domain() ) );
+			throw new Exception( __( 'The transaction data is not valid.', $this->core_plugin->text_domain() ) );
 		}
 
 		if ( $this->is_transaction_processed( $order, $transaction['id'] ) ) {
@@ -535,7 +535,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 				$order->add_order_note(
 					sprintf(
 						// translators: %1$s: Gateway title, %2$s: Order ID.
-						__( '%1$s payment was Captured (Order ID: %2$s)', $this->mpgs_plugin->text_domain() ),
+						__( '%1$s payment was Captured (Order ID: %2$s)', $this->core_plugin->text_domain() ),
 						$this->title,
 						$order_data['id'],
 					)
@@ -550,10 +550,10 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 					$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), $authorize_transaction['id'] );
 				}
 				$new_order_status     = 'on-hold';
-				$new_order_status_msg = __( 'Payment authorized, waiting for capture.', $this->mpgs_plugin->text_domain() );
+				$new_order_status_msg = __( 'Payment authorized, waiting for capture.', $this->core_plugin->text_domain() );
 				$new_order_note_msg   = sprintf(
 					// translators: %1$s: Gateway title, %2$s: Order ID.
-					__( '%1$s payment was Authorized (Order ID: %2$s)', $this->mpgs_plugin->text_domain() ),
+					__( '%1$s payment was Authorized (Order ID: %2$s)', $this->core_plugin->text_domain() ),
 					$this->title,
 					$order_data['id'],
 				);
@@ -561,10 +561,10 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 			case 'PARTIALLY_CAPTURED':
 				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), null );
 				$new_order_status     = 'on-hold';
-				$new_order_status_msg = __( 'Payment partially captured, waiting for full capture.', $this->mpgs_plugin->text_domain() );
+				$new_order_status_msg = __( 'Payment partially captured, waiting for full capture.', $this->core_plugin->text_domain() );
 				$new_order_note_msg   = sprintf(
 					// translators: %1$s: Gateway title, %2$s: Captured amount.
-					__( '%1$s payment was Partially Captured. Captured Amount: %2$s', $this->mpgs_plugin->text_domain() ),
+					__( '%1$s payment was Partially Captured. Captured Amount: %2$s', $this->core_plugin->text_domain() ),
 					$this->title,
 					wc_price( $transaction['amount'], array( 'currency' => $transaction['currency'] ) )
 				);
@@ -572,7 +572,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 			case 'CANCELLED':
 				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), null );
 				$new_order_status     = 'cancelled';
-				$new_order_status_msg = __( 'Authorization was cancelled successfully.', $this->mpgs_plugin->text_domain() );
+				$new_order_status_msg = __( 'Authorization was cancelled successfully.', $this->core_plugin->text_domain() );
 				break;
 			case 'DECLINED':
 				$this->handle_failed_payment( new WP_Error( 'payment_declined', $this->get_mapped_error_code( $order_data['error']['cause'] ?? 'error' ) ), $order );
@@ -604,7 +604,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 	protected function validate_payment_status( $order, $order_data = array() ) {
 
 		if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
-			throw new Exception( __( 'The order object is not valid.', $this->mpgs_plugin->text_domain() ) );
+			throw new Exception( __( 'The order object is not valid.', $this->core_plugin->text_domain() ) );
 		}
 
 		if ( empty( $order_data ) ) {
@@ -612,15 +612,15 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 		}
 
 		if ( ! $order_data['success'] || empty( $order_data['body'] ) || empty( $order_data['body']['result'] ) ) {
-			throw new Exception( __( 'Failed to retrieve the order.', $this->mpgs_plugin->text_domain() ) );
+			throw new Exception( __( 'Failed to retrieve the order.', $this->core_plugin->text_domain() ) );
 		}
 
 		if ( 'SUCCESS' !== $order_data['body']['result'] ) {
-			throw new Exception( 'Payment was declined.', $this->mpgs_plugin->text_domain() );
+			throw new Exception( 'Payment was declined.', $this->core_plugin->text_domain() );
 		}
 
 		if ( empty( $order_data['body']['transaction'] ) || ! is_array( $order_data['body']['transaction'] ) ) {
-			throw new Exception( __( 'The transaction data is not valid.', $this->mpgs_plugin->text_domain() ) );
+			throw new Exception( __( 'The transaction data is not valid.', $this->core_plugin->text_domain() ) );
 		}
 	}
 
@@ -739,7 +739,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 		try {
 			if ( $this->id !== $order->get_payment_method() ) {
-				throw new Exception( __( 'The payment method is invalid.', $this->mpgs_plugin->text_domain() ) );
+				throw new Exception( __( 'The payment method is invalid.', $this->core_plugin->text_domain() ) );
 			}
 
 			if ( $order->get_meta( $this->prefix_hook( 'order_captured' ) ) ) {
@@ -749,7 +749,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 			$unique_order_id = $order->get_meta( $this->prefix_hook( 'order_id' ) );
 
 			if ( ! $unique_order_id ) {
-				throw new Exception( __( 'The order data is missing or invalid.', $this->mpgs_plugin->text_domain() ) );
+				throw new Exception( __( 'The order data is missing or invalid.', $this->core_plugin->text_domain() ) );
 			}
 
 			$transaction_id = $this->unique_transaction_id( $order );
@@ -769,7 +769,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 				$payload['transaction']['authorizationAdjustmentActions'] = 'INCREMENT';
 			}
 
-			$response = $this->mpgs_api()->capture_payment( $unique_order_id, $transaction_id, $payload );
+			$response = $this->api()->capture_payment( $unique_order_id, $transaction_id, $payload );
 
 			if ( ! $response['success'] || empty( $response['body']['result'] ) || 'SUCCESS' !== $response['body']['result'] ) {
 
@@ -777,20 +777,20 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 					throw new Exception( $response['error'] );
 				}
 
-				throw new Exception( __( 'There was an error capturing the payment.', $this->mpgs_plugin->text_domain() ) );
+				throw new Exception( __( 'There was an error capturing the payment.', $this->core_plugin->text_domain() ) );
 			}
 
 			if ( empty( $response['body']['order'] ) || empty( $response['body']['transaction'] ) ) {
-				throw new Exception( __( 'There was an error parsing the capture response.', $this->mpgs_plugin->text_domain() ) );
+				throw new Exception( __( 'There was an error parsing the capture response.', $this->core_plugin->text_domain() ) );
 			}
 
 			$this->process_wc_order( $order, $response['body']['order'], $response['body']['transaction'] );
 		} catch ( Exception $e ) {
-			$this->mpgs_plugin->logger()->log( $e->getMessage(), 'error' );
+			$this->core_plugin->logger()->log( $e->getMessage(), 'error' );
 			$order->add_order_note(
 				sprintf(
 					// translators: %1$s: Gateway title, %2$s: Error message.
-					__( '%1$s payment capture failed: %2$s', $this->mpgs_plugin->text_domain() ),
+					__( '%1$s payment capture failed: %2$s', $this->core_plugin->text_domain() ),
 					$this->title,
 					$e->getMessage()
 				)
@@ -822,7 +822,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 			}
 
 			if ( $amount > $captured_amount ) {
-				$error = __( 'The amount to be refunded is greater than the captured amount.', $this->mpgs_plugin->text_domain() );
+				$error = __( 'The amount to be refunded is greater than the captured amount.', $this->core_plugin->text_domain() );
 				throw new Exception( $error );
 			}
 
@@ -841,18 +841,18 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 				),
 			);
 
-			$response = $this->mpgs_api()->create_transaction( $this->unique_order_id( $order ), $transaction_id, $refund_data );
+			$response = $this->api()->create_transaction( $this->unique_order_id( $order ), $transaction_id, $refund_data );
 
 			if ( ! $response['success'] || empty( $response['body']['result'] ) || ! empty( $response['error'] ) ) {
-				$error = __( 'There was an error processing the payment refund. Please try again.', $this->mpgs_plugin->text_domain() );
+				$error = __( 'There was an error processing the payment refund. Please try again.', $this->core_plugin->text_domain() );
 				throw new Exception( $error );
 			}
 
 			$note = sprintf(
 				// translators: %1$s: Currency of refund, %2$s: Refund amount, %2$s: Refund reason.
-				__( 'Refund of %1$s processed. %2$s', $this->mpgs_plugin->text_domain() ),
+				__( 'Refund of %1$s processed. %2$s', $this->core_plugin->text_domain() ),
 				wc_price( $amount, array( 'currency' => $currency ) ),
-				$reason ? __( 'Reason: ', $this->mpgs_plugin->text_domain() ) . $reason : '',
+				$reason ? __( 'Reason: ', $this->core_plugin->text_domain() ) . $reason : '',
 			);
 			$order->add_order_note( $note );
 
@@ -868,13 +868,13 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 		} catch ( Exception $e ) {
 			$error_message = $e->getMessage();
 
-			$this->mpgs_plugin->logger()->log( $error_message, 'error' );
+			$this->core_plugin->logger()->log( $error_message, 'error' );
 
 			return new WP_Error(
 				'failed-refund',
 				sprintf(
 				// translators: %1$s: Currency of refund, %2$s: Refund amount, %2$s: Refund reason.
-					__( 'There was an error processing the refund. Reason: %1$s', $this->mpgs_plugin->text_domain() ),
+					__( 'There was an error processing the refund. Reason: %1$s', $this->core_plugin->text_domain() ),
 					$error_message
 				)
 			);
@@ -928,7 +928,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 		$order_note = sprintf(
 			// translators: %1$s: Refund reason, %2$s: Refund amount.
-			__( 'Refund Webhook notification received. Refund amount: %2$s.', $this->mpgs_plugin->text_domain() ),
+			__( 'Refund Webhook notification received. Refund amount: %2$s.', $this->core_plugin->text_domain() ),
 			$reason,
 			wc_price( $amount, array( 'currency' => $order->get_currency() ) )
 		);
@@ -936,7 +936,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 		if ( ! empty( $reason ) ) {
 			$order_note .= ' ' . sprintf(
 				// translators: %s: Refund reason.
-				__( 'Reason: %s', $this->mpgs_plugin->text_domain() ),
+				__( 'Reason: %s', $this->core_plugin->text_domain() ),
 				$reason
 			);
 		}
@@ -957,7 +957,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 		if ( is_wp_error( $refund ) ) {
 			/* translators: %1$s reason */
-			throw new Exception( sprintf( __( 'Create refund failed: %1$s.', $this->mpgs_plugin->text_domain() ), $refund->get_error_message() ) );
+			throw new Exception( sprintf( __( 'Create refund failed: %1$s.', $this->core_plugin->text_domain() ), $refund->get_error_message() ) );
 		}
 
 		$refund->update_meta_data( $this->prefix_hook( 'transaction_id' ), $transaction['id'] );
@@ -996,7 +996,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 		if ( ! $voided_refund ) {
 			throw new Exception(
 				sprintf(
-					__( 'Refund with Transaction ID (%s) not found.', $this->mpgs_plugin->text_domain() ),
+					__( 'Refund with Transaction ID (%s) not found.', $this->core_plugin->text_domain() ),
 					$transaction['id']
 				)
 			);
@@ -1004,7 +1004,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 		$voided_refund->delete( true );
 
-		$order->add_order_note( sprintf( __( 'Refund was cancelled. Transaction ID: %s', $this->mpgs_plugin->text_domain() ), $transaction['id'] ) );
+		$order->add_order_note( sprintf( __( 'Refund was cancelled. Transaction ID: %s', $this->core_plugin->text_domain() ), $transaction['id'] ) );
 
 		$this->flag_transaction_as_processed( $order, $transaction['id'] );
 	}
@@ -1033,12 +1033,12 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 			$this->validate_payment_status( $order, $order_data );
 
 			if ( 'AUTHORIZED' !== $order_data['body']['status'] ) {
-				throw new Exception( __( 'The order cannot be voided anymore.', $this->mpgs_plugin->text_domain() ) );
+				throw new Exception( __( 'The order cannot be voided anymore.', $this->core_plugin->text_domain() ) );
 			}
 
 			$transaction_id = $order->get_meta( $this->prefix_hook( 'authorize_transaction' ) );
 			if ( empty( $transaction_id ) ) {
-				throw new Exception( __( 'The Authorize transaction ID is missing. Try to void the authorization from the Merchant Portal.', $this->mpgs_plugin->text_domain() ) );
+				throw new Exception( __( 'The Authorize transaction ID is missing. Try to void the authorization from the Merchant Portal.', $this->core_plugin->text_domain() ) );
 			}
 
 			$void_data = array(
@@ -1048,10 +1048,10 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 				),
 			);
 
-			$response = $this->mpgs_api()->create_transaction( $this->unique_order_id( $order ), $this->unique_transaction_id( $order ), $void_data );
+			$response = $this->api()->create_transaction( $this->unique_order_id( $order ), $this->unique_transaction_id( $order ), $void_data );
 
 			if ( ! $response['success'] || empty( $response['body']['result'] ) || 'SUCCESS' !== $response['body']['result'] ) {
-				throw new Exception( __( 'Void Payment failed. Please try again.', $this->mpgs_plugin->text_domain() ) );
+				throw new Exception( __( 'Void Payment failed. Please try again.', $this->core_plugin->text_domain() ) );
 			}
 
 			$this->process_wc_order( $order, $response['body']['order'], $response['body']['transaction'] );
@@ -1059,7 +1059,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 			$order->add_order_note(
 				sprintf(
 					/* translators: %s: error message */
-					__( 'Void Payment failed: %s', $this->mpgs_plugin->text_domain() ),
+					__( 'Void Payment failed: %s', $this->core_plugin->text_domain() ),
 					$e->getMessage()
 				)
 			);
@@ -1085,20 +1085,20 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 		}
 
 		$message = sprintf(
-			__( '%s payment was charged back.', $this->mpgs_plugin->text_domain() ),
+			__( '%s payment was charged back.', $this->core_plugin->text_domain() ),
 			$this->title,
 		);
 
 		if ( ! empty( $transaction['dispute']['amount'] ) && ! empty( $transaction['dispute']['currency'] ) ) {
 			$message .= ' ' . sprintf(
-				__( 'Chargeback Amount: %s', $this->mpgs_plugin->text_domain() ),
+				__( 'Chargeback Amount: %s', $this->core_plugin->text_domain() ),
 				wc_price( $transaction['dispute']['amount'], array( 'currency' => $transaction['dispute']['currency'] ) )
 			);
 		}
 
 		if ( ! empty( $transaction['dispute']['reason'] ) ) {
 			$message .= ' ' . sprintf(
-				__( 'Reason: %s', $this->mpgs_plugin->text_domain() ),
+				__( 'Reason: %s', $this->core_plugin->text_domain() ),
 				$transaction['dispute']['reason']
 			);
 		}
@@ -1130,17 +1130,17 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 			$body = json_decode( $raw_body, true );
 
 			if ( empty( $body ) ) {
-				throw new Exception( __( 'The request body is empty.', $this->mpgs_plugin->text_domain() ) );
+				throw new Exception( __( 'The request body is empty.', $this->core_plugin->text_domain() ) );
 			}
 
-			$this->mpgs_plugin->logger()->log( __( 'Webhook Notification: ', $this->mpgs_plugin->text_domain() ) . $raw_body, 'info', $this->prefix_hook( 'webhooks', '', '-' ) );
+			$this->core_plugin->logger()->log( __( 'Webhook Notification: ', $this->core_plugin->text_domain() ) . $raw_body, 'info', $this->prefix_hook( 'webhooks', '', '-' ) );
 
 			$this->handle_webhook_request( $body, $order );
 
 			status_header( 200 );
 			$this->webhook_cleanup();
 		} catch ( Exception $e ) {
-			$this->mpgs_plugin->logger()->log( $e->getMessage(), 'error' );
+			$this->core_plugin->logger()->log( $e->getMessage(), 'error' );
 			status_header( is_numeric( $e->getCode() ) ? $e->getCode() : 400 );
 			die();
 		}
@@ -1187,10 +1187,10 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 		$order_url = add_query_arg(
 			array(
 				'_authDomain' => 'ma',
-				'merchantId'  => $this->mpgs_plugin->merchant_id(),
+				'merchantId'  => $this->core_plugin->merchant_id(),
 				'orderId'     => $order_id,
 			),
-			untrailingslashit( $this->mpgs_plugin->gateway_url() ) . '/historyV2/detail'
+			untrailingslashit( $this->core_plugin->gateway_url() ) . '/historyV2/detail'
 		);
 
 		if ( ! $return_html ) {
@@ -1294,27 +1294,27 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 				break;
 			case 'VOID_PAYMENT':
 				$order_note_msg   = sprintf(
-					__( 'Webhook Notification: Payment Transaction ID: %1$s was voided (Void Transaction ID: %2$s)', $this->mpgs_plugin->text_domain() ),
+					__( 'Webhook Notification: Payment Transaction ID: %1$s was voided (Void Transaction ID: %2$s)', $this->core_plugin->text_domain() ),
 					$transaction['targetTransactionId'] ?? '',
 					$transaction['id'] ?? '',
 				);
-				$order_status_msg = __( 'Payment was voided.', $this->mpgs_plugin->text_domain() );
+				$order_status_msg = __( 'Payment was voided.', $this->core_plugin->text_domain() );
 				break;
 			case 'VOID_CAPTURE':
 				$order_note_msg   = sprintf(
-					__( 'Webhook Notification: Capture Transaction ID: %1$s was voided (Void Transaction ID: %2$s)', $this->mpgs_plugin->text_domain() ),
+					__( 'Webhook Notification: Capture Transaction ID: %1$s was voided (Void Transaction ID: %2$s)', $this->core_plugin->text_domain() ),
 					$transaction['targetTransactionId'] ?? '',
 					$transaction['id'] ?? '',
 				);
-				$order_status_msg = __( 'Capture was voided.', $this->mpgs_plugin->text_domain() );
+				$order_status_msg = __( 'Capture was voided.', $this->core_plugin->text_domain() );
 				break;
 			case 'VOID_AUTHORIZATION':
 				$order_note_msg   = sprintf(
-					__( 'Webhook Notification: Authorization Transaction ID: %1$s was voided (Void Transaction ID: %2$s)', $this->mpgs_plugin->text_domain() ),
+					__( 'Webhook Notification: Authorization Transaction ID: %1$s was voided (Void Transaction ID: %2$s)', $this->core_plugin->text_domain() ),
 					$transaction['targetTransactionId'] ?? '',
 					$transaction['id'] ?? '',
 				);
-				$order_status_msg = __( 'Authorization was voided.', $this->mpgs_plugin->text_domain() );
+				$order_status_msg = __( 'Authorization was voided.', $this->core_plugin->text_domain() );
 				break;
 			case 'CAPTURE':
 			case 'PAYMENT':
@@ -1344,7 +1344,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 		$this->debounce_key = $this->prefix_hook( 'webhook_debounce_' . md5( $raw_body ) );
 
 		if ( false !== get_transient( $this->debounce_key ) ) {
-			throw new Exception( __( 'Notification Webhook repeated too soon or previous request exited abnormally.', $this->mpgs_plugin->text_domain() ) );
+			throw new Exception( __( 'Notification Webhook repeated too soon or previous request exited abnormally.', $this->core_plugin->text_domain() ) );
 		}
 
 		set_transient( $this->debounce_key, time(), MINUTE_IN_SECONDS );
@@ -1368,7 +1368,7 @@ class WC_Abstract_MPGS_Payment_Gateway extends WC_Payment_Gateway_CC {
 		$this->debounce_key_transaction = $this->prefix_hook( 'webhook_debounce_transaction_' . $transaction['id'] );
 
 		if ( false !== get_transient( $this->debounce_key_transaction ) ) {
-			throw new Exception( __( 'Notification Webhook repeated too soon or previous request exited abnormally.', $this->mpgs_plugin->text_domain() ) );
+			throw new Exception( __( 'Notification Webhook repeated too soon or previous request exited abnormally.', $this->core_plugin->text_domain() ) );
 		}
 
 		set_transient( $this->debounce_key_transaction, time(), MINUTE_IN_SECONDS );

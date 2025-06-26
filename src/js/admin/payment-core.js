@@ -13,10 +13,10 @@ import Settings from './_settings';
 
 	Settings.init();
 
-	const prefix = mpgs_gateway_admin_params?.prefix;
+	const prefix = core_gateway_admin_params?.prefix;
 
 	if ( ! prefix ) {
-		$( '.mpgs-void-form' ).hide();
+		$( '.payment-core-void-form' ).hide();
 		return;
 	}
 
@@ -27,7 +27,7 @@ import Settings from './_settings';
 			! confirm(
 				__(
 					'Are you sure that you want to cancel the Payment Authorization?',
-					mpgs_gateway_admin_params?.textDomain
+					core_gateway_admin_params?.textDomain
 				)
 			)
 		) {

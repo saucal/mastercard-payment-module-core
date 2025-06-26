@@ -4,10 +4,10 @@
  *
  * @class       Logger
  * @version     1.0.0
- * @package     MPGSCore/Classes/
+ * @package     GatewayPaymentCore/Classes/
  */
 
-namespace MPGSCore;
+namespace GatewayPaymentCore;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -27,11 +27,11 @@ final class Logger {
 
 
 	/**
-	 * MPGS Plugin instance.
+	 * Core Plugin instance.
 	 *
-	 * @var MpgsPlugin
+	 * @var CorePlugin
 	 */
-	private $mpgs_plugin;
+	private $core_plugin;
 
 
 	/**
@@ -45,10 +45,10 @@ final class Logger {
 	/**
 	 * Constructor.
 	 *
-	 * @param MpgsPlugin $mpgs_plugin MPGS Plugin instance.
+	 * @param CorePlugin $core_plugin Core Plugin instance.
 	 */
-	public function __construct( MpgsPlugin $mpgs_plugin ) {
-		$this->mpgs_plugin = $mpgs_plugin;
+	public function __construct( CorePlugin $core_plugin ) {
+		$this->core_plugin = $core_plugin;
 	}
 
 
@@ -61,7 +61,7 @@ final class Logger {
 	 */
 	public function log( $message, $level = 'debug', $file = null ) {
 
-		if ( $this->force_disabled || ( 'error' !== $level && ! $this->mpgs_plugin->is_debug() ) ) {
+		if ( $this->force_disabled || ( 'error' !== $level && ! $this->core_plugin->is_debug() ) ) {
 			return;
 		}
 
@@ -69,7 +69,7 @@ final class Logger {
 			$this->wc_logger = wc_get_logger();
 		}
 
-		$handler = array( 'source' => ! empty( $file ) ? $file . '-logs' : $this->mpgs_plugin->plugin_id() . '-logs' );
+		$handler = array( 'source' => ! empty( $file ) ? $file . '-logs' : $this->core_plugin->plugin_id() . '-logs' );
 
 		$this->wc_logger->log( $level, $message, $handler );
 	}

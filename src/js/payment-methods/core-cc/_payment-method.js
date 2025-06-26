@@ -24,7 +24,7 @@ import { hostedCheckoutHandler } from './_hosted-checkout-handler';
  * @param {Object} props
  * @return React component
  */
-const MpgsCC = ( { activePaymentMethod, eventRegistration, emitResponse } ) => {
+const PaymentCoreCC = ( { activePaymentMethod, eventRegistration, emitResponse } ) => {
 	const { onPaymentSetup, onCheckoutSuccess, onCheckoutFail } =
 		eventRegistration;
 
@@ -59,26 +59,26 @@ const MpgsCC = ( { activePaymentMethod, eventRegistration, emitResponse } ) => {
 };
 
 /**
- * Returns the Components that will be used by MPGS.
+ * Returns the Components that will be used by the plugin.
  *
  * @param {Object} props
  * @return React Component
  */
-export const MpgsContent = ( props ) => {
+export const PaymentCoreContent = ( props ) => {
 	return (
 		<React.Fragment>
 			<Content description={ settings?.description } />
-			<MpgsCC { ...props } />
+			<PaymentCoreCC { ...props } />
 		</React.Fragment>
 	);
 };
 
 /**
- * Returns the Components that will be used by MPGS in edit mode.
+ * Returns the Components that will be used by the plugin in edit mode.
  *
  * @return React Component
  */
-export const MpgsEditContent = () => {
+export const PaymentCoreEditContent = () => {
 	return (
 		<React.Fragment>
 			<Content description={ settings?.description } />

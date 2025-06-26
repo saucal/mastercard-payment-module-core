@@ -1,1 +1,1 @@
-# MPGS Core Package
+# Gateway Payment Core package

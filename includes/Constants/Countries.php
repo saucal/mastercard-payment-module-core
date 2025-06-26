@@ -4,10 +4,10 @@
  *
  * @class       Countries
  * @version     1.0.0
- * @package     MPGSCore/Classes/
+ * @package     GatewayPaymentCore/Classes/
  */
 
-namespace MPGSCore\Constants;
+namespace GatewayPaymentCore\Constants;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;

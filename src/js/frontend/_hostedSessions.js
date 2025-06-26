@@ -11,10 +11,10 @@ const hostedSessions = {
 	$wcForm: null,
 
 	init() {
-		if ( ! mpgs_gateway_params || ! mpgs_gateway_params.prefix ) {
+		if ( ! core_gateway_params || ! core_gateway_params.prefix ) {
 			return;
 		}
-		hostedSessions.pluginPrefix = mpgs_gateway_params.prefix;
+		hostedSessions.pluginPrefix = core_gateway_params.prefix;
 
 		if ( ! window.PaymentSession ) {
 			hostedSessions.reInit();
@@ -57,7 +57,7 @@ const hostedSessions = {
 		}
 
 		hostedSessions.sessionId = jQuery(
-			`#${ mpgs_gateway_params.prefix }_session_id`
+			`#${ core_gateway_params.prefix }_session_id`
 		).val();
 
 		if ( ! hostedSessions.sessionId ) {
@@ -65,7 +65,7 @@ const hostedSessions = {
 		}
 
 		hostedSessions.sessionIdAttempt = jQuery(
-			`#${ mpgs_gateway_params.prefix }_session_attempt`
+			`#${ core_gateway_params.prefix }_session_attempt`
 		).val();
 
 		if ( ! hostedSessions.sessionIdAttempt ) {
@@ -163,7 +163,7 @@ const hostedSessions = {
 			);
 		} catch ( error ) {
 			hostedSessions.submitError(
-				`${ mpgs_gateway_params.hostedSessionErrors.default }: ${ error }`
+				`${ core_gateway_params.hostedSessionErrors.default }: ${ error }`
 			);
 		}
 
@@ -310,7 +310,7 @@ const hostedSessions = {
 			);
 		} catch ( error ) {
 			hostedSessions.submitError(
-				`${ mpgs_gateway_params.hostedSessionErrors.default }: ${ error }`
+				`${ core_gateway_params.hostedSessionErrors.default }: ${ error }`
 			);
 			hostedSessions.unblockForm();
 		}
@@ -320,7 +320,7 @@ const hostedSessions = {
 		let error = false;
 
 		if ( ! response.status ) {
-			error = `${ mpgs_gateway_params.hostedSessionErrors.default }: ${ response }`;
+			error = `${ core_gateway_params.hostedSessionErrors.default }: ${ response }`;
 		}
 
 		if ( response.status !== 'ok' ) {
@@ -330,13 +330,13 @@ const hostedSessions = {
 			! response.session.id ||
 			! response.session.version
 		) {
-			error = mpgs_gateway_params.hostedSessionErrors.default;
+			error = core_gateway_params.hostedSessionErrors.default;
 		} else if (
 			response?.sourceOfFunds?.provided?.card &&
 			! response.sourceOfFunds.provided.card.securityCode
 		) {
 			error =
-				mpgs_gateway_params.hostedSessionErrors.fields_in_error
+				core_gateway_params.hostedSessionErrors.fields_in_error
 					.securityCode;
 		}
 
@@ -399,31 +399,31 @@ const hostedSessions = {
 	getSessionError( response ) {
 		if (
 			! response.status ||
-			! mpgs_gateway_params.hostedSessionErrors[ response.status ]
+			! core_gateway_params.hostedSessionErrors[ response.status ]
 		) {
-			return mpgs_gateway_params.hostedSessionErrors.default;
+			return core_gateway_params.hostedSessionErrors.default;
 		}
 
 		if (
-			typeof mpgs_gateway_params.hostedSessionErrors[
+			typeof core_gateway_params.hostedSessionErrors[
 				response.status
 			] === 'object'
 		) {
 			if (
 				response.errors &&
-				mpgs_gateway_params.hostedSessionErrors[ response.status ][
+				core_gateway_params.hostedSessionErrors[ response.status ][
 					Object.keys( response.errors ).shift()
 				]
 			) {
-				return mpgs_gateway_params.hostedSessionErrors[
+				return core_gateway_params.hostedSessionErrors[
 					response.status
 				][ Object.keys( response.errors ).shift() ];
 			}
-			return mpgs_gateway_params.hostedSessionErrors.default;
+			return core_gateway_params.hostedSessionErrors.default;
 		}
 
 		return (
-			mpgs_gateway_params.hostedSessionErrors[ response.status ] +
+			core_gateway_params.hostedSessionErrors[ response.status ] +
 			( response.errors.message ? `: ${ response.errors.message }` : '' )
 		);
 	},
@@ -462,11 +462,11 @@ const hostedSessions = {
 				} )
 				.done( function ( res ) {
 					hostedSessions.sessionId = res;
-					jQuery( `#${ mpgs_gateway_params.prefix }_session_id` ).val(
+					jQuery( `#${ core_gateway_params.prefix }_session_id` ).val(
 						res
 					);
 					hostedSessions.submitError(
-						mpgs_gateway_params.hostedSessionErrors.session_expired
+						core_gateway_params.hostedSessionErrors.session_expired
 					);
 					hostedSessions.initHostedSession();
 				} )
@@ -595,7 +595,7 @@ const hostedSessions = {
 	},
 
 	get3DSData() {
-		return mpgs_gateway_params.threeDsEnabled
+		return core_gateway_params.threeDsEnabled
 			? JSON.stringify( {
 					colorDepth: window.screen.colorDepth,
 					javaScriptEnabled: true,

@@ -4,13 +4,13 @@
  *
  * @class       Utils
  * @version     1.0.0
- * @package     MPGSCore/Classes/
+ * @package     GatewayPaymentCore/Classes/
  */
 
-namespace MPGSCore;
+namespace GatewayPaymentCore;
 
 use Automattic\WooCommerce\Utilities\OrderUtil;
-use MPGSCore\Constants\Countries;
+use GatewayPaymentCore\Constants\Countries;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -27,16 +27,16 @@ final class Utils {
 	 *
 	 * @var Main
 	 */
-	private $mpgs_core;
+	private $payment_core;
 
 
 	/**
 	 * Constructor.
 	 *
-	 * @param Main $mpgs_core Main instance.
+	 * @param Main $payment_core Main instance.
 	 */
-	public function __construct( Main $mpgs_core ) {
-		$this->mpgs_core = $mpgs_core;
+	public function __construct( Main $payment_core ) {
+		$this->payment_core = $payment_core;
 	}
 
 
@@ -67,7 +67,7 @@ final class Utils {
 	 * @return string
 	 */
 	public function plugin_url() {
-		return untrailingslashit( plugins_url( '/', $this->mpgs_core->plugin_file() ) );
+		return untrailingslashit( plugins_url( '/', $this->payment_core->plugin_file() ) );
 	}
 
 
@@ -77,7 +77,7 @@ final class Utils {
 	 * @return string
 	 */
 	public function core_package_url() {
-		return untrailingslashit( plugins_url( '/', $this->mpgs_core->core_plugin_file() ) );
+		return untrailingslashit( plugins_url( '/', $this->payment_core->core_plugin_file() ) );
 	}
 
 
@@ -87,7 +87,7 @@ final class Utils {
 	 * @return string
 	 */
 	public function plugin_path() {
-		return untrailingslashit( plugin_dir_path( $this->mpgs_core->plugin_file() ) );
+		return untrailingslashit( plugin_dir_path( $this->payment_core->plugin_file() ) );
 	}
 
 
@@ -97,7 +97,7 @@ final class Utils {
 	 * @return string
 	 */
 	public function core_package_path() {
-		return untrailingslashit( plugin_dir_path( $this->mpgs_core->core_plugin_file() ) );
+		return untrailingslashit( plugin_dir_path( $this->payment_core->core_plugin_file() ) );
 	}
 
 
@@ -108,7 +108,7 @@ final class Utils {
 	 */
 	public function template_path() {
 		// Allow 3rd party plugin filter template path from their plugin.
-		return apply_filters( $this->mpgs_core->prefix_hook( 'template_path' ), 'mpgs-core/' );
+		return apply_filters( $this->payment_core->prefix_hook( 'template_path' ), 'payment-core/' );
 	}
 
 
@@ -123,7 +123,7 @@ final class Utils {
 
 
 	/**
-	 * Gets the order by MPGS Success Indicator.
+	 * Gets the order by Success Indicator.
 	 *
 	 * @param string $success_indicator The success indicator.
 	 *
@@ -132,7 +132,7 @@ final class Utils {
 	public function get_order_by_success_indicator( $success_indicator ) {
 		global $wpdb;
 
-		$order_meta_key = $this->mpgs_core->prefix_hook( 'success_indicator' );
+		$order_meta_key = $this->payment_core->prefix_hook( 'success_indicator' );
 
 		if ( self::is_hpos_enabled() ) {
 			$orders   = wc_get_orders(
@@ -350,7 +350,7 @@ final class Utils {
 	 * @return string
 	 */
 	public function hosted_session_id_key( $cart_hash = '' ) {
-		return $this->mpgs_core->prefix_hook( 'session_id_' . ( $cart_hash ? $cart_hash : $this->unique_cart_hash() ) );
+		return $this->payment_core->prefix_hook( 'session_id_' . ( $cart_hash ? $cart_hash : $this->unique_cart_hash() ) );
 	}
 
 
@@ -362,7 +362,7 @@ final class Utils {
 	 * @return string
 	 */
 	public function hosted_session_attempt_key( $cart_hash = '' ) {
-		return $this->mpgs_core->prefix_hook( 'session_attempt_' . ( $cart_hash ? $cart_hash : $this->unique_cart_hash() ) );
+		return $this->payment_core->prefix_hook( 'session_attempt_' . ( $cart_hash ? $cart_hash : $this->unique_cart_hash() ) );
 	}
 
 
@@ -374,7 +374,7 @@ final class Utils {
 	 * @return string
 	 */
 	public function hosted_session_duration_key( $cart_hash = '' ) {
-		return $this->mpgs_core->prefix_hook( 'session_duration_' . ( $cart_hash ? $cart_hash : $this->unique_cart_hash() ) );
+		return $this->payment_core->prefix_hook( 'session_duration_' . ( $cart_hash ? $cart_hash : $this->unique_cart_hash() ) );
 	}
 
 
@@ -395,21 +395,21 @@ final class Utils {
 	 */
 	public function hosted_session_errors() {
 		return apply_filters(
-			$this->mpgs_core->prefix_hook( 'hosted_session_errors' ),
+			$this->payment_core->prefix_hook( 'hosted_session_errors' ),
 			array(
 				'fields_in_error'       => array(
-					'cardNumber'   => __( 'Card number invalid or missing', $this->mpgs_core->text_domain() ),
-					'number'       => __( 'Card number invalid or missing', $this->mpgs_core->text_domain() ),
-					'expiryMonth'  => __( 'Expiry month invalid or missing', $this->mpgs_core->text_domain() ),
-					'expiryYear'   => __( 'Expiry year invalid or missing', $this->mpgs_core->text_domain() ),
-					'securityCode' => __( 'Security code is invalid or missing', $this->mpgs_core->text_domain() ),
-					'default'      => __( 'There was an error updating the payment details', $this->mpgs_core->text_domain() ),
+					'cardNumber'   => __( 'Card number invalid or missing', $this->payment_core->text_domain() ),
+					'number'       => __( 'Card number invalid or missing', $this->payment_core->text_domain() ),
+					'expiryMonth'  => __( 'Expiry month invalid or missing', $this->payment_core->text_domain() ),
+					'expiryYear'   => __( 'Expiry year invalid or missing', $this->payment_core->text_domain() ),
+					'securityCode' => __( 'Security code is invalid or missing', $this->payment_core->text_domain() ),
+					'default'      => __( 'There was an error updating the payment details. Please try again.', $this->payment_core->text_domain() ),
 				),
-				'payment_type_required' => __( 'Payment type is required', $this->mpgs_core->text_domain() ),
-				'request_timeout'       => __( 'Session update failed with request timeout', $this->mpgs_core->text_domain() ),
-				'system_error'          => __( 'Session update failed with system error', $this->mpgs_core->text_domain() ),
-				'default'               => __( 'There was an error updating the payment details.', $this->mpgs_core->text_domain() ),
-				'session_expired'       => __( 'The Payment Session expired. Please try again.', $this->mpgs_core->text_domain() ),
+				'payment_type_required' => __( 'Payment type is required', $this->payment_core->text_domain() ),
+				'request_timeout'       => __( 'Session update failed with request timeout', $this->payment_core->text_domain() ),
+				'system_error'          => __( 'Session update failed with system error', $this->payment_core->text_domain() ),
+				'default'               => __( 'There was an error updating the payment details. Please try again.', $this->payment_core->text_domain() ),
+				'session_expired'       => __( 'The Payment Session expired. Please try again.', $this->payment_core->text_domain() ),
 			)
 		);
 	}
