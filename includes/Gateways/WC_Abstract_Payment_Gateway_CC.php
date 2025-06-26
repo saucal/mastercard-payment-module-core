@@ -655,6 +655,13 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		$payment_data['transaction']['reference'] = $transaction_id;
 
+		$payment_data = apply_filters(
+			$this->prefix_hook( 'process_payment_hosted_session_data' ),
+			$payment_data,
+			$order,
+			$session
+		);
+
 		$response = $this->api()->create_transaction( $unique_order_id, $transaction_id, $payment_data );
 
 		if ( ! $response['success'] || empty( $response['body']['result'] ) || ! empty( $response['error'] ) ) {
