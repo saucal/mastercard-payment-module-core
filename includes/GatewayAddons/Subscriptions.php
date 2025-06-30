@@ -9,7 +9,9 @@
 
 namespace GatewayPaymentCore\GatewayAddons;
 
+use WC_Subscription;
 use WC_Subscriptions_Cart;
+use WC_Subscriptions_Product;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
@@ -52,6 +54,7 @@ trait Subscriptions {
 
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_data' ), array( $this, 'maybe_add_subscription_payment_data' ), 10, 2 );
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_data' ), array( $this, 'maybe_add_subscription_payment_data' ), 10, 2 );
+		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_authenticate_payer_data' ), array( $this, 'maybe_add_subscription_payment_data' ), 10, 2 );
 		add_filter( $this->prefix_hook( 'checkout_session_payload' ), array( $this, 'maybe_add_subscription_payment_data' ), 10, 2 );
 
 		// Remove redirect to checkout page for subscriptions.
@@ -77,12 +80,20 @@ trait Subscriptions {
 			return $payment_data;
 		}
 
+		$end_date = $subscription->get_date( 'end' );
+
+		if ( empty( $end_date ) ) {
+			$end_date = $subscription->get_date( 'next_payment' );
+		}
+
 		$agreement_data = array(
-			'type'              => 'RECURRING',
-			'amountVariability' => 'FIXED',
-			'id'                => $this->unique_subscription_id( $subscription ),
-			'paymentFrequency'  => $this->formatted_subscription_period( $subscription ),
-			'startDate'         => gmdate( 'Y-m-d' ),
+			'type'                       => 'RECURRING',
+			'amountVariability'          => 'FIXED',
+			'id'                         => $this->unique_subscription_id( $subscription ),
+			'paymentFrequency'           => $this->formatted_subscription_period( $subscription ),
+			'startDate'                  => gmdate( 'Y-m-d' ),
+			'expiryDate'                 => gmdate( 'Y-m-d', ! empty( $end_date ) ? strtotime( $end_date ) : strtotime( '+1 year' ) ),
+			'minimumDaysBetweenPayments' => 1,
 		);
 
 		return array_merge(

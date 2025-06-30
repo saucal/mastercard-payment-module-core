@@ -851,6 +851,13 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				'session'        => $session,
 			);
 
+			$authenticate_payer = apply_filters(
+				$this->prefix_hook( 'process_payment_hosted_session_3ds_authenticate_payer_data' ),
+				$authenticate_payer,
+				$order,
+				$session
+			);
+
 			$authentication_response = $this->api()->authenticate_payer( $order_id, $transaction_id, $authenticate_payer );
 
 			return $this->process_authentication_response( $authentication_response, $order, $transaction_id, $session );
