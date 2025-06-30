@@ -38,6 +38,10 @@ trait Subscriptions {
 			return;
 		}
 
+		if ( $this->is_hosted_checkout() ) {
+			return; // Subscriptions are not supported in hosted checkout mode.
+		}
+
 		$this->supports = array_merge(
 			$this->supports,
 			array(
@@ -55,7 +59,6 @@ trait Subscriptions {
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_data' ), array( $this, 'maybe_add_subscription_payment_data' ), 10, 2 );
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_data' ), array( $this, 'maybe_add_subscription_payment_data' ), 10, 2 );
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_authenticate_payer_data' ), array( $this, 'maybe_add_subscription_payment_data' ), 10, 2 );
-		add_filter( $this->prefix_hook( 'checkout_session_payload' ), array( $this, 'maybe_add_subscription_payment_data' ), 10, 2 );
 
 		// Remove redirect to checkout page for subscriptions.
 		add_filter( 'woocommerce_get_checkout_url', array( __CLASS__, 'maybe_remove_redirect_to_checkout' ) );
@@ -205,7 +208,6 @@ trait Subscriptions {
 
 		$subscription_cart_item_keys = array(
 			'subscription_initial_payment',
-			'subscription_renewal',
 			'subscription_resubscribe',
 			'subscription_switch',
 		);
