@@ -228,7 +228,7 @@ final class GatewaySettings {
 					'type'        => 'select',
 					'options'     => $supported_operations,
 					'default'     => 'PURCHASE',
-					'description' => __( 'Choose "Authorize and Capture" to authorize and capture the payment immediately. Choose "Authorize" to only authorize the payment, and capture it manually later from the WC admin panel.', $this->core_plugin->text_domain() ),
+					'description' => __( 'Choose "Authorize and Capture" to authorize and capture the payment immediately. Choose "Authorize" to only authorize the payment, and capture it manually later from the WC admin panel. This setting has no effect subscriptions. Charges on orders related to subscriptions are always captured.', $this->core_plugin->text_domain() ),
 				),
 				'checkout_mode'        => array(
 					'title'   => __( 'Integration mode', $this->core_plugin->text_domain() ),

@@ -494,11 +494,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		if ( $display_save_checkbox && ! is_add_payment_method_page() ) {
 			$this->save_payment_method_checkbox();
 		}
-
-		/**
-		 * Render additional content after the payment method checkbox.
-		 */
-		do_action( 'wc_' . $this->id . '_after_save_payment_method_checkbox' );
 	}
 
 
@@ -723,12 +718,14 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @param array    $session Session data.
 	 */
 	public function maybe_save_cards( $order, $session ) {
-		if ( ! $this->saved_cards ) {
-			return;
-		}
+		if ( ! apply_filters( $this->prefix_hook( 'forced_save_payment_method' ), false ) ) {
+			if ( ! $this->saved_cards ) {
+				return;
+			}
 
-		if ( ! $this->is_saving_payment_method() && ! WC()->session->get( $this->prefix_hook( 'saving_payment_method' ) ) ) {
-			return;
+			if ( ! $this->is_saving_payment_method() && ! WC()->session->get( $this->prefix_hook( 'saving_payment_method' ) ) ) {
+				return;
+			}
 		}
 
 		$this->payment_token()->process_saved_cards( $session['id'], $order->get_user_id( 'system' ) );
@@ -739,10 +736,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 	/**
 	 * Maybe cache the saving card.
-	 *
-	 * @param WC_Order $order Order object.
 	 */
-	public function maybe_cache_saving_card( $order ) {
+	public function maybe_cache_saving_card() {
 		if ( ! $this->saved_cards ) {
 			return;
 		}

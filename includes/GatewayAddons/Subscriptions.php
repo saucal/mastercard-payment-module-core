@@ -9,6 +9,7 @@
 
 namespace GatewayPaymentCore\GatewayAddons;
 
+use Exception;
 use WC_Subscription;
 use WC_Subscriptions_Cart;
 use WC_Subscriptions_Product;
@@ -65,8 +66,14 @@ trait Subscriptions {
 		add_filter( 'woocommerce_get_checkout_url', array( __CLASS__, 'maybe_remove_redirect_to_checkout' ) );
 
 		// Hide the save payment method checkbox for subscriptions.
-		add_filter( 'wc_' . $this->id . '_display_save_payment_method_checkbox', array( $this, 'maybe_hide_save_checkbox' ) );
-		add_filter( 'wc_' . $this->id . '_after_save_payment_method_checkbox', array( $this, 'maybe_display_save_card_notice' ) );
+		add_filter( 'wc_' . $this->id . '_display_save_payment_method_checkbox', array( $this, 'maybe_display_save_checkbox' ) );
+		add_action( 'wc_' . $this->id . '_after_payment_method_fields', array( $this, 'maybe_display_save_card_notice' ) );
+
+		// Forcefully save the payment method for subscriptions.
+		add_filter( $this->prefix_hook( 'forced_save_payment_method' ), array( $this, 'maybe_force_save_method' ) );
+
+		// Process renewal orders.
+		add_action( 'woocommerce_scheduled_subscription_payment_' . $this->id, array( $this, 'scheduled_subscription_payment' ), 10, 2 );
 	}
 
 
@@ -107,7 +114,8 @@ trait Subscriptions {
 		return array_merge(
 			$payment_data,
 			array(
-				'agreement' => array_filter( $agreement_data ),
+				'apiOperation' => 'PAY', // Use 'PAY' for subscription payments.
+				'agreement'    => array_filter( $agreement_data ),
 			)
 		);
 	}
@@ -262,7 +270,7 @@ trait Subscriptions {
 	 * @param bool $display_tokenization Whether to display the checkbox.
 	 * @return bool
 	 */
-	public function maybe_hide_save_checkbox( $display_tokenization ) {
+	public function maybe_display_save_checkbox( $display_tokenization ) {
 		if ( is_wc_endpoint_url( 'order-pay' ) && $this->is_subs_change_payment() ) {
 			return false;
 		}
@@ -281,7 +289,7 @@ trait Subscriptions {
 	 * @return void
 	 */
 	public function maybe_display_save_card_notice() {
-		if ( $this->maybe_hide_save_checkbox( true ) ) {
+		if ( $this->maybe_display_save_checkbox( true ) ) {
 			return;
 		}
 
@@ -290,6 +298,66 @@ trait Subscriptions {
 			__( 'Your payment method will be saved for future purchases.', $this->core_plugin->text_domain() )
 		);
 
-		echo '<p class="wc-gateway--save-card-notice">' . wp_kses_post( $save_card_notice ) . '</p>';
+		echo '<p class="wc-gateway-' . $this->id . '-save-card-notice"><i>' . wp_kses_post( $save_card_notice ) . '</i></p>';
+	}
+
+
+	/**
+	 * Forcefully save the payment method for subscriptions.
+	 *
+	 * @param bool $force_save Whether to force save the payment method.
+	 * @return bool
+	 */
+	public function maybe_force_save_method( $force_save ) {
+		if ( $this->maybe_display_save_checkbox( true ) ) {
+			return $force_save;
+		}
+
+		return true;
+	}
+
+
+	/**
+	 * Process scheduled subscription payment.
+	 *
+	 * @param float    $total_amount  Amount to charge for the subscription.
+	 * @param WC_Order $renewal_order Renewal order object.
+	 */
+	public function scheduled_subscription_payment( $total_amount, $renewal_order ) {
+		try {
+			$this->process_subscription_payment( $renewal_order );
+
+			do_action( 'processed_subscription_payments_for_order', $renewal_order );
+			do_action( $this->prefix_hook( 'scheduled_subscription_success' ), $total_amount, $renewal_order );
+		} catch ( Exception $e ) {
+
+			$order_note = __( 'Error processing scheduled_subscription_payment. Reason: ', $this->core_plugin->text_domain() ) . $e->getMessage();
+
+			if ( ! $renewal_order->has_status( 'failed' ) ) {
+				$renewal_order->update_status( 'failed', $order_note );
+			} else {
+				$renewal_order->add_order_note( $order_note );
+			}
+
+			if ( isset( $_REQUEST['process_early_renewal'] ) && ! wp_doing_cron() ) { //phpcs:ignore WordPress.Security.NonceVerification.Recommended
+				wc_add_notice( $e->getMessage(), 'error' );
+			}
+
+			$this->core_plugin->logger()->log( $e->getMessage(), 'error' );
+
+			do_action( 'processed_subscription_payment_failure_for_order', $renewal_order );
+			do_action( $this->prefix_hook( 'scheduled_subscription_failure' ), $total_amount, $renewal_order );
+		}
+	}
+
+
+	/**
+	 * Process the subscription payment.
+	 *
+	 * @param WC_Order $order Order object.
+	 * @throws Exception If payment processing fails.
+	 */
+	protected function process_subscription_payment( $order ) {
+		throw new Exception( __( 'Subscription payment processing is not implemented.', $this->core_plugin->text_domain() ) );
 	}
 }
