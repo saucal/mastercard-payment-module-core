@@ -666,6 +666,36 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$session
 		);
 
+		$this->create_payment_transaction( $order, $unique_order_id, $transaction_id, $payment_data );
+
+		$this->maybe_clean_hosted_cached_session( $this->get_hosted_session_data_hash() );
+
+		$this->maybe_save_cards( $order, $session );
+
+		return array(
+			'result'   => 'success',
+			'redirect' => $this->get_return_url( $order ),
+		);
+	}
+
+
+	/**
+	 * Create payment transaction.
+	 *
+	 * @param WC_Order $order           Order object.
+	 * @param string   $unique_order_id Unique order ID.
+	 * @param string   $transaction_id  Transaction ID.
+	 * @param array    $payment_data    Payment data.
+	 *
+	 * @return array
+	 * @throws Exception Exception.
+	 */
+	public function create_payment_transaction( $order, $unique_order_id, $transaction_id, $payment_data ) {
+
+		if ( empty( $order ) || empty( $unique_order_id ) || empty( $transaction_id ) || empty( $payment_data ) ) {
+			throw new Exception( __( 'There was an error processing the payment. Please try again.', $this->core_plugin->text_domain() ) );
+		}
+
 		$response = $this->api()->create_transaction( $unique_order_id, $transaction_id, $payment_data );
 
 		if ( ! $response['success'] || empty( $response['body']['result'] ) || ! empty( $response['error'] ) ) {
@@ -700,14 +730,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		$this->process_wc_order( $order, $order_data, $response['body']['transaction'] );
 
-		$this->maybe_clean_hosted_cached_session( $this->get_hosted_session_data_hash() );
-
-		$this->maybe_save_cards( $order, $session );
-
-		return array(
-			'result'   => 'success',
-			'redirect' => $this->get_return_url( $order ),
-		);
+		return $order_data;
 	}
 
 
@@ -718,17 +741,21 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @param array    $session Session data.
 	 */
 	public function maybe_save_cards( $order, $session ) {
-		if ( ! apply_filters( $this->prefix_hook( 'forced_save_payment_method' ), false ) ) {
-			if ( ! $this->saved_cards ) {
-				return;
-			}
-
-			if ( ! $this->is_saving_payment_method() && ! WC()->session->get( $this->prefix_hook( 'saving_payment_method' ) ) ) {
-				return;
-			}
+		if ( ! $this->saved_cards ) {
+			return;
 		}
 
-		$this->payment_token()->process_saved_cards( $session['id'], $order->get_user_id( 'system' ) );
+		if ( ! $this->is_saving_payment_method() && ! WC()->session->get( $this->prefix_hook( 'saving_payment_method' ) ) && ! apply_filters( $this->prefix_hook( 'forced_save_payment_method' ), false ) ) {
+			return;
+		}
+
+		$payment_token_id = $this->payment_token()->process_saved_cards( $session['id'], $order->get_user_id( 'system' ) );
+
+		if ( ! $payment_token_id ) {
+			return;
+		}
+
+		$order->add_payment_token( new WC_Payment_Token_CC( $payment_token_id ) );
 
 		WC()->session->__unset( $this->prefix_hook( 'saving_payment_method' ) );
 	}
@@ -831,7 +858,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			}
 
 			$authenticate_payer = array(
-				'apiOperation'   => 'AUTHENTICATE_PAYER',
 				'authentication' => array(
 					'redirectResponseUrl' => add_query_arg(
 						array(
@@ -857,6 +883,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				$order,
 				$session
 			);
+
+			$authenticate_payer['apiOperation'] = 'AUTHENTICATE_PAYER';
 
 			$authentication_response = $this->api()->authenticate_payer( $order_id, $transaction_id, $authenticate_payer );
 

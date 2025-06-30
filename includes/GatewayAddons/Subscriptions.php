@@ -10,6 +10,9 @@
 namespace GatewayPaymentCore\GatewayAddons;
 
 use Exception;
+use GatewayPaymentCore\PaymentToken;
+use WC_Payment_Token_CC;
+use WC_Payment_Tokens;
 use WC_Subscription;
 use WC_Subscriptions_Cart;
 use WC_Subscriptions_Product;
@@ -352,12 +355,59 @@ trait Subscriptions {
 
 
 	/**
-	 * Process the subscription payment.
+	 * Process subscription payment.
 	 *
 	 * @param WC_Order $order Order object.
-	 * @throws Exception If payment processing fails.
+	 *
+	 * @return void
+	 * @throws Exception Exception.
 	 */
 	protected function process_subscription_payment( $order ) {
-		throw new Exception( __( 'Subscription payment processing is not implemented.', $this->core_plugin->text_domain() ) );
+
+		$subscription_id = $order->get_meta( '_subscription_renewal' );
+		$subscription    = wcs_get_subscription( $subscription_id );
+		if ( ! $subscription instanceof WC_Subscription ) {
+			throw new Exception( __( 'The subscription order was not found.', $this->core_plugin->text_domain() ) );
+		}
+
+		$parent_id = ! empty( $subscription_id ) ? wc_get_order( $subscription_id )->get_parent_id() : null;
+		if ( ! $parent_id ) {
+			throw new Exception( __( 'No subscription found for this renewal order.', $this->core_plugin->text_domain() ) );
+		}
+
+		$parent_order = wc_get_order( $parent_id );
+		if ( ! $parent_order instanceof \WC_Order ) {
+			throw new Exception( __( 'The subscription order was not found.', $this->core_plugin->text_domain() ) );
+		}
+
+		$payment_tokens = $parent_order->get_payment_tokens();
+		if ( empty( $payment_tokens ) || ! is_array( $payment_tokens ) ) {
+			throw new Exception( __( 'No payment token found for the subscription order.', $this->core_plugin->text_domain() ) );
+		}
+
+		$payment_token = new WC_Payment_Token_CC( reset( $payment_tokens ) );
+		if ( ! $payment_token instanceof WC_Payment_Token_CC ) {
+			throw new Exception( __( 'Invalid payment token for the subscription order.', $this->core_plugin->text_domain() ) );
+		}
+
+		$payment_data = array(
+			'apiOperation'     => 'PAY',
+			'order'            => $this->hosted_session_order_payload( $order ),
+			'agreement'        => array(
+				'id' => $this->unique_subscription_id( $subscription ),
+			),
+			'referenceOrderId' => $this->unique_order_id( $parent_order ),
+			'sourceOfFunds'    => array(
+				'type'  => 'CARD',
+				'token' => $payment_token->get_token(),
+			),
+		);
+
+		$this->create_payment_transaction(
+			$order,
+			$this->unique_order_id( $order ),
+			$this->unique_transaction_id( $order ),
+			$payment_data,
+		);
 	}
 }
