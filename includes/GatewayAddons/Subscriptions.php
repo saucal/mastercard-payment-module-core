@@ -9,6 +9,8 @@
 
 namespace GatewayPaymentCore\GatewayAddons;
 
+use WC_Subscriptions_Cart;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
@@ -49,6 +51,11 @@ trait Subscriptions {
 		);
 
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_data' ), array( $this, 'maybe_add_subscription_payment_data' ), 10, 2 );
+		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_data' ), array( $this, 'maybe_add_subscription_payment_data' ), 10, 2 );
+		add_filter( $this->prefix_hook( 'checkout_session_payload' ), array( $this, 'maybe_add_subscription_payment_data' ), 10, 2 );
+
+		// Remove redirect to checkout page for subscriptions.
+		add_filter( 'woocommerce_get_checkout_url', array( __CLASS__, 'maybe_remove_redirect_to_checkout' ) );
 	}
 
 
@@ -71,10 +78,11 @@ trait Subscriptions {
 		}
 
 		$agreement_data = array(
+			'type'              => 'RECURRING',
 			'amountVariability' => 'FIXED',
 			'id'                => $this->unique_subscription_id( $subscription ),
 			'paymentFrequency'  => $this->formatted_subscription_period( $subscription ),
-			'startDate'         => 1,
+			'startDate'         => gmdate( 'Y-m-d' ),
 		);
 
 		return array_merge(
@@ -147,40 +155,75 @@ trait Subscriptions {
 	 */
 	protected function formatted_subscription_period( $subscription ) {
 		if ( ! $subscription instanceof \WC_Subscription ) {
-			return '';
+			return 'OTHER';
 		}
 
 		$interval = $subscription->get_billing_interval();
 
 		if ( 1 !== (int) $interval ) {
-			return '';
+			return 'OTHER';
 		}
 
 		$period = $subscription->get_billing_period();
 
 		switch ( $period ) {
 			case 'day':
-				return array(
-					'interval' => $interval,
-					'unit'     => 'DAILY',
-				);
+				return 'DAILY';
 			case 'week':
-				return array(
-					'interval' => $interval,
-					'unit'     => 'WEEKLY',
-				);
+				return 'WEEKLY';
 			case 'month':
-				return array(
-					'interval' => $interval,
-					'unit'     => 'MONTHLY',
-				);
+				return 'MONTHLY';
 			case 'year':
-				return array(
-					'interval' => $interval,
-					'unit'     => 'YEARLY',
-				);
+				return 'YEARLY';
 			default:
-				return '';
+				return 'OTHER';
 		}
+	}
+
+
+	/**
+	 * Remove the redirect to the checkout page for subscriptions.
+	 *
+	 * @param string $checkout_url The checkout URL.
+	 * @return string
+	 */
+	public static function maybe_remove_redirect_to_checkout( $checkout_url ) {
+		if ( ! self::cart_contains_subscription() ) {
+			return $checkout_url;
+		}
+
+		$subscription_cart_item_keys = array(
+			'subscription_initial_payment',
+			'subscription_renewal',
+			'subscription_resubscribe',
+			'subscription_switch',
+		);
+
+		foreach ( $subscription_cart_item_keys as $cart_item_key ) {
+			if ( did_action( 'woocommerce_setup_cart_for_' . $cart_item_key ) ) {
+				return '';
+			}
+		}
+
+		return $checkout_url;
+	}
+
+
+	/**
+	 * Check if the cart contains a subscription.
+	 *
+	 * @return bool
+	 */
+	protected static function cart_contains_subscription() {
+		if ( class_exists( 'WC_Subscriptions_Cart' ) && WC_Subscriptions_Cart::cart_contains_subscription() ) {
+			return true;
+		}
+		if ( function_exists( 'wcs_cart_contains_renewal' ) && wcs_cart_contains_renewal() ) {
+			return true;
+		}
+		if ( function_exists( 'wcs_cart_contains_resubscribe' ) && wcs_cart_contains_resubscribe() ) {
+			return true;
+		}
+		return false;
 	}
 }

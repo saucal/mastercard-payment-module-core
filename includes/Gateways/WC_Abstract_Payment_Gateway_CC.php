@@ -423,7 +423,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		$session_id = $this->checkout_session_id();
 
 		if ( ! $session_id ) {
-			wc_print_notice( __( 'There was an error creating the payment session. Please review your data and try again or try a different payment method.', $this->core_plugin->text_domain() ), 'error' );
+			if ( is_wc_endpoint_url( 'order-pay' ) ) {
+				wc_print_notice( __( 'There was an error creating the payment session. Please review your data and try again or try a different payment method.', $this->core_plugin->text_domain() ), 'error' );
+			} else {
+				echo wp_kses_post( $this->description );
+			}
 			return;
 		}
 
@@ -803,6 +807,13 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 					'currency' => $order->get_currency(),
 				),
 				'session'        => $session,
+			);
+
+			apply_filters(
+				$this->prefix_hook( 'process_payment_hosted_session_3ds_data' ),
+				$init_authentication,
+				$order,
+				$session
 			);
 
 			$response = $this->api()->init_authentication( $order_id, $transaction_id, $init_authentication );
@@ -1505,6 +1516,12 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		}
 
 		$payload = $this->maybe_add_customer_data( $payload, $order );
+
+		$payload = apply_filters(
+			$this->prefix_hook( 'checkout_session_payload' ),
+			$payload,
+			$order,
+		);
 
 		$response = $this->api()->create_session( $payload );
 
