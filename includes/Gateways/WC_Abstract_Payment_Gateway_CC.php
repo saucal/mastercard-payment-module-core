@@ -494,6 +494,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		if ( $display_save_checkbox && ! is_add_payment_method_page() ) {
 			$this->save_payment_method_checkbox();
 		}
+
+		/**
+		 * Render additional content after the payment method checkbox.
+		 */
+		do_action( 'wc_' . $this->id . '_after_save_payment_method_checkbox' );
 	}
 
 

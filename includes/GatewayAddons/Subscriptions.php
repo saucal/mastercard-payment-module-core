@@ -56,12 +56,17 @@ trait Subscriptions {
 			)
 		);
 
+		// Add subscription payment data to the payment request.
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_data' ), array( $this, 'maybe_add_subscription_payment_data' ), 10, 2 );
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_data' ), array( $this, 'maybe_add_subscription_payment_data' ), 10, 2 );
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_authenticate_payer_data' ), array( $this, 'maybe_add_subscription_payment_data' ), 10, 2 );
 
 		// Remove redirect to checkout page for subscriptions.
 		add_filter( 'woocommerce_get_checkout_url', array( __CLASS__, 'maybe_remove_redirect_to_checkout' ) );
+
+		// Hide the save payment method checkbox for subscriptions.
+		add_filter( 'wc_' . $this->id . '_display_save_payment_method_checkbox', array( $this, 'maybe_hide_save_checkbox' ) );
+		add_filter( 'wc_' . $this->id . '_after_save_payment_method_checkbox', array( $this, 'maybe_display_save_card_notice' ) );
 	}
 
 
@@ -238,5 +243,53 @@ trait Subscriptions {
 			return true;
 		}
 		return false;
+	}
+
+
+	/**
+	 * Checks if page is pay for order and change subs payment page.
+	 *
+	 * @return bool
+	 */
+	protected function is_subs_change_payment() {
+		return ( isset( $_GET['pay_for_order'] ) && isset( $_GET['change_payment_method'] ) ); // WPCS: CSRF ok.
+	}
+
+
+	/**
+	 * Hide the save payment method checkbox for subscriptions.
+	 *
+	 * @param bool $display_tokenization Whether to display the checkbox.
+	 * @return bool
+	 */
+	public function maybe_hide_save_checkbox( $display_tokenization ) {
+		if ( is_wc_endpoint_url( 'order-pay' ) && $this->is_subs_change_payment() ) {
+			return false;
+		}
+
+		if ( $this->cart_contains_subscription() ) {
+			return false;
+		}
+
+		return $display_tokenization;
+	}
+
+
+	/**
+	 * Display a notice after the save payment method checkbox.
+	 *
+	 * @return void
+	 */
+	public function maybe_display_save_card_notice() {
+		if ( $this->maybe_hide_save_checkbox( true ) ) {
+			return;
+		}
+
+		$save_card_notice = apply_filters(
+			$this->prefix_hook( 'save_card_notice' ),
+			__( 'Your payment method will be saved for future purchases.', $this->core_plugin->text_domain() )
+		);
+
+		echo '<p class="wc-gateway--save-card-notice">' . wp_kses_post( $save_card_notice ) . '</p>';
 	}
 }
