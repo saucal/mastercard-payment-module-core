@@ -33,19 +33,19 @@ if ( empty( $session_id ) || empty( $session_attempt ) ) {
 	<div class="<?php echo esc_attr( $gateway->id ); ?>-payment-form-elements payment-core-payment-form-elements">
 		<div class="form-row form-row-wide">
 			<label for="<?php echo esc_attr( $gateway->id ); ?>-card-number"><?php esc_html_e( 'Card number', $gateway->core_plugin()->text_domain() ); ?><span class="required">*</span></label>
-			<input id="<?php echo esc_attr( $gateway->id ); ?>-card-number-<?php echo esc_attr( $session_id ); ?>" readonly="readonly" class="input-text wc-credit-card-form-card-number" inputmode="numeric" autocomplete="cc-number" autocorrect="no" autocapitalize="no" spellcheck="no" type="tel" placeholder="&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull;" />
+			<input id="<?php echo esc_attr( $gateway->id ); ?>-card-number-<?php echo esc_attr( $session_id ); ?>" readonly="readonly" class="input-text wc-credit-card-form-card-number" inputmode="numeric" autocomplete="cc-number" autocorrect="no" autocapitalize="no" spellcheck="no" type="text" placeholder="&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull;" aria-required="true" aria-invalid="false" />
 		</div>
 		<div class="form-row form-row-first">
 			<label for="<?php echo esc_attr( $gateway->id ); ?>-card-expiry-month"><?php esc_html_e( 'Expiry (MM)', $gateway->core_plugin()->text_domain() ); ?><span class="required">*</span></label>
-			<input id="<?php echo esc_attr( $gateway->id ); ?>-card-expiry-month-<?php echo esc_attr( $session_id ); ?>" readonly="readonly" class="input-text wc-credit-card-form-card-expiry" inputmode="numeric" autocomplete="cc-exp" autocorrect="no" autocapitalize="no" spellcheck="no" type="tel" placeholder="<?php esc_attr_e( 'MM', $gateway->core_plugin()->text_domain() ); ?>" />
+			<input id="<?php echo esc_attr( $gateway->id ); ?>-card-expiry-month-<?php echo esc_attr( $session_id ); ?>" readonly="readonly" class="input-text wc-credit-card-form-card-expiry" inputmode="numeric" autocomplete="cc-exp" autocorrect="no" autocapitalize="no" spellcheck="no" type="text" placeholder="<?php esc_attr_e( 'MM', $gateway->core_plugin()->text_domain() ); ?>" aria-required="true" aria-invalid="false" />
 		</div>
 		<div class="form-row form-row-last">
 			<label for="<?php echo esc_attr( $gateway->id ); ?>-card-expiry-year"><?php esc_html_e( 'Expiry (YY)', $gateway->core_plugin()->text_domain() ); ?><span class="required">*</span></label>
-			<input id="<?php echo esc_attr( $gateway->id ); ?>-card-expiry-year-<?php echo esc_attr( $session_id ); ?>" readonly="readonly" class="input-text wc-credit-card-form-card-expiry" inputmode="numeric" autocomplete="cc-exp" autocorrect="no" autocapitalize="no" spellcheck="no" type="tel" placeholder="<?php esc_attr_e( 'YY', $gateway->core_plugin()->text_domain() ); ?>" />
+			<input id="<?php echo esc_attr( $gateway->id ); ?>-card-expiry-year-<?php echo esc_attr( $session_id ); ?>" readonly="readonly" class="input-text wc-credit-card-form-card-expiry" inputmode="numeric" autocomplete="cc-exp" autocorrect="no" autocapitalize="no" spellcheck="no" type="text" placeholder="<?php esc_attr_e( 'YY', $gateway->core_plugin()->text_domain() ); ?>" aria-required="true" aria-invalid="false" />
 		</div>
 		<div class="form-row form-row-wide">
 			<label for="<?php echo esc_attr( $gateway->id ); ?>-card-cvc"><?php esc_html_e( 'Card code', $gateway->core_plugin()->text_domain() ); ?><span class="required">*</span></label>
-			<input id="<?php echo esc_attr( $gateway->id ); ?>-card-cvc-<?php echo esc_attr( $session_id ); ?>" readonly="readonly" class="input-text wc-credit-card-form-card-cvc" inputmode="numeric" autocomplete="off" autocorrect="no" autocapitalize="no" spellcheck="no" type="tel" maxlength="4" placeholder="<?php esc_attr_e( 'CVC', $gateway->core_plugin()->text_domain() ); ?>" />
+			<input id="<?php echo esc_attr( $gateway->id ); ?>-card-cvc-<?php echo esc_attr( $session_id ); ?>" readonly="readonly" class="input-text wc-credit-card-form-card-cvc" inputmode="numeric" autocomplete="cc-csc" autocorrect="no" autocapitalize="no" spellcheck="no" type="text" maxlength="4" placeholder="<?php esc_attr_e( 'CVC', $gateway->core_plugin()->text_domain() ); ?>" aria-required="true" aria-invalid="false" />
 		</div>
 	</div>
 	<div class="clear"></div>
