@@ -579,6 +579,14 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 			$session_id = $this->checkout_session_id( $order );
 
+			if ( ! $session_id ) {
+				wc_add_notice( __( 'There was an error creating the payment session. Please try again.', $this->core_plugin->text_domain() ), 'error' );
+				return array(
+					'result'   => 'failure',
+					'redirect' => $order->get_checkout_payment_url(),
+				);
+			}
+
 			return array(
 				'result'    => 'success',
 				'pluginId'  => $this->id,
