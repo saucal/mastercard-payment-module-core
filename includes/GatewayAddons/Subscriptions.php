@@ -10,12 +10,9 @@
 namespace GatewayPaymentCore\GatewayAddons;
 
 use Exception;
-use GatewayPaymentCore\PaymentToken;
 use WC_Payment_Token_CC;
-use WC_Payment_Tokens;
 use WC_Subscription;
 use WC_Subscriptions_Cart;
-use WC_Subscriptions_Product;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
@@ -74,6 +71,9 @@ trait Subscriptions {
 
 		// Forcefully save the payment method for subscriptions.
 		add_filter( $this->prefix_hook( 'forced_save_payment_method' ), array( $this, 'maybe_force_save_method' ) );
+
+		// Add the payment token as a meta data to the subscription order.
+		add_action( $this->prefix_hook( 'payment_method_saved' ), array( $this, 'save_payment_token' ), 10, 2 );
 
 		// Process renewal orders.
 		add_action( 'woocommerce_scheduled_subscription_payment_' . $this->id, array( $this, 'scheduled_subscription_payment' ), 10, 2 );
@@ -409,5 +409,32 @@ trait Subscriptions {
 			$this->unique_transaction_id( $order ),
 			$payment_data,
 		);
+	}
+
+
+	/**
+	 * Save the payment token for the subscription order.
+	 *
+	 * @param \WC_Order $order    The order object.
+	 * @param int       $token_id The payment token ID.
+	 * @return void
+	 */
+	public function save_payment_token( $order, $token_id ) {
+		if ( ! $order instanceof \WC_Order || ! $token_id ) {
+			return;
+		}
+
+		$subscription = $this->get_subscription_object( $order );
+		if ( ! $subscription instanceof \WC_Subscription ) {
+			return;
+		}
+
+		$payment_token = new WC_Payment_Token_CC( $token_id );
+		if ( ! $payment_token instanceof WC_Payment_Token_CC ) {
+			return;
+		}
+
+		$subscription->update_meta_data( $this->prefix_hook( 'payment_token' ), $payment_token->get_token() );
+		$subscription->save_meta_data();
 	}
 }

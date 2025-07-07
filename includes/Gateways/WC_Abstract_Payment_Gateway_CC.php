@@ -754,6 +754,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		}
 
 		if ( $this->is_saved_payment_method() ) {
+			do_action( $this->prefix_hook( 'payment_method_saved' ), $order, $this->get_current_saved_payment_method() );
 			return;
 		}
 
@@ -768,6 +769,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		}
 
 		$order->add_payment_token( new WC_Payment_Token_CC( $payment_token_id ) );
+
+		do_action( $this->prefix_hook( 'payment_method_saved' ), $order, $payment_token_id );
 
 		WC()->session->__unset( $this->prefix_hook( 'saving_payment_method' ) );
 	}
@@ -1235,6 +1238,16 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	public function is_saved_payment_method() {
 		return isset( $_POST[ $this->payment_token_key() ] ) && 'new' !== wc_clean( $_POST[ $this->payment_token_key() ] );
+	}
+
+
+	/**
+	 * Get saved payment method used by the user.
+	 *
+	 * @return int|null
+	 */
+	public function get_current_saved_payment_method() {
+		return $this->is_saved_payment_method() ? absint( wc_clean( $_POST[ $this->payment_token_key() ] ) ) : null;
 	}
 
 
