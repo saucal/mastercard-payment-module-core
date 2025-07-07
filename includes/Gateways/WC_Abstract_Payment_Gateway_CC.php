@@ -753,6 +753,10 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			return;
 		}
 
+		if ( $this->is_saved_payment_method() ) {
+			return;
+		}
+
 		if ( ! $this->is_saving_payment_method() && ! WC()->session->get( $this->prefix_hook( 'saving_payment_method' ) ) && ! apply_filters( $this->prefix_hook( 'forced_save_payment_method' ), false ) ) {
 			return;
 		}
