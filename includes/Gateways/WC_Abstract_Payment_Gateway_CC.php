@@ -520,6 +520,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				throw new Exception( __( 'Invalid order.', $this->core_plugin->text_domain() ), 'error' );
 			}
 
+			do_action( $this->prefix_hook( 'process_payment_before' ), $order, $transaction_type, $override_total, $payment_complete );
+
 			if ( ! empty( $order->get_date_paid( 'edit' ) ) || $this->maybe_flag_order_as_paid( $order, false ) ) {
 				return array(
 					'result'   => 'success',

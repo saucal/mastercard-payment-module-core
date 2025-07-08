@@ -10,6 +10,7 @@
 namespace GatewayPaymentCore\GatewayAddons;
 
 use Exception;
+use WC_Order;
 use WC_Payment_Token_CC;
 use WC_Subscription;
 use WC_Subscriptions_Cart;
@@ -77,6 +78,9 @@ trait Subscriptions {
 
 		// Process renewal orders.
 		add_action( 'woocommerce_scheduled_subscription_payment_' . $this->id, array( $this, 'scheduled_subscription_payment' ), 10, 2 );
+
+		// Remove the parent unique order ID from the renewal order.
+		add_filter( $this->prefix_hook( 'process_payment_before' ), array( $this, 'remove_parent_unique_order_id' ) );
 	}
 
 
@@ -84,7 +88,7 @@ trait Subscriptions {
 	 * Add subscription payment data to the payment request.
 	 *
 	 * @param array     $payment_data Payment data.
-	 * @param \WC_Order $order        Order object.
+	 * @param WC_Order $order        Order object.
 	 * @return array
 	 */
 	public function maybe_add_subscription_payment_data( $payment_data, $order ) {
@@ -94,7 +98,7 @@ trait Subscriptions {
 
 		$subscription = $this->get_subscription_object( $order );
 
-		if ( ! $subscription instanceof \WC_Subscription ) {
+		if ( ! $subscription instanceof WC_Subscription ) {
 			return $payment_data;
 		}
 
@@ -127,7 +131,7 @@ trait Subscriptions {
 	/**
 	 * Check if the order has a subscription.
 	 *
-	 * @param \WC_Order $order Order object.
+	 * @param WC_Order $order Order object.
 	 * @return bool
 	 */
 	protected function has_subscription( $order ) {
@@ -138,12 +142,20 @@ trait Subscriptions {
 	/**
 	 * Get the related subscription order from the order.
 	 *
-	 * @param \WC_Order $order Order object.
-	 * @return \WC_Subscription|false
+	 * @param WC_Order $order Order object.
+	 * @return WC_Subscription|false
 	 */
 	protected function get_subscription_object( $order ) {
 		if ( ! $this->has_subscription( $order ) ) {
 			return false;
+		}
+
+		$subscription_id = $order->get_meta( '_subscription_renewal' );
+		if ( ! empty( $subscription_id ) && wcs_is_subscription( $subscription_id ) ) {
+			$subscription = wcs_get_subscription( $subscription_id );
+			if ( $subscription instanceof WC_Subscription ) {
+				return $subscription;
+			}
 		}
 
 		$subscriptions = wcs_get_subscriptions_for_order( $order->get_id() );
@@ -154,7 +166,7 @@ trait Subscriptions {
 
 		$subscription = reset( $subscriptions );
 
-		if ( ! $subscription instanceof \WC_Subscription ) {
+		if ( ! $subscription instanceof WC_Subscription ) {
 			return false;
 		}
 
@@ -165,11 +177,11 @@ trait Subscriptions {
 	/**
 	 * Get the unique subscription ID for the order.
 	 *
-	 * @param \WC_Subscription $subscription Subscription object.
+	 * @param WC_Subscription $subscription Subscription object.
 	 * @return string
 	 */
 	protected function unique_subscription_id( $subscription ) {
-		if ( ! $subscription instanceof \WC_Subscription ) {
+		if ( ! $subscription instanceof WC_Subscription ) {
 			return '';
 		}
 
@@ -180,11 +192,11 @@ trait Subscriptions {
 	/**
 	 * Format the subscription period for the payment request.
 	 *
-	 * @param \WC_Subscription $subscription Subscription object.
+	 * @param WC_Subscription $subscription Subscription object.
 	 * @return string
 	 */
 	protected function formatted_subscription_period( $subscription ) {
-		if ( ! $subscription instanceof \WC_Subscription ) {
+		if ( ! $subscription instanceof WC_Subscription ) {
 			return 'OTHER';
 		}
 
@@ -363,6 +375,8 @@ trait Subscriptions {
 	 * @throws Exception Exception.
 	 */
 	protected function process_subscription_payment( $order ) {
+		// Ensure the renewal order doesn't have a parent unique order ID.
+		$this->remove_parent_unique_order_id( $order );
 
 		$subscription_id = $order->get_meta( '_subscription_renewal' );
 		$subscription    = wcs_get_subscription( $subscription_id );
@@ -376,18 +390,23 @@ trait Subscriptions {
 		}
 
 		$parent_order = wc_get_order( $parent_id );
-		if ( ! $parent_order instanceof \WC_Order ) {
+		if ( ! $parent_order instanceof WC_Order ) {
 			throw new Exception( __( 'The subscription order was not found.', $this->core_plugin->text_domain() ) );
 		}
 
-		$payment_tokens = $parent_order->get_payment_tokens();
-		if ( empty( $payment_tokens ) || ! is_array( $payment_tokens ) ) {
-			throw new Exception( __( 'No payment token found for the subscription order.', $this->core_plugin->text_domain() ) );
-		}
+		$payment_token = $subscription->get_meta( $this->prefix_hook( 'payment_token' ) );
+		if ( empty( $payment_token ) ) {
+			$payment_tokens = $parent_order->get_payment_tokens();
+			if ( empty( $payment_tokens ) || ! is_array( $payment_tokens ) ) {
+				throw new Exception( __( 'No payment token found for the subscription order.', $this->core_plugin->text_domain() ) );
+			}
 
-		$payment_token = new WC_Payment_Token_CC( reset( $payment_tokens ) );
-		if ( ! $payment_token instanceof WC_Payment_Token_CC ) {
-			throw new Exception( __( 'Invalid payment token for the subscription order.', $this->core_plugin->text_domain() ) );
+			$payment_token = new WC_Payment_Token_CC( reset( $payment_tokens ) );
+			if ( ! $payment_token instanceof WC_Payment_Token_CC ) {
+				throw new Exception( __( 'Invalid payment token for the subscription order.', $this->core_plugin->text_domain() ) );
+			}
+
+			$payment_token = $payment_token->get_token();
 		}
 
 		$payment_data = array(
@@ -399,7 +418,7 @@ trait Subscriptions {
 			'referenceOrderId' => $this->unique_order_id( $parent_order ),
 			'sourceOfFunds'    => array(
 				'type'  => 'CARD',
-				'token' => $payment_token->get_token(),
+				'token' => $payment_token,
 			),
 		);
 
@@ -415,17 +434,17 @@ trait Subscriptions {
 	/**
 	 * Save the payment token for the subscription order.
 	 *
-	 * @param \WC_Order $order    The order object.
+	 * @param WC_Order $order    The order object.
 	 * @param int       $token_id The payment token ID.
 	 * @return void
 	 */
 	public function save_payment_token( $order, $token_id ) {
-		if ( ! $order instanceof \WC_Order || ! $token_id ) {
+		if ( ! $order instanceof WC_Order || ! $token_id ) {
 			return;
 		}
 
 		$subscription = $this->get_subscription_object( $order );
-		if ( ! $subscription instanceof \WC_Subscription ) {
+		if ( ! $subscription instanceof WC_Subscription ) {
 			return;
 		}
 
@@ -436,5 +455,25 @@ trait Subscriptions {
 
 		$subscription->update_meta_data( $this->prefix_hook( 'payment_token' ), $payment_token->get_token() );
 		$subscription->save_meta_data();
+	}
+
+
+	/**
+	 * Remove the parent unique order ID from the renewal order.
+	 *
+	 * @param WC_Order $renewal_order The renewal order object.
+	 * @return void
+	 */
+	public function remove_parent_unique_order_id( $renewal_order ) {
+		if ( ! $renewal_order instanceof WC_Order ) {
+			return;
+		}
+
+		if ( empty( $renewal_order->get_meta( '_subscription_renewal' ) ) ) {
+			return;
+		}
+
+		$renewal_order->delete_meta_data( $this->prefix_hook( 'order_id' ) );
+		$renewal_order->save_meta_data();
 	}
 }
