@@ -8,6 +8,7 @@
 
 namespace GatewayPaymentCore;
 
+use GatewayPaymentCore\Multicurrency;
 use GatewayPaymentCore\Admin\CapturePaymentMetaBox;
 use GatewayPaymentCore\Admin\GatewaySettings;
 use GatewayPaymentCore\Admin\Notices;
@@ -107,6 +108,13 @@ abstract class CorePlugin {
 	 */
 	private $capture_payment_meta;
 
+	/**
+	 * Multicurrency instance.
+	 *
+	 * @var Multicurrency
+	 */
+	private $multicurrency;
+
 
 	/**
 	 * Blocks compatibility instance.
@@ -180,6 +188,7 @@ abstract class CorePlugin {
 		if ( $this->is_merchant_connected() ) {
 			$this->capture_payment_meta = new CapturePaymentMetaBox( $this );
 			$this->block_compatibility  = new BlockCompatibility( $this );
+			$this->multicurrency  = new Multicurrency( $this );
 		}
 
 		register_activation_hook( $this->plugin_file(), array( $this, 'install' ) );
@@ -694,6 +703,24 @@ abstract class CorePlugin {
 		update_option( 'woocommerce_' . $this->plugin_id() . '_payment_operations', $options );
 	}
 
+
+	/**
+	 * Get validated payment currencies.
+	 *
+	 * @return array
+	 */
+	public function get_payment_currencies() {
+		return get_option( 'woocommerce_' . $this->plugin_id() . '_payment_currencies', array() );
+	}
+
+	/**
+	 * Save validated payment currencies.
+	 *
+	 * @param array $options Payment currencies.
+	 */
+	public function update_payment_currencies( $options ) {
+		update_option( 'woocommerce_' . $this->plugin_id() . '_payment_currencies', $options );
+	}
 
 	/**
 	 * Is the gateway enabled.

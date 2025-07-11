@@ -203,6 +203,8 @@ final class GatewaySettings {
 			return $this->settings;
 		}
 
+		$supported_currencies = self::supported_currencies();
+
 		$this->settings = array_merge(
 			$this->settings,
 			array(
@@ -286,6 +288,19 @@ final class GatewaySettings {
 						'data-show-if'  => 'hosted_session',
 					),
 				),
+				'multicurrency'          => array(
+					'title'    => __( 'Currency converter', $this->core_plugin->text_domain() ),
+					'type'     => 'checkbox',
+					'desc_tip' => __( 'Enable currency converter.', $this->core_plugin->text_domain() ),
+					'default'  => 'yes',
+				),
+				'multicurrency_active_currencies' => array(
+					'title'    => __( 'Active currencies', $this->core_plugin->text_domain() ),
+					'type'     => 'multiselect',
+					'options'  => $supported_currencies,
+					'desc_tip' => __( 'Select which currencies will be available for customers.', $this->core_plugin->text_domain() ),
+					'default'  => array( 'USD' ),
+				),				
 				'merchant_name'        => array(
 					'title'       => __( 'Merchant Name', $this->core_plugin->text_domain() ),
 					'type'        => 'text',
@@ -404,5 +419,31 @@ final class GatewaySettings {
 		}
 
 		return $supported_operations;
+	}
+
+	/**
+	 * Get supported currencies.
+	 *
+	 * @return array
+	 */
+	public function supported_currencies() {
+
+		$supported_currencies = array();
+
+		if ( empty( $this->core_plugin->get_validated_credentials() ) ) {
+			return $supported_currencies;
+		}
+
+		$payment_currencies = $this->core_plugin->get_payment_currencies();
+
+		if ( empty( $payment_currencies ) || ! is_array( $payment_currencies ) ) {
+			return $supported_currencies;
+		}
+
+		foreach ( $payment_currencies as $item ) {
+			$supported_currencies[ $item['currency'] ] = $item['currency'];
+		}
+
+		return $supported_currencies;
 	}
 }
