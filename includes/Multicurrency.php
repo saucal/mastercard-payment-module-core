@@ -213,7 +213,7 @@ final class Multicurrency {
 
 	/**
 	 * Render the multicurrency selector.
-	 * 
+	 *
 	 * @return void
 	 */
 	public function render_multicurrency_selector() {
@@ -240,9 +240,14 @@ final class Multicurrency {
 		remove_filter( 'nonce_user_logged_out', '__return_zero' );
 	}
 
-
+	/**
+	 * Verify nonce request.
+	 *
+	 * @return bool
+	 */
 	public function verify_nonce() {
 		add_filter( 'nonce_user_logged_out', '__return_zero' );
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$ret = wp_verify_nonce( $_REQUEST['_wpnonce'], 'mastercard-multicurrency-nonce' );
 		remove_filter( 'nonce_user_logged_out', '__return_zero' );
 		return $ret;
@@ -254,8 +259,8 @@ final class Multicurrency {
 	 * @return string
 	 */
 	private function get_currency_settings() {
-		if ( isset( $this->$currency_config ) ) {
-			return $this->$currency_config;
+		if ( isset( $this->currency_config ) ) {
+			return $this->currency_config;
 		}
 
 		$currency_code = self::get_currency_user_selected();
@@ -300,8 +305,12 @@ final class Multicurrency {
 	private function get_user_saved_currency() {
 		$currency = false;
 
-		if ( is_null( $currency ) && is_user_logged_in() ) {
-			$currency = get_user_meta( get_current_user_id(), '_mastercard_wc_currency_' . get_current_blog_id(), true );
+		if ( is_user_logged_in() ) {
+			$currency = get_user_meta(
+				get_current_user_id(),
+				'_mastercard_wc_currency_' . get_current_blog_id(),
+				true
+			);
 		}
 
 		return ! empty( $currency ) ? $currency : false;
@@ -316,7 +325,8 @@ final class Multicurrency {
 		if ( isset( $this->currency_selected ) ) {
 			return $this->currency_selected;
 		} elseif ( $this->get_user_saved_currency() ) {
-			$save = isset( $_COOKIE[ self::COOKIE_CURRENCY_NAME ] ) && ( $this->get_user_saved_currency() !== $_COOKIE[ self::COOKIE_CURRENCY_NAME ] );
+			$save = isset( $_COOKIE[ self::COOKIE_CURRENCY_NAME ] ) &&
+				( $this->get_user_saved_currency() !== $_COOKIE[ self::COOKIE_CURRENCY_NAME ] );
 			$this->set_currency_user_selected( $this->get_user_saved_currency(), $save );
 		} elseif ( isset( $_COOKIE[ self::COOKIE_CURRENCY_NAME ] ) ) {
 			$this->set_currency_user_selected( $_COOKIE[ self::COOKIE_CURRENCY_NAME ] );
@@ -330,7 +340,8 @@ final class Multicurrency {
 
 	/**
 	 * Enqueue multicurrency js only if it is active.
-	 * @param $args
+	 *
+	 * @param array $args Enqueued scripts.
 	 *
 	 * @return array
 	 */
