@@ -252,8 +252,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		$this->core_plugin->update_payment_operations( $response['body']['supportedPaymentOperations'] ?? array() );
 
-		$this->core_plugin->update_payment_currencies( $response['body']['paymentTypes']['card']['currencies'] ?? array() );
-
 		$this->init_form_fields();
 	}
 

@@ -95,7 +95,7 @@ final class Multicurrency {
 	public function filter_adjust_payment_data( array $payment_data ) : array {
 
 		if( $this->is_multicurrency_enabled()  && isset( $_POST['payment_currency'] ) ) {
-			$conversion = WC()->session ? WC()->session->get( 'acme_currency_conversion' ) : null;
+			$conversion = WC()->session ? WC()->session->get( 'currency_conversion' ) : null;
 			if( $_POST['payment_currency'] === $conversion['payerCurrency'] ) {
 				$payment_data['order']['currency'] = $conversion['payerCurrency'];
 				$payment_data['order']['amount']   = $conversion['payerAmount'];
@@ -138,7 +138,7 @@ final class Multicurrency {
 			&& 'QUOTE_PROVIDED' === $conversion['gatewayCode']
 		) {
 			if ( WC()->session ) {
-				WC()->session->set( 'acme_currency_conversion', $conversion );
+				WC()->session->set( 'currency_conversion', $conversion );
 			}
 
 			$message = __( '[ACME_DCC_AVAILABLE] Currency conversion available.', $this->core_plugin->text_domain() );
@@ -156,7 +156,7 @@ final class Multicurrency {
 			return;
 		}
 
-		$conv = WC()->session->get( 'acme_currency_conversion' );
+		$conv = WC()->session->get( 'currency_conversion' );
 		if ( empty( $conv ) ) {
 			return;
 		}
@@ -188,7 +188,7 @@ final class Multicurrency {
 
 		// Build a safe JS payload (use wp_json_encode to avoid quoting issues).
 		$payload = sprintf(
-			'window.acmeConversion = { amount: %s, currency: %s };',
+			'window.currencyConversion = { amount: %s, currency: %s };',
 			wp_json_encode( (string) $eur_amount ),
 			wp_json_encode( (string) $eur_currency )
 		);

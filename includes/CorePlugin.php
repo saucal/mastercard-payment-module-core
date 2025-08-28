@@ -703,25 +703,6 @@ abstract class CorePlugin {
 		update_option( 'woocommerce_' . $this->plugin_id() . '_payment_operations', $options );
 	}
 
-
-	/**
-	 * Get validated payment currencies.
-	 *
-	 * @return array
-	 */
-	public function get_payment_currencies() {
-		return get_option( 'woocommerce_' . $this->plugin_id() . '_payment_currencies', array() );
-	}
-
-	/**
-	 * Save validated payment currencies.
-	 *
-	 * @param array $options Payment currencies.
-	 */
-	public function update_payment_currencies( $options ) {
-		update_option( 'woocommerce_' . $this->plugin_id() . '_payment_currencies', $options );
-	}
-
 	/**
 	 * Is the gateway enabled.
 	 *

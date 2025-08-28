@@ -28,9 +28,9 @@
 
     // Build EUR label with conversion
     var eurLabel = 'EUR';
-    if (window.acmeConversion && window.acmeConversion.amount) {
+    if (window.currencyConversion && window.currencyConversion.amount) {
       // Example: "EUR — Pay 14.65 EUR"
-      eurLabel = 'EUR — Pay ' + window.acmeConversion.amount + ' ' + window.acmeConversion.currency;
+      eurLabel = 'EUR — Pay ' + window.currencyConversion.amount + ' ' + window.currencyConversion.currency;
     }
 
     var html =
