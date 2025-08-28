@@ -21,53 +21,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Multicurrency {
 
 	/**
-	 * Cookie name used for currency selection.
-	 *
-	 * @var string
-	 */
-	const COOKIE_CURRENCY_NAME = 'wc_mastercard_currency';
-
-	/**
-	 * Transient name used to store exchange rates.
-	 *
-	 * @var string
-	 */
-	const CURRENCY_RATES_TRANSIENT = 'wc_mastercard_currency_rates';
-
-	/**
 	 * Plugin core instance.
 	 *
 	 * @var CorePlugin
 	 */
 	private $core_plugin;
-
-	/**
-	 * Selected currency by user or session.
-	 *
-	 * @var string
-	 */
-	protected $currency_selected;
-
-	/**
-	 * Original store currency.
-	 *
-	 * @var string
-	 */
-	public $original_currency;
-
-	/**
-	 * Currency config.
-	 *
-	 * @var string
-	 */
-	protected $currency_config;
-
-	/**
-	 * API instance.
-	 *
-	 * @var API
-	 */
-	protected $api;
 
 	/**
 	 * Constructor.
@@ -76,7 +34,6 @@ final class Multicurrency {
 	 */
 	public function __construct( CorePlugin $core_plugin ) {
 		$this->core_plugin = $core_plugin;
-		$this->original_currency = 'USD';
 
 		if ( $this->is_multicurrency_enabled() ) {
 			add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_dcc_inline_data' ), 20 );
