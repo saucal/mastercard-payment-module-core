@@ -601,6 +601,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			throw new Exception( __( 'There was an error validating the payment session. Please refresh the page and try again.', $this->core_plugin->text_domain() ) );
 		}
 
+		do_action( $this->prefix_hook( 'gateway_dcc_probe' ), $order, $session, $this->api() );
+
 		// Forcefully validate CVC value.
 		if (
 			! $this->is_saved_payment_method() &&
@@ -618,6 +620,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				'source' => 'INTERNET',
 			),
 		);
+
+		$payment_data = apply_filters( $this->prefix_hook( 'gateway_adjust_payment_data' ), $payment_data );
 
 		$unique_order_id = $this->unique_order_id( $order );
 

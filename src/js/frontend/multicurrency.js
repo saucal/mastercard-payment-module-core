@@ -1,72 +1,58 @@
-(function( $ ) {
-	'use strict';
+/* Show currency selector; keep native Place order button intact */
+(function($){
+  $(document.body).on('checkout_error', function(){
+    var $err = $('.woocommerce-error');
+    if (!$err.length) return;
 
-	// Multicurrency form submit
-	$( '.mastercard-multicurrency' ).on(
-		'change', 'select.mastercard_currency_selector', function() {
-			var $supports_html5_storage = true;
+    // Only handle our sentinel error
+    var txt = $err.text() || '';
+    if (txt.indexOf('[ACME_DCC_AVAILABLE]') === -1) return;
 
-			try {
-				$supports_html5_storage = ( 'sessionStorage' in window && window.sessionStorage !== null );
-				window.sessionStorage.setItem( 'bs', 'test' );
-				window.sessionStorage.removeItem( 'bs' );
-				window.localStorage.setItem( 'bs', 'test' );
-				window.localStorage.removeItem( 'bs' );
-			} catch( err ) {
-				$supports_html5_storage = false;
-			}
+    // Avoid duplicate UI
+    if ($('#currency_payment_currency_select').length) { $err.remove(); return; }
 
-			// Clear fragments on session storage to trigger a cart refresh *before* its actually shown on the new page load with the wrong currency.
-			if ( $supports_html5_storage && 'undefined' !== typeof( wc_cart_fragments_params ) ) {
-				sessionStorage.setItem( wc_cart_fragments_params.fragment_name, '' );
-			}
-			
-			$( this ).closest( 'form' ).submit();
-		}
-	);
+    // Remove Woo error (we'll render our own notice)
+    $err.remove();
 
-	/**
-	 * In case there is cache on the site, and backend hooks are not represented on frontend, we have to handle the currency changes on frontend level.
-	 * @type {{cookie_name: *, init: init, get_cookie: (function(*): any), get_shown_currency_price: (function(): *), adjust_frontend: adjust_frontend}}
-	 */
-	var cookie_handler = {
-		cookie_name: woocommerce_mastercard_multicurrency_params.cookie_name,
-		init: function() {
-			var currency_cookie = this.get_cookie( this.cookie_name );
-			var currency_shown  = this.get_shown_currency_price();
-			if ( currency_cookie && currency_cookie != currency_shown ) {
-				this.adjust_frontend( currency_cookie );
-			}
-		},
-		get_cookie: function(name) {
-			var v = document.cookie.match( '(^|;) ?' + name + '=([^;]*)(;|$)' );
-			return v ? v[2] : null;
-		},
-		/**
-		 * Get the first price shown, and takes it currency.
-		 * @returns {string}
-		 */
-		get_shown_currency_price: function() {
-			var first_price = $( '.currency-show' ).first();
-			return $( first_price ).attr( 'currency' );
-		},
-		/**
-		 * Adjust all frontend according to the real cookie value.
-		 * @param currency
-		 */
-		adjust_frontend: function( currency ) {
-			$( '.mastercard-multicurrency-html' ).each(
-				function(){
-					if ( $( this ).attr( 'currency' ) == currency ) {
-						$( this ).removeClass( 'currency-hide' ).addClass( 'currency-show' );
-					} else {
-						$( this ).removeClass( 'currency-show' ).addClass( 'currency-hide' );
-					}
-				}
-			);
-			$( ".mastercard_currency_selector" ).val( currency );
-		}
-	};
-	cookie_handler.init();
+    var $form  = $('form.checkout');
+    var $place = $form.find('#place_order'); // classic checkout
+    if (!$('#payment_currency').length) {
+      // Hidden field that will be read on server
+      $('<input>', {
+        type: 'hidden',
+        id: 'payment_currency',
+        name: 'payment_currency',
+        value: 'USD' // default
+      }).appendTo($form);
+    }
 
-})( jQuery );
+    // Build EUR label with conversion
+    var eurLabel = 'EUR';
+    if (window.acmeConversion && window.acmeConversion.amount) {
+      // Example: "EUR — Pay 14.65 EUR"
+      eurLabel = 'EUR — Pay ' + window.acmeConversion.amount + ' ' + window.acmeConversion.currency;
+    }
+
+    var html =
+      '<div class="dcc-choice" style="margin-top:12px">' +
+      '  <label for="payment_currency_select" style="display:block;margin:6px 0">Currency</label>' +
+      '  <select id="payment_currency_select" class="select">' +
+      '    <option value="USD">USD — Pay in store currency</option>' +
+      '    <option value="EUR">' + eurLabel + '</option>' +
+      '  </select>' +
+      '  <p style="margin-top:6px;font-size:12px;opacity:.8">Select and click “Place order”.</p>' +
+      '</div>';
+
+    // Insert just above the native Place order button (fallback: append to form)
+    if ($place.length) {
+      $(html).insertBefore($place);
+    } else {
+      $form.append(html);
+    }
+
+    // Sync selection to hidden input
+    $(document).off('change.currency').on('change.currency', '#payment_currency_select', function(){
+      $('#payment_currency').val(this.value);
+    });
+  });
+})(jQuery);

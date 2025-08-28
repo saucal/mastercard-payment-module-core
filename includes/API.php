@@ -226,8 +226,8 @@ final class API {
 	/**
 	 * Payment options inquiry.
 	 */
-	public function payment_options_inquiry() {
-		return $this->request( 'paymentOptionsInquiry', 'POST' );
+	public function payment_options_inquiry( $payload = array() ) {
+		return $this->request( 'paymentOptionsInquiry', 'POST', $payload );
 	}
 
 

@@ -79,16 +79,122 @@ final class Multicurrency {
 		$this->original_currency = 'USD';
 
 		if ( $this->is_multicurrency_enabled() ) {
-			add_action(
-				'wc_ajax_mastercard_set_multicurrency',
-				array( $this, 'change_user_currency' )
-			);
+			add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_dcc_inline_data' ), 20 );
+			add_action( $this->core_plugin->payment_core()->prefix_hook( 'gateway_dcc_probe' ), array( $this, 'maybe_throw_dcc_sentinel' ), 10, 3 );
+			add_filter( $this->core_plugin->payment_core()->prefix_hook( 'gateway_adjust_payment_data' ), array( $this, 'filter_adjust_payment_data' ), 10, 1 );
+			add_filter( $this->core_plugin->payment_core()->prefix_hook( 'enqueue_scripts' ), array( $this, 'add_multicurrency_js' ) );
+		}
+	}
+
+	/**
+	 * Adjusts payment_data with user-selected currency and conversion quote.
+	 *
+	 * @param array     $payment_data Base payload prepared for the PSP.
+	 * @return array
+	 */
+	public function filter_adjust_payment_data( array $payment_data ) : array {
+
+		if( $this->is_multicurrency_enabled()  && isset( $_POST['payment_currency'] ) ) {
+			$conversion = WC()->session ? WC()->session->get( 'acme_currency_conversion' ) : null;
+			if( $_POST['payment_currency'] === $conversion['payerCurrency'] ) {
+				$payment_data['order']['currency'] = $conversion['payerCurrency'];
+				$payment_data['order']['amount']   = $conversion['payerAmount'];
+			}
 		}
 
-		// Shortcode
-		add_shortcode( 'mastercard_multicurrency', array( $this, 'add_multicurrency_shortcode' ) );
+		return $payment_data;
+	}
 
-		add_filter( $this->core_plugin->payment_core()->prefix_hook( 'enqueue_scripts' ), array( $this, 'add_multicurrency_js' ) );
+
+	/**
+	 * Checks for DCC availability and throws a sentinel exception to let the UI
+	 * present currency choices on the checkout screen.
+	 *
+	 * @param \WC_Order $order   The WooCommerce order object (not yet charged).
+	 * @param array     $session Hosted Session array (contains the session id).
+	 *
+	 * @return void
+	 * @throws \Exception When conversion is available (sentinel) or on hard failures.
+	 */
+	public function maybe_throw_dcc_sentinel( \WC_Order $order, array $session, $api ) : void {
+
+		if ( ! $this->is_multicurrency_enabled() || isset( $_POST['payment_currency'] )) {
+			return;
+		}
+
+		$data = array(
+			'order'   => array(
+				'amount'   => $order->get_total(),
+				'currency' => 'USD',
+			),
+			'session' => $session,
+		);
+
+		$response = $api->payment_options_inquiry( $data );
+		$conversion = $response['body']['paymentTypes']['card']['currencyConversion'] ?? null;
+
+		if ( ! empty( $conversion )
+			&& isset( $conversion['gatewayCode'] )
+			&& 'QUOTE_PROVIDED' === $conversion['gatewayCode']
+		) {
+			if ( WC()->session ) {
+				WC()->session->set( 'acme_currency_conversion', $conversion );
+			}
+
+			$message = __( '[ACME_DCC_AVAILABLE] Currency conversion available.', $this->core_plugin->text_domain() );
+			throw new \Exception( $message );
+		}
+	}
+
+	public function enqueue_dcc_inline_data() : void {
+		// Only on classic/blocks checkout page, not on thankyou.
+		if ( ! function_exists( 'is_checkout' ) || ! is_checkout() || is_order_received_page() ) {
+			return;
+		}
+
+		if ( ! WC()->session ) {
+			return;
+		}
+
+		$conv = WC()->session->get( 'acme_currency_conversion' );
+		if ( empty( $conv ) ) {
+			return;
+		}
+
+		// Prepare values.
+		$eur_amount   = wc_format_decimal( $conv['payerAmount'], 2 );
+		$eur_currency = isset( $conv['payerCurrency'] ) ? (string) $conv['payerCurrency'] : 'EUR';
+
+		// Ensure a valid target handle is enqueued.
+		// Classic checkout uses 'wc-checkout'; Blocks use 'wc-blocks-checkout'.
+		$handle = null;
+
+		// If not already enqueued, enqueue classic checkout to attach inline code.
+		if ( wp_script_is( 'wc-checkout', 'enqueued' ) || wp_script_is( 'wc-checkout', 'registered' ) ) {
+			wp_enqueue_script( 'wc-checkout' );
+			$handle = 'wc-checkout';
+		}
+
+		// Fallback for Checkout Blocks.
+		if ( ! $handle && ( wp_script_is( 'wc-blocks-checkout', 'enqueued' ) || wp_script_is( 'wc-blocks-checkout', 'registered' ) ) ) {
+			wp_enqueue_script( 'wc-blocks-checkout' );
+			$handle = 'wc-blocks-checkout';
+		}
+
+		if ( ! $handle ) {
+			// Nothing to attach to; bail out.
+			return;
+		}
+
+		// Build a safe JS payload (use wp_json_encode to avoid quoting issues).
+		$payload = sprintf(
+			'window.acmeConversion = { amount: %s, currency: %s };',
+			wp_json_encode( (string) $eur_amount ),
+			wp_json_encode( (string) $eur_currency )
+		);
+
+		// Print before the target handle (works for both classic and blocks).
+		wp_add_inline_script( $handle, $payload, 'before' );
 	}
 
 	/**
@@ -99,244 +205,6 @@ final class Multicurrency {
 	public function is_multicurrency_enabled() {
 		return 'yes' === $this->core_plugin->get_gateway_setting( 'multicurrency' );
 	}
-
-	/**
-	 * Handles user currency change via AJAX.
-	 *
-	 * @return void
-	 */
-	public function change_user_currency() {
-		if (
-			! isset( $_REQUEST['action'] ) || // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-			'mastercard_multicurrency_action' !== $_REQUEST['action'] ||
-			! $this->verify_nonce()
-		) {
-			return;
-		}
-
-		$this->set_currency_user_selected(
-			$_REQUEST['mastercard_currency_selector'], // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-			true
-		);
-		WC()->cart->calculate_totals();
-
-		$referer = '';
-		if ( ! empty( $_SERVER['HTTP_REFERER'] ) ) {
-			$referer = wp_unslash( $_SERVER['HTTP_REFERER'] );
-		}
-
-		wp_safe_redirect( ! empty( $referer ) ? $referer : home_url() );
-		exit;
-	}
-
-	/**
-	 * Retrieves the list of currencies selected in the plugin settings.
-	 *
-	 * @return array List of selected currency codes.
-	 */
-	private function get_currencies_setting_selected() {
-		$currencies = $this->core_plugin->get_gateway_setting( 'multicurrency_active_currencies' );		
-
-		return $currencies ? $currencies : array();
-	}
-
-	/**
-	 * Sets the selected currency for the user.
-	 *
-	 * @param string $selected Selected currency code.
-	 * @param bool   $save     Whether to persist the selection.
-	 *
-	 * @return void
-	 */
-	private function set_currency_user_selected( $selected, $save = false ) {
-		$this->currency_selected = $selected;
-		$available               = $this->get_currencies_setting_selected();
-		array_push( $available, $this->original_currency );
-
-		if ( false === array_search( $this->currency_selected, $available, true ) ) {
-			$this->currency_selected = $this->original_currency;
-			$save                    = true;
-		}
-
-		if ( $save ) {
-			$this->set_cookie( self::COOKIE_CURRENCY_NAME, $this->currency_selected );
-			$this->save_to_user( $this->currency_selected );
-		}
-
-		$this->currency_config = null;
-	}
-
-	/**
-	 * Saves the selected currency to the user's metadata (if logged in).
-	 *
-	 * @param string $currency Currency code to save.
-	 *
-	 * @return void
-	 */
-	public function save_to_user( $currency ) {
-		if ( is_user_logged_in() ) {
-			update_user_meta(
-				get_current_user_id(),
-				'_mastercard_wc_currency_' . get_current_blog_id(),
-				$currency
-			);
-		}
-	}
-
-	/**
-	 * Sets a cookie with the given name and value.
-	 *
-	 * @param string $name     Cookie name.
-	 * @param string $value    Cookie value.
-	 * @param int    $duration Expiration timestamp. Default is 0 (session).
-	 * @param string $path     Cookie path. Default is '/'.
-	 *
-	 * @return bool True on success, false on failure.
-	 */
-	public function set_cookie( $name, $value, $duration = 0, $path = '/' ) {
-		$_COOKIE[ $name ] = $value;
-		return setcookie( $name, $value, $duration, $path );
-	}
-
-
-	/**
-	 * Multicurrency Selector Shortcode. Avalaible only when multicurrency is ready.
-	 *
-	 * @return string
-	 */
-	public function add_multicurrency_shortcode() {
-		if ( $this->is_multicurrency_enabled() ) {
-			$this->render_multicurrency_selector();
-		}
-		return '';
-	}
-
-	/**
-	 * Render the multicurrency selector.
-	 *
-	 * @return void
-	 */
-	public function render_multicurrency_selector() {
-		$this->core_plugin->payment_core()->template()->get(
-			'multicurrency-selector.php',
-			array(
-				'multicurrency'     => $this,
-				'options'           => $this->get_currencies_setting_selected(),
-				'original_currency' => $this->original_currency,
-				'currency_selected' => $this->get_currency_user_selected(),
-				'allowed'           => 'all',
-			)
-		);
-	}
-
-	/**
-	 * Outputs the nonce field for currency change form.
-	 *
-	 * @return void
-	 */
-	public function nonce_field() {
-		add_filter( 'nonce_user_logged_out', '__return_zero' );
-		wp_nonce_field( 'mastercard-multicurrency-nonce' );
-		remove_filter( 'nonce_user_logged_out', '__return_zero' );
-	}
-
-	/**
-	 * Verify nonce request.
-	 *
-	 * @return bool
-	 */
-	public function verify_nonce() {
-		add_filter( 'nonce_user_logged_out', '__return_zero' );
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		$ret = wp_verify_nonce( $_REQUEST['_wpnonce'], 'mastercard-multicurrency-nonce' );
-		remove_filter( 'nonce_user_logged_out', '__return_zero' );
-		return $ret;
-	}
-
-	/**
-	 * Returns mock currency settings.
-	 *
-	 * @return string
-	 */
-	private function get_currency_settings() {
-		if ( isset( $this->currency_config ) ) {
-			return $this->currency_config;
-		}
-
-		$currency_code = self::get_currency_user_selected();
-
-		$locale_info     = include WC()->plugin_path() . '/i18n/locale-info.php';
-		$currency_config = array();
-		$default_data    = array(
-			'currency_code' => $currency_code,
-			'currency_pos'  => 'left',
-			'decimal_sep'   => '.',
-			'num_decimals'  => 2,
-			'thousand_sep'  => ',',
-		);
-
-		foreach ( array( 'CLP', 'JPY', 'ISK', 'KRW', 'VND', 'XOF' ) as $no_dec_curr ) {
-			$currency_config[ $no_dec_curr ]                 = $default_data;
-			$currency_config[ $no_dec_curr ]['num_decimals'] = 0;
-		}
-
-		foreach ( $locale_info as $country => $data ) {
-			$currency_config[ $data['currency_code'] ] = array_intersect_key(
-				wp_parse_args(
-					$data,
-					$default_data
-				),
-				$default_data
-			);
-		}
-
-		$currency_config = isset( $currency_config[ $currency_code ] ) ? $currency_config[ $currency_code ] : $default_data;
-
-		$this->$currency_config = $currency_config;
-
-		return $currency_config;
-	}
-
-	/**
-	 * Gets the saved currency from user metadata if available.
-	 *
-	 * @return string|false
-	 */
-	private function get_user_saved_currency() {
-		$currency = false;
-
-		if ( is_user_logged_in() ) {
-			$currency = get_user_meta(
-				get_current_user_id(),
-				'_mastercard_wc_currency_' . get_current_blog_id(),
-				true
-			);
-		}
-
-		return ! empty( $currency ) ? $currency : false;
-	}
-
-	/**
-	 * Gets the currently selected currency for the user.
-	 *
-	 * @return string
-	 */
-	public function get_currency_user_selected() {
-		if ( isset( $this->currency_selected ) ) {
-			return $this->currency_selected;
-		} elseif ( $this->get_user_saved_currency() ) {
-			$save = isset( $_COOKIE[ self::COOKIE_CURRENCY_NAME ] ) &&
-				( $this->get_user_saved_currency() !== $_COOKIE[ self::COOKIE_CURRENCY_NAME ] );
-			$this->set_currency_user_selected( $this->get_user_saved_currency(), $save );
-		} elseif ( isset( $_COOKIE[ self::COOKIE_CURRENCY_NAME ] ) ) {
-			$this->set_currency_user_selected( $_COOKIE[ self::COOKIE_CURRENCY_NAME ] );
-		} else {
-			$this->set_currency_user_selected( $this->original_currency );
-		}
-
-		return $this->currency_selected;
-	}
-
 
 	/**
 	 * Enqueue multicurrency js only if it is active.
