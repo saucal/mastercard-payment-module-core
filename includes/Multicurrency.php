@@ -98,7 +98,7 @@ final class Multicurrency {
 				WC()->session->set( 'currency_conversion', $conversion );
 			}
 
-			$message = __( '[ACME_DCC_AVAILABLE] Currency conversion available.', $this->core_plugin->text_domain() );
+			$message = __( '[DCC_AVAILABLE] Currency conversion available.', $this->core_plugin->text_domain() );
 			throw new \Exception( $message );
 		}
 	}
