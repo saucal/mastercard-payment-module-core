@@ -174,10 +174,6 @@ final class Multicurrency {
 		if ( $this->is_multicurrency_enabled() ) {
 			$args[ $this->core_plugin->payment_core()->prefix_hook( 'multicurrency' ) ] = array(
 				'src'  => $this->core_plugin->assets_controller()->localize_asset( 'js/frontend/multicurrency.js' ),
-				'data' => array(
-					'ajax_url'    => 'adsf',
-					'cookie_name' => '123',
-				),
 			);
 		}
 		return $args;
