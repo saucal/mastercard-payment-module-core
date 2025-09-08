@@ -86,7 +86,7 @@ trait Subscriptions {
 		add_action( 'wc_ajax_' . $this->prefix_hook( 'update_hosted_session' ), array( $this, 'handle_change_payment_method' ) );
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_authenticate_payer_data' ), array( $this, 'maybe_change_3ds_return_url' ) );
 		add_filter( $this->prefix_hook( '3ds_return_redirect' ), array( $this, 'maybe_add_change_payment_method_flag' ) );
-		add_filter( $this->prefix_hook( '3ds_process_redirect' ), array( $this, 'maybe_change_3ds_processed_redirect' ) );
+		add_filter( $this->prefix_hook( '3ds_process_redirect' ), array( $this, 'maybe_change_3ds_processed_redirect' ), 10, 2 );
 	}
 
 
@@ -379,6 +379,10 @@ trait Subscriptions {
 	 * @return bool
 	 */
 	public function maybe_force_save_method( $force_save ) {
+		if ( $this->is_subs_change_payment( false ) ) {
+			return true;
+		}
+
 		if ( $this->maybe_display_save_checkbox( true ) ) {
 			return $force_save;
 		}
@@ -550,7 +554,14 @@ trait Subscriptions {
 			return $unique_order_id;
 		}
 
-		return md5( $unique_order_id . time() );
+		$unique_order_id = md5( $unique_order_id . time() );
+
+		$order->update_meta_data( $this->prefix_hook( 'order_id' ), $unique_order_id );
+		$order->save_meta_data();
+
+		remove_filter( $this->prefix_hook( 'unique_order_id' ), array( $this, 'maybe_bump_order_id_change_payment_method' ), 10 );
+
+		return $unique_order_id;
 	}
 
 
@@ -615,8 +626,11 @@ trait Subscriptions {
 			return $redirect_url;
 		}
 
-		$notice = $subscription->has_payment_gateway() ? __( 'Payment method updated.', $this->core_plugin->text_domain() ) : __( 'Payment method added.', $this->core_plugin->text_domain() );
+		// Clean forced order ID.
+		$order->delete_meta_data( $this->prefix_hook( 'order_id' ) );
+		$order->save_meta_data();
 
+		$notice = $subscription->has_payment_gateway() ? __( 'Payment method updated.', $this->core_plugin->text_domain() ) : __( 'Payment method added.', $this->core_plugin->text_domain() );
 		wc_add_notice( $notice );
 
 		return $subscription->get_view_order_url();

@@ -682,7 +682,9 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$session
 		);
 
-		$this->create_payment_transaction( $order, $unique_order_id, $transaction_id, $payment_data );
+		if ( empty( $order->get_date_paid( 'edit' ) ) ) {
+			$this->create_payment_transaction( $order, $unique_order_id, $transaction_id, $payment_data );
+		}
 
 		$this->maybe_clean_hosted_cached_session( $this->get_hosted_session_data_hash() );
 
@@ -2044,9 +2046,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				throw new Exception( __( 'There was an error processing the payment. Please try again.', $this->core_plugin->text_domain() ) );
 			}
 
-			apply_filters( $this->prefix_hook( '3ds_process_redirect' ), $result['redirect'], $order, $this );
-
-			wp_safe_redirect( $result['redirect'] );
+			wp_safe_redirect( apply_filters( $this->prefix_hook( '3ds_process_redirect' ), $result['redirect'], $order, $this ) );
 			exit();
 		} catch ( Exception $e ) {
 			$this->core_plugin->logger()->log( $e->getMessage(), 'error' );
