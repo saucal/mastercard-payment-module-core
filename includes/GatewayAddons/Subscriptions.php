@@ -512,8 +512,9 @@ trait Subscriptions {
 			return;
 		}
 
+		$subscription->add_payment_token( $payment_token->get_id() );
 		$subscription->update_meta_data( $this->prefix_hook( 'payment_token' ), $payment_token->get_token() );
-		$subscription->save_meta_data();
+		$subscription->save();
 	}
 
 
