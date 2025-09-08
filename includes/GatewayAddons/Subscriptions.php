@@ -14,6 +14,7 @@ use WC_Order;
 use WC_Payment_Token_CC;
 use WC_Subscription;
 use WC_Subscriptions_Cart;
+use WCS_Payment_Tokens;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
@@ -81,8 +82,11 @@ trait Subscriptions {
 		// Remove the parent unique order ID from the renewal order.
 		add_action( $this->prefix_hook( 'process_payment_before' ), array( $this, 'remove_parent_unique_order_id' ) );
 
+		add_action( 'woocommerce_payment_token_deleted', array( $this, 'maybe_remove_token_from_subscriptions' ), 10, 2 );
+
 		// Handle subscription change payment method.
 		add_filter( $this->prefix_hook( 'unique_order_id' ), array( $this, 'maybe_bump_order_id_change_payment_method' ), 10, 2 );
+		add_filter( $this->prefix_hook( 'process_payment_addon' ), array( $this, 'maybe_handle_sub_change_payment_method' ), 10, 2 );
 		add_action( 'wc_ajax_' . $this->prefix_hook( 'update_hosted_session' ), array( $this, 'handle_change_payment_method' ) );
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_authenticate_payer_data' ), array( $this, 'maybe_change_3ds_return_url' ) );
 		add_filter( $this->prefix_hook( '3ds_return_redirect' ), array( $this, 'maybe_add_change_payment_method_flag' ) );
@@ -392,6 +396,23 @@ trait Subscriptions {
 
 
 	/**
+	 * Handle subscription change payment method.
+	 *
+	 * @param bool     $process_payment Whether to process the payment.
+	 * @param WC_Order $order           The order object.
+	 *
+	 * @return array|bool
+	 */
+	public function maybe_handle_sub_change_payment_method( $process_payment, $order ) {
+		if ( ! $this->is_subs_change_payment( false ) ) {
+			return $process_payment;
+		}
+
+		return $this->process_payment_hosted_session( $order );
+	}
+
+
+	/**
 	 * Process scheduled subscription payment.
 	 *
 	 * @param float    $total_amount  Amount to charge for the subscription.
@@ -613,7 +634,7 @@ trait Subscriptions {
 	/**
 	 * Change the 3DS processed redirect for subscription change payment method.
 	 *
-	 * @param string  $redirect_url The redirect URL.
+	 * @param string   $redirect_url The redirect URL.
 	 * @param WC_Order $order       The order object.
 	 * @return string
 	 */
@@ -635,5 +656,34 @@ trait Subscriptions {
 		wc_add_notice( $notice );
 
 		return $subscription->get_view_order_url();
+	}
+
+
+	/**
+	 * Maybe remove the payment token from subscriptions when deleted.
+	 *
+	 * @param int    $token_id The payment token ID.
+	 * @param object $token    The payment token object.
+	 * @return void
+	 */
+	public function maybe_remove_token_from_subscriptions( $token_id, $token ) {
+		if ( ! class_exists( 'WCS_Payment_Tokens' ) ) {
+			return;
+		}
+
+		$subscriptions = WCS_Payment_Tokens::get_subscriptions_from_token( $token );
+
+		if ( empty( $subscriptions ) ) {
+			return;
+		}
+
+		foreach ( $subscriptions as $subscription ) {
+			if ( $token->get_token() !== $subscription->get_meta( $this->prefix_hook( 'payment_token' ) ) ) {
+				continue;
+			}
+
+			$subscription->delete_meta_data( $this->prefix_hook( 'payment_token' ) );
+			$subscription->save_meta_data();
+		}
 	}
 }

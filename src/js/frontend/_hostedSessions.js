@@ -365,11 +365,7 @@ const hostedSessions = {
 			return;
 		}
 
-		if ( hostedSessions.isWooBlocks() ) {
-			hostedSessions.$wcForm.trigger( 'submit_payment' );
-		} else {
-			hostedSessions.$wcForm.trigger( 'submit' );
-		}
+		hostedSessions.submitForm();
 	},
 
 	isPaymentMethodSelected() {
@@ -510,6 +506,14 @@ const hostedSessions = {
 			hostedSessions.$wcForm.trigger( 'checkout_error', [
 				error_message,
 			] );
+		}
+	},
+
+	submitForm() {
+		if ( hostedSessions.isWooBlocks() ) {
+			hostedSessions.$wcForm.trigger( 'submit_payment' );
+		} else {
+			hostedSessions.$wcForm.trigger( 'submit' );
 		}
 	},
 
@@ -707,6 +711,12 @@ const hostedSessions = {
 					null,
 					res?.data || {}
 				);
+
+				if (
+					! hostedSessions.$wcForm.hasClass( 'is-processing-3ds' )
+				) {
+					hostedSessions.submitForm();
+				}
 			} )
 			.fail( function ( res ) {
 				hostedSessions.submitError(
