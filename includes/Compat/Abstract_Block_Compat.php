@@ -148,7 +148,7 @@ abstract class Abstract_Block_Compat extends AbstractPaymentMethodType {
 			$script_handle,
 			'core_data',
 			array(
-				'prefix' => $this->core_plugin->payment_core()->get_prefix(),
+				'pluginPrefix' => $this->core_plugin->payment_core()->get_prefix(),
 			)
 		);
 

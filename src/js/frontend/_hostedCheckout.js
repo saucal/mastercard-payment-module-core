@@ -3,10 +3,10 @@ const hostedCheckout = {
 	isEmbedded: false,
 
 	init() {
-		if ( ! core_gateway_params || ! core_gateway_params.prefix ) {
+		if ( ! core_gateway_params || ! core_gateway_params.pluginPrefix ) {
 			return;
 		}
-		hostedCheckout.pluginPrefix = core_gateway_params.prefix;
+		hostedCheckout.pluginPrefix = core_gateway_params.pluginPrefix;
 
 		const $hostedCheckoutContainer = jQuery(
 			`#${ this.pluginPrefix }-hosted-checkout-container`
@@ -63,11 +63,11 @@ const hostedCheckout = {
 
 	initErrorCallbacks() {
 		jQuery( document ).on(
-			`${ core_gateway_params.prefix }_error_callback`,
+			`${ core_gateway_params.pluginPrefix }_error_callback`,
 			this.handleError
 		);
 		jQuery( document ).on(
-			`${ core_gateway_params.prefix }_cancel_callback`,
+			`${ core_gateway_params.pluginPrefix }_cancel_callback`,
 			this.handleCancel
 		);
 	},

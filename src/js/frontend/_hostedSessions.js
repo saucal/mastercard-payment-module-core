@@ -11,10 +11,10 @@ const hostedSessions = {
 	$wcForm: null,
 
 	init() {
-		if ( ! core_gateway_params || ! core_gateway_params.prefix ) {
+		if ( ! core_gateway_params || ! core_gateway_params.pluginPrefix ) {
 			return;
 		}
-		hostedSessions.pluginPrefix = core_gateway_params.prefix;
+		hostedSessions.pluginPrefix = core_gateway_params.pluginPrefix;
 
 		if ( ! window.PaymentSession ) {
 			hostedSessions.reInit();
@@ -57,7 +57,7 @@ const hostedSessions = {
 		}
 
 		hostedSessions.sessionId = jQuery(
-			`#${ core_gateway_params.prefix }_session_id`
+			`#${ core_gateway_params.pluginPrefix }_session_id`
 		).val();
 
 		if ( ! hostedSessions.sessionId ) {
@@ -65,7 +65,7 @@ const hostedSessions = {
 		}
 
 		hostedSessions.sessionIdAttempt = jQuery(
-			`#${ core_gateway_params.prefix }_session_attempt`
+			`#${ core_gateway_params.pluginPrefix }_session_attempt`
 		).val();
 
 		if ( ! hostedSessions.sessionIdAttempt ) {
@@ -462,9 +462,9 @@ const hostedSessions = {
 				} )
 				.done( function ( res ) {
 					hostedSessions.sessionId = res;
-					jQuery( `#${ core_gateway_params.prefix }_session_id` ).val(
-						res
-					);
+					jQuery(
+						`#${ core_gateway_params.pluginPrefix }_session_id`
+					).val( res );
 					hostedSessions.submitError(
 						core_gateway_params.hostedSessionErrors.session_expired
 					);
