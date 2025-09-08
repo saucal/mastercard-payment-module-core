@@ -174,6 +174,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		// Gateway AJAX actions.
 		add_action( 'wc_ajax_' . $this->prefix_hook( 'reset_hosted_session' ), array( $this, 'ajax_clean_hosted_cached_session' ) );
+		add_action( 'wc_ajax_' . $this->prefix_hook( 'authenticate_payer' ), array( $this, 'ajax_authenticate_payer' ) );
 	}
 
 
@@ -522,6 +523,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 			do_action( $this->prefix_hook( 'process_payment_before' ), $order, $transaction_type, $override_total, $payment_complete );
 
+			$addon_payment = apply_filters( $this->prefix_hook( 'process_payment_addon' ), false, $order, $transaction_type, $override_total, $payment_complete );
+			if ( ! empty( $addon_payment ) && is_array( $addon_payment ) ) {
+				return $addon_payment;
+			}
+
 			if ( ! empty( $order->get_date_paid( 'edit' ) ) || $this->maybe_flag_order_as_paid( $order, false ) ) {
 				return array(
 					'result'   => 'success',
@@ -853,7 +859,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				'session'        => $session,
 			);
 
-			apply_filters(
+			$init_authentication = apply_filters(
 				$this->prefix_hook( 'process_payment_hosted_session_3ds_data' ),
 				$init_authentication,
 				$order,
@@ -1701,9 +1707,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	protected function hosted_session_order_payload( $order ) {
 		return apply_filters(
 			$this->prefix_hook( 'session_order_payload' ),
-			array_merge(
-				$this->base_order_payload( $order )
-			)
+			$this->base_order_payload( $order ),
+			$order
 		);
 	}
 
@@ -1982,14 +1987,17 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	private function process_3ds_return_callback() {
 		wp_safe_redirect(
-			add_query_arg(
-				array(
-					$this->prefix_hook( 'callback', '', '-' ) => 'wc-3ds-process',
-					'order-id'  => wc_clean( wp_unslash( $_REQUEST['order-id'] ) ) ?? '',
-					'signature' => wc_clean( wp_unslash( $_REQUEST['signature'] ) ) ?? '',
-					'nonce'     => wc_clean( wp_unslash( $_REQUEST['nonce'] ) ) ?? '',
+			apply_filters(
+				$this->prefix_hook( '3ds_return_redirect' ),
+				add_query_arg(
+					array(
+						$this->prefix_hook( 'callback', '', '-' ) => 'wc-3ds-process',
+						'order-id'  => wc_clean( wp_unslash( $_REQUEST['order-id'] ) ) ?? '',
+						'signature' => wc_clean( wp_unslash( $_REQUEST['signature'] ) ) ?? '',
+						'nonce'     => wc_clean( wp_unslash( $_REQUEST['nonce'] ) ) ?? '',
+					),
+					home_url( '/' )
 				),
-				home_url( '/' )
 			)
 		);
 	}
@@ -2024,10 +2032,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				throw new Exception( __( 'The order cannot be found.', $this->core_plugin->text_domain() ) );
 			}
 
-			if ( $order->is_paid() ) {
-				throw new Exception( __( 'The order has already been processed.', $this->core_plugin->text_domain() ) );
-			}
-
 			$signature = wc_clean( wp_unslash( $_REQUEST['signature'] ) ) ?? '';
 
 			if ( ! $signature || ! hash_equals( $signature, $this->hashed_signature( $order, $order->get_meta( $this->prefix_hook( 'authentication_transaction' ) ) ) ) ) {
@@ -2039,6 +2043,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			if ( empty( $result['result'] ) || 'success' !== $result['result'] || empty( $result['redirect'] ) ) {
 				throw new Exception( __( 'There was an error processing the payment. Please try again.', $this->core_plugin->text_domain() ) );
 			}
+
+			apply_filters( $this->prefix_hook( '3ds_process_redirect' ), $result['redirect'], $order, $this );
 
 			wp_safe_redirect( $result['redirect'] );
 			exit();
@@ -2184,5 +2190,62 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		wp_send_json(
 			$this->hosted_session_id()
 		);
+	}
+
+
+	/**
+	 * Authenticate payer.
+	 *
+	 * @return void
+	 */
+	public function ajax_authenticate_payer() {
+		// The authentication is not required if 3DS is disabled.
+		if ( ! $this->enable_3ds ) {
+			wp_send_json_success();
+		}
+
+		try {
+			$order_id = ! empty( $_POST['order_id'] ) ? absint( wc_clean( wp_unslash( $_POST['order_id'] ) ) ) : 0;
+			if ( ! $order_id ) {
+				throw new Exception( __( 'There was an error obtaining the order. Please refresh the page and try again.', $this->core_plugin->text_domain() ) );
+			}
+
+			$order = wc_get_order( $order_id );
+			if ( ! $order ) {
+				throw new Exception( __( 'There was an error obtaining the order. Please refresh the page and try again.', $this->core_plugin->text_domain() ) );
+			}
+
+			$session = $this->get_posted_session_data();
+			if ( empty( $session ) ) {
+				throw new Exception( __( 'There was an error obtaining the payment session. Please refresh the page and try again.', $this->core_plugin->text_domain() ) );
+			}
+
+			$session_data = $this->retrieve_payment_session( $session['id'] );
+			if ( empty( $session_data['sourceOfFunds'] ) ) {
+				throw new Exception( __( 'There was an error validating the payment session. Please refresh the page and try again.', $this->core_plugin->text_domain() ) );
+			}
+
+			$authentication_transaction_id = $this->get_3ds_authentication( $order, $session, $this->unique_order_id( $order ), false );
+
+			if ( is_array( $authentication_transaction_id ) ) {
+
+				$this->maybe_cache_saving_card( $order );
+
+				wp_send_json_success( $authentication_transaction_id );
+			}
+
+			// Clean the current authentication once the payment is authorized.
+			$this->update_authentication_transaction( $order, null );
+			$this->clean_cached_3ds_data( $order );
+
+			wp_send_json_success();
+		} catch ( Exception $e ) {
+			$this->core_plugin->logger()->log( $e->getMessage(), 'error' );
+			wp_send_json_error(
+				array(
+					'message' => $e->getMessage(),
+				)
+			);
+		}
 	}
 }

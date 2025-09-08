@@ -1,6 +1,7 @@
 /**
  * Internal dependencies
  */
+import { __ } from '@wordpress/i18n';
 import { debounce, getWcAjaxUrl, supportedLogos, getCardLogo } from './_utils';
 
 const hostedSessions = {
@@ -353,6 +354,17 @@ const hostedSessions = {
 			response.session.version
 		);
 
+		if (
+			core_gateway_params.threeDsEnabled &&
+			jQuery( 'input[name="woocommerce_change_payment"]' ).length > 0
+		) {
+			hostedSessions.execute3DsAuthentication(
+				jQuery( 'input[name="woocommerce_change_payment"]' ).val(),
+				true
+			);
+			return;
+		}
+
 		if ( hostedSessions.isWooBlocks() ) {
 			hostedSessions.$wcForm.trigger( 'submit_payment' );
 		} else {
@@ -652,6 +664,62 @@ const hostedSessions = {
 		$threeDsForm.trigger( 'submit' );
 
 		return true;
+	},
+
+	execute3DsAuthentication( orderId = null, isChangePayment = false ) {
+		const data = {
+			order_id: orderId || '',
+		};
+
+		if ( isChangePayment ) {
+			data.change_payment_method = true;
+		}
+
+		data[ `${ hostedSessions.pluginPrefix }_3ds_data` ] =
+			hostedSessions.get3DSData();
+		data[ `${ core_gateway_params.pluginPrefix }_session_id` ] =
+			hostedSessions.getSessionId();
+		data[ `${ core_gateway_params.pluginPrefix }_session_version` ] =
+			hostedSessions.getSessionVersion();
+
+		jQuery
+			.ajax( {
+				url: getWcAjaxUrl(
+					'authenticate_payer',
+					hostedSessions.pluginPrefix
+				),
+				method: 'POST',
+				data,
+			} )
+			.done( function ( res ) {
+				if ( ! res?.success ) {
+					hostedSessions.submitError(
+						res?.data?.message ||
+							__(
+								'There was an error with the payment authentication. Please try again.',
+								core_gateway_params.textDomain
+							)
+					);
+					return;
+				}
+
+				hostedSessions.process3DsAuthentication(
+					null,
+					res?.data || {}
+				);
+			} )
+			.fail( function ( res ) {
+				hostedSessions.submitError(
+					res?.data?.message ||
+						__(
+							'There was an error with the payment authentication. Please try again.',
+							core_gateway_params.textDomain
+						)
+				);
+			} )
+			.always( function () {
+				hostedSessions.unblockForm();
+			} );
 	},
 };
 

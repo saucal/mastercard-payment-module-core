@@ -295,16 +295,14 @@ class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	protected function unique_order_id( $order ) {
 		$unique_order_id = $order->get_meta( $this->prefix_hook( 'order_id' ) );
 
-		if ( $unique_order_id ) {
-			return $unique_order_id;
+		if ( ! $unique_order_id ) {
+			$unique_order_id = $order->get_id() . '-' . substr( md5( get_site_url() . '-' . $order->get_cart_hash() ), 0, 16 );
+
+			$order->update_meta_data( $this->prefix_hook( 'order_id' ), $unique_order_id );
+			$order->save_meta_data();
 		}
 
-		$unique_order_id = $order->get_id() . '-' . md5( get_site_url() . '-' . $order->get_cart_hash() );
-
-		$order->update_meta_data( $this->prefix_hook( 'order_id' ), $unique_order_id );
-		$order->save_meta_data();
-
-		return $unique_order_id;
+		return apply_filters( $this->prefix_hook( 'unique_order_id' ), $unique_order_id, $order );
 	}
 
 

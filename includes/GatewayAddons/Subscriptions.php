@@ -60,8 +60,7 @@ trait Subscriptions {
 
 		// Add subscription payment data to the payment request.
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_data' ), array( $this, 'maybe_add_subscription_payment_data' ), 10, 2 );
-		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_data' ), array( $this, 'maybe_add_subscription_payment_data' ), 10, 2 );
-		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_authenticate_payer_data' ), array( $this, 'maybe_add_subscription_payment_data' ), 10, 2 );
+		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_authenticate_payer_data' ), array( $this, 'maybe_add_subscription_authentication_data' ), 10, 2 );
 
 		// Remove redirect to checkout page for subscriptions.
 		add_filter( 'woocommerce_get_checkout_url', array( __CLASS__, 'maybe_remove_redirect_to_checkout' ) );
@@ -80,14 +79,21 @@ trait Subscriptions {
 		add_action( 'woocommerce_scheduled_subscription_payment_' . $this->id, array( $this, 'scheduled_subscription_payment' ), 10, 2 );
 
 		// Remove the parent unique order ID from the renewal order.
-		add_filter( $this->prefix_hook( 'process_payment_before' ), array( $this, 'remove_parent_unique_order_id' ) );
+		add_action( $this->prefix_hook( 'process_payment_before' ), array( $this, 'remove_parent_unique_order_id' ) );
+
+		// Handle subscription change payment method.
+		add_filter( $this->prefix_hook( 'unique_order_id' ), array( $this, 'maybe_bump_order_id_change_payment_method' ), 10, 2 );
+		add_action( 'wc_ajax_' . $this->prefix_hook( 'update_hosted_session' ), array( $this, 'handle_change_payment_method' ) );
+		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_authenticate_payer_data' ), array( $this, 'maybe_change_3ds_return_url' ) );
+		add_filter( $this->prefix_hook( '3ds_return_redirect' ), array( $this, 'maybe_add_change_payment_method_flag' ) );
+		add_filter( $this->prefix_hook( '3ds_process_redirect' ), array( $this, 'maybe_change_3ds_processed_redirect' ) );
 	}
 
 
 	/**
 	 * Add subscription payment data to the payment request.
 	 *
-	 * @param array     $payment_data Payment data.
+	 * @param array    $payment_data Payment data.
 	 * @param WC_Order $order        Order object.
 	 * @return array
 	 */
@@ -102,13 +108,66 @@ trait Subscriptions {
 			return $payment_data;
 		}
 
+		return array_merge(
+			$payment_data,
+			array(
+				'apiOperation' => $this->is_subs_change_payment( false ) ? 'AUTHORIZE' : 'PAY',
+				'agreement'    => array_filter( $this->get_agreement_data( $subscription ) ),
+			)
+		);
+	}
+
+
+	/**
+	 * Add subscription authentication data to the payment request.
+	 *
+	 * @param array    $payment_data Payment data.
+	 * @param WC_Order $order        Order object.
+	 * @return array
+	 */
+	public function maybe_add_subscription_authentication_data( $payment_data, $order ) {
+		if ( ! $this->has_subscription( $order ) ) {
+			return $payment_data;
+		}
+
+		$subscription = $this->get_subscription_object( $order );
+		if ( ! $subscription instanceof WC_Subscription ) {
+			return $payment_data;
+		}
+
+		$payment_data['agreement'] = array_filter( $this->get_agreement_data( $subscription ) );
+
+		if ( ! $this->is_subs_change_payment() ) {
+			return $payment_data;
+		}
+
+		if ( ! isset( $payment_data['order'] ) || ! is_array( $payment_data['order'] ) ) {
+			$payment_data['order'] = array();
+		}
+		$payment_data['order']['amount'] = $subscription->get_total( 'edit' );
+
+		return $payment_data;
+	}
+
+
+	/**
+	 * Get agreement data for the subscription.
+	 *
+	 * @param WC_Subscription $subscription Subscription object.
+	 * @return array
+	 */
+	protected function get_agreement_data( $subscription ) {
+		if ( ! $subscription instanceof WC_Subscription ) {
+			return array();
+		}
+
 		$end_date = $subscription->get_date( 'end' );
 
 		if ( empty( $end_date ) ) {
 			$end_date = $subscription->get_date( 'next_payment' );
 		}
 
-		$agreement_data = array(
+		return array(
 			'type'                       => 'RECURRING',
 			'amountVariability'          => 'FIXED',
 			'id'                         => $this->unique_subscription_id( $subscription ),
@@ -116,14 +175,6 @@ trait Subscriptions {
 			'startDate'                  => gmdate( 'Y-m-d' ),
 			'expiryDate'                 => gmdate( 'Y-m-d', ! empty( $end_date ) ? strtotime( $end_date ) : strtotime( '+1 year' ) ),
 			'minimumDaysBetweenPayments' => 1,
-		);
-
-		return array_merge(
-			$payment_data,
-			array(
-				'apiOperation' => 'PAY', // Use 'PAY' for subscription payments.
-				'agreement'    => array_filter( $agreement_data ),
-			)
 		);
 	}
 
@@ -148,6 +199,10 @@ trait Subscriptions {
 	protected function get_subscription_object( $order ) {
 		if ( ! $this->has_subscription( $order ) ) {
 			return false;
+		}
+
+		if ( $order instanceof WC_Subscription ) {
+			return $order; // If the order is already a subscription, return it.
 		}
 
 		$subscription_id = $order->get_meta( '_subscription_renewal' );
@@ -274,8 +329,8 @@ trait Subscriptions {
 	 *
 	 * @return bool
 	 */
-	protected function is_subs_change_payment() {
-		return ( isset( $_GET['pay_for_order'] ) && isset( $_GET['change_payment_method'] ) ); // WPCS: CSRF ok.
+	protected function is_subs_change_payment( $from_pay_for_order = true ) {
+		return isset( $_GET['change_payment_method'] ) && ( $from_pay_for_order ? isset( $_GET['pay_for_order'] ) : true ); // WPCS: CSRF ok.
 	}
 
 
@@ -435,7 +490,7 @@ trait Subscriptions {
 	 * Save the payment token for the subscription order.
 	 *
 	 * @param WC_Order $order    The order object.
-	 * @param int       $token_id The payment token ID.
+	 * @param int      $token_id The payment token ID.
 	 * @return void
 	 */
 	public function save_payment_token( $order, $token_id ) {
@@ -475,5 +530,95 @@ trait Subscriptions {
 
 		$renewal_order->delete_meta_data( $this->prefix_hook( 'order_id' ) );
 		$renewal_order->save_meta_data();
+	}
+
+
+	/**
+	 * Bump the order ID for subscription change payment method.
+	 *
+	 * @param string   $unique_order_id The unique order ID.
+	 * @param WC_Order $order           The order object.
+	 * @return string
+	 */
+	public function maybe_bump_order_id_change_payment_method( $unique_order_id, $order ) {
+		if ( ! isset( $_POST['change_payment_method'] ) && ! $this->is_subs_change_payment() ) {
+			return $unique_order_id;
+		}
+
+		$subscription = $this->get_subscription_object( $order );
+		if ( ! $subscription instanceof WC_Subscription ) {
+			return $unique_order_id;
+		}
+
+		return md5( $unique_order_id . time() );
+	}
+
+
+	/**
+	 * Change the 3DS return URL for subscription change payment method.
+	 *
+	 * @param array $payment_data Payment data.
+	 *
+	 * @return array
+	 */
+	public function maybe_change_3ds_return_url( $payment_data ) {
+		if ( ! isset( $_POST['change_payment_method'] ) ) {
+			return $payment_data;
+		}
+
+		if ( ! isset( $payment_data['authentication']['redirectResponseUrl'] ) ) {
+			return $payment_data;
+		}
+
+		$payment_data['authentication']['redirectResponseUrl'] = wp_nonce_url(
+			add_query_arg(
+				array(
+					'change_payment_method' => 1,
+				),
+				$payment_data['authentication']['redirectResponseUrl']
+			)
+		);
+
+		return $payment_data;
+	}
+
+
+	/**
+	 * Add change_payment_method flag to the 3DS return URL.
+	 *
+	 * @param string $redirect_url The redirect URL.
+	 * @return string
+	 */
+	public function maybe_add_change_payment_method_flag( $redirect_url ) {
+		if ( ! isset( $_GET['change_payment_method'] ) ) {
+			return $redirect_url;
+		}
+
+		return add_query_arg( 'change_payment_method', 1, $redirect_url );
+	}
+
+
+	/**
+	 * Change the 3DS processed redirect for subscription change payment method.
+	 *
+	 * @param string  $redirect_url The redirect URL.
+	 * @param WC_Order $order       The order object.
+	 * @return string
+	 */
+	public function maybe_change_3ds_processed_redirect( $redirect_url, $order ) {
+		if ( ! $this->is_subs_change_payment( false ) ) {
+			return $redirect_url;
+		}
+
+		$subscription = $this->get_subscription_object( $order );
+		if ( ! $subscription instanceof WC_Subscription ) {
+			return $redirect_url;
+		}
+
+		$notice = $subscription->has_payment_gateway() ? __( 'Payment method updated.', $this->core_plugin->text_domain() ) : __( 'Payment method added.', $this->core_plugin->text_domain() );
+
+		wc_add_notice( $notice );
+
+		return $subscription->get_view_order_url();
 	}
 }
