@@ -115,6 +115,13 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 
 	/**
+	 * DCC enabled.
+	 *
+	 * @var bool
+	 */
+	protected $enable_dcc = false;
+
+	/**
 	 * Debug enabled.
 	 *
 	 * @var bool
@@ -144,6 +151,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		$this->merchant_name        = ! empty( $this->get_option( 'merchant_name' ) ) ? $this->get_option( 'merchant_name' ) : get_bloginfo( 'name' );
 		$this->saved_cards          = ! empty( $this->get_option( 'saved_cards' ) && 'yes' === $this->get_option( 'saved_cards' ) );
 		$this->enable_3ds           = ! empty( $this->get_option( '_3d_secure' ) && 'yes' === $this->get_option( '_3d_secure' ) );
+		$this->enable_dcc           = ! empty( $this->get_option( '_dcc' ) && 'yes' === $this->get_option( '_dcc' ) );
 		$this->debug                = ! empty( $this->get_option( 'debug' ) && 'yes' === $this->get_option( 'debug' ) );
 
 		// Load the gateway support features.
@@ -168,6 +176,140 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		// Gateway AJAX actions.
 		add_action( 'wc_ajax_' . $this->prefix_hook( 'reset_hosted_session' ), array( $this, 'ajax_clean_hosted_cached_session' ) );
+
+		//DCC
+		if( $this->enable_dcc ) {
+			add_action( 'wc_ajax_' . $this->prefix_hook( 'dcc_probe' ), array( $this, 'ajax_dcc_probe' ) );
+			add_action( 'wc_ajax_nopriv_' . $this->prefix_hook( 'dcc_probe' ), array( $this, 'ajax_dcc_probe' ) );
+			add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_dcc_inline_data' ), 20 );
+
+			add_filter( $this->prefix_hook( 'gateway_adjust_payment_data' ), array( $this, 'filter_adjust_payment_data' ), 10, 1 );
+			add_filter( $this->prefix_hook( 'enqueue_scripts' ), array( $this, 'enqueue_dcc_js' ) );		
+		}
+	}
+
+
+	/**
+	 * Enqueue dcc js only if it is active.
+	 *
+	 * @param array $args Enqueued scripts.
+	 *
+	 * @return array
+	 */
+	public function enqueue_dcc_js( $args ) {
+		$args[ $this->core_plugin->payment_core()->prefix_hook( 'dcc' ) ] = array(
+			'src'  => $this->core_plugin->assets_controller()->localize_asset( 'js/frontend/dcc.js' ),
+		);
+		return $args;
+	}
+
+
+	/**
+	 * Adjusts payment_data with user-selected currency and conversion quote.
+	 *
+	 * @param array     $payment_data Base payload prepared for the PSP.
+	 * @return array
+	 */
+	public function filter_adjust_payment_data( array $payment_data ) : array {
+		if( isset( $_POST['payment_currency'] ) ) {
+			$conversion = WC()->session ? WC()->session->get( 'currency_conversion' ) : null;
+			if( $_POST['payment_currency'] === $conversion['payerCurrency'] ) {
+				$payment_data['order']['currency'] = $conversion['payerCurrency'];
+				$payment_data['order']['amount']   = $conversion['payerAmount'];
+			}
+		}
+
+		return $payment_data;
+	}
+
+
+	/**
+	 * Injects inline JS data (window.currencyConversion) for the checkout UI when a DCC quote exists.
+	 *
+	 * @return void
+	 */
+	public function enqueue_dcc_inline_data() : void {
+		if ( ! function_exists( 'is_checkout' ) || ! is_checkout() || is_order_received_page() ) {
+			return;
+		}
+
+		if ( ! WC()->session ) {
+			return;
+		}
+
+		$conv = WC()->session->get( 'currency_conversion' );
+		if ( empty( $conv ) ) {
+			return;
+		}
+
+		$eur_amount   = wc_format_decimal( $conv['payerAmount'], 2 );
+		$eur_currency = isset( $conv['payerCurrency'] ) ? (string) $conv['payerCurrency'] : 'EUR';
+
+		$handle = null;
+		if ( wp_script_is( 'wc-checkout', 'enqueued' ) || wp_script_is( 'wc-checkout', 'registered' ) ) {
+			wp_enqueue_script( 'wc-checkout' );
+			$handle = 'wc-checkout';
+		}
+
+		// Fallback for Checkout Blocks.
+		if ( ! $handle && ( wp_script_is( 'wc-blocks-checkout', 'enqueued' ) || wp_script_is( 'wc-blocks-checkout', 'registered' ) ) ) {
+			wp_enqueue_script( 'wc-blocks-checkout' );
+			$handle = 'wc-blocks-checkout';
+		}
+
+		if ( ! $handle ) {
+			return;
+		}
+
+		$payload = sprintf(
+			'window.currencyConversion = { amount: %s, currency: %s };',
+			wp_json_encode( (string) $eur_amount ),
+			wp_json_encode( (string) $eur_currency )
+		);
+
+		wp_add_inline_script( $handle, $payload, 'before' );
+	}
+
+	/**
+	 * AJAX probe to check DCC availability before submitting the checkout.
+	 *
+	 * @return void
+	 */
+	public function ajax_dcc_probe( ) : array {
+		$session = $processing_3ds_callback ? $order->get_meta( $this->prefix_hook( 'payment_session' ) ) : $this->get_posted_session_data();
+		if ( empty( $session ) ) {
+			throw new Exception( __( 'There was an error obtaining the payment session. Please refresh the page and try again.', $this->core_plugin->text_domain() ) );
+		}
+
+		$amount = WC()->cart ? (float) WC()->cart->get_total( 'edit' ) : 0.0;
+
+		$data = array(
+			'order'   => array(
+				'amount'   => wc_format_decimal( $amount, wc_get_price_decimals() ),
+				'currency' => 'USD',
+			),
+			'session' => $session,
+		);
+
+		$response   = $this->api->payment_options_inquiry( $data );
+		$conversion = $response['body']['paymentTypes']['card']['currencyConversion'] ?? null;
+
+		if ( ! empty( $conversion )
+			&& isset( $conversion['gatewayCode'] )
+			&& 'QUOTE_PROVIDED' === $conversion['gatewayCode']
+		) {
+			if ( WC()->session ) {
+				WC()->session->set( 'currency_conversion', $conversion );
+			}
+
+			wp_send_json_success( array(
+				'dcc'      => true,
+				'currency' => (string) ( $conversion['payerCurrency'] ?? 'EUR' ),
+				'amount'   => (string) ( $conversion['payerAmount'] ?? '' ),
+			) );
+		}
+
+		wp_send_json_success( array( 'dcc' => false ) );
 	}
 
 
@@ -598,8 +740,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		if ( empty( $session_data['sourceOfFunds'] ) ) {
 			throw new Exception( __( 'There was an error validating the payment session. Please refresh the page and try again.', $this->core_plugin->text_domain() ) );
 		}
-
-		do_action( $this->prefix_hook( 'gateway_dcc_probe' ), $order, $session, $this->api() );
 
 		// Forcefully validate CVC value.
 		if (

@@ -286,10 +286,10 @@ final class GatewaySettings {
 						'data-show-if'  => 'hosted_session',
 					),
 				),
-				'multicurrency'          => array(
-					'title'    => __( 'Currency converter', $this->core_plugin->text_domain() ),
+				'_dcc'          => array(
+					'title'    => __( 'Dynamic Currency Conversion', $this->core_plugin->text_domain() ),
 					'type'     => 'checkbox',
-					'desc_tip' => __( 'Enable currency converter.', $this->core_plugin->text_domain() ),
+					'desc_tip' => __( 'Enable Dynamic Currency Conversion', $this->core_plugin->text_domain() ),
 					'default'  => 'yes',
 				),				
 				'merchant_name'        => array(

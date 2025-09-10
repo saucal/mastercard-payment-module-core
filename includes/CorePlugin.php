@@ -8,7 +8,6 @@
 
 namespace GatewayPaymentCore;
 
-use GatewayPaymentCore\Multicurrency;
 use GatewayPaymentCore\Admin\CapturePaymentMetaBox;
 use GatewayPaymentCore\Admin\GatewaySettings;
 use GatewayPaymentCore\Admin\Notices;
@@ -109,14 +108,6 @@ abstract class CorePlugin {
 	private $capture_payment_meta;
 
 	/**
-	 * Multicurrency instance.
-	 *
-	 * @var Multicurrency
-	 */
-	private $multicurrency;
-
-
-	/**
 	 * Blocks compatibility instance.
 	 *
 	 * @var Compat\Block_Compatibility
@@ -188,7 +179,6 @@ abstract class CorePlugin {
 		if ( $this->is_merchant_connected() ) {
 			$this->capture_payment_meta = new CapturePaymentMetaBox( $this );
 			$this->block_compatibility  = new BlockCompatibility( $this );
-			$this->multicurrency  = new Multicurrency( $this );
 		}
 
 		register_activation_hook( $this->plugin_file(), array( $this, 'install' ) );
