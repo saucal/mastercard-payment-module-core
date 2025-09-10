@@ -202,7 +202,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			'data' => array(
 				'ajaxUrl'     => $this->core_plugin->payment_core()->utils()->ajax_url(),
 				'optionStore' => __( 'USD — Pay in store currency', $this->core_plugin->text_domain() ),
-				'helpText'    => __( 'Select and click “Place order”.', $this->core_plugin->text_domain() ),
+				'helpText'    => __( 'Select and click “Pay”.', $this->core_plugin->text_domain() ),
 				'actionText'  => __( 'Pay', $this->core_plugin->text_domain() ),
 			)			
 		);

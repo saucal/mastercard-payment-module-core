@@ -38,13 +38,13 @@
           }).format(window.currencyConversion.amount);
 
       var html =
-        '<div class="dcc-choice" style="margin-top:12px">' +
-        '  <label for="payment_currency" style="display:block;margin:6px 0">Currency</label>' +
-        '  <select id="payment_currency" name="payment_currency" class="select">' +
+        '<div>' +
+        '  <label for="payment_currency">Currency</label>' +
+        '  <select id="payment_currency" name="payment_currency">' +
         '    <option value="USD">' + window.core_dcc_params.optionStore + '</option>' +
         '    <option value="' + currencyLabel + '">' + currencyLabel + ' — ' + window.core_dcc_params.actionText + ' ' + currencyAmountFormatted + '</option>' +
         '  </select>' +
-        '  <p style="margin-top:6px;font-size:12px;opacity:.8">' + window.core_dcc_params.helpText + '</p>' +
+        '  <small>' + window.core_dcc_params.helpText + '</small>' +
         '</div>';
 
       $(html).insertBefore($btn);
