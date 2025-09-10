@@ -1,10 +1,4 @@
 (function($){
-  function wcAjaxUrl(endpoint){
-    return (window.wc_checkout_params && window.wc_checkout_params.wc_ajax_url)
-      ? window.wc_checkout_params.wc_ajax_url.replace('%%endpoint%%', endpoint)
-      : '/?wc-ajax=' + endpoint;
-  }
-
   // Intercept Place order: first click probes; second click (with payment_currency set) proceeds
   $(document).on('click', '#place_order', function(e){
     const $form = $('form.checkout');
@@ -18,7 +12,7 @@
 
     $.ajax({
       type: 'POST',
-      url: wcAjaxUrl(core_gateway_params.prefix + '_dcc_probe'),
+      url: window.core_dcc_params.ajaxUrl,
       data: payload,
       dataType: 'json'
     }).done(function(response){

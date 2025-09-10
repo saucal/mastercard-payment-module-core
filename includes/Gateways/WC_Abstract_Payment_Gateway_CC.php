@@ -200,7 +200,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		$args[ $this->core_plugin->payment_core()->prefix_hook( 'dcc' ) ] = array(
 			'src'  => $this->core_plugin->assets_controller()->localize_asset( 'js/frontend/dcc.js' ),
 			'data' => array(
-				'ajaxUrl'     => $this->core_plugin->payment_core()->utils()->ajax_url(),
+				'ajaxUrl'     => \WC_AJAX::get_endpoint( $this->prefix_hook( 'dcc_probe' ) ),
 				'optionStore' => __( 'USD — Pay in store currency', $this->core_plugin->text_domain() ),
 				'helpText'    => __( 'Select and click “Pay”.', $this->core_plugin->text_domain() ),
 				'actionText'  => __( 'Pay', $this->core_plugin->text_domain() ),
