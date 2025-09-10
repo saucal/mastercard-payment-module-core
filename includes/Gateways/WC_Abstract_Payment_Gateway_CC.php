@@ -183,7 +183,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			add_action( 'wc_ajax_nopriv_' . $this->prefix_hook( 'dcc_probe' ), array( $this, 'ajax_dcc_probe' ) );
 			add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_dcc_inline_data' ), 20 );
 
-			add_filter( $this->prefix_hook( 'gateway_adjust_payment_data' ), array( $this, 'filter_adjust_payment_data' ), 10, 1 );
+			add_filter( $this->prefix_hook( 'gateway_payment_data' ), array( $this, 'filter_dcc_payment_data' ), 10, 1 );
 			add_filter( $this->prefix_hook( 'enqueue_scripts' ), array( $this, 'enqueue_dcc_js' ) );		
 		}
 	}
@@ -210,7 +210,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @param array     $payment_data Base payload prepared for the PSP.
 	 * @return array
 	 */
-	public function filter_adjust_payment_data( array $payment_data ) : array {
+	public function filter_dcc_payment_data( array $payment_data ) : array {
 		if( isset( $_POST['payment_currency'] ) ) {
 			$conversion = WC()->session ? WC()->session->get( 'currency_conversion' ) : null;
 			if( $_POST['payment_currency'] === $conversion['payerCurrency'] ) {
@@ -759,7 +759,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			),
 		);
 
-		$payment_data = apply_filters( $this->prefix_hook( 'gateway_adjust_payment_data' ), $payment_data );
+		$payment_data = apply_filters( $this->prefix_hook( 'gateway_payment_data' ), $payment_data );
 
 		$unique_order_id = $this->unique_order_id( $order );
 

@@ -107,6 +107,7 @@ abstract class CorePlugin {
 	 */
 	private $capture_payment_meta;
 
+
 	/**
 	 * Blocks compatibility instance.
 	 *
@@ -692,6 +693,7 @@ abstract class CorePlugin {
 	public function update_payment_operations( $options ) {
 		update_option( 'woocommerce_' . $this->plugin_id() . '_payment_operations', $options );
 	}
+
 
 	/**
 	 * Is the gateway enabled.
