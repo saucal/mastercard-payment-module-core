@@ -79,9 +79,9 @@ final class Assets {
 		$scripts[ $this->core_plugin->payment_core()->prefix_hook( 'gateway-admin' ) ] = array(
 			'src'  => $this->core_plugin->assets_controller()->localize_asset( 'js/admin/payment-core.js' ),
 			'data' => array(
-				'ajaxUrl'    => $this->core_plugin->payment_core()->utils()->ajax_url(),
-				'prefix'     => $this->core_plugin->payment_core()->get_prefix(),
-				'textDomain' => $this->core_plugin->text_domain(),
+				'ajaxUrl'      => $this->core_plugin->payment_core()->utils()->ajax_url(),
+				'pluginPrefix' => $this->core_plugin->payment_core()->get_prefix(),
+				'textDomain'   => $this->core_plugin->text_domain(),
 			),
 		);
 

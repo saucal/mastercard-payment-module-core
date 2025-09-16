@@ -13,7 +13,7 @@ import Settings from './_settings';
 
 	Settings.init();
 
-	const prefix = core_gateway_admin_params?.prefix;
+	const prefix = core_gateway_admin_params?.pluginPrefix;
 
 	if ( ! prefix ) {
 		$( '.payment-core-void-form' ).hide();
