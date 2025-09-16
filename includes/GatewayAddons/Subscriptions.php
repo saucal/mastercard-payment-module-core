@@ -372,7 +372,7 @@ trait Subscriptions {
 			__( 'Your payment method will be saved for future purchases.', $this->core_plugin->text_domain() )
 		);
 
-		echo '<p class="wc-gateway-' . $this->id . '-save-card-notice"><i>' . wp_kses_post( $save_card_notice ) . '</i></p>';
+		echo '<p class="wc-gateway-' . esc_attr( $this->id ) . '-save-card-notice"><i>' . wp_kses_post( $save_card_notice ) . '</i></p>';
 	}
 
 
