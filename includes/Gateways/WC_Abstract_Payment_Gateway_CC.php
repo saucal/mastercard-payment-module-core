@@ -181,6 +181,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		$supports = array(
 			'products',
 			'refunds',
+			'pre-orders',
 		);
 
 		if ( $this->saved_cards && ! $this->is_hosted_checkout() ) {
@@ -481,6 +482,16 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 
 	/**
+	 * @param $order_id
+	 *
+	 * @return bool
+	 */
+	protected function has_pre_order( $order_id ) {
+		return \class_exists( 'WC_Pre_Orders_Order' ) && \WC_Pre_Orders_Order::order_contains_pre_order( $order_id );
+	}
+
+
+	/**
 	 * Process Payment.
 	 * First of all and most important is to process the payment.
 	 * Second if needed, save payment token card.
@@ -510,12 +521,16 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				);
 			}
 
+			if ( $transaction_type !== 'pre-order' && $this->has_pre_order( $order_id ) ) {
+				return $this->process_pre_order( $order_id );
+			}
+
 			if ( $this->is_hosted_checkout() ) {
-				return $this->process_payment_hosted_checkout( $order );
+				return $this->process_payment_hosted_checkout( $order, $transaction_type );
 			}
 
 			if ( $this->is_hosted_session() ) {
-				return $this->process_payment_hosted_session( $order );
+				return $this->process_payment_hosted_session( $order, false, $transaction_type );
 			}
 
 			return array(
@@ -547,6 +562,32 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		);
 	}
 
+	/**
+	 * It process a preorder.
+	 *
+	 * @param $order_id
+	 *
+	 * @return array
+	 * @throws Exception
+	 */
+	public function process_pre_order( $order_id ) {
+		if ( \WC_Pre_Orders_Order::order_requires_payment_tokenization( $order_id ) ) {
+			$response = $this->process_payment( $order_id, 'pre-order' );
+
+			if ( 'success' === $response['result'] ) {
+				// Remove from cart
+				WC()->cart->empty_cart();
+				// Mark order as preordered
+				\WC_Pre_Orders_Order::mark_order_as_pre_ordered( $order_id );
+			}
+
+			return $response;
+		}
+		// Preorder charged upfront or order used "pay later" gateway
+		// and now is a normal order needing payment, normal process.
+		return $this->process_payment( $order_id );
+	}
+
 
 	/**
 	 * Process payment using the hosted checkout mode.
@@ -555,7 +596,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 *
 	 * @return array
 	 */
-	protected function process_payment_hosted_checkout( $order ) {
+	protected function process_payment_hosted_checkout( $order, $transaction_type = null ) {
 		$order->update_status( 'pending', __( 'Pending payment', $this->core_plugin->text_domain() ) );
 
 		if ( 'redirect' === $this->hosted_checkout_mode ) {
@@ -586,7 +627,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return array
 	 * @throws Exception Exception.
 	 */
-	protected function process_payment_hosted_session( $order, $processing_3ds_callback = false ) {
+	protected function process_payment_hosted_session( $order, $processing_3ds_callback = false, $transaction_type = null ) {
 		$session = $processing_3ds_callback ? $order->get_meta( $this->prefix_hook( 'payment_session' ) ) : $this->get_posted_session_data();
 
 		if ( empty( $session ) ) {
@@ -609,7 +650,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		}
 
 		$payment_data = array(
-			'apiOperation' => 'AUTHORIZE' === $this->transaction_mode ? 'AUTHORIZE' : 'PAY',
+			'apiOperation' => ( 'AUTHORIZE' === $this->transaction_mode || 'pre-order' === $transaction_type ) ? 'AUTHORIZE' : 'PAY',
 			'order'        => $this->hosted_session_order_payload( $order ),
 			'session'      => $session,
 			'transaction'  => array(
