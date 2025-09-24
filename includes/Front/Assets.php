@@ -86,10 +86,12 @@ final class Assets {
 				'ajaxUrl'             => $this->core_plugin->payment_core()->utils()->ajax_url(),
 				'pluginPrefix'        => $this->core_plugin->payment_core()->get_prefix(),
 				'textDomain'          => $this->core_plugin->text_domain(),
+				'merchantId'          => $this->core_plugin->merchant_id(),
 				'checkoutMode'        => $this->core_plugin->get_checkout_mode(),
 				'orderCancelUrl'      => ! empty( Utils::get_current_order() ) ? Utils::get_current_order()->get_cancel_order_url() : '',
 				'hostedSessionErrors' => $this->core_plugin->payment_core()->utils()->hosted_session_errors(),
 				'threeDsEnabled'      => $this->core_plugin->is_3ds_enabled(),
+				'dccEnabled'          => $this->core_plugin->is_currency_conversion_enabled(),
 			),
 		);
 
