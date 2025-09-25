@@ -141,6 +141,14 @@ abstract class CorePlugin {
 
 
 	/**
+	 * API class instance.
+	 *
+	 * @var API
+	 */
+	private $api;
+
+
+	/**
 	 * Gateway settings.
 	 *
 	 * @var array
@@ -564,6 +572,19 @@ abstract class CorePlugin {
 	 */
 	public function logger() {
 		return $this->logger;
+	}
+
+	/**
+	 * Get the API instance.
+	 *
+	 * @return API
+	 */
+	public function api() {
+		if ( ! $this->api ) {
+			$this->api = new API( $this );
+		}
+
+		return $this->api;
 	}
 
 

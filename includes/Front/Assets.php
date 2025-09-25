@@ -83,7 +83,6 @@ final class Assets {
 			'deps' => array( 'jquery', 'wp-i18n' ),
 			'data' => array(
 				'wcAjaxUrl'           => WC_AJAX::get_endpoint( '%%endpoint%%' ),
-				'ajaxUrl'             => $this->core_plugin->payment_core()->utils()->ajax_url(),
 				'pluginPrefix'        => $this->core_plugin->payment_core()->get_prefix(),
 				'textDomain'          => $this->core_plugin->text_domain(),
 				'merchantId'          => $this->core_plugin->merchant_id(),
@@ -92,6 +91,7 @@ final class Assets {
 				'hostedSessionErrors' => $this->core_plugin->payment_core()->utils()->hosted_session_errors(),
 				'threeDsEnabled'      => $this->core_plugin->is_3ds_enabled(),
 				'dccEnabled'          => $this->core_plugin->is_currency_conversion_enabled(),
+				'dccRequestEndpoint'  => $this->core_plugin->api()->get_domain() . 'paymentOptionsInquiry',
 			),
 		);
 

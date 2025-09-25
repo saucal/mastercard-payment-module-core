@@ -186,11 +186,7 @@ class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * @return API
 	 */
 	public function api() {
-		if ( ! $this->api ) {
-			$this->api = new API( $this->core_plugin );
-		}
-
-		return $this->api;
+		return $this->core_plugin()->api();
 	}
 
 

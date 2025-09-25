@@ -51,6 +51,7 @@ if ( empty( $session_id ) || empty( $session_attempt ) ) {
 			<input id="<?php echo esc_attr( $gateway->id ); ?>-card-cvc-<?php echo esc_attr( $session_id ); ?>" readonly="readonly" class="input-text wc-credit-card-form-card-cvc" inputmode="numeric" autocomplete="cc-csc" autocorrect="no" autocapitalize="no" spellcheck="no" type="text" maxlength="4" placeholder="<?php esc_attr_e( 'CVC', $gateway->core_plugin()->text_domain() ); ?>" aria-required="true" aria-invalid="false" aria-describedby="<?php echo esc_attr( $gateway->id ); ?>-card-cvc" />
 		</div>
 	</div>
+	<div id="<?php echo esc_attr( $gateway->id ); ?>_currency_conversion"></div>
 	<div class="clear"></div>
 	<input type="hidden" id="<?php echo esc_attr( $gateway->id ); ?>_session_id" name="<?php echo esc_attr( $gateway->id ); ?>_session_id" value="<?php echo esc_attr( $session_id ); ?>" />
 	<input type="hidden" id="<?php echo esc_attr( $gateway->id ); ?>_session_attempt" name="<?php echo esc_attr( $gateway->id ); ?>_session_attempt" value="<?php echo esc_attr( $session_attempt ); ?>" />
