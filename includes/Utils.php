@@ -203,6 +203,47 @@ final class Utils {
 
 
 	/**
+	 * Get current total on the cart, either from the cart or from the current order.
+	 *
+	 * @return float
+	 */
+	public static function get_current_total_amount() {
+
+		static $total = null;
+
+		if ( ! is_null( $total ) ) {
+			return $total;
+		}
+
+		$order = self::get_current_order();
+
+		if ( $order ) {
+			$total = (float) $order->get_total();
+			return $total;
+		}
+
+		$total = (float) ! empty( WC()->cart ) ? WC()->cart->get_total( false ) : 0;
+		return $total;
+	}
+
+
+	/**
+	 * Get current currency on the cart, either from the cart or from the current order.
+	 *
+	 * @return string
+	 */
+	public static function get_current_currency() {
+		$order = self::get_current_order();
+
+		if ( $order ) {
+			return $order->get_currency();
+		}
+
+		return get_woocommerce_currency();
+	}
+
+
+	/**
 	 * Retrieves the billing information from an order to be used in the request.
 	 *
 	 * @param WC_Order $order The order.

@@ -27,6 +27,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 	// Register the Subscriptions trait.
 	use \GatewayPaymentCore\GatewayAddons\Subscriptions;
+	use \GatewayPaymentCore\GatewayAddons\DynamicCurrencyConversion;
 
 
 	/**
@@ -202,6 +203,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	public function init_addons() {
 		$this->init_addon_subscriptions();
+		$this->init_addon_dcc();
 	}
 
 
@@ -1651,6 +1653,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			WC()->session->set( $this->hosted_session_attempt_key(), 1 );
 			WC()->session->set( $this->hosted_session_duration_key(), time() + 5 * MINUTE_IN_SECONDS );
 			$this->set_hosted_session_data_hash();
+
+			do_action( $this->prefix_hook( 'hosted_session_created' ), $session_id, $this );
 		}
 
 		return $session_id;
