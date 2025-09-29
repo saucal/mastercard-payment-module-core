@@ -856,6 +856,22 @@ const hostedSessions = {
 		hostedSessions.dccRequesting = false;
 		hostedSessions.unblockFieldset();
 	},
+
+	getCurrencyConversionData() {
+		const dccData = {};
+
+		if ( ! core_gateway_params.dccEnabled || ! hostedSessions.dccChecked ) {
+			return dccData;
+		}
+
+		dccData[ `${ hostedSessions.pluginPrefix }_dcc_request_id` ] = jQuery(
+			`#${ hostedSessions.pluginPrefix }_dcc_request_id`
+		).val();
+		dccData.dccOfferState =
+			jQuery( 'input[name="dccOfferState"]' ).val() || 'Reject';
+
+		return dccData;
+	},
 };
 
 export default hostedSessions;

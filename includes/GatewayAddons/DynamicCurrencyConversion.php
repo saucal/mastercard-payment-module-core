@@ -40,13 +40,14 @@ trait DynamicCurrencyConversion {
 		add_action( $this->prefix_hook( 'hosted_session_created' ), array( $this, 'clean_cached_total' ) );
 
 		add_filter( 'woocommerce_update_order_review_fragments', array( $this, 'relocalize_cart_total' ) );
+		add_action( 'woocommerce_after_calculate_totals', array( $this, 'maybe_update_hosted_session' ) );
 
 		// Add DCC data to the payment data.
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_data' ), array( $this, 'maybe_add_dcc_payment_data' ), 10, 2 );
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_data' ), array( $this, 'maybe_add_dcc_payment_data' ), 10, 2 );
 
 		// Process DCC when the payment is processed.
-		add_action( $this->prefix_hook( 'payment_success' ), array( $this, 'process_dcc_data' ), 10, 3 );
+		add_action( $this->prefix_hook( 'payment_success' ), array( $this, 'process_dcc_data' ), 10, 2 );
 
 		// Render DCC data on the order receipt page.
 		add_filter( 'woocommerce_get_order_item_totals', array( $this, 'render_dcc_data_receipt' ), 10, 2 );
@@ -127,11 +128,17 @@ trait DynamicCurrencyConversion {
 		$dcc_request_id = wc_clean( wp_unslash( $_POST[ $this->id . '_dcc_request_id' ] ) ); // phpcs:ignore WordPress.Security.NonceVerification
 
 		// Assume the offer was rejected if no offer state is provided.
-		$offer_state = isset( $_POST['dccOfferState'] ) ? wc_clean( wp_unslash( $_POST['dccOfferState'] ) ) : 'Reject'; // phpcs:ignore WordPress.Security.NonceVerification
+		$offer_state = 'Reject';
+		if ( isset( $_POST['dccOfferState'] ) ) {
+			$offer_state = wc_clean( wp_unslash( $_POST['dccOfferState'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
+		} elseif( $_POST['dccofferstate'] ) {
+			// Checkout Blocks lowercase the field names.
+			$offer_state = wc_clean( wp_unslash( $_POST['dccofferstate'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
+		}
 
 		$payment_data['currencyConversion'] = array(
 			'requestId' => $dcc_request_id,
-			'uptake'    => 'Accept' === $offer_state ? 'ACCEPTED' : 'REJECTED',
+			'uptake'    => 'Accept' === $offer_state ? 'ACCEPTED' : 'DECLINED',
 		);
 
 		return $payment_data;
@@ -143,11 +150,10 @@ trait DynamicCurrencyConversion {
 	 *
 	 * @param \WC_Order $order       Order object.
 	 * @param array     $order_data  Order data.
-	 * @param array     $transaction Transaction data.
 	 *
 	 * @return void
 	 */
-	public function process_dcc_data( $order, $order_data, $transaction ) {
+	public function process_dcc_data( $order, $order_data ) {
 		if ( empty( $order_data['currencyConversion']['uptake'] ) || 'ACCEPTED' !== $order_data['currencyConversion']['uptake'] ) {
 			return;
 		}
@@ -225,11 +231,11 @@ trait DynamicCurrencyConversion {
 		?>
 		<h4><?php esc_html_e( 'Dynamic Currency Conversion (DCC)', $this->core_plugin->text_domain() ); ?></h4>
 		<p>
-			<strong></strong><?php esc_html_e( 'Original Currency:', $this->core_plugin->text_domain() ); ?></strong> <?php echo esc_html( $order->get_currency() ); ?>
+			<strong><?php esc_html_e( 'Original Currency:', $this->core_plugin->text_domain() ); ?></strong> <?php echo esc_html( $order->get_currency() ); ?>
 			<br />
 			<strong><?php esc_html_e( 'Payment Currency:', $this->core_plugin->text_domain() ); ?></strong> <?php echo esc_html( $dcc_data['currency'] ); ?>
 			<br />
-			<strong></strong><?php esc_html_e( 'Original Amount:', $this->core_plugin->text_domain() ); ?></strong> <?php echo wp_kses_post( wc_price( $order->get_total(), array( 'currency' => $order->get_currency() ) ) ); ?>
+			<strong><?php esc_html_e( 'Original Amount:', $this->core_plugin->text_domain() ); ?></strong> <?php echo wp_kses_post( wc_price( $order->get_total(), array( 'currency' => $order->get_currency() ) ) ); ?>
 			<br />
 			<strong><?php esc_html_e( 'Paid Amount (Converted):', $this->core_plugin->text_domain() ); ?></strong> <?php echo wp_kses_post( wc_price( $dcc_data['amount'], array( 'currency' => $dcc_data['currency'] ) ) ); ?>
 			<br />
