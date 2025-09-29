@@ -74,20 +74,6 @@
     iframe {
         border-radius: 0 !important;
     }
-
-    .payment-core-currency-conversion {
-        table {
-            margin-bottom: 0.25em;
-
-            tr {
-                display: flex;
-
-                td {
-                    padding: 0.25em;
-                }
-            }
-        }
-    }
 }
 
 .wc-block-components-form {
@@ -116,6 +102,29 @@
                 input.wc-credit-card-form-card {
                     border-color: #305614;
                     height: 55px;
+                }
+            }
+        }
+    }
+}
+
+#add_payment_method,
+.woocommerce-cart,
+.woocommerce-checkout,
+.wc-block-components-form .payment-core-payment-form-blocks {
+    .payment-core-currency-conversion {
+        p {
+            margin-bottom: 0.25em;
+        }
+
+        table {
+            margin-bottom: 0.25em;
+
+            tr {
+                display: flex;
+
+                td {
+                    padding: 0.25em;
                 }
             }
         }
