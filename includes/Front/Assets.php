@@ -92,6 +92,7 @@ final class Assets {
 				'threeDsEnabled'      => $this->core_plugin->is_3ds_enabled(),
 				'dccEnabled'          => $this->core_plugin->is_currency_conversion_enabled(),
 				'dccRequestEndpoint'  => $this->core_plugin->api()->get_domain() . 'paymentOptionsInquiry',
+				'dccNonce'            => wp_create_nonce( $this->core_plugin->payment_core()->prefix_hook( 'dcc_nonce' ) ),
 			),
 		);
 

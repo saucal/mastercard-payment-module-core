@@ -37,6 +37,13 @@ trait DynamicCurrencyConversion {
 			return; // DCC is automatically supported in hosted checkout mode.
 		}
 
+		// Render DCC data on the order edit page.
+		add_action( 'woocommerce_admin_order_data_after_billing_address', array( $this, 'render_dcc_data' ) );
+
+		if ( ! $this->dcc_enabled ) {
+			return;
+		}
+
 		add_action( $this->prefix_hook( 'hosted_session_created' ), array( $this, 'clean_cached_total' ) );
 
 		add_filter( 'woocommerce_update_order_review_fragments', array( $this, 'relocalize_cart_total' ) );
@@ -52,8 +59,8 @@ trait DynamicCurrencyConversion {
 		// Render DCC data on the order receipt page.
 		add_filter( 'woocommerce_get_order_item_totals', array( $this, 'render_dcc_data_receipt' ), 10, 2 );
 
-		// Render DCC data on the order edit page.
-		add_action( 'woocommerce_admin_order_data_after_billing_address', array( $this, 'render_dcc_data' ) );
+		// Get a quote for a saved token.
+		add_action( 'wc_ajax_' . $this->prefix_hook( 'dcc_quote' ), array( $this, 'ajax_dcc_quote' ) );
 	}
 
 
@@ -131,7 +138,7 @@ trait DynamicCurrencyConversion {
 		$offer_state = 'Reject';
 		if ( isset( $_POST['dccOfferState'] ) ) {
 			$offer_state = wc_clean( wp_unslash( $_POST['dccOfferState'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
-		} elseif( $_POST['dccofferstate'] ) {
+		} elseif ( $_POST['dccofferstate'] ) {
 			// Checkout Blocks lowercase the field names.
 			$offer_state = wc_clean( wp_unslash( $_POST['dccofferstate'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
 		}
@@ -269,5 +276,74 @@ trait DynamicCurrencyConversion {
 			'currency'      => $dcc_currency,
 			'amount'        => $dcc_amount,
 		);
+	}
+
+
+	/**
+	 * AJAX handler to get a DCC quote for a saved token.
+	 *
+	 * @return void
+	 */
+	public function ajax_dcc_quote() {
+		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( wc_clean( wp_unslash( $_POST['nonce'] ) ), $this->prefix_hook( 'dcc_nonce' ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+			wp_send_json_error();
+		}
+
+		if ( ! isset( $_POST['token_id'] ) ) {
+			wp_send_json_error();
+		}
+
+		if ( ! WC()->cart || ! WC()->session ) {
+			wp_send_json_error();
+		}
+
+		$token_id = wc_clean( wp_unslash( $_POST['token_id'] ) );
+
+		try {
+			$token = new \WC_Payment_Token_CC( $token_id );
+
+			if ( ! $token->get_id() || $token->get_user_id() !== get_current_user_id() || $token->get_gateway_id() !== $this->id ) {
+				wp_send_json_error();
+			}
+
+			$result = $this->api()->payment_options_inquiry(
+				array(
+					'apiOperation'  => 'PAYMENT_OPTIONS_INQUIRY',
+					'order'         => array(
+						'amount'   => Utils::get_current_total_amount(),
+						'currency' => Utils::get_current_currency(),
+					),
+					'sourceOfFunds' => array(
+						'token' => $token->get_token(),
+					),
+				)
+			);
+
+			if ( $result['body']['result'] !== 'SUCCESS' ) {
+				$this->log( 'DCC quote request failed: ' . print_r( $result, true ), 'error' );
+				wp_send_json_error();
+			}
+
+			if ( empty( $result['body']['paymentTypes']['card']['currencyConversion'] ) ) {
+				wp_send_json_success();
+			}
+
+			$request_id = $result['body']['paymentTypes']['card']['currencyConversion']['requestId'] ?? null;
+			$offer_text = $result['body']['paymentTypes']['card']['currencyConversion']['offerText'] ?? null;
+
+			if ( ! $request_id || ! $offer_text ) {
+				wp_send_json_error();
+			}
+
+			wp_send_json_success(
+				array(
+					'requestId' => $request_id,
+					'offerText' => $offer_text,
+				)
+			);
+		} catch ( \Exception $e ) {
+			$this->log( 'DCC quote request failed: ' . $e->getMessage(), 'error' );
+			wp_send_json_error();
+		}
 	}
 }

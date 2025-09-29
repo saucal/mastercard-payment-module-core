@@ -17,6 +17,7 @@ const hostedSessions = {
 	dccChecked: false,
 	dccRequesting: false,
 	dccCurrentNumber: null,
+	selectedTokenId: null,
 
 	init() {
 		if ( ! core_gateway_params || ! core_gateway_params.pluginPrefix ) {
@@ -142,10 +143,20 @@ const hostedSessions = {
 			);
 		}
 
-		if (
-			! hostedSessions.isPaymentMethodSelected() ||
-			hostedSessions.isSavedToken()
-		) {
+		if ( ! hostedSessions.isPaymentMethodSelected() ) {
+			return;
+		}
+
+		if ( hostedSessions.isSavedToken() ) {
+			const tokenId = jQuery(
+				`input[name="wc-${ hostedSessions.pluginPrefix }-payment-token"]:checked`
+			).val();
+			if ( hostedSessions.selectedTokenId === tokenId ) {
+				return;
+			}
+			hostedSessions.dccChecked = false;
+			hostedSessions.selectedTokenId = tokenId;
+			hostedSessions.requestCurrencyConversionQuoteSavedToken( tokenId );
 			return;
 		}
 
@@ -558,7 +569,7 @@ const hostedSessions = {
 	blockForm() {
 		if (
 			hostedSessions.$wcForm &&
-			jQuery( hostedSessions.$wcForm ).block === 'function'
+			typeof jQuery( hostedSessions.$wcForm ).block === 'function'
 		) {
 			hostedSessions.$wcForm.block( {
 				message: null,
@@ -586,7 +597,8 @@ const hostedSessions = {
 	blockFieldset() {
 		if (
 			hostedSessions.$ccFieldset &&
-			typeof jQuery( hostedSessions.$ccFieldset ).block === 'function'
+			typeof jQuery( hostedSessions.$ccFieldset ).block === 'function' &&
+			jQuery( hostedSessions.$ccFieldset ).is( ':visible' )
 		) {
 			hostedSessions.$ccFieldset.block( {
 				message: null,
@@ -595,6 +607,20 @@ const hostedSessions = {
 					opacity: 0.6,
 				},
 			} );
+		} else {
+			const $paymentWrapper = jQuery( '#payment' );
+			if (
+				$paymentWrapper.length &&
+				typeof jQuery( $paymentWrapper ).block === 'function'
+			) {
+				$paymentWrapper.block( {
+					message: null,
+					overlayCSS: {
+						background: '#fff',
+						opacity: 0.6,
+					},
+				} );
+			}
 		}
 	},
 
@@ -604,6 +630,14 @@ const hostedSessions = {
 			typeof jQuery( hostedSessions.$ccFieldset ).unblock === 'function'
 		) {
 			jQuery( hostedSessions.$ccFieldset ).unblock();
+		}
+
+		const $paymentWrapper = jQuery( '#payment' );
+		if (
+			$paymentWrapper.length &&
+			typeof jQuery( $paymentWrapper ).unblock === 'function'
+		) {
+			$paymentWrapper.unblock();
 		}
 	},
 
@@ -871,6 +905,59 @@ const hostedSessions = {
 			jQuery( 'input[name="dccOfferState"]' ).val() || 'Reject';
 
 		return dccData;
+	},
+
+	requestCurrencyConversionQuoteSavedToken( tokenId ) {
+		if ( ! core_gateway_params.dccEnabled || ! tokenId ) {
+			return;
+		}
+
+		if ( hostedSessions.dccChecked || hostedSessions.dccRequesting ) {
+			return;
+		}
+
+		const $dccWrapper = jQuery(
+			`#${ hostedSessions.pluginPrefix }_currency_conversion`
+		);
+		if ( ! $dccWrapper.length ) {
+			return;
+		}
+
+		$dccWrapper.html( '' );
+		hostedSessions.blockFieldset();
+		hostedSessions.dccRequesting = true;
+
+		jQuery
+			.ajax( {
+				url: getWcAjaxUrl( 'dcc_quote', hostedSessions.pluginPrefix ),
+				method: 'POST',
+				data: {
+					token_id: tokenId,
+					nonce: core_gateway_params.dccNonce,
+				},
+			} )
+			.done( function ( res ) {
+				if (
+					! res?.success ||
+					! res?.data?.requestId ||
+					! res?.data?.offerText
+				) {
+					return;
+				}
+
+				jQuery(
+					`#${ hostedSessions.pluginPrefix }_currency_conversion`
+				).html( res.data.offerText );
+
+				jQuery(
+					`#${ hostedSessions.pluginPrefix }_dcc_request_id`
+				).val( res.data.requestId );
+			} )
+			.always( function () {
+				hostedSessions.completeCurrencyConversionRequest();
+				hostedSessions.unblockFieldset();
+				hostedSessions.dccChecked = true;
+			} );
 	},
 };
 

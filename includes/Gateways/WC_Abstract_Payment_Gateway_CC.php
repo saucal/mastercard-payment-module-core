@@ -119,6 +119,14 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 
 	/**
+	 * DCC enabled.
+	 *
+	 * @var bool
+	 */
+	protected $dcc_enabled = false;
+
+
+	/**
 	 * Debug enabled.
 	 *
 	 * @var bool
@@ -148,6 +156,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		$this->merchant_name        = ! empty( $this->get_option( 'merchant_name' ) ) ? $this->get_option( 'merchant_name' ) : get_bloginfo( 'name' );
 		$this->saved_cards          = ! empty( $this->get_option( 'saved_cards' ) && 'yes' === $this->get_option( 'saved_cards' ) );
 		$this->enable_3ds           = ! empty( $this->get_option( '_3d_secure' ) && 'yes' === $this->get_option( '_3d_secure' ) );
+		$this->dcc_enabled          = ! empty( $this->get_option( 'currency_conversion' ) && 'yes' === $this->get_option( 'currency_conversion' ) );
 		$this->debug                = ! empty( $this->get_option( 'debug' ) && 'yes' === $this->get_option( 'debug' ) );
 
 		// Load the gateway support features.
@@ -496,6 +505,10 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		if ( $display_save_checkbox && ! is_add_payment_method_page() ) {
 			$this->save_payment_method_checkbox();
+		}
+
+		if ( $this->dcc_enabled ) {
+			echo '<div id="' . esc_attr( $this->id ) . '_currency_conversion"></div>';
 		}
 	}
 
