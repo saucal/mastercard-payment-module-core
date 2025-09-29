@@ -47,6 +47,9 @@ trait DynamicCurrencyConversion {
 
 		// Process DCC when the payment is processed.
 		add_action( $this->prefix_hook( 'payment_success' ), array( $this, 'process_dcc_data' ), 10, 3 );
+
+		// Render DCC data on the order edit page.
+		add_action( 'woocommerce_admin_order_data_after_billing_address', array( $this, 'render_dcc_data' ) );
 	}
 
 
@@ -150,7 +153,6 @@ trait DynamicCurrencyConversion {
 			return;
 		}
 
-		$order->update_meta_data( $this->prefix_hook( 'dcc_request_id' ), $order_data['currencyConversion']['requestId'] );
 		$order->update_meta_data( $this->prefix_hook( 'dcc_exchange_rate' ), $order_data['currencyConversion']['payerExchangeRate'] );
 		$order->update_meta_data( $this->prefix_hook( 'dcc_currency' ), $order_data['currencyConversion']['payerCurrency'] );
 		$order->update_meta_data( $this->prefix_hook( 'dcc_amount' ), $order_data['currencyConversion']['payerAmount'] );
@@ -171,5 +173,33 @@ trait DynamicCurrencyConversion {
 
 		$session_key = $this->prefix_hook( 'session_total_' . $session_id );
 		WC()->session->__unset( $session_key );
+	}
+
+
+	/**
+	 * Render DCC data on the order edit page.
+	 *
+	 * @param \WC_Order $order Order object.
+	 * @return void
+	 */
+	public function render_dcc_data( $order ) {
+		$dcc_exchange_rate = $order->get_meta( $this->prefix_hook( 'dcc_exchange_rate' ) );
+		$dcc_currency      = $order->get_meta( $this->prefix_hook( 'dcc_currency' ) );
+		$dcc_amount        = $order->get_meta( $this->prefix_hook( 'dcc_amount' ) );
+
+		if ( ! $dcc_exchange_rate || ! $dcc_currency || ! $dcc_amount ) {
+			return;
+		}
+
+		?>
+		<h4><?php esc_html_e( 'Dynamic Currency Conversion (DCC)', $this->core_plugin->text_domain() ); ?></h4>
+		<p>
+			<strong><?php esc_html_e( 'Currency:', $this->core_plugin->text_domain() ); ?></strong> <?php echo esc_html( $dcc_currency ); ?>
+			<br />
+			<strong><?php esc_html_e( 'Converted Amount:', $this->core_plugin->text_domain() ); ?></strong> <?php echo wp_kses_post( wc_price( $dcc_amount, array( 'currency' => $dcc_currency ) ) ); ?>
+			<br />
+			<strong><?php esc_html_e( 'Exchange Rate:', $this->core_plugin->text_domain() ); ?></strong> <?php echo esc_html( $dcc_exchange_rate ); ?>
+		</p>
+		<?php
 	}
 }
