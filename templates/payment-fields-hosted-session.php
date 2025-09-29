@@ -57,6 +57,7 @@ if ( empty( $session_id ) || empty( $session_attempt ) ) {
 	<input type="hidden" id="<?php echo esc_attr( $gateway->id ); ?>_session_attempt" name="<?php echo esc_attr( $gateway->id ); ?>_session_attempt" value="<?php echo esc_attr( $session_attempt ); ?>" />
 	<input type="hidden" id="<?php echo esc_attr( $gateway->id ); ?>_session_version" name="<?php echo esc_attr( $gateway->id ); ?>_session_version" />
 	<input type="hidden" id="<?php echo esc_attr( $gateway->id ); ?>_3ds_data" name="<?php echo esc_attr( $gateway->id ); ?>_3ds_data" />
+	<input type="hidden" id="<?php echo esc_attr( $gateway->id ); ?>_dcc_request_id" name="<?php echo esc_attr( $gateway->id ); ?>_dcc_request_id" />
 
 	<?php
 	/**
