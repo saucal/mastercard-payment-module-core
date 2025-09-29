@@ -608,7 +608,9 @@ const hostedSessions = {
 				},
 			} );
 		} else {
-			const $paymentWrapper = jQuery( '#payment' );
+			const $paymentWrapper = jQuery(
+				'#payment, .wc-block-checkout__payment-method'
+			);
 			if (
 				$paymentWrapper.length &&
 				typeof jQuery( $paymentWrapper ).block === 'function'
@@ -632,7 +634,9 @@ const hostedSessions = {
 			jQuery( hostedSessions.$ccFieldset ).unblock();
 		}
 
-		const $paymentWrapper = jQuery( '#payment' );
+		const $paymentWrapper = jQuery(
+			'#payment, .wc-block-checkout__payment-method'
+		);
 		if (
 			$paymentWrapper.length &&
 			typeof jQuery( $paymentWrapper ).unblock === 'function'
