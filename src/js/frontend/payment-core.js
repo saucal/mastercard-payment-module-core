@@ -9,7 +9,7 @@ import hostedSessions from './_hostedSessions';
 
 	if (
 		! core_gateway_params ||
-		! core_gateway_params.prefix ||
+		! core_gateway_params.pluginPrefix ||
 		! core_gateway_params.checkoutMode
 	) {
 		return false;

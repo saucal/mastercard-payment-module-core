@@ -14,7 +14,7 @@ function debounce( func, wait, immediate ) {
 	};
 }
 
-function getWcAjaxUrl( method, prefix = core_gateway_params.prefix ) {
+function getWcAjaxUrl( method, prefix = core_gateway_params.pluginPrefix ) {
 	return core_gateway_params.wcAjaxUrl
 		.toString()
 		.replace( '%%endpoint%%', `${ prefix }_${ method }` );

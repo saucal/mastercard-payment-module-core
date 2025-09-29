@@ -1,6 +1,7 @@
 /**
  * Internal dependencies
  */
+import { __ } from '@wordpress/i18n';
 import { debounce, getWcAjaxUrl, supportedLogos, getCardLogo } from './_utils';
 
 const hostedSessions = {
@@ -11,10 +12,10 @@ const hostedSessions = {
 	$wcForm: null,
 
 	init() {
-		if ( ! core_gateway_params || ! core_gateway_params.prefix ) {
+		if ( ! core_gateway_params || ! core_gateway_params.pluginPrefix ) {
 			return;
 		}
-		hostedSessions.pluginPrefix = core_gateway_params.prefix;
+		hostedSessions.pluginPrefix = core_gateway_params.pluginPrefix;
 
 		if ( ! window.PaymentSession ) {
 			hostedSessions.reInit();
@@ -57,7 +58,7 @@ const hostedSessions = {
 		}
 
 		hostedSessions.sessionId = jQuery(
-			`#${ core_gateway_params.prefix }_session_id`
+			`#${ core_gateway_params.pluginPrefix }_session_id`
 		).val();
 
 		if ( ! hostedSessions.sessionId ) {
@@ -65,7 +66,7 @@ const hostedSessions = {
 		}
 
 		hostedSessions.sessionIdAttempt = jQuery(
-			`#${ core_gateway_params.prefix }_session_attempt`
+			`#${ core_gateway_params.pluginPrefix }_session_attempt`
 		).val();
 
 		if ( ! hostedSessions.sessionIdAttempt ) {
@@ -353,11 +354,18 @@ const hostedSessions = {
 			response.session.version
 		);
 
-		if ( hostedSessions.isWooBlocks() ) {
-			hostedSessions.$wcForm.trigger( 'submit_payment' );
-		} else {
-			hostedSessions.$wcForm.trigger( 'submit' );
+		if (
+			core_gateway_params.threeDsEnabled &&
+			jQuery( 'input[name="woocommerce_change_payment"]' ).length > 0
+		) {
+			hostedSessions.execute3DsAuthentication(
+				jQuery( 'input[name="woocommerce_change_payment"]' ).val(),
+				true
+			);
+			return;
 		}
+
+		hostedSessions.submitForm();
 	},
 
 	isPaymentMethodSelected() {
@@ -462,9 +470,9 @@ const hostedSessions = {
 				} )
 				.done( function ( res ) {
 					hostedSessions.sessionId = res;
-					jQuery( `#${ core_gateway_params.prefix }_session_id` ).val(
-						res
-					);
+					jQuery(
+						`#${ core_gateway_params.pluginPrefix }_session_id`
+					).val( res );
 					hostedSessions.submitError(
 						core_gateway_params.hostedSessionErrors.session_expired
 					);
@@ -498,6 +506,14 @@ const hostedSessions = {
 			hostedSessions.$wcForm.trigger( 'checkout_error', [
 				error_message,
 			] );
+		}
+	},
+
+	submitForm() {
+		if ( hostedSessions.isWooBlocks() ) {
+			hostedSessions.$wcForm.trigger( 'submit_payment' );
+		} else {
+			hostedSessions.$wcForm.trigger( 'submit' );
 		}
 	},
 
@@ -652,6 +668,68 @@ const hostedSessions = {
 		$threeDsForm.trigger( 'submit' );
 
 		return true;
+	},
+
+	execute3DsAuthentication( orderId = null, isChangePayment = false ) {
+		const data = {
+			order_id: orderId || '',
+		};
+
+		if ( isChangePayment ) {
+			data.change_payment_method = true;
+		}
+
+		data[ `${ hostedSessions.pluginPrefix }_3ds_data` ] =
+			hostedSessions.get3DSData();
+		data[ `${ core_gateway_params.pluginPrefix }_session_id` ] =
+			hostedSessions.getSessionId();
+		data[ `${ core_gateway_params.pluginPrefix }_session_version` ] =
+			hostedSessions.getSessionVersion();
+
+		jQuery
+			.ajax( {
+				url: getWcAjaxUrl(
+					'authenticate_payer',
+					hostedSessions.pluginPrefix
+				),
+				method: 'POST',
+				data,
+			} )
+			.done( function ( res ) {
+				if ( ! res?.success ) {
+					hostedSessions.submitError(
+						res?.data?.message ||
+							__(
+								'There was an error with the payment authentication. Please try again.',
+								core_gateway_params.textDomain
+							)
+					);
+					return;
+				}
+
+				hostedSessions.process3DsAuthentication(
+					null,
+					res?.data || {}
+				);
+
+				if (
+					! hostedSessions.$wcForm.hasClass( 'is-processing-3ds' )
+				) {
+					hostedSessions.submitForm();
+				}
+			} )
+			.fail( function ( res ) {
+				hostedSessions.submitError(
+					res?.data?.message ||
+						__(
+							'There was an error with the payment authentication. Please try again.',
+							core_gateway_params.textDomain
+						)
+				);
+			} )
+			.always( function () {
+				hostedSessions.unblockForm();
+			} );
 	},
 };
 

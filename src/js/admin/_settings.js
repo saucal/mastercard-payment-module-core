@@ -1,6 +1,6 @@
 const Settings = {
 	init() {
-		const prefix = core_gateway_admin_params?.prefix;
+		const prefix = core_gateway_admin_params?.pluginPrefix;
 
 		jQuery( '.conditional-hide' ).each( function () {
 			const $el = jQuery( this );

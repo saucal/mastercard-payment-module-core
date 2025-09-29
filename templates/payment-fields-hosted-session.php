@@ -56,4 +56,11 @@ if ( empty( $session_id ) || empty( $session_attempt ) ) {
 	<input type="hidden" id="<?php echo esc_attr( $gateway->id ); ?>_session_attempt" name="<?php echo esc_attr( $gateway->id ); ?>_session_attempt" value="<?php echo esc_attr( $session_attempt ); ?>" />
 	<input type="hidden" id="<?php echo esc_attr( $gateway->id ); ?>_session_version" name="<?php echo esc_attr( $gateway->id ); ?>_session_version" />
 	<input type="hidden" id="<?php echo esc_attr( $gateway->id ); ?>_3ds_data" name="<?php echo esc_attr( $gateway->id ); ?>_3ds_data" />
+
+	<?php
+	/**
+	 * Render additional content after the payment method fields.
+	 */
+	do_action( 'wc_' . $gateway->id . '_after_payment_method_fields' );
+	?>
 </fieldset>
