@@ -216,6 +216,10 @@ const hostedSessions = {
 			hostedSessions.dccChecked = false;
 			hostedSessions.maybeTriggerCurrencyConversion();
 		} );
+
+		jQuery( document.body ).on( 'updated_checkout', () => {
+			hostedSessions.dccChecked = false;
+		} );
 	},
 
 	fields() {
@@ -826,16 +830,12 @@ const hostedSessions = {
 				if (
 					! res?.paymentTypes?.card?.currencyConversion?.requestId
 				) {
-					jQuery(
-						`#${ hostedSessions.pluginPrefix }_currency_conversion`
-					).remove();
+					hostedSessions.completeCurrencyConversionRequest();
 					return;
 				}
 
 				const conversionQuote =
 					res.paymentTypes.card?.currencyConversion;
-
-				console.log( conversionQuote );
 
 				jQuery(
 					`#${ hostedSessions.pluginPrefix }_currency_conversion`
@@ -853,7 +853,6 @@ const hostedSessions = {
 	},
 
 	completeCurrencyConversionRequest() {
-		hostedSessions.dccChecked = false;
 		hostedSessions.dccRequesting = false;
 		hostedSessions.unblockFieldset();
 	},

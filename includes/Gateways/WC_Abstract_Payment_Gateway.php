@@ -554,6 +554,8 @@ class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				);
 				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), null );
 				$order->payment_complete( $order_data['id'] );
+
+				do_action( $this->prefix_hook( 'payment_success' ), $order, $order_data, $transaction );
 				break;
 			case 'AUTHORIZED':
 				$order->set_transaction_id( $order_data['id'] );
@@ -569,6 +571,8 @@ class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 					$this->title,
 					$order_data['id'],
 				);
+
+				do_action( $this->prefix_hook( 'payment_success' ), $order, $order_data, $transaction );
 				break;
 			case 'PARTIALLY_CAPTURED':
 				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), null );

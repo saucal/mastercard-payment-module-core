@@ -74,6 +74,20 @@
     iframe {
         border-radius: 0 !important;
     }
+
+    .payment-core-currency-conversion {
+        table {
+            margin-bottom: 0.25em;
+
+            tr {
+                display: flex;
+
+                td {
+                    padding: 0.25em;
+                }
+            }
+        }
+    }
 }
 
 .wc-block-components-form {
