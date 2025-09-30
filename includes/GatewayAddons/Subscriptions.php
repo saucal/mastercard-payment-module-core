@@ -181,8 +181,36 @@ trait Subscriptions {
 			'paymentFrequency'           => $this->formatted_subscription_period( $subscription ),
 			'startDate'                  => gmdate( 'Y-m-d' ),
 			'expiryDate'                 => gmdate( 'Y-m-d', ! empty( $end_date ) ? strtotime( $end_date ) : strtotime( '+1 year' ) ),
-			'minimumDaysBetweenPayments' => 1,
+			'minimumDaysBetweenPayments' => $this->calculate_min_days_between_payments( $subscription ),
 		);
+	}
+
+
+	/**
+	 * Calculate minimum days between payments.
+	 *
+	 * @param WC_Subscription $subscription Subscription object.
+	 * @return int
+	 */
+	protected function calculate_min_days_between_payments( $subscription ) {
+		if ( ! $subscription instanceof WC_Subscription ) {
+			return 1;
+		}
+
+		$next_payment_date = $subscription->get_date( 'next_payment' );
+
+		if ( empty( $next_payment_date ) ) {
+			return 1;
+		}
+
+		$next_payment_date = strtotime( $next_payment_date );
+		if ( ! $next_payment_date ) {
+			return 1;
+		}
+
+		$time_diff = $next_payment_date - current_time( 'timestamp', true );
+
+		return (int) ceil( $time_diff / DAY_IN_SECONDS );
 	}
 
 
