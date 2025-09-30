@@ -73,6 +73,10 @@ class CapturePaymentMetaBox {
 			return;
 		}
 
+		if ( ! apply_filters( $this->core_plugin->payment_core()->prefix_hook( 'add_meta_boxes' ), true, $order, $post_type ) ) {
+			return;
+		}
+
 		if ( ! $this->core_plugin->is_gateway_order( $order ) ) {
 			return;
 		}
