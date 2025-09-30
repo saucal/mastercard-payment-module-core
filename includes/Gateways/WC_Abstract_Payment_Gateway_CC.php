@@ -508,7 +508,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		}
 
 		if ( $this->dcc_enabled ) {
-			echo '<div id="' . esc_attr( $this->id ) . '_currency_conversion"></div>';
+			echo '<div id="' . esc_attr( $this->id ) . '_currency_conversion" class="payment-core-currency-conversion"></div>';
 		}
 	}
 

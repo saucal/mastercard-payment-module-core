@@ -44,7 +44,24 @@ trait DynamicCurrencyConversion {
 			return;
 		}
 
+		// Get a quote for a saved token.
+		add_action( 'wc_ajax_' . $this->prefix_hook( 'dcc_quote' ), array( $this, 'ajax_dcc_quote' ) );
+
 		add_action( $this->prefix_hook( 'hosted_session_created' ), array( $this, 'clean_cached_total' ) );
+
+		add_action( 'woocommerce_loaded', array( $this, 'init_dcc_hooks' ) );
+	}
+
+
+	/**
+	 * Initialization hooks.
+	 */
+	public function init_dcc_hooks() {
+		if ( is_callable( array( $this, 'cart_contains_subscription' ) ) && self::cart_contains_subscription() ) {
+			return; // DCC is not supported with subscriptions.
+		}
+
+		add_filter( $this->prefix_hook( 'localize_frontend_script' ), array( $this, 'add_dcc_script_data' ) );
 
 		add_filter( 'woocommerce_update_order_review_fragments', array( $this, 'relocalize_cart_total' ) );
 		add_action( 'woocommerce_after_calculate_totals', array( $this, 'maybe_update_hosted_session' ) );
@@ -58,9 +75,26 @@ trait DynamicCurrencyConversion {
 
 		// Render DCC data on the order receipt page.
 		add_filter( 'woocommerce_get_order_item_totals', array( $this, 'render_dcc_data_receipt' ), 10, 2 );
+	}
 
-		// Get a quote for a saved token.
-		add_action( 'wc_ajax_' . $this->prefix_hook( 'dcc_quote' ), array( $this, 'ajax_dcc_quote' ) );
+
+	/**
+	 * Add DCC related data to the localized script data.
+	 *
+	 * @param  array $data Existing localized data.
+	 * @return array
+	 */
+	public function add_dcc_script_data( $data ) {
+		$data = array_merge(
+			$data,
+			array(
+				'dccEnabled'         => $this->core_plugin->is_currency_conversion_enabled(),
+				'dccRequestEndpoint' => $this->core_plugin->api()->get_domain() . 'paymentOptionsInquiry',
+				'dccNonce'           => wp_create_nonce( $this->core_plugin->payment_core()->prefix_hook( 'dcc_nonce' ) ),
+			)
+		);
+
+		return $data;
 	}
 
 
