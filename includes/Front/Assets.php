@@ -78,19 +78,21 @@ final class Assets {
 	 */
 	public function add_scripts( $scripts ) {
 
+		$data = array(
+			'wcAjaxUrl'           => WC_AJAX::get_endpoint( '%%endpoint%%' ),
+			'pluginPrefix'        => $this->core_plugin->payment_core()->get_prefix(),
+			'textDomain'          => $this->core_plugin->text_domain(),
+			'merchantId'          => $this->core_plugin->merchant_id(),
+			'checkoutMode'        => $this->core_plugin->get_checkout_mode(),
+			'orderCancelUrl'      => ! empty( Utils::get_current_order() ) ? Utils::get_current_order()->get_cancel_order_url() : '',
+			'hostedSessionErrors' => $this->core_plugin->payment_core()->utils()->hosted_session_errors(),
+			'threeDsEnabled'      => $this->core_plugin->is_3ds_enabled(),
+		);
+
 		$scripts[ $this->core_plugin->payment_core()->prefix_hook( 'gateway' ) ] = array(
 			'src'  => $this->core_plugin->assets_controller()->localize_asset( 'js/frontend/payment-core.js' ),
 			'deps' => array( 'jquery', 'wp-i18n' ),
-			'data' => array(
-				'wcAjaxUrl'           => WC_AJAX::get_endpoint( '%%endpoint%%' ),
-				'ajaxUrl'             => $this->core_plugin->payment_core()->utils()->ajax_url(),
-				'pluginPrefix'        => $this->core_plugin->payment_core()->get_prefix(),
-				'textDomain'          => $this->core_plugin->text_domain(),
-				'checkoutMode'        => $this->core_plugin->get_checkout_mode(),
-				'orderCancelUrl'      => ! empty( Utils::get_current_order() ) ? Utils::get_current_order()->get_cancel_order_url() : '',
-				'hostedSessionErrors' => $this->core_plugin->payment_core()->utils()->hosted_session_errors(),
-				'threeDsEnabled'      => $this->core_plugin->is_3ds_enabled(),
-			),
+			'data' => apply_filters( $this->core_plugin->payment_core()->prefix_hook( 'localize_frontend_script' ), $data ),
 		);
 
 		return $scripts;

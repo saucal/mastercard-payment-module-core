@@ -141,6 +141,14 @@ abstract class CorePlugin {
 
 
 	/**
+	 * API class instance.
+	 *
+	 * @var API
+	 */
+	private $api;
+
+
+	/**
 	 * Gateway settings.
 	 *
 	 * @var array
@@ -566,6 +574,19 @@ abstract class CorePlugin {
 		return $this->logger;
 	}
 
+	/**
+	 * Get the API instance.
+	 *
+	 * @return API
+	 */
+	public function api() {
+		if ( ! $this->api ) {
+			$this->api = new API( $this );
+		}
+
+		return $this->api;
+	}
+
 
 	/**
 	 * Get the Gateway settings instance.
@@ -742,6 +763,16 @@ abstract class CorePlugin {
 	 */
 	public function is_3ds_enabled() {
 		return 'yes' === $this->get_gateway_setting( '_3d_secure' );
+	}
+
+
+	/**
+	 * Is currency conversion enabled.
+	 *
+	 * @return bool
+	 */
+	public function is_currency_conversion_enabled() {
+		return 'yes' === $this->get_gateway_setting( 'currency_conversion' );
 	}
 
 

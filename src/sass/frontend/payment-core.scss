@@ -107,3 +107,27 @@
         }
     }
 }
+
+#add_payment_method,
+.woocommerce-cart,
+.woocommerce-checkout,
+.wc-block-components-form .payment-core-payment-form-blocks,
+.wc-block-checkout__payment-method {
+    .payment-core-currency-conversion {
+        p {
+            margin-bottom: 0.25em;
+        }
+
+        table {
+            margin-bottom: 0.25em;
+
+            tr {
+                display: flex;
+
+                td {
+                    padding: 0.25em;
+                }
+            }
+        }
+    }
+}
