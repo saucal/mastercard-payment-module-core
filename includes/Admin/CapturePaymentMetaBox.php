@@ -145,14 +145,14 @@ class CapturePaymentMetaBox {
 			return;
 		}
 
-		$auth_amount = $this->core_plugin->get_capturable_amount( $order );
-		if ( $auth_amount <= 0 ) {
-			return;
-		}
-
 		// phpcs:ignore WordPress.Security.NonceVerification
 		$capture_amount = isset( $_POST[ $gateway->prefix_hook( 'capture_amount' ) ] ) ? wc_format_decimal( wc_clean( wp_unslash( $_POST[ $gateway->prefix_hook( 'capture_amount' ) ] ) ) ) : 0;
 		if ( $capture_amount <= 0 ) {
+			return;
+		}
+
+		$auth_amount = $this->core_plugin->get_capturable_amount( $order );
+		if ( $auth_amount <= 0 ) {
 			return;
 		}
 
