@@ -69,6 +69,7 @@ trait Subscriptions {
 		// Hide the save payment method checkbox for subscriptions.
 		add_filter( 'wc_' . $this->id . '_display_save_payment_method_checkbox', array( $this, 'maybe_display_save_checkbox' ) );
 		add_action( 'wc_' . $this->id . '_after_payment_method_fields', array( $this, 'maybe_display_save_card_notice' ) );
+		add_filter( $this->prefix_hook( 'payment_method_data' ), array( $this, 'maybe_add_display_save_card_notice' ) );
 
 		// Forcefully save the payment method for subscriptions.
 		add_filter( $this->prefix_hook( 'forced_save_payment_method' ), array( $this, 'maybe_force_save_method' ) );
@@ -398,12 +399,41 @@ trait Subscriptions {
 			return;
 		}
 
-		$save_card_notice = apply_filters(
+		echo '<p class="wc-gateway-' . esc_attr( $this->id ) . '-save-card-notice"><i>' . wp_kses_post( $this->save_card_notice_text() ) . '</i></p>';
+	}
+
+
+	/**
+	 * Maybe add display save card notice flag to payment method data.
+	 *
+	 * @param array $data Payment method data.
+	 * @return array
+	 */
+	public function maybe_add_display_save_card_notice( $data ) {
+		if ( $this->maybe_display_save_checkbox( true ) ) {
+			return $data;
+		}
+
+		if ( ! is_array( $data ) ) {
+			$data = array();
+		}
+
+		$data['saveCardNotice'] = $this->save_card_notice_text();
+
+		return $data;
+	}
+
+
+	/**
+	 * Get save card notice text.
+	 *
+	 * @return string
+	 */
+	protected function save_card_notice_text() {
+		return apply_filters(
 			$this->prefix_hook( 'save_card_notice' ),
 			__( 'Your payment method will be saved for future purchases.', $this->core_plugin->text_domain() )
 		);
-
-		echo '<p class="wc-gateway-' . esc_attr( $this->id ) . '-save-card-notice"><i>' . wp_kses_post( $save_card_notice ) . '</i></p>';
 	}
 
 
