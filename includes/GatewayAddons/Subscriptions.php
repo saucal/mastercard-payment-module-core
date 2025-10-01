@@ -91,6 +91,9 @@ trait Subscriptions {
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_authenticate_payer_data' ), array( $this, 'maybe_change_3ds_return_url' ) );
 		add_filter( $this->prefix_hook( '3ds_return_redirect' ), array( $this, 'maybe_add_change_payment_method_flag' ) );
 		add_filter( $this->prefix_hook( '3ds_process_redirect' ), array( $this, 'maybe_change_3ds_processed_redirect' ), 10, 2 );
+
+		// Hide the capture meta box for the subscription order.
+		add_filter( $this->prefix_hook( 'add_meta_boxes' ), array( $this, 'maybe_hide_capture_meta_box' ), 10, 3 );
 	}
 
 
@@ -178,8 +181,36 @@ trait Subscriptions {
 			'paymentFrequency'           => $this->formatted_subscription_period( $subscription ),
 			'startDate'                  => gmdate( 'Y-m-d' ),
 			'expiryDate'                 => gmdate( 'Y-m-d', ! empty( $end_date ) ? strtotime( $end_date ) : strtotime( '+1 year' ) ),
-			'minimumDaysBetweenPayments' => 1,
+			'minimumDaysBetweenPayments' => $this->calculate_min_days_between_payments( $subscription ),
 		);
+	}
+
+
+	/**
+	 * Calculate minimum days between payments.
+	 *
+	 * @param WC_Subscription $subscription Subscription object.
+	 * @return int
+	 */
+	protected function calculate_min_days_between_payments( $subscription ) {
+		if ( ! $subscription instanceof WC_Subscription ) {
+			return 1;
+		}
+
+		$next_payment_date = $subscription->get_date( 'next_payment' );
+
+		if ( empty( $next_payment_date ) ) {
+			return 1;
+		}
+
+		$next_payment_date = strtotime( $next_payment_date );
+		if ( ! $next_payment_date ) {
+			return 1;
+		}
+
+		$time_diff = $next_payment_date - current_time( 'timestamp', true );
+
+		return (int) ceil( $time_diff / DAY_IN_SECONDS );
 	}
 
 
@@ -685,5 +716,22 @@ trait Subscriptions {
 			$subscription->delete_meta_data( $this->prefix_hook( 'payment_token' ) );
 			$subscription->save_meta_data();
 		}
+	}
+
+
+	/**
+	 * Hide the capture meta box for the subscription order.
+	 *
+	 * @param bool     $add_meta_box Whether to add the meta box.
+	 * @param WC_Order $order        The order object.
+	 * @param string   $post_type    The post type.
+	 * @return bool
+	 */
+	public function maybe_hide_capture_meta_box( $add_meta_box, $order, $post_type ) {
+		if ( $this->has_subscription( $order ) ) {
+			return false;
+		}
+
+		return $add_meta_box;
 	}
 }

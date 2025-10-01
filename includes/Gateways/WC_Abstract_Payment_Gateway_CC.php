@@ -28,6 +28,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	// Register the Addons trait.
 	use \GatewayPaymentCore\GatewayAddons\Subscriptions;
 	use \GatewayPaymentCore\GatewayAddons\Preorder;
+	use \GatewayPaymentCore\GatewayAddons\DynamicCurrencyConversion;
 
 
 	/**
@@ -119,6 +120,14 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 
 	/**
+	 * DCC enabled.
+	 *
+	 * @var bool
+	 */
+	protected $dcc_enabled = false;
+
+
+	/**
 	 * Debug enabled.
 	 *
 	 * @var bool
@@ -148,6 +157,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		$this->merchant_name        = ! empty( $this->get_option( 'merchant_name' ) ) ? $this->get_option( 'merchant_name' ) : get_bloginfo( 'name' );
 		$this->saved_cards          = ! empty( $this->get_option( 'saved_cards' ) && 'yes' === $this->get_option( 'saved_cards' ) );
 		$this->enable_3ds           = ! empty( $this->get_option( '_3d_secure' ) && 'yes' === $this->get_option( '_3d_secure' ) );
+		$this->dcc_enabled          = ! empty( $this->get_option( 'currency_conversion' ) && 'yes' === $this->get_option( 'currency_conversion' ) );
 		$this->debug                = ! empty( $this->get_option( 'debug' ) && 'yes' === $this->get_option( 'debug' ) );
 
 		// Load the gateway support features.
@@ -204,6 +214,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	public function init_addons() {
 		$this->init_addon_subscriptions();
 		$this->init_addon_preorders();
+		$this->init_addon_dcc();
 	}
 
 
@@ -496,6 +507,10 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		if ( $display_save_checkbox && ! is_add_payment_method_page() ) {
 			$this->save_payment_method_checkbox();
+		}
+
+		if ( $this->dcc_enabled ) {
+			echo '<div id="' . esc_attr( $this->id ) . '_currency_conversion" class="payment-core-currency-conversion"></div>';
 		}
 	}
 
@@ -1654,6 +1669,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			WC()->session->set( $this->hosted_session_attempt_key(), 1 );
 			WC()->session->set( $this->hosted_session_duration_key(), time() + 5 * MINUTE_IN_SECONDS );
 			$this->set_hosted_session_data_hash();
+
+			do_action( $this->prefix_hook( 'hosted_session_created' ), $session_id, $this );
 		}
 
 		return $session_id;

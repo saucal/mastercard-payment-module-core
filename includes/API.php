@@ -94,21 +94,11 @@ final class API {
 
 
 	/**
-	 * Get if it is sandbox from settings.
-	 *
-	 * @return bool
-	 */
-	private function is_sandbox() {
-		return $this->core_plugin->is_sandbox();
-	}
-
-
-	/**
 	 * Get API domain depending on mode.
 	 *
 	 * @return string
 	 */
-	private function get_domain() {
+	public function get_domain() {
 		return trailingslashit(
 			sprintf(
 				'%1$s/api/rest/version/%2$s/merchant/%3$s',
@@ -226,8 +216,8 @@ final class API {
 	/**
 	 * Payment options inquiry.
 	 */
-	public function payment_options_inquiry() {
-		return $this->request( 'paymentOptionsInquiry', 'POST' );
+	public function payment_options_inquiry( $payload = array() ) {
+		return $this->request( 'paymentOptionsInquiry', 'POST', $payload );
 	}
 
 

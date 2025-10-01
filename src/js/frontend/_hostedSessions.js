@@ -1,7 +1,11 @@
 /**
- * Internal dependencies
+ * External dependencies
  */
 import { __ } from '@wordpress/i18n';
+
+/**
+ * Internal dependencies
+ */
 import { debounce, getWcAjaxUrl, supportedLogos, getCardLogo } from './_utils';
 
 const hostedSessions = {
@@ -10,6 +14,10 @@ const hostedSessions = {
 	sessionIdAttempt: null,
 	$ccFieldset: null,
 	$wcForm: null,
+	dccChecked: false,
+	dccRequesting: false,
+	dccCurrentNumber: null,
+	selectedTokenId: null,
 
 	init() {
 		if ( ! core_gateway_params || ! core_gateway_params.pluginPrefix ) {
@@ -135,10 +143,20 @@ const hostedSessions = {
 			);
 		}
 
-		if (
-			! hostedSessions.isPaymentMethodSelected() ||
-			hostedSessions.isSavedToken()
-		) {
+		if ( ! hostedSessions.isPaymentMethodSelected() ) {
+			return;
+		}
+
+		if ( hostedSessions.isSavedToken() ) {
+			const tokenId = jQuery(
+				`input[name="wc-${ hostedSessions.pluginPrefix }-payment-token"]:checked`
+			).val();
+			if ( hostedSessions.selectedTokenId === tokenId ) {
+				return;
+			}
+			hostedSessions.dccChecked = false;
+			hostedSessions.selectedTokenId = tokenId;
+			hostedSessions.requestCurrencyConversionQuoteSavedToken( tokenId );
 			return;
 		}
 
@@ -204,6 +222,15 @@ const hostedSessions = {
 		);
 
 		PaymentSession.onCardTypeChange( hostedSessions.processCardTypeChange );
+
+		PaymentSession.onCardBINChange( () => {
+			hostedSessions.dccChecked = false;
+			hostedSessions.maybeTriggerCurrencyConversion();
+		} );
+
+		jQuery( document.body ).on( 'updated_checkout', () => {
+			hostedSessions.dccChecked = false;
+		} );
 	},
 
 	fields() {
@@ -237,25 +264,19 @@ const hostedSessions = {
 
 		hostedSessions.processValidatedField(
 			fieldSelector,
-			fieldResults.card[ role ]
+			fieldResults.card[ role ],
+			role
 		);
+
+		if ( fieldResults.card?.isValid ) {
+			hostedSessions.maybeTriggerCurrencyConversion();
+		}
 	},
 
-	processValidatedField( fieldSelector, result ) {
+	processValidatedField( fieldSelector, result, role = null ) {
 		hostedSessions.unblockFieldset();
 
-		if ( result.isValid ) {
-			jQuery( fieldSelector )
-				.closest(
-					hostedSessions.isWooBlocks()
-						? '.wc-block-components-text-input'
-						: '.form-row'
-				)
-				.removeClass(
-					'woocommerce-invalid woocommerce-validated has-error'
-				)
-				.addClass( 'woocommerce-validated' );
-		} else {
+		if ( ! result.isValid ) {
 			jQuery( fieldSelector )
 				.closest(
 					hostedSessions.isWooBlocks()
@@ -266,7 +287,19 @@ const hostedSessions = {
 					'woocommerce-invalid woocommerce-validated has-error'
 				)
 				.addClass( 'woocommerce-invalid has-error' );
+			return;
 		}
+
+		jQuery( fieldSelector )
+			.closest(
+				hostedSessions.isWooBlocks()
+					? '.wc-block-components-text-input'
+					: '.form-row'
+			)
+			.removeClass(
+				'woocommerce-invalid woocommerce-validated has-error'
+			)
+			.addClass( 'woocommerce-validated' );
 	},
 
 	submitPay( event ) {
@@ -318,6 +351,11 @@ const hostedSessions = {
 	},
 
 	handlePaymentResponse( response ) {
+		if ( ! hostedSessions.dccChecked && hostedSessions.dccRequesting ) {
+			hostedSessions.requestCurrencyConversionQuote( response );
+			return;
+		}
+
 		let error = false;
 
 		if ( ! response.status ) {
@@ -531,7 +569,7 @@ const hostedSessions = {
 	blockForm() {
 		if (
 			hostedSessions.$wcForm &&
-			jQuery( hostedSessions.$wcForm ).block === 'function'
+			typeof jQuery( hostedSessions.$wcForm ).block === 'function'
 		) {
 			hostedSessions.$wcForm.block( {
 				message: null,
@@ -559,7 +597,8 @@ const hostedSessions = {
 	blockFieldset() {
 		if (
 			hostedSessions.$ccFieldset &&
-			typeof jQuery( hostedSessions.$ccFieldset ).block === 'function'
+			typeof jQuery( hostedSessions.$ccFieldset ).block === 'function' &&
+			jQuery( hostedSessions.$ccFieldset ).is( ':visible' )
 		) {
 			hostedSessions.$ccFieldset.block( {
 				message: null,
@@ -568,6 +607,22 @@ const hostedSessions = {
 					opacity: 0.6,
 				},
 			} );
+		} else {
+			const $paymentWrapper = jQuery(
+				'#payment, .wc-block-checkout__payment-method'
+			);
+			if (
+				$paymentWrapper.length &&
+				typeof jQuery( $paymentWrapper ).block === 'function'
+			) {
+				$paymentWrapper.block( {
+					message: null,
+					overlayCSS: {
+						background: '#fff',
+						opacity: 0.6,
+					},
+				} );
+			}
 		}
 	},
 
@@ -577,6 +632,16 @@ const hostedSessions = {
 			typeof jQuery( hostedSessions.$ccFieldset ).unblock === 'function'
 		) {
 			jQuery( hostedSessions.$ccFieldset ).unblock();
+		}
+
+		const $paymentWrapper = jQuery(
+			'#payment, .wc-block-checkout__payment-method'
+		);
+		if (
+			$paymentWrapper.length &&
+			typeof jQuery( $paymentWrapper ).unblock === 'function'
+		) {
+			$paymentWrapper.unblock();
 		}
 	},
 
@@ -729,6 +794,173 @@ const hostedSessions = {
 			} )
 			.always( function () {
 				hostedSessions.unblockForm();
+			} );
+	},
+
+	maybeTriggerCurrencyConversion() {
+		if ( hostedSessions.dccChecked || hostedSessions.dccRequesting ) {
+			return;
+		}
+
+		const $dccWrapper = jQuery(
+			`#${ hostedSessions.pluginPrefix }_currency_conversion`
+		);
+		if ( ! $dccWrapper.length ) {
+			return;
+		}
+
+		hostedSessions.blockFieldset();
+		$dccWrapper.html( '' );
+		hostedSessions.dccRequesting = true;
+
+		PaymentSession.updateSessionFromForm(
+			'card',
+			undefined,
+			hostedSessions.paymentScope()
+		);
+	},
+
+	requestCurrencyConversionQuote( response ) {
+		if ( ! response?.status || response.status !== 'ok' ) {
+			hostedSessions.completeCurrencyConversionRequest();
+			return;
+		}
+
+		if ( ! response?.session?.id || ! response?.session?.version ) {
+			hostedSessions.completeCurrencyConversionRequest();
+			return;
+		}
+
+		if ( ! response?.sourceOfFunds?.provided?.card?.number ) {
+			hostedSessions.completeCurrencyConversionRequest();
+			return;
+		}
+
+		const currentNumber = response.sourceOfFunds.provided.card.number;
+		if ( hostedSessions.dccCurrentNumber === currentNumber ) {
+			hostedSessions.completeCurrencyConversionRequest();
+			return;
+		}
+		hostedSessions.dccCurrentNumber = currentNumber;
+
+		hostedSessions.dccRequesting = true;
+
+		jQuery
+			.ajax( {
+				url: core_gateway_params.dccRequestEndpoint,
+				method: 'POST',
+				headers: {
+					Authorization: `Basic ${ btoa(
+						`merchant.${ core_gateway_params.merchantId }:${ response.session.id }`
+					) }`,
+					'Content-Type': 'application/json',
+					Accept: 'application/json',
+				},
+				data: JSON.stringify( {
+					apiOperation: 'PAYMENT_OPTIONS_INQUIRY',
+					session: {
+						id: response.session.id,
+						version: response.session.version,
+					},
+				} ),
+			} )
+			.done( function ( res ) {
+				if (
+					! res?.paymentTypes?.card?.currencyConversion?.requestId
+				) {
+					hostedSessions.completeCurrencyConversionRequest();
+					return;
+				}
+
+				const conversionQuote =
+					res.paymentTypes.card?.currencyConversion;
+
+				jQuery(
+					`#${ hostedSessions.pluginPrefix }_currency_conversion`
+				).html( conversionQuote.offerText );
+
+				jQuery(
+					`#${ hostedSessions.pluginPrefix }_dcc_request_id`
+				).val( conversionQuote.requestId );
+
+				hostedSessions.dccChecked = true;
+			} )
+			.always( function () {
+				hostedSessions.completeCurrencyConversionRequest();
+			} );
+	},
+
+	completeCurrencyConversionRequest() {
+		hostedSessions.dccRequesting = false;
+		hostedSessions.unblockFieldset();
+	},
+
+	getCurrencyConversionData() {
+		const dccData = {};
+
+		if ( ! core_gateway_params.dccEnabled || ! hostedSessions.dccChecked ) {
+			return dccData;
+		}
+
+		dccData[ `${ hostedSessions.pluginPrefix }_dcc_request_id` ] = jQuery(
+			`#${ hostedSessions.pluginPrefix }_dcc_request_id`
+		).val();
+		dccData.dccOfferState =
+			jQuery( 'input[name="dccOfferState"]' ).val() || 'Reject';
+
+		return dccData;
+	},
+
+	requestCurrencyConversionQuoteSavedToken( tokenId ) {
+		if ( ! core_gateway_params.dccEnabled || ! tokenId ) {
+			return;
+		}
+
+		if ( hostedSessions.dccChecked || hostedSessions.dccRequesting ) {
+			return;
+		}
+
+		const $dccWrapper = jQuery(
+			`#${ hostedSessions.pluginPrefix }_currency_conversion`
+		);
+		if ( ! $dccWrapper.length ) {
+			return;
+		}
+
+		$dccWrapper.html( '' );
+		hostedSessions.blockFieldset();
+		hostedSessions.dccRequesting = true;
+
+		jQuery
+			.ajax( {
+				url: getWcAjaxUrl( 'dcc_quote', hostedSessions.pluginPrefix ),
+				method: 'POST',
+				data: {
+					token_id: tokenId,
+					nonce: core_gateway_params.dccNonce,
+				},
+			} )
+			.done( function ( res ) {
+				if (
+					! res?.success ||
+					! res?.data?.requestId ||
+					! res?.data?.offerText
+				) {
+					return;
+				}
+
+				jQuery(
+					`#${ hostedSessions.pluginPrefix }_currency_conversion`
+				).html( res.data.offerText );
+
+				jQuery(
+					`#${ hostedSessions.pluginPrefix }_dcc_request_id`
+				).val( res.data.requestId );
+			} )
+			.always( function () {
+				hostedSessions.completeCurrencyConversionRequest();
+				hostedSessions.unblockFieldset();
+				hostedSessions.dccChecked = true;
 			} );
 	},
 };
