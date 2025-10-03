@@ -44,7 +44,12 @@ trait Preorder {
         add_filter( $this->prefix_hook( 'process_payment_data' ), array( $this, 'maybe_handle_payment_data' ), 10, 3 );
 
         // Capture when merchant marks the order as completed.
-		add_action( 'woocommerce_order_status_completed', array( $this, 'capture_on_order_completed' ), 10, 1 );
+		add_action( 'wc_pre_orders_process_pre_order_completion_payment_' . $this->id, array( $this, 'capture_on_order_completed' ), 10, 1 );
+
+		// --- FORCE SAVE CARD (pay-later only) ---
+		add_filter( 'wc_' . $this->id . '_display_save_payment_method_checkbox', array( $this, 'maybe_display_save_checkbox_for_preorder' ), 10, 1 );
+		add_filter( $this->prefix_hook( 'forced_save_payment_method' ), array( $this, 'force_save_card_for_preorder' ), 10, 1 );
+		add_filter( $this->prefix_hook( 'add_payment_method_data' ), array( $this, 'inject_blocks_preorder_flags' ), 10, 1 );		
 	}
 
 	/**
@@ -73,7 +78,11 @@ trait Preorder {
 	 * @return array|bool
 	 */
 	public function maybe_handle_pre_order_payment( $process_payment, $order, $transaction_type ) {
-        if ( $transaction_type !== 'pre-order' && $this->has_pre_order( $order->get_id() ) ) {
+		if($transaction_type === 'pre-order'){
+			return;
+		}
+
+		if ( $this->has_pre_order( $order->get_id() ) && \WC_Pre_Orders_Order::order_requires_payment_tokenization( $order->get_id() ) ) {
             return $this->process_pre_order( $order->get_id() );
         }
 	}
@@ -96,21 +105,16 @@ trait Preorder {
 	 * @throws Exception
 	 */
 	public function process_pre_order( $order_id ) {
-		if ( \WC_Pre_Orders_Order::order_requires_payment_tokenization( $order_id ) ) {
-			$response = $this->process_payment( $order_id, 'pre-order' );
+		$response = $this->process_payment( $order_id, 'pre-order' );
 
-			if ( 'success' === $response['result'] ) {
-				// Remove from cart
-				WC()->cart->empty_cart();
-				// Mark order as preordered
-				\WC_Pre_Orders_Order::mark_order_as_pre_ordered( $order_id );
-			}
-
-			return $response;
+		if ( 'success' === $response['result'] ) {
+			// Remove from cart
+			WC()->cart->empty_cart();
+			// Mark order as preordered
+			\WC_Pre_Orders_Order::mark_order_as_pre_ordered( $order_id );
 		}
-		// Preorder charged upfront or order used "pay later" gateway
-		// and now is a normal order needing payment, normal process.
-		return $this->process_payment( $order_id );
+
+		return $response;
 	}
 
 
@@ -138,17 +142,18 @@ trait Preorder {
 			return;
 		}
 
+		if ( ! \WC_Pre_Orders_Order::order_requires_payment_tokenization( $order_id ) ) {
+			return;
+		}		
+
 		if ( $order->get_meta( $this->prefix_hook( 'order_captured' ) ) ) {
 			return;
 		}
 
-		// Determine authorized amount still available to capture.
-		// get_authorized_amount() returns (authorized - already captured).
 		$authorized_to_capture = 0.0;
 		try {
 			$authorized_to_capture = (float) $this->get_authorized_amount( $order );
 		} catch ( \Exception $e ) {
-			// Optional: log error via your logger, but avoid breaking completion.
 			$this->core_plugin->logger()->log( $e->getMessage(), 'error' );
 			return;
 		}
@@ -157,22 +162,86 @@ trait Preorder {
 			return;
 		}
 
-		// Decide capture amount: capture the full remaining authorized amount or order total if you prefer.
-		// Here we capture the remaining authorized amount to be safe.
 		$capture_amount = $authorized_to_capture;
 
 		try {
-			// Perform capture. Third argument ($auth_amount) lets the gateway auto-INCREMENT if needed.
 			$this->process_capture_payment( $order, $capture_amount, $authorized_to_capture );
 		} catch ( \Exception $e ) {
-			// Add a note so merchants see why completion didn’t settle the charge.
 			$order->add_order_note(
 				sprintf(
-					/* translators: %s error message */
 					__( 'Pre-Order capture on completion failed: %s', $this->core_plugin->text_domain() ),
 					$e->getMessage()
 				)
 			);
 		}
 	}    
+
+
+	/**
+	 * Display the "save card" checkbox when order is a pay-later pre-order.
+	 *
+	 * @param bool $display Default display value.
+	 * @return bool
+	 */
+	public function maybe_display_save_checkbox_for_preorder( $display ) {
+		if ( class_exists( 'WC_Pre_Orders_Cart' ) && \WC_Pre_Orders_Cart::cart_contains_pre_order() ) {
+			foreach ( WC()->cart->get_cart() as $item ) {
+				$product = isset( $item['data'] ) && $item['data'] instanceof \WC_Product
+					? $item['data']
+					: wc_get_product( $item['product_id'] );
+
+				if ( ! $product ) {
+					continue;
+				}
+
+				if (
+					\WC_Pre_Orders_Product::product_can_be_pre_ordered( $product ) &&
+					\WC_Pre_Orders_Product::product_is_charged_upon_release( $product )
+				) {
+					return false;
+				}
+			}
+		}
+
+		return $display;
+	}
+
+
+    /**
+	 * Force backend to save card when it's a pay-later pre-order.
+	 *
+	 * @param bool $force_save Current flag.
+	 * @return bool
+	 */
+	public function force_save_card_for_preorder( $force_save ) {
+		$order = \GatewayPaymentCore\Utils::get_current_order();
+
+		if ( ! $order || $this->maybe_display_save_checkbox_for_preorder( true ) ) {
+			return $force_save;
+		}
+
+		// Pay-later -> must save card; Pay-now -> do not force.
+		return \WC_Pre_Orders_Order::order_requires_payment_tokenization( $order->get_id() ) ? true : $force_save;
+	}
+
+	/**
+	 * Add helpful flags for Checkout Blocks/front-end integration.
+	 *
+	 * @param array $data Existing payload.
+	 * @return array
+	 */
+	public function inject_blocks_preorder_flags( $data ) {
+		$order = \GatewayPaymentCore\Utils::get_current_order();
+
+		$is_preorder   = (bool) ( $order && $this->has_pre_order( $order->get_id() ) );
+		$is_pay_later  = (bool) ( $is_preorder && \WC_Pre_Orders_Order::order_requires_payment_tokenization( $order->get_id() ) );
+
+		$data['isPreOrder']               = $is_preorder;
+		$data['isPreOrderPayLater']       = $is_pay_later;
+		$data['requiresTokenization']     = $is_pay_later; // UI can hide checkbox.
+		$data['shouldSavePaymentMethod']  = $is_pay_later; // Mirror backend force-save.
+
+		return $data;
+	}
+
 }
