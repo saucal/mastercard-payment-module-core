@@ -40,32 +40,32 @@ trait Preorder {
 			)
 		);
 
-        add_filter( $this->prefix_hook( 'process_payment_addon' ), array( $this, 'maybe_handle_pre_order_payment' ), 10, 3 );
-        add_filter( $this->prefix_hook( 'process_payment_data' ), array( $this, 'maybe_handle_payment_data' ), 10, 3 );
+		add_filter( $this->prefix_hook( 'process_payment_addon' ), array( $this, 'maybe_handle_pre_order_payment' ), 10, 3 );
+		add_filter( $this->prefix_hook( 'process_payment_data' ), array( $this, 'maybe_handle_payment_data' ), 10, 3 );
 
-        // Capture when merchant marks the order as completed.
+		// Capture when merchant marks the order as completed.
 		add_action( 'wc_pre_orders_process_pre_order_completion_payment_' . $this->id, array( $this, 'capture_on_order_completed' ), 10, 1 );
 
 		// --- FORCE SAVE CARD (pay-later only) ---
 		add_filter( 'wc_' . $this->id . '_display_save_payment_method_checkbox', array( $this, 'maybe_display_save_checkbox_for_preorder' ), 10, 1 );
 		add_filter( $this->prefix_hook( 'forced_save_payment_method' ), array( $this, 'force_save_card_for_preorder' ), 10, 1 );
-		add_filter( $this->prefix_hook( 'add_payment_method_data' ), array( $this, 'inject_blocks_preorder_flags' ), 10, 1 );		
+		add_filter( $this->prefix_hook( 'add_payment_method_data' ), array( $this, 'inject_blocks_preorder_flags' ), 10, 1 );
 	}
 
 	/**
 	 * Handle payment data.
 	 *
 	 * @param WC_Order $order           The order object.
-     * @param string   $transaction_type The transaction type.
+	 * @param string   $transaction_type The transaction type.
 	 *
 	 * @return array|bool
 	 */
 	public function maybe_handle_payment_data( $payment_data, $order, $transaction_type ) {
-        if ( 'pre-order' === $transaction_type ) {
-            $payment_data['apiOperation'] = 'AUTHORIZE';
-        }
+		if ( 'pre-order' === $transaction_type ) {
+			$payment_data['apiOperation'] = 'AUTHORIZE';
+		}
 
-        return $payment_data;
+		return $payment_data;
 	}
 
 	/**
@@ -73,18 +73,18 @@ trait Preorder {
 	 *
 	 * @param bool     $process_payment Whether to process the payment.
 	 * @param WC_Order $order           The order object.
-     * @param string   $transaction_type The transaction type.
+	 * @param string   $transaction_type The transaction type.
 	 *
 	 * @return array|bool
 	 */
 	public function maybe_handle_pre_order_payment( $process_payment, $order, $transaction_type ) {
-		if($transaction_type === 'pre-order'){
+		if ( $transaction_type === 'pre-order' ) {
 			return;
 		}
 
 		if ( $this->has_pre_order( $order->get_id() ) && \WC_Pre_Orders_Order::order_requires_payment_tokenization( $order->get_id() ) ) {
-            return $this->process_pre_order( $order->get_id() );
-        }
+			return $this->process_pre_order( $order->get_id() );
+		}
 	}
 
 	/**
@@ -144,7 +144,7 @@ trait Preorder {
 
 		if ( ! \WC_Pre_Orders_Order::order_requires_payment_tokenization( $order_id ) ) {
 			return;
-		}		
+		}
 
 		if ( $order->get_meta( $this->prefix_hook( 'order_captured' ) ) ) {
 			return;
@@ -174,7 +174,7 @@ trait Preorder {
 				)
 			);
 		}
-	}    
+	}
 
 
 	/**
@@ -207,7 +207,7 @@ trait Preorder {
 	}
 
 
-    /**
+	/**
 	 * Force backend to save card when it's a pay-later pre-order.
 	 *
 	 * @param bool $force_save Current flag.
@@ -233,15 +233,14 @@ trait Preorder {
 	public function inject_blocks_preorder_flags( $data ) {
 		$order = \GatewayPaymentCore\Utils::get_current_order();
 
-		$is_preorder   = (bool) ( $order && $this->has_pre_order( $order->get_id() ) );
-		$is_pay_later  = (bool) ( $is_preorder && \WC_Pre_Orders_Order::order_requires_payment_tokenization( $order->get_id() ) );
+		$is_preorder  = (bool) ( $order && $this->has_pre_order( $order->get_id() ) );
+		$is_pay_later = (bool) ( $is_preorder && \WC_Pre_Orders_Order::order_requires_payment_tokenization( $order->get_id() ) );
 
-		$data['isPreOrder']               = $is_preorder;
-		$data['isPreOrderPayLater']       = $is_pay_later;
-		$data['requiresTokenization']     = $is_pay_later; // UI can hide checkbox.
-		$data['shouldSavePaymentMethod']  = $is_pay_later; // Mirror backend force-save.
+		$data['isPreOrder']              = $is_preorder;
+		$data['isPreOrderPayLater']      = $is_pay_later;
+		$data['requiresTokenization']    = $is_pay_later; // UI can hide checkbox.
+		$data['shouldSavePaymentMethod'] = $is_pay_later; // Mirror backend force-save.
 
 		return $data;
 	}
-
 }
