@@ -22,6 +22,9 @@ const supportsTokenization =
 	Array.isArray( settings?.supports ) &&
 	settings.supports.includes( 'tokenization' );
 
+const displaySaveCardCheckbox =
+	settings?.displaySaveCardCheckbox ?? supportsTokenization;
+
 const paymentMethod = {
 	name: PAYMENT_METHOD_NAME,
 	label: <Label label={ label } />,
@@ -39,7 +42,7 @@ const paymentMethod = {
 	ariaLabel: __( 'CC Payment method', getTextDomain() ),
 	supports: {
 		showSavedCards: supportsTokenization,
-		showSaveOption: supportsTokenization,
+		showSaveOption: displaySaveCardCheckbox,
 		features: settings?.supports ?? [],
 	},
 };

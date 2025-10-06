@@ -1486,14 +1486,15 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				break;
 			case 'hosted_session':
 				if ( $this->should_render_hosted_session() ) {
-					$session_id             = $this->hosted_session_id();
-					$data['sessionId']      = $session_id;
-					$data['sessionAttempt'] = uniqid( $session_id );
+					$session_id                      = $this->hosted_session_id();
+					$data['sessionId']               = $session_id;
+					$data['sessionAttempt']          = uniqid( $session_id );
+					$data['displaySaveCardCheckbox'] = apply_filters( 'wc_' . $this->id . '_display_save_payment_method_checkbox', $this->display_saved_card_methods() );
 				}
 				break;
 		}
 
-		return $data;
+		return apply_filters( $this->prefix_hook( 'payment_method_data' ), $data, $this );
 	}
 
 
