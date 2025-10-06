@@ -27,7 +27,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 	// Register the Addons trait.
 	use \GatewayPaymentCore\GatewayAddons\Subscriptions;
-	use \GatewayPaymentCore\GatewayAddons\Preorder;
+	use \GatewayPaymentCore\GatewayAddons\PreOrders;
 	use \GatewayPaymentCore\GatewayAddons\DynamicCurrencyConversion;
 
 

@@ -1,8 +1,8 @@
 <?php
 /**
- * Preorder interface.
+ * PreOrders interface.
  *
- * @class       Preorder
+ * @class       PreOrders
  * @version     1.0.0
  * @package     GatewayPaymentCore/GatewayAddons/
  */
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * WooCommerce PreOrders Interface.
  */
-trait Preorder {
+trait PreOrders {
 
 
 	/**
