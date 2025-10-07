@@ -788,7 +788,9 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @param array    $session Session data.
 	 */
 	public function maybe_save_cards( $order, $session ) {
-		if ( ! $this->saved_cards ) {
+		$forced_save = apply_filters( $this->prefix_hook( 'forced_save_payment_method' ), false );
+
+		if ( ! $forced_save && ! $this->saved_cards ) {
 			return;
 		}
 
@@ -797,7 +799,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			return;
 		}
 
-		if ( ! $this->is_saving_payment_method() && ! WC()->session->get( $this->prefix_hook( 'saving_payment_method' ) ) && ! apply_filters( $this->prefix_hook( 'forced_save_payment_method' ), false ) ) {
+		if ( ! $forced_save && ! $this->is_saving_payment_method() && ! WC()->session->get( $this->prefix_hook( 'saving_payment_method' ) ) ) {
 			return;
 		}
 
