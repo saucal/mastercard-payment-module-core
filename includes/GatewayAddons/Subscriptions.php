@@ -14,6 +14,7 @@ use WC_Order;
 use WC_Payment_Token_CC;
 use WC_Subscription;
 use WC_Subscriptions_Cart;
+use WC_Subscriptions_Product;
 use WCS_Payment_Tokens;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -144,7 +145,9 @@ trait Subscriptions {
 
 		$payment_data['agreement'] = array_filter( $this->get_agreement_data( $subscription ) );
 
-		if ( ! $this->is_subs_change_payment() ) {
+		$has_free_trial = $this->order_contains_free_trial( $subscription ) || ( class_exists( 'WC_Subscriptions_Cart' ) && WC_Subscriptions_Cart::cart_contains_free_trial() );
+
+		if ( ! $has_free_trial && ! $this->is_subs_change_payment() ) {
 			return $payment_data;
 		}
 
@@ -734,5 +737,32 @@ trait Subscriptions {
 		}
 
 		return $add_meta_box;
+	}
+
+
+	/**
+	 * Check if the order has a free trial.
+	 *
+	 * @param WC_Subscription $subscription Subscription object.
+	 *
+	 * @return bool
+	 */
+	protected function order_contains_free_trial( $subscription ) {
+		if ( ! $subscription instanceof WC_Subscription ) {
+			return false;
+		}
+
+		if ( ! class_exists( 'WC_Subscription_Product' ) ) {
+			return false;
+		}
+
+		foreach ( $subscription->get_items() as $item ) {
+			$product = $item['data'] ?? null;
+			if ( $product && WC_Subscriptions_Product::get_trial_length( $product ) > 0 ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 }
