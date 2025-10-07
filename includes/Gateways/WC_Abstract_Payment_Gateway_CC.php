@@ -25,8 +25,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gateway {
 
-	// Register the Subscriptions trait.
+	// Register the Addons trait.
 	use \GatewayPaymentCore\GatewayAddons\Subscriptions;
+	use \GatewayPaymentCore\GatewayAddons\PreOrders;
 	use \GatewayPaymentCore\GatewayAddons\DynamicCurrencyConversion;
 
 
@@ -135,6 +136,14 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 
 	/**
+	 * Display save card checkbox.
+	 *
+	 * @param bool
+	 */
+	protected $display_save_checkbox = true;
+
+
+	/**
 	 * Initialize the gateway.
 	 */
 	public function build() {
@@ -212,6 +221,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	public function init_addons() {
 		$this->init_addon_subscriptions();
+		$this->init_addon_pre_orders();
 		$this->init_addon_dcc();
 	}
 
@@ -496,14 +506,14 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$this->saved_payment_methods();
 		}
 
+		$this->display_save_checkbox = apply_filters( 'wc_' . $this->id . '_display_save_payment_method_checkbox', $display_tokenization );
+
 		$this->core_plugin->payment_core()->template()->get(
 			'payment-fields-hosted-session.php',
 			$template_data,
 		);
 
-		$display_save_checkbox = apply_filters( 'wc_' . $this->id . '_display_save_payment_method_checkbox', $display_tokenization );
-
-		if ( $display_save_checkbox && ! is_add_payment_method_page() ) {
+		if ( $this->display_save_checkbox && ! is_add_payment_method_page() ) {
 			$this->save_payment_method_checkbox();
 		}
 
@@ -518,16 +528,13 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * First of all and most important is to process the payment.
 	 * Second if needed, save payment token card.
 	 *
-	 * @param int         $order_id         Order ID.
-	 * @param string      $transaction_type Transaction type.
-	 * @param null|string $override_total   Override total.
-	 * @param bool        $payment_complete Payment complete.
+	 * @param int $order_id Order ID.
 	 *
 	 * @return array
 	 *
 	 * @throws Exception Exception.
 	 */
-	public function process_payment( $order_id, $transaction_type = null, $override_total = null, $payment_complete = true ) {
+	public function process_payment( $order_id ) {
 
 		try {
 			$order = wc_get_order( $order_id );
@@ -536,9 +543,9 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				throw new Exception( __( 'Invalid order.', $this->core_plugin->text_domain() ), 'error' );
 			}
 
-			do_action( $this->prefix_hook( 'process_payment_before' ), $order, $transaction_type, $override_total, $payment_complete );
+			do_action( $this->prefix_hook( 'process_payment_before' ), $order );
 
-			$addon_payment = apply_filters( $this->prefix_hook( 'process_payment_addon' ), false, $order, $transaction_type, $override_total, $payment_complete );
+			$addon_payment = apply_filters( $this->prefix_hook( 'process_payment_addon' ), false, $order );
 			if ( ! empty( $addon_payment ) && is_array( $addon_payment ) ) {
 				return $addon_payment;
 			}
@@ -555,7 +562,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			}
 
 			if ( $this->is_hosted_session() ) {
-				return $this->process_payment_hosted_session( $order );
+				return $this->process_payment_hosted_session( $order, false );
 			}
 
 			return array(
@@ -586,7 +593,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			'redirect' => $this->get_return_url( $order ),
 		);
 	}
-
 
 	/**
 	 * Process payment using the hosted checkout mode.
@@ -657,13 +663,15 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		}
 
 		$payment_data = array(
-			'apiOperation' => 'AUTHORIZE' === $this->transaction_mode ? 'AUTHORIZE' : 'PAY',
+			'apiOperation' => ( 'AUTHORIZE' === $this->transaction_mode ) ? 'AUTHORIZE' : 'PAY',
 			'order'        => $this->hosted_session_order_payload( $order ),
 			'session'      => $session,
 			'transaction'  => array(
 				'source' => 'INTERNET',
 			),
 		);
+
+		$payment_data = apply_filters( $this->prefix_hook( 'process_payment_data' ), $payment_data, $order );
 
 		$unique_order_id = $this->unique_order_id( $order );
 
@@ -1483,14 +1491,17 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				break;
 			case 'hosted_session':
 				if ( $this->should_render_hosted_session() ) {
-					$session_id             = $this->hosted_session_id();
-					$data['sessionId']      = $session_id;
-					$data['sessionAttempt'] = uniqid( $session_id );
+					$this->display_save_checkbox = apply_filters( 'wc_' . $this->id . '_display_save_payment_method_checkbox', $this->display_saved_card_methods() );
+
+					$session_id                      = $this->hosted_session_id();
+					$data['sessionId']               = $session_id;
+					$data['sessionAttempt']          = uniqid( $session_id );
+					$data['displaySaveCardCheckbox'] = $this->display_save_checkbox;
 				}
 				break;
 		}
 
-		return $data;
+		return apply_filters( $this->prefix_hook( 'payment_method_data' ), $data, $this );
 	}
 
 
@@ -1762,7 +1773,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 					'billingAddress' => 'HIDE',
 					'shipping'       => 'HIDE',
 				),
-			)
+			),
+			$order
 		);
 	}
 
@@ -2264,5 +2276,32 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				)
 			);
 		}
+	}
+
+
+	/**
+	 * Display a notice after the save payment method checkbox.
+	 *
+	 * @return void
+	 */
+	public function maybe_display_save_card_notice() {
+		if ( $this->display_save_checkbox ) {
+			return;
+		}
+
+		echo '<p class="wc-gateway-' . esc_attr( $this->id ) . '-save-card-notice"><i>' . wp_kses_post( $this->save_card_notice_text() ) . '</i></p>';
+	}
+
+
+	/**
+	 * Get save card notice text.
+	 *
+	 * @return string
+	 */
+	protected function save_card_notice_text() {
+		return apply_filters(
+			$this->prefix_hook( 'save_card_notice' ),
+			__( 'Your payment method will be saved for future purchases.', $this->core_plugin->text_domain() )
+		);
 	}
 }

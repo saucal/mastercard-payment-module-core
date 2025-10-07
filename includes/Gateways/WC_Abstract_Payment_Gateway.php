@@ -604,6 +604,10 @@ class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 			return;
 		}
 
+		if ( ! apply_filters( $this->prefix_hook( 'change_order_status' ), true, $order ) ) {
+			return;
+		}
+
 		$order->update_status( $new_order_status, ! empty( $order_status_msg ) ? $order_status_msg : $new_order_status_msg );
 	}
 

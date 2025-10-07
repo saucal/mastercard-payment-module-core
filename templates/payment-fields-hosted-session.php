@@ -59,6 +59,8 @@ if ( empty( $session_id ) || empty( $session_attempt ) ) {
 	<input type="hidden" id="<?php echo esc_attr( $gateway->id ); ?>_dcc_request_id" name="<?php echo esc_attr( $gateway->id ); ?>_dcc_request_id" />
 
 	<?php
+	$gateway->maybe_display_save_card_notice();
+
 	/**
 	 * Render additional content after the payment method fields.
 	 */

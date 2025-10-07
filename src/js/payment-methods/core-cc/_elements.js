@@ -6,12 +6,20 @@ import { __ } from '@wordpress/i18n';
 /**
  * Internal dependencies
  */
-import { getPrefix, addPrefix, getSessionId, getTextDomain } from './_settings';
+import {
+	getPrefix,
+	addPrefix,
+	getSessionId,
+	getTextDomain,
+	getSaveCardNotice,
+} from './_settings';
 
 /**
  * CardElements component.
  */
 export const CardElements = () => {
+	const saveCardNotice = getSaveCardNotice();
+
 	return (
 		<div
 			id={ `wc-${ getPrefix() }-cc-form` }
@@ -91,6 +99,13 @@ export const CardElements = () => {
 					placeholder="CVC"
 				/>
 			</div>
+			{ saveCardNotice && (
+				<span
+					className={ `wc-gateway-${ getPrefix() }-save-card-notice` }
+				>
+					<i>{ saveCardNotice }</i>
+				</span>
+			) }
 			<div
 				id={ `${ getPrefix() }_currency_conversion` }
 				className="payment-core-currency-conversion"

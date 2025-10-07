@@ -32,4 +32,8 @@ export const isHostedCheckout = () => {
 
 export const isRedirectToPaymentPage = () => {
 	return settings?.hostedCheckoutMode === 'redirect';
-}
+};
+
+export const getSaveCardNotice = () => {
+	return settings?.saveCardNotice || '';
+};
