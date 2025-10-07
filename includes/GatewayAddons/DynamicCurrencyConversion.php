@@ -49,7 +49,7 @@ trait DynamicCurrencyConversion {
 
 		add_action( $this->prefix_hook( 'hosted_session_created' ), array( $this, 'clean_cached_total' ) );
 
-		add_action( 'woocommerce_loaded', array( $this, 'init_dcc_hooks' ) );
+		add_action( 'woocommerce_cart_loaded_from_session', array( $this, 'init_dcc_hooks' ), 20 );
 	}
 
 
@@ -89,8 +89,8 @@ trait DynamicCurrencyConversion {
 			$data,
 			array(
 				'dccEnabled'         => $this->core_plugin->is_currency_conversion_enabled(),
-				'dccRequestEndpoint' => $this->core_plugin->api()->get_domain() . 'paymentOptionsInquiry',
-				'dccNonce'           => wp_create_nonce( $this->core_plugin->payment_core()->prefix_hook( 'dcc_nonce' ) ),
+				'dccRequestEndpoint' => $this->api()->get_domain() . 'paymentOptionsInquiry',
+				'dccNonce'           => wp_create_nonce( $this->prefix_hook( 'dcc_nonce' ) ),
 			)
 		);
 
