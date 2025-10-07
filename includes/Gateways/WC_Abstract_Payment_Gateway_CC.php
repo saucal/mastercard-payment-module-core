@@ -689,9 +689,15 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$this->update_authentication_transaction( $order, null );
 			$this->clean_cached_3ds_data( $order );
 
-			$payment_data['authentication'] = array(
-				'transactionId' => $authentication_transaction_id,
-			);
+			if ( 'not_supported' === $authentication_transaction_id ) {
+				$authentication_transaction_id = null;
+			}
+
+			if ( ! empty( $authentication_transaction_id ) ) {
+				$payment_data['authentication'] = array(
+					'transactionId' => $authentication_transaction_id,
+				);
+			}
 		}
 
 		$transaction_id = $this->unique_transaction_id( $order );
@@ -848,6 +854,10 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		$processed_3ds = $this->process_3ds_authentication( $order, $session, $unique_order_id );
 
+		if ( 'not_supported' === $processed_3ds ) {
+			return 'not_supported';
+		}
+
 		if ( is_array( $processed_3ds ) ) {
 			return $processed_3ds;
 		}
@@ -899,6 +909,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		}
 
 		try {
+			if ( $this->validate_authentication_not_supported( $response ) ) {
+				$this->clean_cached_3ds_data( $order );
+				return 'not_supported';
+			}
+
 			if ( ! $this->validate_authentication_response( $response ) ) {
 				$this->update_authentication_transaction( $order, null );
 				$this->clean_cached_3ds_data( $order );
@@ -1016,7 +1031,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			return false;
 		}
 
-		if ( ( ! empty( $response['body']['transaction']['authenticationStatus'] ) && 'AUTHENTICATION_NOT_SUPPORTED' === $response['body']['transaction']['authenticationStatus'] ) ) {
+		if ( ! empty( $response['body']['transaction']['authenticationStatus'] ) && 'AUTHENTICATION_NOT_SUPPORTED' === $response['body']['transaction']['authenticationStatus'] ) {
 			return false;
 		}
 
@@ -1031,6 +1046,27 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		if ( empty( $response['body']['result'] ) || 'SUCCESS' !== $response['body']['result'] ) {
 			throw new Exception( __( 'There was an error with the payment authentication. Please try again.', $this->core_plugin->text_domain() ) );
+		}
+
+		return true;
+	}
+
+
+	/**
+	 * Validate if the authentication is supported for the transaction.
+	 *
+	 * @param array $response The response data.
+	 *
+	 * @return bool
+	 * @throws Exception Exception.
+	 */
+	public function validate_authentication_not_supported( $response ) {
+		if ( empty( $response['body']['transaction']['authenticationStatus'] ) || 'AUTHENTICATION_NOT_SUPPORTED' !== $response['body']['transaction']['authenticationStatus'] ) {
+			return false;
+		}
+
+		if ( empty( $response['body']['response']['gatewayRecommendation'] ) || 'PROCEED' !== $response['body']['response']['gatewayRecommendation'] ) {
+			return false;
 		}
 
 		return true;
