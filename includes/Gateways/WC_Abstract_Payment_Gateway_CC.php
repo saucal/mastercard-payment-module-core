@@ -213,7 +213,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	public function init_addons() {
 		$this->init_addon_subscriptions();
-		$this->init_addon_preorders();
+		$this->init_addon_pre_orders();
 		$this->init_addon_dcc();
 	}
 
@@ -520,16 +520,13 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * First of all and most important is to process the payment.
 	 * Second if needed, save payment token card.
 	 *
-	 * @param int         $order_id         Order ID.
-	 * @param string      $transaction_type Transaction type.
-	 * @param null|string $override_total   Override total.
-	 * @param bool        $payment_complete Payment complete.
+	 * @param int $order_id Order ID.
 	 *
 	 * @return array
 	 *
 	 * @throws Exception Exception.
 	 */
-	public function process_payment( $order_id, $transaction_type = null, $override_total = null, $payment_complete = true ) {
+	public function process_payment( $order_id ) {
 
 		try {
 			$order = wc_get_order( $order_id );
@@ -538,9 +535,9 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				throw new Exception( __( 'Invalid order.', $this->core_plugin->text_domain() ), 'error' );
 			}
 
-			do_action( $this->prefix_hook( 'process_payment_before' ), $order, $transaction_type, $override_total, $payment_complete );
+			do_action( $this->prefix_hook( 'process_payment_before' ), $order );
 
-			$addon_payment = apply_filters( $this->prefix_hook( 'process_payment_addon' ), false, $order, $transaction_type, $override_total, $payment_complete );
+			$addon_payment = apply_filters( $this->prefix_hook( 'process_payment_addon' ), false, $order );
 			if ( ! empty( $addon_payment ) && is_array( $addon_payment ) ) {
 				return $addon_payment;
 			}
@@ -553,11 +550,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			}
 
 			if ( $this->is_hosted_checkout() ) {
-				return $this->process_payment_hosted_checkout( $order, $transaction_type );
+				return $this->process_payment_hosted_checkout( $order );
 			}
 
 			if ( $this->is_hosted_session() ) {
-				return $this->process_payment_hosted_session( $order, false, $transaction_type );
+				return $this->process_payment_hosted_session( $order, false );
 			}
 
 			return array(
@@ -596,7 +593,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 *
 	 * @return array
 	 */
-	protected function process_payment_hosted_checkout( $order, $transaction_type = null ) {
+	protected function process_payment_hosted_checkout( $order ) {
 		$order->update_status( 'pending', __( 'Pending payment', $this->core_plugin->text_domain() ) );
 
 		if ( 'redirect' === $this->hosted_checkout_mode ) {
@@ -635,7 +632,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return array
 	 * @throws Exception Exception.
 	 */
-	protected function process_payment_hosted_session( $order, $processing_3ds_callback = false, $transaction_type = null ) {
+	protected function process_payment_hosted_session( $order, $processing_3ds_callback = false ) {
 		$session = $processing_3ds_callback ? $order->get_meta( $this->prefix_hook( 'payment_session' ) ) : $this->get_posted_session_data();
 
 		if ( empty( $session ) ) {
@@ -666,7 +663,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			),
 		);
 
-		$payment_data = apply_filters( $this->prefix_hook( 'process_payment_data' ), $payment_data, $order, $transaction_type );
+		$payment_data = apply_filters( $this->prefix_hook( 'process_payment_data' ), $payment_data, $order );
 
 		$unique_order_id = $this->unique_order_id( $order );
 
@@ -1766,7 +1763,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 					'billingAddress' => 'HIDE',
 					'shipping'       => 'HIDE',
 				),
-			)
+			),
+			$order
 		);
 	}
 
