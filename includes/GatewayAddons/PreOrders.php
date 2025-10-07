@@ -56,8 +56,14 @@ trait PreOrders {
 		add_filter( $this->prefix_hook( 'process_payment_data' ), array( $this, 'maybe_add_pre_order_payment_data' ), 10, 2 );
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_data' ), array( $this, 'maybe_add_pre_order_payment_data' ), 10, 2 );
 
+		// Hide the save payment method checkbox for subscriptions.
+		add_filter( 'wc_' . $this->id . '_display_save_payment_method_checkbox', array( $this, 'maybe_display_save_checkbox_pre_orders' ) );
+
 		// Force save payment method for pre-orders that require tokenization.
 		add_filter( $this->prefix_hook( 'forced_save_payment_method' ), array( $this, 'maybe_force_save_method_pre_order' ) );
+
+		// Adjust the save card notice display for pre-orders.
+		add_filter( $this->prefix_hook( 'save_card_notice' ), array( $this, 'change_save_card_notice_pre_order' ) );
 
 		// Flag pre-order as completed after successful payment.
 		add_action( $this->prefix_hook( 'payment_success' ), array( $this, 'maybe_flag_pre_order_as_completed' ) );
@@ -65,6 +71,9 @@ trait PreOrders {
 
 		// Process pre-order payment when released (charged upon release).
 		add_action( 'wc_pre_orders_process_pre_order_completion_payment_' . $this->id, array( $this, 'process_pre_order_release_payment' ), 10, 1 );
+
+		// Hide the capture meta box for the pre-order order.
+		add_filter( $this->prefix_hook( 'add_meta_boxes' ), array( $this, 'maybe_hide_capture_meta_box_pre_order' ), 10, 2 );
 	}
 
 
@@ -252,5 +261,52 @@ trait PreOrders {
 				'error'
 			);
 		}
+	}
+
+
+	/**
+	 * Hide the save payment method checkbox for subscriptions.
+	 *
+	 * @param bool $display_tokenization Whether to display the checkbox.
+	 * @return bool
+	 */
+	public function maybe_display_save_checkbox_pre_orders( $display_tokenization ) {
+		if ( $this->cart_contains_pre_order_tokenization() ) {
+			return false;
+		}
+
+		return $display_tokenization;
+	}
+
+
+	/**
+	 * Change the save card notice for pre-orders.
+	 *
+	 * @param string $notice The original notice.
+	 *
+	 * @return string
+	 */
+	public function change_save_card_notice_pre_order( $notice ) {
+		if ( ! $this->cart_contains_pre_order_tokenization() ) {
+			return $notice;
+		}
+
+		return __( 'By providing your card information, you are allowing to charge your card for future payments.', $this->core_plugin->text_domain() );
+	}
+
+
+	/**
+	 * Hide the capture meta box for the pre-order order.
+	 *
+	 * @param bool     $add_meta_box Whether to add the meta box.
+	 * @param WC_Order $order        The order object.
+	 * @return bool
+	 */
+	public function maybe_hide_capture_meta_box_pre_order( $add_meta_box, $order ) {
+		if ( $this->has_pre_order( $order->get_id() ) ) {
+			return false;
+		}
+
+		return $add_meta_box;
 	}
 }

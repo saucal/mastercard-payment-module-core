@@ -67,8 +67,7 @@ trait Subscriptions {
 		add_filter( 'woocommerce_get_checkout_url', array( __CLASS__, 'maybe_remove_redirect_to_checkout' ) );
 
 		// Hide the save payment method checkbox for subscriptions.
-		add_filter( 'wc_' . $this->id . '_display_save_payment_method_checkbox', array( $this, 'maybe_display_save_checkbox' ) );
-		add_action( 'wc_' . $this->id . '_after_payment_method_fields', array( $this, 'maybe_display_save_card_notice' ) );
+		add_filter( 'wc_' . $this->id . '_display_save_payment_method_checkbox', array( $this, 'maybe_display_save_checkbox_subscription' ) );
 		add_filter( $this->prefix_hook( 'payment_method_data' ), array( $this, 'maybe_add_display_save_card_notice' ) );
 
 		// Forcefully save the payment method for subscriptions.
@@ -94,7 +93,7 @@ trait Subscriptions {
 		add_filter( $this->prefix_hook( '3ds_process_redirect' ), array( $this, 'maybe_change_3ds_processed_redirect' ), 10, 2 );
 
 		// Hide the capture meta box for the subscription order.
-		add_filter( $this->prefix_hook( 'add_meta_boxes' ), array( $this, 'maybe_hide_capture_meta_box' ), 10, 3 );
+		add_filter( $this->prefix_hook( 'add_meta_boxes' ), array( $this, 'maybe_hide_capture_meta_box_subscription' ), 10, 2 );
 	}
 
 
@@ -209,7 +208,7 @@ trait Subscriptions {
 			return 1;
 		}
 
-		$time_diff = $next_payment_date - current_time( 'timestamp', true );
+		$time_diff = $next_payment_date - time();
 
 		return (int) ceil( $time_diff / DAY_IN_SECONDS );
 	}
@@ -376,7 +375,7 @@ trait Subscriptions {
 	 * @param bool $display_tokenization Whether to display the checkbox.
 	 * @return bool
 	 */
-	public function maybe_display_save_checkbox( $display_tokenization ) {
+	public function maybe_display_save_checkbox_subscription( $display_tokenization ) {
 		if ( is_wc_endpoint_url( 'order-pay' ) && $this->is_subs_change_payment() ) {
 			return false;
 		}
@@ -390,27 +389,13 @@ trait Subscriptions {
 
 
 	/**
-	 * Display a notice after the save payment method checkbox.
-	 *
-	 * @return void
-	 */
-	public function maybe_display_save_card_notice() {
-		if ( $this->maybe_display_save_checkbox( true ) ) {
-			return;
-		}
-
-		echo '<p class="wc-gateway-' . esc_attr( $this->id ) . '-save-card-notice"><i>' . wp_kses_post( $this->save_card_notice_text() ) . '</i></p>';
-	}
-
-
-	/**
 	 * Maybe add display save card notice flag to payment method data.
 	 *
 	 * @param array $data Payment method data.
 	 * @return array
 	 */
 	public function maybe_add_display_save_card_notice( $data ) {
-		if ( $this->maybe_display_save_checkbox( true ) ) {
+		if ( $this->display_save_checkbox ) {
 			return $data;
 		}
 
@@ -425,19 +410,6 @@ trait Subscriptions {
 
 
 	/**
-	 * Get save card notice text.
-	 *
-	 * @return string
-	 */
-	protected function save_card_notice_text() {
-		return apply_filters(
-			$this->prefix_hook( 'save_card_notice' ),
-			__( 'Your payment method will be saved for future purchases.', $this->core_plugin->text_domain() )
-		);
-	}
-
-
-	/**
 	 * Forcefully save the payment method for subscriptions.
 	 *
 	 * @param bool $force_save Whether to force save the payment method.
@@ -448,7 +420,7 @@ trait Subscriptions {
 			return true;
 		}
 
-		if ( $this->maybe_display_save_checkbox( true ) ) {
+		if ( $this->maybe_display_save_checkbox_subscription( true ) ) {
 			return $force_save;
 		}
 
@@ -754,10 +726,9 @@ trait Subscriptions {
 	 *
 	 * @param bool     $add_meta_box Whether to add the meta box.
 	 * @param WC_Order $order        The order object.
-	 * @param string   $post_type    The post type.
 	 * @return bool
 	 */
-	public function maybe_hide_capture_meta_box( $add_meta_box, $order, $post_type ) {
+	public function maybe_hide_capture_meta_box_subscription( $add_meta_box, $order ) {
 		if ( $this->has_subscription( $order ) ) {
 			return false;
 		}

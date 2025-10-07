@@ -136,6 +136,14 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 
 	/**
+	 * Display save card checkbox.
+	 *
+	 * @param bool
+	 */
+	protected $display_save_checkbox = true;
+
+
+	/**
 	 * Initialize the gateway.
 	 */
 	public function build() {
@@ -498,14 +506,14 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$this->saved_payment_methods();
 		}
 
+		$this->display_save_checkbox = apply_filters( 'wc_' . $this->id . '_display_save_payment_method_checkbox', $display_tokenization );
+
 		$this->core_plugin->payment_core()->template()->get(
 			'payment-fields-hosted-session.php',
 			$template_data,
 		);
 
-		$display_save_checkbox = apply_filters( 'wc_' . $this->id . '_display_save_payment_method_checkbox', $display_tokenization );
-
-		if ( $display_save_checkbox && ! is_add_payment_method_page() ) {
+		if ( $this->display_save_checkbox && ! is_add_payment_method_page() ) {
 			$this->save_payment_method_checkbox();
 		}
 
@@ -1483,10 +1491,12 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				break;
 			case 'hosted_session':
 				if ( $this->should_render_hosted_session() ) {
+					$this->display_save_checkbox = apply_filters( 'wc_' . $this->id . '_display_save_payment_method_checkbox', $this->display_saved_card_methods() );
+
 					$session_id                      = $this->hosted_session_id();
 					$data['sessionId']               = $session_id;
 					$data['sessionAttempt']          = uniqid( $session_id );
-					$data['displaySaveCardCheckbox'] = apply_filters( 'wc_' . $this->id . '_display_save_payment_method_checkbox', $this->display_saved_card_methods() );
+					$data['displaySaveCardCheckbox'] = $this->display_save_checkbox;
 				}
 				break;
 		}
@@ -2266,5 +2276,32 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				)
 			);
 		}
+	}
+
+
+	/**
+	 * Display a notice after the save payment method checkbox.
+	 *
+	 * @return void
+	 */
+	public function maybe_display_save_card_notice() {
+		if ( $this->display_save_checkbox ) {
+			return;
+		}
+
+		echo '<p class="wc-gateway-' . esc_attr( $this->id ) . '-save-card-notice"><i>' . wp_kses_post( $this->save_card_notice_text() ) . '</i></p>';
+	}
+
+
+	/**
+	 * Get save card notice text.
+	 *
+	 * @return string
+	 */
+	protected function save_card_notice_text() {
+		return apply_filters(
+			$this->prefix_hook( 'save_card_notice' ),
+			__( 'Your payment method will be saved for future purchases.', $this->core_plugin->text_domain() )
+		);
 	}
 }
