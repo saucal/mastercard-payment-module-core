@@ -2055,15 +2055,30 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return void
 	 */
 	private function process_3ds_return_callback() {
+		$order_id = wc_clean( wp_unslash( $_REQUEST['order-id'] ) ) ?? '';
+		if ( empty( $order_id ) ) {
+			$order_id = wc_clean( wp_unslash( $_REQUEST['amp;order-id'] ) ) ?? '';
+		}
+
+		$signature = wc_clean( wp_unslash( $_REQUEST['signature'] ) ) ?? '';
+		if ( empty( $signature ) ) {
+			$signature = wc_clean( wp_unslash( $_REQUEST['amp;signature'] ) ) ?? '';
+		}
+
+		$nonce = wc_clean( wp_unslash( $_REQUEST['nonce'] ) ) ?? '';
+		if ( empty( $nonce ) ) {
+			$nonce = wc_clean( wp_unslash( $_REQUEST['amp;nonce'] ) ) ?? '';
+		}
+
 		wp_safe_redirect(
 			apply_filters(
 				$this->prefix_hook( '3ds_return_redirect' ),
 				add_query_arg(
 					array(
 						$this->prefix_hook( 'callback', '', '-' ) => 'wc-3ds-process',
-						'order-id'  => wc_clean( wp_unslash( $_REQUEST['order-id'] ) ) ?? '',
-						'signature' => wc_clean( wp_unslash( $_REQUEST['signature'] ) ) ?? '',
-						'nonce'     => wc_clean( wp_unslash( $_REQUEST['nonce'] ) ) ?? '',
+						'order-id'  => $order_id,
+						'signature' => $signature,
+						'nonce'     => $nonce,
 					),
 					home_url( '/' )
 				),
@@ -2120,8 +2135,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 			wc_add_notice( $e->getMessage(), 'error' );
 
-			$this->update_authentication_transaction( $order, null );
-			$this->clean_cached_3ds_data( $order );
+			if ( $order ) {
+				$this->update_authentication_transaction( $order, null );
+				$this->clean_cached_3ds_data( $order );
+			}
+
 			$this->maybe_clean_hosted_cached_session( $this->get_hosted_session_data_hash() );
 
 			$redirect_url = ( is_checkout_pay_page() && $order ) ? $order->get_checkout_payment_url() : wc_get_checkout_url();

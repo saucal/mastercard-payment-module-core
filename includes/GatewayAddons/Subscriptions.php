@@ -660,7 +660,7 @@ trait Subscriptions {
 	 * @return string
 	 */
 	public function maybe_add_change_payment_method_flag( $redirect_url ) {
-		if ( ! isset( $_GET['change_payment_method'] ) ) {
+		if ( ! isset( $_GET['change_payment_method'] ) && ! isset( $_GET['amp;change_payment_method'] ) ) {
 			return $redirect_url;
 		}
 
