@@ -119,6 +119,17 @@ final class GatewaySettings {
 				'description' => '',
 				'default'     => 'no',
 			),
+			'sandbox'          => array(
+				'title'       => __( 'Test Mode', $this->core_plugin->text_domain() ),
+				'label'       => __( 'Enable test mode', $this->core_plugin->text_domain() ),
+				'type'        => 'checkbox',
+				'description' => sprintf(
+					__( 'Set the payment gateway in test mode using test API credentials (real payments will not be taken). You can use %1$stest card numbers%2$s to simulate various transactions.', $this->core_plugin->text_domain() ),
+					'<a href="https://test-gateway.mastercard.com/api/documentation/integrationGuidelines/supportedFeatures/testAndGoLive.html" target="_blank">',
+					'</a>'
+				),
+				'default'     => 'no',
+			),
 			'title'            => array(
 				'title'       => __( 'Title', $this->core_plugin->text_domain() ),
 				'type'        => 'text',
@@ -143,14 +154,6 @@ final class GatewaySettings {
 				'title'       => __( 'Merchant account details', $this->core_plugin->text_domain() ),
 				'description' => $this->merchant_details_message(),
 				'type'        => 'title',
-			),
-			'sandbox'          => array(
-				'title'       => __( 'Test Sandbox', $this->core_plugin->text_domain() ),
-				'label'       => __( 'Enable test sandbox mode', $this->core_plugin->text_domain() ),
-				'type'        => 'checkbox',
-				'description' => __( 'Place the payment gateway in test mode using test API credentials (real payments will not be taken).', $this->core_plugin->text_domain() ),
-				'default'     => 'no',
-				'desc_tip'    => true,
 			),
 			'merchant_id'      => array(
 				'title'       => __( 'Merchant ID', $this->core_plugin->text_domain() ),
