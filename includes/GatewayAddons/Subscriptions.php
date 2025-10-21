@@ -62,6 +62,7 @@ trait Subscriptions {
 
 		// Add subscription payment data to the payment request.
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_data' ), array( $this, 'maybe_add_subscription_payment_data' ), 10, 2 );
+		add_filter( $this->prefix_hook( 'process_payment_hosted_session_data' ), array( $this, 'maybe_add_subscription_authentication_data' ), 10, 2 );
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_authenticate_payer_data' ), array( $this, 'maybe_add_subscription_authentication_data' ), 10, 2 );
 
 		// Remove redirect to checkout page for subscriptions.
