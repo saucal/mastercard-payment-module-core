@@ -1328,7 +1328,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return bool
 	 */
 	protected function is_saving_payment_method() {
-		return isset( $_POST[ 'wc-' . $this->id . '-new-payment-method' ] ) && ( $_POST[ 'wc-' . $this->id . '-new-payment-method' ] ); // WPCS: CSRF ok.
+		return isset( $_POST[ 'wc-' . $this->id . '-new-payment-method' ] ) && wc_clean( wp_unslash( $_POST[ 'wc-' . $this->id . '-new-payment-method' ] ) ); // WPCS: CSRF ok.
 	}
 
 

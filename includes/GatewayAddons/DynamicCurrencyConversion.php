@@ -172,7 +172,7 @@ trait DynamicCurrencyConversion {
 		$offer_state = 'Reject';
 		if ( isset( $_POST['dccOfferState'] ) ) {
 			$offer_state = wc_clean( wp_unslash( $_POST['dccOfferState'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
-		} elseif ( $_POST['dccofferstate'] ) {
+		} elseif ( isset( $_POST['dccofferstate'] ) ) {
 			// Checkout Blocks lowercase the field names.
 			$offer_state = wc_clean( wp_unslash( $_POST['dccofferstate'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
 		}

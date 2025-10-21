@@ -394,7 +394,8 @@ abstract class CorePlugin {
 		update_option( $this->payment_core()->prefix_hook( 'installed', 'woocommerce_' ), true );
 
 		// Redirect to the settings page.
-		exit( wp_safe_redirect( $this->settings_url() ) );
+		wp_safe_redirect( $this->settings_url() );
+		exit();
 	}
 
 

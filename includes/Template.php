@@ -103,7 +103,7 @@ final class Template {
 		// Perform other actions before template part is included.
 		do_action( 'payment_core_before_template_part', $template_name, $template_path, $located, $args );
 
-		include $located;
+		include $located; // phpcs:ignore
 
 		// Perform other actions after template part is included.
 		do_action( 'payment_core_after_template_part', $template_name, $template_path, $located, $args );
