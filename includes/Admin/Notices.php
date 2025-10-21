@@ -129,8 +129,15 @@ final class Notices {
 		if ( ! $this->core_plugin->is_settings_page() ) {
 			$message .= ' ' . sprintf(
 				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
-				__( 'Set the Notification Secret %1$shere%2$s.', $this->core_plugin->text_domain() ),
-				'<a href="' . $this->core_plugin->settings_url() . '">',
+				__( 'Set the Notification Secret %1$son the settings page%2$s.', $this->core_plugin->text_domain() ),
+				'<a href="' . $this->core_plugin->settings_url() . '#woocommerce_' . $this->core_plugin->plugin_id() . '_webhook">',
+				'</a>',
+			);
+		} else {
+			$message .= ' ' . sprintf(
+				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
+				__( 'Please add your notification secret %1$shere%2$s.', $this->core_plugin->text_domain() ),
+				'<a href="#woocommerce_' . $this->core_plugin->plugin_id() . '_webhook">',
 				'</a>',
 			);
 		}
