@@ -103,7 +103,12 @@ final class Template {
 		// Perform other actions before template part is included.
 		do_action( 'payment_core_before_template_part', $template_name, $template_path, $located, $args );
 
-		include $located; // phpcs:ignore
+		if ( ! file_exists( $located ) ) {
+			_doing_it_wrong( __FUNCTION__, sprintf( '<code>%s</code> does not exist.', $located ), '1.0.0' ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			return;
+		}
+
+		include $located;
 
 		// Perform other actions after template part is included.
 		do_action( 'payment_core_after_template_part', $template_name, $template_path, $located, $args );
