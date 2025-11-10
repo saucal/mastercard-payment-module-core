@@ -125,6 +125,7 @@ final class API {
 			'method'  => $method,
 			'headers' => $this->get_headers( 'application/json', $endpoint, $payload ),
 			'body'    => apply_filters( $this->core_plugin->payment_core()->prefix_hook( 'request_body' ), $this->maybe_json_encode( $payload ) ),
+			'timeout' => 60,
 		);
 
 		// Logging request.
