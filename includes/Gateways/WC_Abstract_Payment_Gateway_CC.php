@@ -517,7 +517,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$this->save_payment_method_checkbox();
 		}
 
-		if ( $this->dcc_enabled ) {
+		if ( $this->dcc_enabled && ! is_add_payment_method_page() ) {
 			echo '<div id="' . esc_attr( $this->id ) . '_currency_conversion" class="payment-core-currency-conversion"></div>';
 		}
 	}
