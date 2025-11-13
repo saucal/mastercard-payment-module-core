@@ -489,6 +489,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			'gateway'         => $this,
 			'session_id'      => $session_id,
 			'session_attempt' => uniqid( $session_id ),
+			'enable_3ds'      => $this->enable_3ds,
+			'dcc_enabled'     => $this->dcc_enabled,
 		);
 
 		if ( $this->enable_3ds && $this->is_pay_for_order_page() ) {

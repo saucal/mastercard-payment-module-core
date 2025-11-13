@@ -351,9 +351,11 @@ const hostedSessions = {
 			return;
 		}
 
-		jQuery( `#${ hostedSessions.pluginPrefix }_3ds_data` ).val(
-			hostedSessions.get3DSData()
-		);
+		if ( core_gateway_params.threeDsEnabled ) {
+			jQuery( `#${ hostedSessions.pluginPrefix }_3ds_data` ).val(
+				hostedSessions.get3DSData()
+			);
+		}
 
 		// Handle 3DS redirect if needed.
 		hostedSessions.$wcForm.on(
