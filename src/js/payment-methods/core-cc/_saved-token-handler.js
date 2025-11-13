@@ -17,9 +17,9 @@ export const SavedTokenHandler = ( {
 } ) => {
 	useEffect( () => {
 		hostedSessions.pluginPrefix = getPrefix();
-		hostedSessions.dccChecked = false;
-		hostedSessions.dccRequesting = false;
-		hostedSessions.requestCurrencyConversionQuoteSavedToken( token );
+		hostedSessions.dcc.checked = false;
+		hostedSessions.dcc.requesting = false;
+		hostedSessions.dcc.requestCurrencyConversionQuoteSavedToken( token );
 
 		return onPaymentSetup( () => {
 			return new Promise( ( resolve ) => {
@@ -33,7 +33,7 @@ export const SavedTokenHandler = ( {
 					meta: {
 						paymentMethodData: {
 							...data,
-							...hostedSessions.getCurrencyConversionData(),
+							...hostedSessions.dcc.getCurrencyConversionData(),
 						},
 					},
 				} );
