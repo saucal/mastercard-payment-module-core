@@ -17,8 +17,6 @@ export const SavedTokenHandler = ( {
 } ) => {
 	useEffect( () => {
 		hostedSessions.pluginPrefix = getPrefix();
-		hostedSessions.dcc.checked = false;
-		hostedSessions.dcc.requesting = false;
 		hostedSessions.dcc.requestCurrencyConversionQuoteSavedToken( token );
 
 		return onPaymentSetup( () => {
