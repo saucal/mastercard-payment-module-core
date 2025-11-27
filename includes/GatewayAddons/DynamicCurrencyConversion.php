@@ -33,12 +33,15 @@ trait DynamicCurrencyConversion {
 			return;
 		}
 
-		if ( $this->is_hosted_checkout() ) {
-			return; // DCC is automatically supported in hosted checkout mode.
-		}
+		// Process DCC when the payment is processed.
+		add_action( $this->prefix_hook( 'payment_success' ), array( $this, 'process_dcc_data' ), 10, 2 );
 
 		// Render DCC data on the order edit page.
 		add_action( 'woocommerce_admin_order_data_after_billing_address', array( $this, 'render_dcc_data' ) );
+
+		if ( $this->is_hosted_checkout() ) {
+			return; // DCC is automatically supported in hosted checkout mode.
+		}
 
 		if ( ! $this->dcc_enabled ) {
 			return;
@@ -69,9 +72,6 @@ trait DynamicCurrencyConversion {
 		// Add DCC data to the payment data.
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_data' ), array( $this, 'maybe_add_dcc_payment_data' ), 10, 2 );
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_data' ), array( $this, 'maybe_add_dcc_payment_data' ), 10, 2 );
-
-		// Process DCC when the payment is processed.
-		add_action( $this->prefix_hook( 'payment_success' ), array( $this, 'process_dcc_data' ), 10, 2 );
 
 		// Render DCC data on the order receipt page.
 		add_filter( 'woocommerce_get_order_item_totals', array( $this, 'render_dcc_data_receipt' ), 10, 2 );
