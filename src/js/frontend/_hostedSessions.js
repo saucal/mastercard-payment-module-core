@@ -496,7 +496,7 @@ const hostedSessions = {
 
 		if (
 			core_gateway_params.threeDsEnabled &&
-			jQuery( 'input[name="woocommerce_change_payment"]' ).length > 0
+			hostedSessions.isChangePayment()
 		) {
 			hostedSessions.execute3DsAuthentication(
 				jQuery( 'input[name="woocommerce_change_payment"]' ).val(),
@@ -558,6 +558,10 @@ const hostedSessions = {
 		}
 
 		return tokenId;
+	},
+
+	isChangePayment() {
+		return jQuery( 'input[name="woocommerce_change_payment"]' ).length > 0;
 	},
 
 	paymentScope() {
@@ -972,6 +976,11 @@ const hostedSessions = {
 
 		maybeTriggerCurrencyConversion() {
 			if ( ! core_gateway_params.dccEnabled ) {
+				return Promise.resolve();
+			}
+
+			if ( hostedSessions.isChangePayment() ) {
+				// There's no point in showing DCC offers when changing payment methods
 				return Promise.resolve();
 			}
 
