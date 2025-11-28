@@ -1986,12 +1986,15 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		$callback = wc_clean( wp_unslash( $_GET[ $this->prefix_hook( 'callback', '', '-' ) ] ) );
 
 		switch ( $callback ) {
+			// Hande hosted checkout
 			case 'wc':
 				$this->process_return_callback();
 				break;
+			// Handle 3DS redirect to processing url
 			case 'wc-3ds':
 				$this->process_3ds_return_callback();
 				break;
+			// Actually handle 3DS authentication
 			case 'wc-3ds-process':
 				$this->process_3ds_process_callback();
 				break;
