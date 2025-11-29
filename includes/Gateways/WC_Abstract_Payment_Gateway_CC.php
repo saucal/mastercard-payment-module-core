@@ -416,6 +416,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	public function payment_fields() {
 
+		// TODO: Document why is this needed.
 		if ( is_checkout_pay_page() ) {
 			$this->maybe_flag_order_as_paid( Utils::get_current_order() );
 		}
@@ -552,6 +553,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				return $addon_payment;
 			}
 
+			// TODO: Document why is this needed.
 			if ( ! empty( $order->get_date_paid( 'edit' ) ) || $this->maybe_flag_order_as_paid( $order, false ) ) {
 				return array(
 					'result'   => 'success',
