@@ -165,7 +165,7 @@ const hostedSessions = {
 					callbacks: {
 						initialized: () => {
 							hostedSessions
-								.validate()
+								.validateForm()
 								.then( ( fieldResults ) => {
 									hostedSessions
 										.validateCardFields( fieldResults )
@@ -207,7 +207,7 @@ const hostedSessions = {
 
 				hostedSessions.dirtyFields[ role ] = true;
 
-				hostedSessions.validate().then( ( fieldResults ) => {
+				hostedSessions.validateForm().then( ( fieldResults ) => {
 					clearTimeout( timeoutBlock ); // If we didn't block yet, cancel it
 					hostedSessions.validateCardFields( fieldResults );
 				} );
@@ -234,7 +234,7 @@ const hostedSessions = {
 
 		PaymentSession.onCardBINChange( () => {
 			hostedSessions.dirtyFields.number = true;
-			hostedSessions.validate().then( ( fieldResults ) => {
+			hostedSessions.validateForm().then( ( fieldResults ) => {
 				hostedSessions.validateCardFields( fieldResults );
 			} );
 		} );
@@ -261,7 +261,7 @@ const hostedSessions = {
 		return false;
 	},
 
-	validate() {
+	validateForm() {
 		return new Promise( ( resolve ) => {
 			PaymentSession.validate( 'card', function ( results ) {
 				for ( const role in results.card ) {
@@ -270,7 +270,7 @@ const hostedSessions = {
 						results.card[ role ].errorReason ===
 							'AWAITING_SERVER_RESPONSE'
 					) {
-						return hostedSessions.validate().then( resolve );
+						return hostedSessions.validateForm().then( resolve );
 					}
 				}
 
@@ -432,7 +432,7 @@ const hostedSessions = {
 	},
 
 	triggerPay() {
-		hostedSessions.validate().then( ( results ) => {
+		hostedSessions.validateForm().then( ( results ) => {
 			if (
 				! hostedSessions.validateCardFields( results, false, false )
 			) {
