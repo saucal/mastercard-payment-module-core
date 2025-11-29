@@ -460,6 +460,11 @@ class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				return false;
 			}
 
+			$is_valid = apply_filters( $this->prefix_hook( 'validate_order_as_paid' ), true, $order, $this );
+			if ( ! $is_valid ) {
+				return false;
+			}
+
 			if ( $order->get_meta( $this->prefix_hook( 'order_captured' ) ) ) {
 				return true;
 			}

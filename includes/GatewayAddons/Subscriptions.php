@@ -95,6 +95,9 @@ trait Subscriptions {
 
 		// Hide the capture meta box for the subscription order.
 		add_filter( $this->prefix_hook( 'add_meta_boxes' ), array( $this, 'maybe_hide_capture_meta_box_subscription' ), 10, 2 );
+
+		// Subscriptions are never considered "paid".
+		add_filter( $this->prefix_hook( 'validate_order_as_paid' ), array( $this, 'maybe_avoid_subscription_as_paid' ), 10, 2 );
 	}
 
 
@@ -764,5 +767,9 @@ trait Subscriptions {
 		}
 
 		return false;
+	}
+
+	public function maybe_avoid_subscription_as_paid( $is_paid, $order ) {
+		return \wcs_is_subscription( $order ) ? false : $is_paid;
 	}
 }
