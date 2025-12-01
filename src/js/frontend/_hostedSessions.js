@@ -111,6 +111,12 @@ const hostedSessions = {
 				'checkout_place_order',
 				hostedSessions.submitPay
 			);
+			if ( core_gateway_params.threeDsEnabled ) {
+				hostedSessions.$wcForm.on(
+					'checkout_place_order_success',
+					hostedSessions.process3DsAuthentication
+				);
+			}
 			return;
 		}
 
@@ -357,16 +363,6 @@ const hostedSessions = {
 			);
 		}
 
-		// Handle 3DS redirect if needed.
-		hostedSessions.$wcForm.on(
-			'checkout_place_order_success',
-			hostedSessions.process3DsAuthentication
-		);
-
-		if ( !! hostedSessions.isSavedToken() ) {
-			return;
-		}
-
 		event.preventDefault();
 
 		hostedSessions.$wcForm.addClass( 'is-processing' );
@@ -400,16 +396,22 @@ const hostedSessions = {
 	updateSession() {
 		return hostedSessions.queuePromise( function () {
 			return new Promise( ( resolve, reject ) => {
-				try {
-					hostedSessions.lastSessionUpdateResponse = {};
-					PaymentSession.updateSessionFromForm(
-						'card',
-						undefined,
-						hostedSessions.paymentScope()
+				if ( ! hostedSessions.isSavedToken() ) {
+					try {
+						hostedSessions.lastSessionUpdateResponse = {};
+						PaymentSession.updateSessionFromForm(
+							'card',
+							undefined,
+							hostedSessions.paymentScope()
+						);
+					} catch ( error ) {
+						reject( error );
+						return;
+					}
+				} else {
+					hostedSessions.updateSessionFromToken(
+						hostedSessions.isSavedToken()
 					);
-				} catch ( error ) {
-					reject( error );
-					return;
 				}
 
 				hostedSessions.$eventProxy.one(
@@ -431,23 +433,73 @@ const hostedSessions = {
 		} );
 	},
 
-	triggerPay() {
-		hostedSessions.validateForm().then( ( results ) => {
-			if (
-				! hostedSessions.validateCardFields( results, false, false )
-			) {
-				return;
-			}
-			hostedSessions.blockForm();
-			hostedSessions
-				.updateSession()
-				.then( hostedSessions.triggerPayAfterResponse )
-				.catch( function ( error ) {
+	updateSessionFromToken( tokenId ) {
+		return new Promise( ( resolve, reject ) => {
+			const data = {};
+			data[ `${ hostedSessions.pluginPrefix }_session_id` ] =
+				hostedSessions.getSessionId();
+			data[ `${ hostedSessions.pluginPrefix }_token_id` ] = tokenId;
+
+			jQuery
+				.ajax( {
+					url: getWcAjaxUrl(
+						'update_hosted_session_from_token',
+						hostedSessions.pluginPrefix
+					),
+					method: 'POST',
+					data,
+				} )
+				.done( function ( res ) {
+					hostedSessions.$eventProxy.trigger( 'payment_response', [
+						res.data.response,
+					] );
+				} )
+				.fail( function ( res ) {
 					hostedSessions.submitError(
-						`${ core_gateway_params.hostedSessionErrors.default }: ${ error }`
+						res?.data?.message ||
+							__(
+								'There was an error with the payment authentication. Please try again.',
+								core_gateway_params.textDomain
+							)
 					);
 				} );
 		} );
+	},
+
+	triggerPay() {
+		let promise;
+		if ( !! hostedSessions.isSavedToken() ) {
+			promise = Promise.resolve();
+		} else {
+			promise = new Promise( ( resolve, reject ) => {
+				hostedSessions.validateForm().then( ( results ) => {
+					if (
+						! hostedSessions.validateCardFields(
+							results,
+							false,
+							false
+						)
+					) {
+						reject();
+						return;
+					}
+					resolve();
+				} );
+			} );
+		}
+
+		promise
+			.catch( () => {} )
+			.then( function () {
+				hostedSessions.blockForm();
+				return hostedSessions.updateSession();
+			} )
+			.catch( function ( error ) {
+				hostedSessions.submitError(
+					`${ core_gateway_params.hostedSessionErrors.default }: ${ error }`
+				);
+			} )
+			.then( hostedSessions.triggerPayAfterResponse );
 	},
 
 	triggerPayAfterResponse( response ) {

@@ -193,6 +193,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		// Gateway AJAX actions.
 		add_action( 'wc_ajax_' . $this->prefix_hook( 'reset_hosted_session' ), array( $this, 'ajax_clean_hosted_cached_session' ) );
+		add_action( 'wc_ajax_' . $this->prefix_hook( 'update_hosted_session_from_token' ), array( $this, 'ajax_update_hosted_session_from_token' ) );
 		add_action( 'wc_ajax_' . $this->prefix_hook( 'authenticate_payer' ), array( $this, 'ajax_authenticate_payer' ) );
 	}
 
@@ -1375,6 +1376,10 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		$payment_token_id = wc_clean( $_POST[ $this->payment_token_key() ] );
 
+		return $this->update_session_with_token( $session_id, $payment_token_id );
+	}
+
+	protected function update_session_with_token( $session_id, $payment_token_id, $return_response = false ) {
 		$payment_token = $this->payment_token()->get_payment_token( $payment_token_id );
 
 		if ( ! $payment_token ) {
@@ -1396,10 +1401,18 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			return array();
 		}
 
-		return array(
-			'id'      => $session_id,
+		$data = array(
+			'id'      => $response['body']['session']['id'],
 			'version' => $response['body']['session']['version'],
 		);
+
+		if ( $return_response ) {
+			// Replicate the body structure, similar to what the JS API returns when updating a session.
+			$data['response'] = $response['body'];
+			$data['response']['status'] = 'ok';
+		}
+		
+		return $data;
 	}
 
 
@@ -2279,6 +2292,23 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		wp_send_json(
 			$this->hosted_session_id()
 		);
+	}
+
+	public function ajax_update_hosted_session_from_token() {
+		$session_id = wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'session_id' ) ] ?? $this->hosted_session_id() ) );
+		$token_id = wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'token_id' ) ] ?? '' ) );
+
+		$updated_session = $this->update_session_with_token( $session_id, $token_id, true );
+
+		if ( empty( $updated_session ) ) {
+			wp_send_json_error(
+				array(
+					'message' => __( 'There was an error updating the payment session. Please try again.', $this->core_plugin->text_domain() ),
+				)
+			);
+		}
+
+		wp_send_json_success( $updated_session );
 	}
 
 
