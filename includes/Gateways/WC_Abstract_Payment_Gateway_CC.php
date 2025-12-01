@@ -652,6 +652,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			throw new Exception( __( 'There was an error obtaining the payment session. Please refresh the page and try again.', $this->core_plugin->text_domain() ) );
 		}
 
+		// TODO: Maybe avoid fetching the session if it was fetched within get_posted_session_data (updated with token ID).
 		$session_data = $this->retrieve_payment_session( $session['id'] );
 
 		if ( empty( $session_data['sourceOfFunds'] ) ) {
@@ -844,6 +845,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			return;
 		}
 
+		// This adds a list of tokens endlessly after several changes, making it very difficult to be useful.
+		// TODO: Consider revising this behavior in the future.
 		$order->add_payment_token( new WC_Payment_Token_CC( $payment_token_id ) );
 
 		do_action( $this->prefix_hook( 'payment_method_saved' ), $order, $payment_token_id );

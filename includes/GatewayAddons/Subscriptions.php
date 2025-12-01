@@ -513,6 +513,9 @@ trait Subscriptions {
 			throw new Exception( __( 'The subscription order was not found.', $this->core_plugin->text_domain() ) );
 		}
 
+		// This meta duplicates the gateway token ID to the meta.
+		// TODO: Consider revising this behavior in the future using the integrated get_payment_tokens on subscriptions. 
+		// That method typically adds items to an array, for which we'll have to reconsider to have only one token associated at a time to an order.
 		$payment_token = $subscription->get_meta( $this->prefix_hook( 'payment_token' ) );
 		if ( empty( $payment_token ) ) {
 			$payment_tokens = $parent_order->get_payment_tokens();
@@ -572,6 +575,8 @@ trait Subscriptions {
 			return;
 		}
 
+		// This adds a list of tokens endlessly after several changes, making it very difficult to be useful.
+		// TODO: Consider revising this behavior in the future.
 		$subscription->add_payment_token( $payment_token->get_id() );
 		$subscription->update_meta_data( $this->prefix_hook( 'payment_token' ), $payment_token->get_token() );
 		$subscription->save();
