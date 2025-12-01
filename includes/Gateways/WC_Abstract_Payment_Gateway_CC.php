@@ -722,7 +722,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		$this->maybe_clean_hosted_cached_session( $this->get_hosted_session_data_hash() );
 
-		$this->maybe_save_cards( $order, $session );
+		$this->maybe_save_cards( $order, $session_data );
 
 		return array(
 			'result'   => 'success',
@@ -804,18 +804,33 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	/**
 	 * Maybe save the cards.
 	 *
-	 * @param WC_Order $order   Order object.
-	 * @param array    $session Session data.
+	 * @param WC_Order $order        Order object.
+	 * @param array    $session_data Session data.
 	 */
-	public function maybe_save_cards( $order, $session ) {
+	public function maybe_save_cards( $order, $session_data ) {
 		$forced_save = $this->is_forcing_save_payment_method();
 
 		if ( ! $forced_save && ! $this->saved_cards ) {
 			return;
 		}
 
-		if ( $this->is_saved_payment_method() ) {
-			do_action( $this->prefix_hook( 'payment_method_saved' ), $order, $this->get_current_saved_payment_method() );
+		if ( $this->is_saved_payment_method() || ( $session_data['sourceOfFunds']['type'] === 'CARD' && isset( $session_data['sourceOfFunds']['token'] ) ) ) {
+			$current_token_id = null;
+			if( $this->is_saved_payment_method() ) {
+				$current_token_id = $this->get_current_saved_payment_method();
+			} else {
+				$tokens = $this->get_tokens();
+				foreach( $tokens as $token ) {
+					if ( $token->get_token() === $session_data['sourceOfFunds']['token'] ) {
+						$current_token_id = $token->get_id();
+						break;
+					}
+				}
+			}
+			if ( ! $current_token_id ) {
+				return;
+			}
+			do_action( $this->prefix_hook( 'payment_method_saved' ), $order, $current_token_id );
 			return;
 		}
 
@@ -823,7 +838,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			return;
 		}
 
-		$payment_token_id = $this->payment_token()->process_saved_cards( $session['id'], $order->get_user_id( 'system' ) );
+		$payment_token_id = $this->payment_token()->process_saved_cards( $session_data, $order->get_user_id( 'system' ) );
 
 		if ( ! $payment_token_id ) {
 			return;
@@ -1447,7 +1462,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				);
 			}
 
-			$token_id = $this->payment_token()->process_saved_cards( $session['id'], get_current_user_id() );
+			$token_id = $this->payment_token()->process_saved_cards( $session_data, get_current_user_id() );
 
 			if ( ! $token_id ) {
 				throw new Exception( __( 'There was an error saving the card. Please try again.', $this->core_plugin->text_domain() ) );
