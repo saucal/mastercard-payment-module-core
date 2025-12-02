@@ -548,6 +548,19 @@ class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 		$new_order_note_msg   = '';
 
 		switch ( $order_data['status'] ) {
+			case 'VERIFIED':
+				$order->add_order_note(
+					sprintf(
+						// translators: %1$s: Gateway title, %2$s: Order ID.
+						__( '%1$s payment was Verified (Order ID: %2$s)', $this->core_plugin->text_domain() ),
+						$this->title,
+						$order_data['id'],
+					)
+				);
+				$order->payment_complete( $order_data['id'] );
+
+				do_action( $this->prefix_hook( 'payment_success' ), $order, $order_data, $transaction );
+				break;
 			case 'CAPTURED':
 				$order->add_order_note(
 					sprintf(

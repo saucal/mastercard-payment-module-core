@@ -62,6 +62,7 @@ trait Subscriptions {
 
 		// Add subscription payment data to the payment request.
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_data' ), array( $this, 'maybe_add_subscription_payment_data' ), 10, 2 );
+		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_data' ), array( $this, 'maybe_add_subscription_authentication_initiate_data' ), 10, 3 );
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_authenticate_payer_data' ), array( $this, 'maybe_add_subscription_authentication_data' ), 10, 2 );
 
 		// Remove redirect to checkout page for subscriptions.
@@ -119,13 +120,43 @@ trait Subscriptions {
 			return $payment_data;
 		}
 
+		$api_operation = 'PAY';
+		if ( $this->is_subs_change_payment( false ) || $this->order_contains_free_trial( $subscription ) ) {
+			$api_operation = 'VERIFY';
+		}
+
 		return array_merge(
 			$payment_data,
 			array(
-				'apiOperation' => $this->is_subs_change_payment( false ) ? 'AUTHORIZE' : 'PAY',
+				'apiOperation' => $api_operation,
 				'agreement'    => array_filter( $this->get_agreement_data( $subscription ) ),
+				'sourceOfFunds' => array(
+					'provided' => array(
+						'card' => array(
+							'storedOnFile' => 'TO_BE_STORED',
+						)
+					),
+				),
 			)
 		);
+	}
+
+	public function maybe_add_subscription_authentication_initiate_data( $init_authentication, $order, $session ) {
+		if ( ! $this->has_subscription( $order ) ) {
+			return $init_authentication;
+		}
+
+		$subscription = $this->get_subscription_object( $order );
+
+		if ( ! $subscription instanceof WC_Subscription ) {
+			return $init_authentication;
+		}
+		
+		if ( $this->is_subs_change_payment( false ) || $this->order_contains_free_trial( $subscription ) ) {
+			$init_authentication['authentication']['purpose'] = 'MAINTAIN_CARD';
+		}
+
+		return $init_authentication;
 	}
 
 
@@ -532,15 +563,23 @@ trait Subscriptions {
 		}
 
 		$payment_data = array(
-			'apiOperation'     => 'PAY',
+			'apiOperation'     => 'PAY', // TODO: Respect authorize / capture settings
 			'order'            => $this->hosted_session_order_payload( $order ),
 			'agreement'        => array(
 				'id' => $this->unique_subscription_id( $subscription ),
+			),
+			'transaction' => array(
+				'source' => 'MERCHANT',
 			),
 			'referenceOrderId' => $this->unique_order_id( $parent_order ),
 			'sourceOfFunds'    => array(
 				'type'  => 'CARD',
 				'token' => $payment_token,
+				'provided' => array(
+					'card' => array(
+						'storedOnFile' => 'STORED',
+					),
+				),
 			),
 		);
 
