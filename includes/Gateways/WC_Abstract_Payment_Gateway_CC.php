@@ -1461,6 +1461,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				);
 			}
 
+			// TODO: Handle 3DS doing a verify tx first, not just tokenizing the session
+
 			$token_id = $this->payment_token()->process_saved_cards( $session_data, get_current_user_id() );
 
 			if ( ! $token_id ) {

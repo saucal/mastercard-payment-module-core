@@ -664,6 +664,7 @@ trait Subscriptions {
 		$order->update_meta_data( $this->prefix_hook( 'order_id' ), $unique_order_id );
 		$order->save_meta_data();
 
+		// TODO: This is a weird way of bumping the order_id once per request. Consider revising in the future.
 		remove_filter( $this->prefix_hook( 'unique_order_id' ), array( $this, 'maybe_bump_order_id_change_payment_method' ), 10 );
 
 		return $unique_order_id;
