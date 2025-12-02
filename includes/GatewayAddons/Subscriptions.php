@@ -760,12 +760,15 @@ trait Subscriptions {
 			return false;
 		}
 
-		if ( ! class_exists( 'WC_Subscription_Product' ) ) {
+		if ( ! class_exists( 'WC_Subscriptions_Product' ) ) {
 			return false;
 		}
 
 		foreach ( $subscription->get_items() as $item ) {
-			$product = $item['data'] ?? null;
+			if( ! is_a( $item, 'WC_Order_Item_Product' ) ) {
+				continue;
+			}
+			$product = $item->get_product();
 			if ( $product && WC_Subscriptions_Product::get_trial_length( $product ) > 0 ) {
 				return true;
 			}
