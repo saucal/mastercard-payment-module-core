@@ -717,7 +717,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$session
 		);
 
-		if ( empty( $order->get_date_paid( 'edit' ) ) ) {
+		if ( empty( $order->get_date_paid( 'edit' ) ) || ! $this->maybe_flag_order_as_paid( $order ) ) {
 			$this->create_payment_transaction( $order, $unique_order_id, $transaction_id, $payment_data );
 		}
 
