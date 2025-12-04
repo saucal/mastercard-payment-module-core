@@ -1786,10 +1786,23 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		$session_id = WC()->session->get( $this->hosted_session_id_key( $current_hash ) );
 		$attempts   = WC()->session->get( $this->hosted_session_attempt_key( $current_hash ) ) ?? 0;
 
-		if ( $session_id && $this->is_session_valid( WC()->session->get( $this->hosted_session_duration_key( $current_hash ) ) ) && $attempts < ( self::HOSTED_SESSION_ATTEMPT_LIMIT - 5 ) ) {
-			WC()->session->set( $this->hosted_session_attempt_key( $current_hash ), $attempts + 1 );
-			return $session_id;
+		if ( ! $session_id ) {
+			$this->maybe_clean_hosted_cached_session( $current_hash );
+			return '';
 		}
+
+		if ( ! $this->is_session_valid( WC()->session->get( $this->hosted_session_duration_key( $current_hash ) ) ) ) {
+			$this->maybe_clean_hosted_cached_session( $current_hash );
+			return '';
+		}
+
+		if ( $attempts >= ( self::HOSTED_SESSION_ATTEMPT_LIMIT - 5 ) ) {
+			$this->maybe_clean_hosted_cached_session( $current_hash );
+			return '';
+		}
+
+		WC()->session->set( $this->hosted_session_attempt_key( $current_hash ), $attempts + 1 );
+		return $session_id;
 	}
 
 
