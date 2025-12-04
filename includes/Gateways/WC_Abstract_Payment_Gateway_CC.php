@@ -817,11 +817,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		if ( $this->is_saved_payment_method() || ( $session_data['sourceOfFunds']['type'] === 'CARD' && isset( $session_data['sourceOfFunds']['token'] ) ) ) {
 			$current_token_id = null;
-			if( $this->is_saved_payment_method() ) {
+			if ( $this->is_saved_payment_method() ) {
 				$current_token_id = $this->get_current_saved_payment_method();
 			} else {
 				$tokens = $this->get_tokens();
-				foreach( $tokens as $token ) {
+				foreach ( $tokens as $token ) {
 					if ( $token->get_token() === $session_data['sourceOfFunds']['token'] ) {
 						$current_token_id = $token->get_id();
 						break;
@@ -1422,10 +1422,10 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		if ( $return_response ) {
 			// Replicate the body structure, similar to what the JS API returns when updating a session.
-			$data['response'] = $response['body'];
+			$data['response']           = $response['body'];
 			$data['response']['status'] = 'ok';
 		}
-		
+
 		return $data;
 	}
 
@@ -2325,7 +2325,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 	public function ajax_update_hosted_session_from_token() {
 		$session_id = wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'session_id' ) ] ?? $this->hosted_session_id() ) );
-		$token_id = wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'token_id' ) ] ?? '' ) );
+		$token_id   = wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'token_id' ) ] ?? '' ) );
 
 		$updated_session = $this->update_session_with_token( $session_id, $token_id, true );
 
