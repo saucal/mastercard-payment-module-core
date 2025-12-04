@@ -150,7 +150,7 @@ trait DynamicCurrencyConversion {
 
 			WC()->session->set( $session_key, $current_total );
 		} catch ( \Exception $e ) {
-			$this->log( 'Failed to update hosted session: ' . $e->getMessage(), 'error' );
+			$this->core_plugin->logger()->log( 'Failed to update hosted session: ' . $e->getMessage(), 'error' );
 		}
 	}
 
@@ -386,7 +386,7 @@ trait DynamicCurrencyConversion {
 			);
 
 			if ( $result['body']['result'] !== 'SUCCESS' ) {
-				$this->log( 'DCC quote request failed: ' . print_r( $result, true ), 'error' );
+				$this->core_plugin->logger()->log( 'DCC quote request failed: ' . print_r( $result, true ), 'error' );
 				wp_send_json_error();
 			}
 
@@ -408,7 +408,7 @@ trait DynamicCurrencyConversion {
 				)
 			);
 		} catch ( \Exception $e ) {
-			$this->log( 'DCC quote request failed: ' . $e->getMessage(), 'error' );
+			$this->core_plugin->logger()->log( 'DCC quote request failed: ' . $e->getMessage(), 'error' );
 			wp_send_json_error();
 		}
 	}
