@@ -1921,9 +1921,9 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			return;
 		}
 
-		WC()->session->__unset( $this->hosted_session_id_key( $cart_hash ), null );
-		WC()->session->__unset( $this->hosted_session_attempt_key( $cart_hash ), 0 );
-		WC()->session->__unset( $this->hosted_session_duration_key( $cart_hash ), null );
+		WC()->session->__unset( $this->hosted_session_id_key( $cart_hash ) );
+		WC()->session->__unset( $this->hosted_session_attempt_key( $cart_hash ) );
+		WC()->session->__unset( $this->hosted_session_duration_key( $cart_hash ) );
 	}
 
 
