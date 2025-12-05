@@ -128,13 +128,13 @@ trait Subscriptions {
 		return array_merge(
 			$payment_data,
 			array(
-				'apiOperation' => $api_operation,
-				'agreement'    => array_filter( $this->get_agreement_data( $subscription ) ),
+				'apiOperation'  => $api_operation,
+				'agreement'     => array_filter( $this->get_agreement_data( $subscription ) ),
 				'sourceOfFunds' => array(
 					'provided' => array(
 						'card' => array(
 							'storedOnFile' => 'TO_BE_STORED',
-						)
+						),
 					),
 				),
 			)
@@ -545,7 +545,7 @@ trait Subscriptions {
 		}
 
 		// This meta duplicates the gateway token ID to the meta.
-		// TODO: Consider revising this behavior in the future using the integrated get_payment_tokens on subscriptions. 
+		// TODO: Consider revising this behavior in the future using the integrated get_payment_tokens on subscriptions.
 		// That method typically adds items to an array, for which we'll have to reconsider to have only one token associated at a time to an order.
 		$payment_token = $subscription->get_meta( $this->prefix_hook( 'payment_token' ) );
 		if ( empty( $payment_token ) ) {
@@ -568,13 +568,13 @@ trait Subscriptions {
 			'agreement'        => array(
 				'id' => $this->unique_subscription_id( $subscription ),
 			),
-			'transaction' => array(
+			'transaction'      => array(
 				'source' => 'MERCHANT',
 			),
 			'referenceOrderId' => $this->unique_order_id( $parent_order ),
 			'sourceOfFunds'    => array(
-				'type'  => 'CARD',
-				'token' => $payment_token,
+				'type'     => 'CARD',
+				'token'    => $payment_token,
 				'provided' => array(
 					'card' => array(
 						'storedOnFile' => 'STORED',
@@ -805,7 +805,7 @@ trait Subscriptions {
 		}
 
 		foreach ( $subscription->get_items() as $item ) {
-			if( ! is_a( $item, 'WC_Order_Item_Product' ) ) {
+			if ( ! is_a( $item, 'WC_Order_Item_Product' ) ) {
 				continue;
 			}
 			$product = $item->get_product();
