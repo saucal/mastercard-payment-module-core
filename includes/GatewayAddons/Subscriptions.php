@@ -16,6 +16,7 @@ use WC_Subscription;
 use WC_Subscriptions_Cart;
 use WC_Subscriptions_Product;
 use WCS_Payment_Tokens;
+use Automattic\WooCommerce\Utilities\NumberUtil;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
@@ -121,7 +122,7 @@ trait Subscriptions {
 		}
 
 		$api_operation = 'PAY';
-		if ( $this->is_subs_change_payment( false ) || $this->order_contains_free_trial( $subscription ) ) {
+		if ( $subscription->get_id() === $order->get_id() || NumberUtil::round( $order->get_total(), \WC_ROUNDING_PRECISION ) <= 0 ) {
 			$api_operation = 'VERIFY';
 		}
 
@@ -152,8 +153,8 @@ trait Subscriptions {
 			return $init_authentication;
 		}
 
-		if ( $this->is_subs_change_payment( false ) || $this->order_contains_free_trial( $subscription ) ) {
-			$init_authentication['authentication']['purpose'] = 'MAINTAIN_CARD';
+		if ( $subscription->get_id() === $order->get_id() || NumberUtil::round( $order->get_total(), \WC_ROUNDING_PRECISION ) <= 0 ) {
+			$init_authentication['authentication']['purpose'] = 'ADD_CARD';
 		}
 
 		return $init_authentication;
