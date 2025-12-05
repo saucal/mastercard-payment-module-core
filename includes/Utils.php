@@ -408,6 +408,18 @@ final class Utils {
 
 
 	/**
+	 * Get hosted session currency key.
+	 *
+	 * @param string $cart_hash The cart hash.
+	 *
+	 * @return string
+	 */
+	public function hosted_session_config_key( $cart_hash = '' ) {
+		return $this->payment_core->prefix_hook( 'session_config_' . ( $cart_hash ? $cart_hash : $this->unique_cart_hash() ) );
+	}
+
+
+	/**
 	 * Get hosted session duration key.
 	 *
 	 * @param string $cart_hash The cart hash.

@@ -195,6 +195,10 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		add_action( 'wc_ajax_' . $this->prefix_hook( 'reset_hosted_session' ), array( $this, 'ajax_clean_hosted_cached_session' ) );
 		add_action( 'wc_ajax_' . $this->prefix_hook( 'update_hosted_session_from_token' ), array( $this, 'ajax_update_hosted_session_from_token' ) );
 		add_action( 'wc_ajax_' . $this->prefix_hook( 'authenticate_payer' ), array( $this, 'ajax_authenticate_payer' ) );
+
+		// Session handling
+		add_filter( 'woocommerce_update_order_review_fragments', array( $this, 'relocalize_cart_total' ) );
+		add_action( 'woocommerce_after_calculate_totals', array( $this, 'maybe_update_hosted_session' ) );
 	}
 
 
@@ -924,14 +928,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$transaction_id = $this->unique_transaction_id( $order );
 
 			$init_authentication = array(
-				'apiOperation'   => 'INITIATE_AUTHENTICATION',
-				'authentication' => array(
-					'channel' => 'PAYER_BROWSER',
-				),
-				'order'          => array(
-					'currency' => $order->get_currency(),
-				),
-				'session'        => $session,
+				'apiOperation' => 'INITIATE_AUTHENTICATION',
+				'session'      => $session,
 			);
 
 			$init_authentication = apply_filters(
@@ -1741,6 +1739,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		$session_id = $this->current_hosted_session_id();
 
 		if ( ! empty( $session_id ) ) {
+			$this->maybe_update_hosted_session_config( $session_id );
 			return $session_id;
 		}
 
@@ -1767,7 +1766,64 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			do_action( $this->prefix_hook( 'hosted_session_created' ), $session_id, $this );
 		}
 
+		$this->maybe_update_hosted_session_config( $session_id );
+
 		return $session_id;
+	}
+
+
+	protected function maybe_update_hosted_session_config( $session_id ) {
+
+		$current_hash = $this->get_hosted_session_data_hash();
+
+		$session_config = WC()->session->get( $this->hosted_session_config_key( $current_hash ) );
+
+		$target_config = array(
+			'order' => array(
+				'currency' => get_woocommerce_currency(),
+			),
+		);
+
+		$current_total = Utils::get_current_total_amount();
+		if ( $current_total > 0 ) {
+			$target_config['order']['amount'] = $current_total;
+		}
+
+		if ( $this->enable_3ds ) {
+			$target_config['authentication'] = array(
+				'channel' => 'PAYER_BROWSER',
+				'purpose' => 'PAYMENT_TRANSACTION',
+			);
+			// add redirectResponseUrl maybe?
+		}
+
+		if ( \is_add_payment_method_page() ) {
+			$target_config['order']['amount'] = 0;
+			if ( $this->enable_3ds ) {
+				$target_config['authentication']['purpose'] = 'ADD_CARD';
+			}
+		}
+
+		$current_config = md5( \wp_json_encode( $target_config ) );
+
+		if ( $current_config === $session_config ) {
+			return;
+		}
+
+		$payload = array_merge(
+			$target_config,
+			array(
+				'apiOperation' => 'UPDATE_SESSION',
+			)
+		);
+
+		try {
+			$this->api()->update_session( $session_id, $payload );
+		} catch ( \Exception $e ) {
+			$this->core_plugin->logger()->log( 'Failed to update hosted session: ' . $e->getMessage(), 'error' );
+		}
+
+		WC()->session->set( $this->hosted_session_config_key( $current_hash ), $current_config );
 	}
 
 
@@ -1936,6 +1992,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		WC()->session->__unset( $this->hosted_session_id_key( $cart_hash ) );
 		WC()->session->__unset( $this->hosted_session_attempt_key( $cart_hash ) );
+		WC()->session->__unset( $this->hosted_session_config_key( $cart_hash ) );
 		WC()->session->__unset( $this->hosted_session_duration_key( $cart_hash ) );
 	}
 
@@ -1961,6 +2018,18 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	protected function hosted_session_attempt_key( $cart_hash = '' ) {
 		return $this->core_plugin()->payment_core()->utils()->hosted_session_attempt_key( $cart_hash );
+	}
+
+
+	/**
+	 * Get hosted session currency key.
+	 *
+	 * @param string $cart_hash Current cart hash.
+	 *
+	 * @return string
+	 */
+	protected function hosted_session_config_key( $cart_hash = '' ) {
+		return $this->core_plugin()->payment_core()->utils()->hosted_session_config_key( $cart_hash );
 	}
 
 
@@ -2435,5 +2504,36 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$this->prefix_hook( 'save_card_notice' ),
 			__( 'Your payment method will be saved for future purchases.', $this->core_plugin->text_domain() )
 		);
+	}
+
+
+	/**
+	 * Relocalize cart total when DCC is enabled.
+	 *
+	 * @param  array $fragments Fragments to update via AJAX.
+	 * @return array
+	 */
+	public function relocalize_cart_total( $fragments ) {
+		$this->maybe_update_hosted_session();
+		return $fragments;
+	}
+
+
+	/**
+	 * Update the order amount and currency in the hosted session if needed.
+	 *
+	 * @return void
+	 */
+	public function maybe_update_hosted_session() {
+		if ( ! WC()->cart || empty( WC()->session ) ) {
+			return;
+		}
+
+		$current_session = $this->current_hosted_session_id();
+		if ( ! $current_session ) {
+			return;
+		}
+
+		$this->maybe_update_hosted_session_config( $current_session );
 	}
 }

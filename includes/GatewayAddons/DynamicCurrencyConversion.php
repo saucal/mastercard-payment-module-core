@@ -66,9 +66,6 @@ trait DynamicCurrencyConversion {
 
 		add_filter( $this->prefix_hook( 'localize_frontend_script' ), array( $this, 'add_dcc_script_data' ) );
 
-		add_filter( 'woocommerce_update_order_review_fragments', array( $this, 'relocalize_cart_total' ) );
-		add_action( 'woocommerce_after_calculate_totals', array( $this, 'maybe_update_hosted_session' ) );
-
 		// Validate fields to ensure DCC data is correct.
 		add_action( $this->prefix_hook( 'validate_fields' ), array( $this, 'validate_dcc_data' ), 10, 2 );
 
@@ -98,60 +95,6 @@ trait DynamicCurrencyConversion {
 		);
 
 		return $data;
-	}
-
-
-	/**
-	 * Relocalize cart total when DCC is enabled.
-	 *
-	 * @param  array $fragments Fragments to update via AJAX.
-	 * @return array
-	 */
-	public function relocalize_cart_total( $fragments ) {
-		$this->maybe_update_hosted_session();
-		return $fragments;
-	}
-
-
-	/**
-	 * Update the order amount and currency in the hosted session if needed.
-	 *
-	 * @return void
-	 */
-	public function maybe_update_hosted_session() {
-		if ( ! WC()->cart || empty( WC()->session ) ) {
-			return;
-		}
-
-		$current_session = $this->current_hosted_session_id();
-		if ( ! $current_session ) {
-			return;
-		}
-
-		$session_key = $this->prefix_hook( 'session_total_' . $current_session );
-
-		$session_total = WC()->session->get( $session_key );
-		$current_total = Utils::get_current_total_amount();
-
-		if ( $current_total === $session_total ) {
-			return; // No need to update the session.
-		}
-
-		$payload = array(
-			'apiOperation' => 'UPDATE_SESSION',
-			'order'        => array(
-				'amount'   => $current_total,
-				'currency' => get_woocommerce_currency(),
-			),
-		);
-
-		try {
-			$this->api()->update_session( $current_session, $payload );
-
-			WC()->session->set( $session_key, $current_total );
-		} catch ( \Exception $e ) {
-			$this->core_plugin->logger()->log( 'Failed to update hosted session: ' . $e->getMessage(), 'error' );
-		}
 	}
 
 	/**
