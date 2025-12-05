@@ -151,7 +151,7 @@ trait Subscriptions {
 		if ( ! $subscription instanceof WC_Subscription ) {
 			return $init_authentication;
 		}
-		
+
 		if ( $this->is_subs_change_payment( false ) || $this->order_contains_free_trial( $subscription ) ) {
 			$init_authentication['authentication']['purpose'] = 'MAINTAIN_CARD';
 		}
