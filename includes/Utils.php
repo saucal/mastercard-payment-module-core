@@ -208,22 +208,13 @@ final class Utils {
 	 * @return float
 	 */
 	public static function get_current_total_amount() {
-
-		static $total = null;
-
-		if ( ! is_null( $total ) ) {
-			return $total;
-		}
-
 		$order = self::get_current_order();
 
 		if ( $order ) {
-			$total = (float) $order->get_total();
-			return $total;
+			return (float) $order->get_total();
 		}
 
-		$total = (float) ! empty( WC()->cart ) ? WC()->cart->get_total( false ) : 0;
-		return $total;
+		return (float) ! empty( WC()->cart ) ? WC()->cart->get_total( false ) : 0;
 	}
 
 
