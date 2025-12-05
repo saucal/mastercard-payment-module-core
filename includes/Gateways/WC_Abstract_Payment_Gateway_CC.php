@@ -2119,6 +2119,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return void
 	 */
 	private function process_3ds_return_callback() {
+		// Redirect to self because of SameSite cookie issues. 
+		// Data posted from a third party will not be able to handle sessions.
 		wp_safe_redirect(
 			apply_filters(
 				$this->prefix_hook( '3ds_return_redirect' ),
