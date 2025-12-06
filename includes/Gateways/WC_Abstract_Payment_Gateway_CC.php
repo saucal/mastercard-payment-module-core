@@ -761,6 +761,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		$saved_token_id = $this->maybe_save_cards( $order, $session_data );
 
+		$return_url = $this->get_return_url( $order );
+
 		// Do cleanups
 		if ( $this->enable_3ds ) {
 			// Clean once more after saving the cards.
@@ -770,9 +772,28 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		return array(
 			'result'         => 'success',
-			'redirect'       => $this->get_return_url( $order ),
+			'redirect'       => $return_url,
 			'saved_token_id' => $saved_token_id,
 		);
+	}
+
+	/**
+	 * Get the return URL.
+	 *
+	 * @param WC_Order|null $order Order object.
+	 *
+	 * @return string
+	 */
+	public function get_return_url( $order = null ) {
+		// Attempt to use a custom redirect URL if set in the session.
+		$redirect = WC()->session->get( $this->prefix_hook( 'payment_success_redirect' ) );
+		if ( $redirect ) {
+			WC()->session->__unset( $this->prefix_hook( 'payment_success_redirect' ) );
+			return $redirect;
+		}
+
+		// Fallback to the parent return URL.
+		return parent::get_return_url( $order );
 	}
 
 
@@ -964,14 +985,14 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		$transaction_id = $this->unique_transaction_id( $order );
 
 		$init_authentication = array(
-				'apiOperation' => 'INITIATE_AUTHENTICATION',
-				'session'      => $session,
-			);
+			'apiOperation' => 'INITIATE_AUTHENTICATION',
+			'session'      => $session,
+		);
 
-			$init_authentication = apply_filters(
-				$this->prefix_hook( 'process_payment_hosted_session_3ds_data' ),
-				$init_authentication,
-				$order,
+		$init_authentication = apply_filters(
+			$this->prefix_hook( 'process_payment_hosted_session_3ds_data' ),
+			$init_authentication,
+			$order,
 			$session
 		);
 
@@ -1540,52 +1561,29 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	public function add_payment_method() {
 		try {
-			if ( ! is_user_logged_in() ) {
-				throw new Exception( __( 'No logged-in user found.', $this->core_plugin->text_domain() ) );
+			WC()->session->set( $this->prefix_hook( 'payment_success_redirect' ), wc_get_account_endpoint_url( 'payment-methods' ) );
+			$result = $this->process_payment_hosted_session( null );
+
+			if ( 'success' !== $result['result'] ) {
+				return $result;
 			}
 
-			$session = $this->get_posted_session_data();
-
-			if ( empty( $session ) ) {
-				throw new Exception( __( 'There was an error obtaining the payment details. Please try again.', $this->core_plugin->text_domain() ) );
-			}
-
-			$session_data = $this->retrieve_payment_session( $session['id'] );
-
-			// Forcefully validate CVC value.
-			if (
-				! empty( $session_data['sourceOfFunds']['provided']['card'] ) &&
-				empty( $session_data['sourceOfFunds']['provided']['card']['securityCode'] )
-			) {
-				wc_add_notice( __( 'Security code is missing.', $this->core_plugin->text_domain() ), 'error' );
-				return array(
-					'result' => 'invalid_data',
-				);
-			}
-
-			// TODO: Handle 3DS doing a verify tx first, not just tokenizing the session
-
-			$token_id = $this->payment_token()->process_saved_cards( $session_data, get_current_user_id() );
-
-			if ( ! $token_id ) {
-				throw new Exception( __( 'There was an error saving the card. Please try again.', $this->core_plugin->text_domain() ) );
+			if ( isset( $result['saved_token_id'] ) ) {
+				$token_id = $result['saved_token_id'];
+			} else {
+				throw new Exception( __( 'There was an error saving the payment method. Please try again.', $this->core_plugin->text_domain() ) );
 			}
 
 			do_action( $this->prefix_hook( 'add_payment_method_success', 'wc_' ), $token_id, $this );
 
-			$this->maybe_clean_hosted_cached_session();
-
-			return array(
-				'result'   => 'success',
-				'redirect' => wc_get_endpoint_url( 'payment-methods' ),
-			);
+			return $result;
 		} catch ( Exception $e ) {
 			$this->maybe_clean_hosted_cached_session( $this->get_hosted_session_data_hash() );
 			$this->core_plugin->logger()->log( $e->getMessage(), 'error' );
 			wc_add_notice( $e->getMessage(), 'error' );
 			return array(
 				'result'   => 'failure',
-				'redirect' => wc_get_endpoint_url( 'payment-methods' ),
+				'redirect' => wc_get_account_endpoint_url( 'payment-methods' ),
 			);
 		}
 	}
@@ -2095,6 +2093,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			return;
 		}
 
+		WC()->session->__unset( $this->prefix_hook( 'payment_success_redirect' ) );
 		WC()->session->__unset( $this->prefix_hook( 'order_id' ) );
 		WC()->session->__unset( $this->hosted_session_id_key( $cart_hash ) );
 		WC()->session->__unset( $this->hosted_session_attempt_key( $cart_hash ) );
@@ -2331,10 +2330,10 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				$order_id = (int) wc_clean( wp_unslash( $_REQUEST['order-id'] ) );
 
 				if ( ! $order_id ) {
-				throw new Exception( __( 'The order ID parameter is invalid.', $this->core_plugin->text_domain() ) );
-			}
+					throw new Exception( __( 'The order ID parameter is invalid.', $this->core_plugin->text_domain() ) );
+				}
 
-			$order = wc_get_order( $order_id );
+				$order = wc_get_order( $order_id );
 
 				if ( ! $order ) {
 					throw new Exception( __( 'The order cannot be found.', $this->core_plugin->text_domain() ) );
@@ -2351,6 +2350,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 			if ( empty( $result['result'] ) || 'success' !== $result['result'] || empty( $result['redirect'] ) ) {
 				throw new Exception( __( 'There was an error processing the payment. Please try again.', $this->core_plugin->text_domain() ) );
+			}
+
+			// TODO: Maybe do this via action instead?
+			if ( wc_get_account_endpoint_url( 'payment-methods' ) === $result['redirect'] ) {
+				wc_add_notice( __( 'Payment method successfully added.', 'woocommerce' ) );
 			}
 
 			wp_safe_redirect( apply_filters( $this->prefix_hook( '3ds_process_redirect' ), $result['redirect'], $order, $this ) );
@@ -2545,6 +2549,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				if ( ! $order ) {
 					throw new Exception( __( 'There was an error obtaining the order. Please refresh the page and try again.', $this->core_plugin->text_domain() ) );
 				}
+			} else {
+				WC()->session->set( $this->prefix_hook( 'payment_success_redirect' ), wc_get_account_endpoint_url( 'payment-methods' ) );
 			}
 
 			$session = $this->get_posted_session_data();
