@@ -824,7 +824,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$order_data = $response['body']['order'];
 		}
 
-		if( null !== $order && $order instanceof WC_Order ) {
+		if ( null !== $order && $order instanceof WC_Order ) {
 			$this->process_wc_order( $order, $order_data, $response['body']['transaction'] );
 		}
 
