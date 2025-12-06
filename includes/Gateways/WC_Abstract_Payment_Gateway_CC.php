@@ -1044,7 +1044,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			return $this->process_authentication_response( $authentication_response, $order, $transaction_id, $session );
 		} catch ( Exception $e ) {
 			$this->clean_cached_3ds_data( $order );
-			throw new Exception( $e->getMessage() );
+			throw $e;
 		}
 	}
 
