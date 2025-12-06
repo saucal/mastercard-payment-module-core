@@ -126,6 +126,13 @@ trait Subscriptions {
 		}
 
 		$api_operation = 'PAY';
+		/**
+		 * If we're adding a card for the subscription, we're likely changing payment method.
+		 * Alternatively, there's also the case where the total for the order is zero
+		 * (while the subscription is being created with a free trial, or a coupon).
+		 *
+		 * In either case, we need to set the apiOperation to be VERIFY, to allow a 0 dollar amount
+		 */
 		if ( $subscription->get_id() === $order->get_id() || NumberUtil::round( $order->get_total(), \WC_ROUNDING_PRECISION ) <= 0 ) {
 			$api_operation = 'VERIFY';
 		}
@@ -169,6 +176,13 @@ trait Subscriptions {
 			return $init_authentication;
 		}
 
+		/**
+		 * If we're adding a card for the subscription, we're likely changing payment method.
+		 * Alternatively, there's also the case where the total for the order is zero
+		 * (while the subscription is being created with a free trial, or a coupon).
+		 *
+		 * In either case, we need to set the purpose to ADD_CARD.
+		 */
 		if ( $subscription->get_id() === $order->get_id() || NumberUtil::round( $order->get_total(), \WC_ROUNDING_PRECISION ) <= 0 ) {
 			$init_authentication['authentication']['purpose'] = 'ADD_CARD';
 		}
