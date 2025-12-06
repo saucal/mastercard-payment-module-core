@@ -106,11 +106,15 @@ trait Subscriptions {
 	/**
 	 * Add subscription payment data to the payment request.
 	 *
-	 * @param array    $payment_data Payment data.
-	 * @param WC_Order $order        Order object.
+	 * @param array         $payment_data Payment data.
+	 * @param WC_Order|null $order        Order object.
 	 * @return array
 	 */
 	public function maybe_add_subscription_payment_data( $payment_data, $order ) {
+		if ( null === $order || ! $order instanceof WC_Order ) {
+			return $payment_data;
+		}
+
 		if ( ! $this->has_subscription( $order ) ) {
 			return $payment_data;
 		}
@@ -142,7 +146,19 @@ trait Subscriptions {
 		);
 	}
 
+	/**
+	 * Add subscription authentication data to the payment request.
+	 *
+	 * @param array         $init_authentication Init authentication data.
+	 * @param WC_Order|null $order               Order object.
+	 * @param array         $session             Session data.
+	 * @return array
+	 */
 	public function maybe_add_subscription_authentication_initiate_data( $init_authentication, $order, $session ) {
+		if ( null === $order || ! $order instanceof WC_Order ) {
+			return $init_authentication;
+		}
+
 		if ( ! $this->has_subscription( $order ) ) {
 			return $init_authentication;
 		}
@@ -646,11 +662,15 @@ trait Subscriptions {
 	/**
 	 * Bump the order ID for subscription change payment method.
 	 *
-	 * @param string   $unique_order_id The unique order ID.
-	 * @param WC_Order $order           The order object.
+	 * @param string        $unique_order_id The unique order ID.
+	 * @param WC_Order|null $order           The order object.
 	 * @return string
 	 */
 	public function maybe_bump_order_id_change_payment_method( $unique_order_id, $order ) {
+		if ( null === $order || ! $order instanceof WC_Order ) {
+			return $unique_order_id;
+		}
+
 		if ( ! isset( $_POST['change_payment_method'] ) && ! $this->is_subs_change_payment() ) {
 			return $unique_order_id;
 		}

@@ -10,6 +10,7 @@
 namespace GatewayPaymentCore\GatewayAddons;
 
 use GatewayPaymentCore\Utils;
+use WC_Order;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
@@ -120,12 +121,15 @@ trait DynamicCurrencyConversion {
 	/**
 	 * Add DCC payment data to the hosted session payment data if available.
 	 *
-	 * @param  array     $payment_data Existing payment data.
-	 * @param  \WC_Order $order        Order object.
+	 * @param  array         $payment_data Existing payment data.
+	 * @param  WC_Order|null $order        Order object.
 	 *
 	 * @return array
 	 */
 	public function maybe_add_dcc_payment_data( $payment_data, $order ) {
+		if ( null === $order || ! $order instanceof WC_Order ) {
+			return $payment_data;
+		}
 
 		if ( empty( $_POST[ $this->id . '_dcc_request_id' ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
 			return $payment_data;
@@ -154,8 +158,6 @@ trait DynamicCurrencyConversion {
 				$payment_data['currencyConversion']['uptake'] = 'Accept' === $offer_state ? 'ACCEPTED' : 'DECLINED';
 			}
 		}
-
-		
 
 		return $payment_data;
 	}
