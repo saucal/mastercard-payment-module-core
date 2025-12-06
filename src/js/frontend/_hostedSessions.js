@@ -548,12 +548,16 @@ const hostedSessions = {
 
 		if (
 			core_gateway_params.threeDsEnabled &&
-			hostedSessions.isChangePayment()
+			! hostedSessions.isCheckout()
 		) {
-			hostedSessions.execute3DsAuthentication(
-				jQuery( 'input[name="woocommerce_change_payment"]' ).val(),
-				true
-			);
+			const isChangePayment = hostedSessions.isChangePayment();
+			let orderId = 'add_payment_method';
+			if ( isChangePayment ) {
+				orderId = jQuery(
+					'input[name="woocommerce_change_payment"]'
+				).val();
+			}
+			hostedSessions.execute3DsAuthentication( orderId, isChangePayment );
 			return;
 		}
 
@@ -614,6 +618,17 @@ const hostedSessions = {
 
 	isChangePayment() {
 		return jQuery( 'input[name="woocommerce_change_payment"]' ).length > 0;
+	},
+
+	isAddPaymentMethod() {
+		return jQuery( 'form#add_payment_method' ).length > 0;
+	},
+
+	isCheckout() {
+		return (
+			jQuery( 'form.woocommerce-checkout, form.wc-block-checkout__form' )
+				.length > 0
+		);
 	},
 
 	paymentScope() {

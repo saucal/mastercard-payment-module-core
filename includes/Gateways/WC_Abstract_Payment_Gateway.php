@@ -20,6 +20,7 @@ use GatewayPaymentCore\CorePlugin;
 use GatewayPaymentCore\PaymentToken;
 use GatewayPaymentCore\Utils;
 use WC_HTTPS;
+use WC_Order;
 use WC_Payment_Gateway_CC;
 
 /**
@@ -236,20 +237,24 @@ class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 *
 	 * @return array
 	 */
-	protected function base_order_payload( $order ) {
-		return array(
-			'reference'       => $order->get_id(),
-			'currency'        => get_woocommerce_currency(),
-			'amount'          => $order->get_total(),
-			'description'     => ! empty( $this->core_plugin->get_gateway_setting( 'merchant_name' ) ) ? $this->core_plugin->get_gateway_setting( 'merchant_name' ) : get_bloginfo( 'name', 'display' ),
-			'notificationUrl' => add_query_arg(
+	protected function base_order_payload( $order = null ) {
+		$base = array(
+			'currency'    => get_woocommerce_currency(),
+			'amount'      => '0.00',
+			'description' => ! empty( $this->core_plugin->get_gateway_setting( 'merchant_name' ) ) ? $this->core_plugin->get_gateway_setting( 'merchant_name' ) : get_bloginfo( 'name', 'display' ),
+		);
+		if ( null !== $order && $order instanceof WC_Order ) {
+			$base['reference']       = $order->get_id();
+			$base['amount']          = $order->get_total();
+			$base['notificationUrl'] = add_query_arg(
 				array(
 					'wc-api'   => $this->prefix_hook( 'wc-webhook' ),
 					'order-id' => $order->get_id(),
 				),
 				trailingslashit( get_home_url() )
-			),
-		);
+			);
+		}
+		return $base;
 	}
 
 
@@ -288,14 +293,37 @@ class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 *
 	 * @return string
 	 */
-	protected function unique_order_id( $order ) {
-		$unique_order_id = $order->get_meta( $this->prefix_hook( 'order_id' ) );
+	protected function unique_order_id( $order = null ) {
+		$unique_order_id = null;
+		if ( null !== $order && $order instanceof WC_Order ) {
+			$unique_order_id = $order->get_meta( $this->prefix_hook( 'order_id' ) );
 
-		if ( ! $unique_order_id ) {
-			$unique_order_id = $order->get_id() . '-' . substr( md5( get_site_url() . '-' . $order->get_cart_hash() ), 0, 16 );
+			if ( ! $unique_order_id ) {
+				$unique_order_id = $order->get_id() . '-' . substr( md5( get_site_url() . '-' . $order->get_cart_hash() ), 0, 16 );
 
-			$order->update_meta_data( $this->prefix_hook( 'order_id' ), $unique_order_id );
-			$order->save_meta_data();
+				$order->update_meta_data( $this->prefix_hook( 'order_id' ), $unique_order_id );
+				$order->save_meta_data();
+			}
+		} else {
+			if ( empty( WC()->session ) ) {
+				return null;
+			}
+
+			$unique_order_id = WC()->session->__get( $this->prefix_hook( 'order_id' ) );
+			if ( ! $unique_order_id ) {
+				if ( ! wc()->session->has_session() ) {
+					wc()->session->set_customer_session_cookie( true );
+				}
+				if ( is_user_logged_in() ) {
+					$prefix = 'user';
+				} else {
+					$prefix = 'guest';
+				}
+				$user_hash       = wc()->session->get_customer_unique_id();
+				$unique_order_id = $prefix . '-' . substr( md5( get_site_url() . '-' . $user_hash . '-' . wp_rand() ), 0, 16 );
+
+				WC()->session->__set( $this->prefix_hook( 'order_id' ), $unique_order_id );
+			}
 		}
 
 		return apply_filters( $this->prefix_hook( 'unique_order_id' ), $unique_order_id, $order );
@@ -309,18 +337,31 @@ class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 *
 	 * @return string
 	 */
-	protected function unique_transaction_id( $order ) {
-
-		$last_transaction_id = $order->get_meta( $this->prefix_hook( 'transaction_attempt' ), true );
-
-		if ( ! $last_transaction_id ) {
-			$last_transaction_id = 1;
+	protected function unique_transaction_id( $order = null ) {
+		if ( null !== $order && $order instanceof WC_Order ) {
+			$last_transaction_id = $order->get_meta( $this->prefix_hook( 'transaction_attempt' ), true );
+		} else {
+			if ( empty( WC()->session ) ) {
+				return null;
+			}
+			$last_transaction_id = WC()->session->__get( $this->prefix_hook( 'transaction_attempt' ) );
 		}
 
-		$order->update_meta_data( $this->prefix_hook( 'transaction_attempt' ), $last_transaction_id + 1 );
-		$order->save();
+		if ( ! $last_transaction_id ) {
+			$last_transaction_id = 0;
+		}
 
-		return $this->unique_order_id( $order ) . '-' . ( $last_transaction_id + 1 );
+		$current_transaction_attempt = $last_transaction_id + 1;
+
+		if ( null !== $order && $order instanceof WC_Order ) {
+			$order->update_meta_data( $this->prefix_hook( 'transaction_attempt' ), $current_transaction_attempt );
+			$order->save_meta_data();
+		} else {
+			// No need to check session exists again, as we checked above, and if we don't have a session we wouldn't be here
+			WC()->session->__set( $this->prefix_hook( 'transaction_attempt' ), $current_transaction_attempt );
+		}
+
+		return $this->unique_order_id( $order ) . '-' . $current_transaction_attempt;
 	}
 
 
