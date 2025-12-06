@@ -1370,6 +1370,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		$this->update_authentication_transaction( $order, null, false );
 		if ( ! empty( WC()->session ) ) {
 			WC()->session->__unset( $this->prefix_hook( '3ds_data' ) );
+			WC()->session->__unset( $this->prefix_hook( 'payment_session' ) );
 		}
 
 		if ( $order instanceof \WC_Order ) {
@@ -2095,6 +2096,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		WC()->session->__unset( $this->prefix_hook( 'payment_success_redirect' ) );
 		WC()->session->__unset( $this->prefix_hook( 'order_id' ) );
+		WC()->session->__unset( $this->prefix_hook( 'transaction_attempt' ) );
 		WC()->session->__unset( $this->hosted_session_id_key( $cart_hash ) );
 		WC()->session->__unset( $this->hosted_session_attempt_key( $cart_hash ) );
 		WC()->session->__unset( $this->hosted_session_config_key( $cart_hash ) );
