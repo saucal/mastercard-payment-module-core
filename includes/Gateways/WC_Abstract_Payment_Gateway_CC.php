@@ -759,14 +759,14 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$this->create_payment_transaction( $order, $unique_order_id, $transaction_id, $payment_data );
 		}
 
-		$this->maybe_clean_hosted_cached_session( $this->get_hosted_session_data_hash() );
-
 		$saved_token_id = $this->maybe_save_cards( $order, $session_data );
 
+		// Do cleanups
 		if ( $this->enable_3ds ) {
 			// Clean once more after saving the cards.
 			$this->clean_cached_3ds_data( $order );
 		}
+		$this->maybe_clean_hosted_cached_session( $this->get_hosted_session_data_hash() );
 
 		return array(
 			'result'         => 'success',
@@ -1349,9 +1349,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		$this->update_authentication_transaction( $order, null, false );
 		if ( ! empty( WC()->session ) ) {
 			WC()->session->__unset( $this->prefix_hook( '3ds_data' ) );
-			if ( ! $is_success ) {
-				WC()->session->__unset( $this->prefix_hook( 'order_id' ) );
-			}
 		}
 
 		if ( $order instanceof \WC_Order ) {
@@ -1583,6 +1580,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				'redirect' => wc_get_endpoint_url( 'payment-methods' ),
 			);
 		} catch ( Exception $e ) {
+			$this->maybe_clean_hosted_cached_session( $this->get_hosted_session_data_hash() );
 			$this->core_plugin->logger()->log( $e->getMessage(), 'error' );
 			wc_add_notice( $e->getMessage(), 'error' );
 			return array(
@@ -2097,6 +2095,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			return;
 		}
 
+		WC()->session->__unset( $this->prefix_hook( 'order_id' ) );
 		WC()->session->__unset( $this->hosted_session_id_key( $cart_hash ) );
 		WC()->session->__unset( $this->hosted_session_attempt_key( $cart_hash ) );
 		WC()->session->__unset( $this->hosted_session_config_key( $cart_hash ) );
