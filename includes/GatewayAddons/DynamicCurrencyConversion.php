@@ -44,6 +44,9 @@ trait DynamicCurrencyConversion {
 			return; // DCC is automatically supported in hosted checkout mode.
 		}
 
+		// Add DCC settings to the gateway settings.
+		add_filter( $this->prefix_hook( 'gateway_settings' ), array( $this, 'settings_addon_dcc' ) );
+
 		if ( ! $this->dcc_enabled ) {
 			return;
 		}
@@ -54,6 +57,23 @@ trait DynamicCurrencyConversion {
 		add_action( $this->prefix_hook( 'hosted_session_created' ), array( $this, 'clean_cached_total' ) );
 
 		add_action( 'woocommerce_cart_loaded_from_session', array( $this, 'init_dcc_hooks' ), 20 );
+	}
+
+	public function settings_addon_dcc( $settings ) {
+		$settings = Utils::insert_around_key(
+			$settings,
+			'advanced',
+			array(
+				'currency_conversion' => array(
+					'title'   => __( 'Dynamic Currency Conversion', $this->core_plugin->text_domain() ),
+					'label'   => __( 'Enable the Dynamic Currency Conversion (DCC) feature.', $this->core_plugin->text_domain() ),
+					'type'    => 'checkbox',
+					'default' => 'yes',
+				),
+			),
+			0
+		);
+		return $settings;
 	}
 
 
