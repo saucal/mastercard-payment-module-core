@@ -16,6 +16,7 @@ use WC_Subscription;
 use WC_Subscriptions_Cart;
 use WC_Subscriptions_Product;
 use WCS_Payment_Tokens;
+use Automattic\WooCommerce\Utilities\NumberUtil;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
@@ -62,6 +63,7 @@ trait Subscriptions {
 
 		// Add subscription payment data to the payment request.
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_data' ), array( $this, 'maybe_add_subscription_payment_data' ), 10, 2 );
+		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_data' ), array( $this, 'maybe_add_subscription_authentication_initiate_data' ), 10, 3 );
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_authenticate_payer_data' ), array( $this, 'maybe_add_subscription_authentication_data' ), 10, 2 );
 
 		// Remove redirect to checkout page for subscriptions.
@@ -95,34 +97,79 @@ trait Subscriptions {
 
 		// Hide the capture meta box for the subscription order.
 		add_filter( $this->prefix_hook( 'add_meta_boxes' ), array( $this, 'maybe_hide_capture_meta_box_subscription' ), 10, 2 );
+
+		// Subscriptions are never considered "paid".
+		add_filter( $this->prefix_hook( 'validate_order_as_paid' ), array( $this, 'maybe_avoid_subscription_as_paid' ), 10, 2 );
 	}
 
 
 	/**
 	 * Add subscription payment data to the payment request.
 	 *
-	 * @param array    $payment_data Payment data.
-	 * @param WC_Order $order        Order object.
+	 * @param array         $payment_data Payment data.
+	 * @param WC_Order|null $order        Order object.
 	 * @return array
 	 */
 	public function maybe_add_subscription_payment_data( $payment_data, $order ) {
-		if ( ! $this->has_subscription( $order ) ) {
+		$subscription = $this->get_subscription_object( $order );
+		if ( ! $subscription instanceof WC_Subscription ) {
 			return $payment_data;
 		}
 
-		$subscription = $this->get_subscription_object( $order );
-
-		if ( ! $subscription instanceof WC_Subscription ) {
-			return $payment_data;
+		$api_operation = 'PAY';
+		/**
+		 * If we're adding a card for the subscription, we're likely changing payment method.
+		 * Alternatively, there's also the case where the total for the order is zero
+		 * (while the subscription is being created with a free trial, or a coupon).
+		 *
+		 * In either case, we need to set the apiOperation to be VERIFY, to allow a 0 dollar amount
+		 */
+		if ( $subscription->get_id() === $order->get_id() || NumberUtil::round( $order->get_total(), \WC_ROUNDING_PRECISION ) <= 0 ) {
+			$api_operation = 'VERIFY';
 		}
 
 		return array_merge(
 			$payment_data,
 			array(
-				'apiOperation' => $this->is_subs_change_payment( false ) ? 'AUTHORIZE' : 'PAY',
-				'agreement'    => array_filter( $this->get_agreement_data( $subscription ) ),
+				'apiOperation'  => $api_operation,
+				'agreement'     => array_filter( $this->get_agreement_data( $subscription ) ),
+				'sourceOfFunds' => array(
+					'provided' => array(
+						'card' => array(
+							'storedOnFile' => 'TO_BE_STORED',
+						),
+					),
+				),
 			)
 		);
+	}
+
+	/**
+	 * Add subscription authentication data to the payment request.
+	 *
+	 * @param array         $init_authentication Init authentication data.
+	 * @param WC_Order|null $order               Order object.
+	 * @param array         $session             Session data.
+	 * @return array
+	 */
+	public function maybe_add_subscription_authentication_initiate_data( $init_authentication, $order, $session ) {
+		$subscription = $this->get_subscription_object( $order );
+		if ( ! $subscription instanceof WC_Subscription ) {
+			return $init_authentication;
+		}
+
+		/**
+		 * If we're adding a card for the subscription, we're likely changing payment method.
+		 * Alternatively, there's also the case where the total for the order is zero
+		 * (while the subscription is being created with a free trial, or a coupon).
+		 *
+		 * In either case, we need to set the purpose to ADD_CARD.
+		 */
+		if ( $subscription->get_id() === $order->get_id() || NumberUtil::round( $order->get_total(), \WC_ROUNDING_PRECISION ) <= 0 ) {
+			$init_authentication['authentication']['purpose'] = 'ADD_CARD';
+		}
+
+		return $init_authentication;
 	}
 
 
@@ -134,10 +181,6 @@ trait Subscriptions {
 	 * @return array
 	 */
 	public function maybe_add_subscription_authentication_data( $payment_data, $order ) {
-		if ( ! $this->has_subscription( $order ) ) {
-			return $payment_data;
-		}
-
 		$subscription = $this->get_subscription_object( $order );
 		if ( ! $subscription instanceof WC_Subscription ) {
 			return $payment_data;
@@ -235,6 +278,10 @@ trait Subscriptions {
 	 * @return WC_Subscription|false
 	 */
 	protected function get_subscription_object( $order ) {
+		if ( null === $order || ! $order instanceof WC_Order ) {
+			return false;
+		}
+
 		if ( ! $this->has_subscription( $order ) ) {
 			return false;
 		}
@@ -510,6 +557,9 @@ trait Subscriptions {
 			throw new Exception( __( 'The subscription order was not found.', $this->core_plugin->text_domain() ) );
 		}
 
+		// This meta duplicates the gateway token ID to the meta.
+		// TODO: Consider revising this behavior in the future using the integrated get_payment_tokens on subscriptions.
+		// That method typically adds items to an array, for which we'll have to reconsider to have only one token associated at a time to an order.
 		$payment_token = $subscription->get_meta( $this->prefix_hook( 'payment_token' ) );
 		if ( empty( $payment_token ) ) {
 			$payment_tokens = $parent_order->get_payment_tokens();
@@ -526,15 +576,23 @@ trait Subscriptions {
 		}
 
 		$payment_data = array(
-			'apiOperation'     => 'PAY',
+			'apiOperation'     => 'PAY', // TODO: Respect authorize / capture settings
 			'order'            => $this->hosted_session_order_payload( $order ),
 			'agreement'        => array(
 				'id' => $this->unique_subscription_id( $subscription ),
 			),
+			'transaction'      => array(
+				'source' => 'MERCHANT',
+			),
 			'referenceOrderId' => $this->unique_order_id( $parent_order ),
 			'sourceOfFunds'    => array(
-				'type'  => 'CARD',
-				'token' => $payment_token,
+				'type'     => 'CARD',
+				'token'    => $payment_token,
+				'provided' => array(
+					'card' => array(
+						'storedOnFile' => 'STORED',
+					),
+				),
 			),
 		);
 
@@ -569,6 +627,8 @@ trait Subscriptions {
 			return;
 		}
 
+		// This adds a list of tokens endlessly after several changes, making it very difficult to be useful.
+		// TODO: Consider revising this behavior in the future.
 		$subscription->add_payment_token( $payment_token->get_id() );
 		$subscription->update_meta_data( $this->prefix_hook( 'payment_token' ), $payment_token->get_token() );
 		$subscription->save();
@@ -598,8 +658,8 @@ trait Subscriptions {
 	/**
 	 * Bump the order ID for subscription change payment method.
 	 *
-	 * @param string   $unique_order_id The unique order ID.
-	 * @param WC_Order $order           The order object.
+	 * @param string        $unique_order_id The unique order ID.
+	 * @param WC_Order|null $order           The order object.
 	 * @return string
 	 */
 	public function maybe_bump_order_id_change_payment_method( $unique_order_id, $order ) {
@@ -617,6 +677,7 @@ trait Subscriptions {
 		$order->update_meta_data( $this->prefix_hook( 'order_id' ), $unique_order_id );
 		$order->save_meta_data();
 
+		// TODO: This is a weird way of bumping the order_id once per request. Consider revising in the future.
 		remove_filter( $this->prefix_hook( 'unique_order_id' ), array( $this, 'maybe_bump_order_id_change_payment_method' ), 10 );
 
 		return $unique_order_id;
@@ -675,12 +736,12 @@ trait Subscriptions {
 	 * @return string
 	 */
 	public function maybe_change_3ds_processed_redirect( $redirect_url, $order ) {
-		if ( ! $this->is_subs_change_payment( false ) ) {
+		$subscription = $this->get_subscription_object( $order );
+		if ( ! $subscription instanceof WC_Subscription ) {
 			return $redirect_url;
 		}
 
-		$subscription = $this->get_subscription_object( $order );
-		if ( ! $subscription instanceof WC_Subscription ) {
+		if ( $subscription->get_id() !== $order->get_id() ) {
 			return $redirect_url;
 		}
 
@@ -752,17 +813,24 @@ trait Subscriptions {
 			return false;
 		}
 
-		if ( ! class_exists( 'WC_Subscription_Product' ) ) {
+		if ( ! class_exists( 'WC_Subscriptions_Product' ) ) {
 			return false;
 		}
 
 		foreach ( $subscription->get_items() as $item ) {
-			$product = $item['data'] ?? null;
+			if ( ! is_a( $item, 'WC_Order_Item_Product' ) ) {
+				continue;
+			}
+			$product = $item->get_product();
 			if ( $product && WC_Subscriptions_Product::get_trial_length( $product ) > 0 ) {
 				return true;
 			}
 		}
 
 		return false;
+	}
+
+	public function maybe_avoid_subscription_as_paid( $is_paid, $order ) {
+		return \wcs_is_subscription( $order ) ? false : $is_paid;
 	}
 }

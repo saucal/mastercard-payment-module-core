@@ -208,22 +208,13 @@ final class Utils {
 	 * @return float
 	 */
 	public static function get_current_total_amount() {
-
-		static $total = null;
-
-		if ( ! is_null( $total ) ) {
-			return $total;
-		}
-
 		$order = self::get_current_order();
 
 		if ( $order ) {
-			$total = (float) $order->get_total();
-			return $total;
+			return (float) $order->get_total();
 		}
 
-		$total = (float) ! empty( WC()->cart ) ? WC()->cart->get_total( false ) : 0;
-		return $total;
+		return (float) ! empty( WC()->cart ) ? WC()->cart->get_total( false ) : 0;
 	}
 
 
@@ -404,6 +395,18 @@ final class Utils {
 	 */
 	public function hosted_session_attempt_key( $cart_hash = '' ) {
 		return $this->payment_core->prefix_hook( 'session_attempt_' . ( $cart_hash ? $cart_hash : $this->unique_cart_hash() ) );
+	}
+
+
+	/**
+	 * Get hosted session currency key.
+	 *
+	 * @param string $cart_hash The cart hash.
+	 *
+	 * @return string
+	 */
+	public function hosted_session_config_key( $cart_hash = '' ) {
+		return $this->payment_core->prefix_hook( 'session_config_' . ( $cart_hash ? $cart_hash : $this->unique_cart_hash() ) );
 	}
 
 

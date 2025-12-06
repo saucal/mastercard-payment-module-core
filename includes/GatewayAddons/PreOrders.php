@@ -80,12 +80,16 @@ trait PreOrders {
 	/**
 	 * Add pre-order payment data to the payment request.
 	 *
-	 * @param array    $payment_data Payment data.
-	 * @param WC_Order $order        Order object.
+	 * @param array         $payment_data Payment data.
+	 * @param WC_Order|null $order        Order object.
 	 *
 	 * @return array
 	 */
 	public function maybe_add_pre_order_payment_data( $payment_data, $order ) {
+		if ( null === $order || ! $order instanceof WC_Order ) {
+			return $payment_data;
+		}
+
 		if ( ! $this->has_pre_order( $order->get_id() ) ) {
 			return $payment_data;
 		}

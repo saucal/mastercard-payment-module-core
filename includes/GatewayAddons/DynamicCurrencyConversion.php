@@ -10,6 +10,7 @@
 namespace GatewayPaymentCore\GatewayAddons;
 
 use GatewayPaymentCore\Utils;
+use WC_Order;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
@@ -66,9 +67,6 @@ trait DynamicCurrencyConversion {
 
 		add_filter( $this->prefix_hook( 'localize_frontend_script' ), array( $this, 'add_dcc_script_data' ) );
 
-		add_filter( 'woocommerce_update_order_review_fragments', array( $this, 'relocalize_cart_total' ) );
-		add_action( 'woocommerce_after_calculate_totals', array( $this, 'maybe_update_hosted_session' ) );
-
 		// Validate fields to ensure DCC data is correct.
 		add_action( $this->prefix_hook( 'validate_fields' ), array( $this, 'validate_dcc_data' ), 10, 2 );
 
@@ -100,60 +98,6 @@ trait DynamicCurrencyConversion {
 		return $data;
 	}
 
-
-	/**
-	 * Relocalize cart total when DCC is enabled.
-	 *
-	 * @param  array $fragments Fragments to update via AJAX.
-	 * @return array
-	 */
-	public function relocalize_cart_total( $fragments ) {
-		$this->maybe_update_hosted_session();
-		return $fragments;
-	}
-
-
-	/**
-	 * Update the order amount and currency in the hosted session if needed.
-	 *
-	 * @return void
-	 */
-	public function maybe_update_hosted_session() {
-		if ( ! WC()->cart || empty( WC()->session ) ) {
-			return;
-		}
-
-		$current_session = $this->current_hosted_session_id();
-		if ( ! $current_session ) {
-			return;
-		}
-
-		$session_key = $this->prefix_hook( 'session_total_' . $current_session );
-
-		$session_total = WC()->session->get( $session_key );
-		$current_total = Utils::get_current_total_amount();
-
-		if ( $current_total === $session_total ) {
-			return; // No need to update the session.
-		}
-
-		$payload = array(
-			'apiOperation' => 'UPDATE_SESSION',
-			'order'        => array(
-				'amount'   => $current_total,
-				'currency' => get_woocommerce_currency(),
-			),
-		);
-
-		try {
-			$this->api()->update_session( $current_session, $payload );
-
-			WC()->session->set( $session_key, $current_total );
-		} catch ( \Exception $e ) {
-			$this->log( 'Failed to update hosted session: ' . $e->getMessage(), 'error' );
-		}
-	}
-
 	/**
 	 * Validate DCC data.
 	 * 
@@ -177,12 +121,15 @@ trait DynamicCurrencyConversion {
 	/**
 	 * Add DCC payment data to the hosted session payment data if available.
 	 *
-	 * @param  array     $payment_data Existing payment data.
-	 * @param  \WC_Order $order        Order object.
+	 * @param  array         $payment_data Existing payment data.
+	 * @param  WC_Order|null $order        Order object.
 	 *
 	 * @return array
 	 */
 	public function maybe_add_dcc_payment_data( $payment_data, $order ) {
+		if ( null === $order || ! $order instanceof WC_Order ) {
+			return $payment_data;
+		}
 
 		if ( empty( $_POST[ $this->id . '_dcc_request_id' ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
 			return $payment_data;
@@ -211,8 +158,6 @@ trait DynamicCurrencyConversion {
 				$payment_data['currencyConversion']['uptake'] = 'Accept' === $offer_state ? 'ACCEPTED' : 'DECLINED';
 			}
 		}
-
-		
 
 		return $payment_data;
 	}
@@ -386,7 +331,7 @@ trait DynamicCurrencyConversion {
 			);
 
 			if ( $result['body']['result'] !== 'SUCCESS' ) {
-				$this->log( 'DCC quote request failed: ' . print_r( $result, true ), 'error' );
+				$this->core_plugin->logger()->log( 'DCC quote request failed: ' . print_r( $result, true ), 'error' );
 				wp_send_json_error();
 			}
 
@@ -408,7 +353,7 @@ trait DynamicCurrencyConversion {
 				)
 			);
 		} catch ( \Exception $e ) {
-			$this->log( 'DCC quote request failed: ' . $e->getMessage(), 'error' );
+			$this->core_plugin->logger()->log( 'DCC quote request failed: ' . $e->getMessage(), 'error' );
 			wp_send_json_error();
 		}
 	}
