@@ -69,6 +69,9 @@ trait DynamicCurrencyConversion {
 		add_filter( 'woocommerce_update_order_review_fragments', array( $this, 'relocalize_cart_total' ) );
 		add_action( 'woocommerce_after_calculate_totals', array( $this, 'maybe_update_hosted_session' ) );
 
+		// Validate fields to ensure DCC data is correct.
+		add_action( $this->prefix_hook( 'validate_fields' ), array( $this, 'validate_dcc_data' ), 10, 2 );
+
 		// Add DCC data to the payment data.
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_data' ), array( $this, 'maybe_add_dcc_payment_data' ), 10, 2 );
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_data' ), array( $this, 'maybe_add_dcc_payment_data' ), 10, 2 );
@@ -151,6 +154,25 @@ trait DynamicCurrencyConversion {
 		}
 	}
 
+	/**
+	 * Validate DCC data.
+	 * 
+	 * @param \WP_Error $errors Existing errors.
+	 * 
+	 * @return \WP_Error
+	 */
+	public function validate_dcc_data( $errors ) {
+		if ( empty( $_POST[ $this->id . '_dcc_request_id' ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+			return $errors;
+		}
+
+		if ( ! isset( $_POST['dccOfferState'] ) && ! isset( $_POST['dccofferstate'] ) ) {
+			$errors->add( 'dcc_offer_state_missing', __( 'Please select whether you want to accept or reject the currency conversion offer.', $this->core_plugin->text_domain() ) );
+		}
+		
+		return $errors;
+	}
+
 
 	/**
 	 * Add DCC payment data to the hosted session payment data if available.
@@ -168,8 +190,13 @@ trait DynamicCurrencyConversion {
 
 		$dcc_request_id = wc_clean( wp_unslash( $_POST[ $this->id . '_dcc_request_id' ] ) ); // phpcs:ignore WordPress.Security.NonceVerification
 
+		$payment_data['currencyConversion'] = array(
+			'requestId' => $dcc_request_id,
+			'uptake'    => 'NOT_AVAILABLE',
+		);
+
 		// Assume the offer was rejected if no offer state is provided.
-		$offer_state = 'Reject';
+		$offer_state = false;
 		if ( isset( $_POST['dccOfferState'] ) ) {
 			$offer_state = wc_clean( wp_unslash( $_POST['dccOfferState'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
 		} elseif ( $_POST['dccofferstate'] ) {
@@ -177,10 +204,15 @@ trait DynamicCurrencyConversion {
 			$offer_state = wc_clean( wp_unslash( $_POST['dccofferstate'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
 		}
 
-		$payment_data['currencyConversion'] = array(
-			'requestId' => $dcc_request_id,
-			'uptake'    => 'Accept' === $offer_state ? 'ACCEPTED' : 'DECLINED',
-		);
+		if ( !! $offer_state ) {
+			if( 'Unavailable' === $offer_state ) {
+				$payment_data['currencyConversion']['uptake'] = 'NOT_AVAILABLE';
+			} else {
+				$payment_data['currencyConversion']['uptake'] = 'Accept' === $offer_state ? 'ACCEPTED' : 'DECLINED';
+			}
+		}
+
+		
 
 		return $payment_data;
 	}

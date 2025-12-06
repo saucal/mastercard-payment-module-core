@@ -14,16 +14,15 @@ const hostedSessions = {
 	sessionIdAttempt: null,
 	$ccFieldset: null,
 	$wcForm: null,
-	dccChecked: false,
-	dccRequesting: false,
-	dccCurrentNumber: null,
-	selectedTokenId: null,
+	selectedTokenId: false,
+	dirtyFields: {},
 
 	init() {
 		if ( ! core_gateway_params || ! core_gateway_params.pluginPrefix ) {
 			return;
 		}
 		hostedSessions.pluginPrefix = core_gateway_params.pluginPrefix;
+		hostedSessions.$eventProxy = jQuery( '<div>' ); // hacky jQuery event proxy, not attached to DOM, so it won't bubble up to document
 
 		if ( ! window.PaymentSession ) {
 			hostedSessions.reInit();
@@ -147,19 +146,15 @@ const hostedSessions = {
 			return;
 		}
 
-		if ( hostedSessions.isSavedToken() ) {
-			const tokenId = jQuery(
-				`input[name="wc-${ hostedSessions.pluginPrefix }-payment-token"]:checked`
-			).val();
-			if ( hostedSessions.selectedTokenId === tokenId ) {
-				return;
-			}
-			hostedSessions.dccChecked = false;
-			hostedSessions.selectedTokenId = tokenId;
-			hostedSessions.requestCurrencyConversionQuoteSavedToken( tokenId );
+		const savedToken = hostedSessions.isSavedToken();
+		hostedSessions.selectedTokenId = savedToken;
+		if ( !! savedToken ) {
+			hostedSessions.dcc.maybeTriggerCurrencyConversion();
 			return;
 		}
 
+		hostedSessions.dcc.setQuoteArea( '' );
+		hostedSessions.dcc.setQuoteId( '' );
 		hostedSessions.blockFieldset();
 		try {
 			PaymentSession.configure(
@@ -168,7 +163,17 @@ const hostedSessions = {
 					fields: hostedSessions.fields(),
 					frameEmbeddingMitigation: [ 'javascript' ],
 					callbacks: {
-						initialized: hostedSessions.unblockFieldset,
+						initialized: () => {
+							hostedSessions
+								.validate()
+								.then( ( fieldResults ) => {
+									hostedSessions
+										.validateCardFields( fieldResults )
+										.then( () => {
+											hostedSessions.unblockFieldset();
+										} );
+								} );
+						},
 						formSessionUpdate: hostedSessions.handlePaymentResponse,
 					},
 					interaction: {
@@ -184,9 +189,10 @@ const hostedSessions = {
 			hostedSessions.submitError(
 				`${ core_gateway_params.hostedSessionErrors.default }: ${ error }`
 			);
+			return;
 		}
 
-		PaymentSession.onBlur(
+		PaymentSession.onChange(
 			[
 				'card.number',
 				'card.securityCode',
@@ -194,42 +200,43 @@ const hostedSessions = {
 				'card.expiryMonth',
 			],
 			function ( fieldSelector, role ) {
-				hostedSessions.blockFieldset();
-				PaymentSession.validate( 'card', function ( fieldResults ) {
-					hostedSessions.validateCardField(
-						fieldResults,
-						fieldSelector,
-						role
-					);
-				} );
+				const timeoutBlock = setTimeout( function () {
+					// Only block if validation takes too long
+					hostedSessions.blockFieldset();
+				}, 100 );
 
-				PaymentSession.onValidityChange(
-					[
-						'card.number',
-						'card.securityCode',
-						'card.expiryMonth',
-						'card.expiryYear',
-					],
-					function ( selector, result ) {
-						hostedSessions.maybeResetPaymentSession( result );
-						hostedSessions.processValidatedField(
-							selector,
-							result
-						);
-					}
-				);
+				hostedSessions.dirtyFields[ role ] = true;
+
+				hostedSessions.validate().then( ( fieldResults ) => {
+					clearTimeout( timeoutBlock ); // If we didn't block yet, cancel it
+					hostedSessions.validateCardFields( fieldResults );
+				} );
 			}
 		);
 
-		PaymentSession.onCardTypeChange( hostedSessions.processCardTypeChange );
+		PaymentSession.onValidityChange(
+			[
+				'card.number',
+				'card.securityCode',
+				'card.expiryMonth',
+				'card.expiryYear',
+			],
+			function ( selector, result ) {
+				hostedSessions.maybeResetPaymentSession( result?.errorReason );
+				hostedSessions.processValidatedField( selector, result );
+			}
+		);
 
-		PaymentSession.onCardBINChange( () => {
-			hostedSessions.dccChecked = false;
-			hostedSessions.maybeTriggerCurrencyConversion();
+		PaymentSession.onCardTypeChange( ( selector, result ) => {
+			hostedSessions.dirtyFields.number = true;
+			hostedSessions.processCardTypeChange( selector, result );
 		} );
 
-		jQuery( document.body ).on( 'updated_checkout', () => {
-			hostedSessions.dccChecked = false;
+		PaymentSession.onCardBINChange( () => {
+			hostedSessions.dirtyFields.number = true;
+			hostedSessions.validate().then( ( fieldResults ) => {
+				hostedSessions.validateCardFields( fieldResults );
+			} );
 		} );
 	},
 
@@ -244,62 +251,94 @@ const hostedSessions = {
 		};
 	},
 
-	validateCardField( fieldResults, fieldSelector, role ) {
-		hostedSessions.maybeResetPaymentSession( fieldResults.card[ role ] );
-
-		if (
-			fieldResults.card[ role ].errorReason &&
-			fieldResults.card[ role ].errorReason === 'AWAITING_SERVER_RESPONSE'
-		) {
-			PaymentSession.validate( 'card', function ( results ) {
-				hostedSessions.validateCardField(
-					results,
-					fieldSelector,
-					role
-				);
-			} );
-
-			return;
+	fieldIsDirty( role ) {
+		const roles = typeof role === 'string' ? [ role ] : role;
+		for ( const r of roles ) {
+			if ( hostedSessions.dirtyFields[ r ] ) {
+				return true;
+			}
 		}
-
-		hostedSessions.processValidatedField(
-			fieldSelector,
-			fieldResults.card[ role ],
-			role
-		);
-
-		if ( fieldResults.card?.isValid ) {
-			hostedSessions.maybeTriggerCurrencyConversion();
-		}
+		return false;
 	},
 
-	processValidatedField( fieldSelector, result, role = null ) {
+	validate() {
+		return new Promise( ( resolve ) => {
+			PaymentSession.validate( 'card', function ( results ) {
+				for ( const role in results.card ) {
+					if (
+						results.card[ role ].errorReason &&
+						results.card[ role ].errorReason ===
+							'AWAITING_SERVER_RESPONSE'
+					) {
+						return hostedSessions.validate().then( resolve );
+					}
+				}
+
+				return resolve( results );
+			} );
+		} );
+	},
+
+	validateCardFields( fieldResults, allowEmpty = true, doDCC = true ) {
+		return new Promise( ( resolve ) => {
+			const roles = [
+				'number',
+				'securityCode',
+				'expiryMonth',
+				'expiryYear',
+			];
+			let valid = true;
+			for ( const role of roles ) {
+				const fieldSelector = fieldResults.card[ role ]?.selector;
+				hostedSessions.maybeResetPaymentSession(
+					fieldResults?.card[ role ]?.errorReason
+				);
+
+				if (
+					! hostedSessions.processValidatedField(
+						fieldSelector,
+						fieldResults.card[ role ],
+						allowEmpty
+					)
+				) {
+					valid = false;
+				}
+			}
+
+			if ( doDCC && fieldResults.card?.isValid ) {
+				hostedSessions.dcc
+					.maybeTriggerCurrencyConversion()
+					.then( () => {
+						resolve( fieldResults.card?.isValid );
+					} );
+			} else {
+				resolve( fieldResults.card?.isValid );
+			}
+		} );
+	},
+
+	processValidatedField( fieldSelector, result, allowEmpty = true ) {
 		hostedSessions.unblockFieldset();
 
-		if ( ! result.isValid ) {
-			jQuery( fieldSelector )
-				.closest(
-					hostedSessions.isWooBlocks()
-						? '.wc-block-components-text-input'
-						: '.form-row'
-				)
-				.removeClass(
-					'woocommerce-invalid woocommerce-validated has-error'
-				)
-				.addClass( 'woocommerce-invalid has-error' );
-			return;
-		}
+		const $field = jQuery( fieldSelector ).closest(
+			hostedSessions.isWooBlocks()
+				? '.wc-block-components-text-input'
+				: '.form-row'
+		);
 
-		jQuery( fieldSelector )
-			.closest(
-				hostedSessions.isWooBlocks()
-					? '.wc-block-components-text-input'
-					: '.form-row'
-			)
-			.removeClass(
-				'woocommerce-invalid woocommerce-validated has-error'
-			)
-			.addClass( 'woocommerce-validated' );
+		$field.removeClass(
+			'woocommerce-invalid woocommerce-validated has-error'
+		);
+
+		if ( allowEmpty && result?.errorReason === 'EMPTY' ) {
+			// Empty is an error technically, but we're allowing it in this case
+			return true;
+		} else if ( ! result.isValid ) {
+			$field.addClass( 'woocommerce-invalid has-error' );
+			return false;
+		}
+		$field.addClass( 'woocommerce-validated' );
+		return true;
 	},
 
 	submitPay( event ) {
@@ -312,9 +351,11 @@ const hostedSessions = {
 			return;
 		}
 
-		jQuery( `#${ hostedSessions.pluginPrefix }_3ds_data` ).val(
-			hostedSessions.get3DSData()
-		);
+		if ( core_gateway_params.threeDsEnabled ) {
+			jQuery( `#${ hostedSessions.pluginPrefix }_3ds_data` ).val(
+				hostedSessions.get3DSData()
+			);
+		}
 
 		// Handle 3DS redirect if needed.
 		hostedSessions.$wcForm.on(
@@ -322,47 +363,100 @@ const hostedSessions = {
 			hostedSessions.process3DsAuthentication
 		);
 
-		if ( hostedSessions.isSavedToken() ) {
+		if ( !! hostedSessions.isSavedToken() ) {
 			return;
 		}
 
 		event.preventDefault();
 
 		hostedSessions.$wcForm.addClass( 'is-processing' );
-		hostedSessions.blockForm();
 		hostedSessions.triggerPay();
 
 		return false;
 	},
 
-	triggerPay() {
-		try {
-			PaymentSession.updateSessionFromForm(
-				'card',
-				undefined,
-				hostedSessions.paymentScope()
-			);
-		} catch ( error ) {
-			hostedSessions.submitError(
-				`${ core_gateway_params.hostedSessionErrors.default }: ${ error }`
-			);
-			hostedSessions.unblockForm();
-		}
+	queue: [],
+
+	queuePromise( cb ) {
+		const i = new Date().getTime();
+		hostedSessions.queue.push( i );
+		return new Promise( ( resolve, reject ) => {
+			const check = function () {
+				if ( hostedSessions.queue[ 0 ] !== i ) {
+					setTimeout( check, 100 );
+					return;
+				}
+
+				hostedSessions.queue.shift();
+				const promise = cb();
+				promise.then( resolve ).finally( resolve );
+			};
+			check();
+		} );
 	},
 
-	handlePaymentResponse( response ) {
-		if ( ! hostedSessions.dccChecked && hostedSessions.dccRequesting ) {
-			hostedSessions.requestCurrencyConversionQuote( response );
-			return;
-		}
+	lastSessionUpdateResponse: {},
 
+	updateSession() {
+		return hostedSessions.queuePromise( function () {
+			return new Promise( ( resolve, reject ) => {
+				try {
+					hostedSessions.lastSessionUpdateResponse = {};
+					PaymentSession.updateSessionFromForm(
+						'card',
+						undefined,
+						hostedSessions.paymentScope()
+					);
+				} catch ( error ) {
+					reject( error );
+					return;
+				}
+
+				hostedSessions.$eventProxy.one(
+					'payment_response',
+					function ( e, response ) {
+						hostedSessions.dirtyFields = {};
+						if (
+							hostedSessions.maybeResetPaymentSession(
+								response?.status
+							)
+						) {
+							reject( response );
+						}
+						hostedSessions.lastSessionUpdateResponse = response;
+						resolve( response );
+					}
+				);
+			} );
+		} );
+	},
+
+	triggerPay() {
+		hostedSessions.validate().then( ( results ) => {
+			if (
+				! hostedSessions.validateCardFields( results, false, false )
+			) {
+				return;
+			}
+			hostedSessions.blockForm();
+			hostedSessions
+				.updateSession()
+				.then( hostedSessions.triggerPayAfterResponse )
+				.catch( function ( error ) {
+					hostedSessions.submitError(
+						`${ core_gateway_params.hostedSessionErrors.default }: ${ error }`
+					);
+				} );
+		} );
+	},
+
+	triggerPayAfterResponse( response ) {
 		let error = false;
+		const errors = [];
 
 		if ( ! response.status ) {
 			error = `${ core_gateway_params.hostedSessionErrors.default }: ${ response }`;
-		}
-
-		if ( response.status !== 'ok' ) {
+		} else if ( response.status !== 'ok' ) {
 			error = hostedSessions.getSessionError( response );
 		} else if (
 			! response.session ||
@@ -380,8 +474,16 @@ const hostedSessions = {
 		}
 
 		if ( error ) {
-			hostedSessions.submitError( error );
-			hostedSessions.unblockForm();
+			errors.push( error );
+		}
+
+		const dccErrors = hostedSessions.dcc.validateCurrencyConversionData();
+		if ( dccErrors.length ) {
+			errors.push( ...dccErrors );
+		}
+
+		if ( errors.length ) {
+			hostedSessions.submitError( errors );
 			return;
 		}
 
@@ -394,7 +496,7 @@ const hostedSessions = {
 
 		if (
 			core_gateway_params.threeDsEnabled &&
-			jQuery( 'input[name="woocommerce_change_payment"]' ).length > 0
+			hostedSessions.isChangePayment()
 		) {
 			hostedSessions.execute3DsAuthentication(
 				jQuery( 'input[name="woocommerce_change_payment"]' ).val(),
@@ -404,6 +506,10 @@ const hostedSessions = {
 		}
 
 		hostedSessions.submitForm();
+	},
+
+	handlePaymentResponse( response ) {
+		hostedSessions.$eventProxy.trigger( 'payment_response', [ response ] );
 	},
 
 	isPaymentMethodSelected() {
@@ -425,17 +531,37 @@ const hostedSessions = {
 	},
 
 	isSavedToken() {
-		return (
-			jQuery( `#payment_method_${ hostedSessions.pluginPrefix }` ).is(
+		if (
+			! jQuery( `#payment_method_${ hostedSessions.pluginPrefix }` ).is(
 				':checked'
-			) &&
-			jQuery(
-				`input[name="wc-${ hostedSessions.pluginPrefix }-payment-token"]`
-			).is( ':checked' ) &&
-			jQuery(
-				`input[name="wc-${ hostedSessions.pluginPrefix }-payment-token"]:checked`
-			).val() !== 'new'
-		);
+			)
+		) {
+			return false;
+		}
+
+		const paymentToken = jQuery(
+			`input[name="wc-${ hostedSessions.pluginPrefix }-payment-token"]`
+		).filter( ':checked' );
+
+		if ( ! paymentToken.length ) {
+			return false;
+		}
+
+		const tokenId = paymentToken.val();
+
+		if ( tokenId.length === 0 ) {
+			return false;
+		}
+
+		if ( tokenId === 'new' ) {
+			return false;
+		}
+
+		return tokenId;
+	},
+
+	isChangePayment() {
+		return jQuery( 'input[name="woocommerce_change_payment"]' ).length > 0;
 	},
 
 	paymentScope() {
@@ -474,7 +600,11 @@ const hostedSessions = {
 		);
 	},
 
-	maybeResetPaymentSession( fieldResults ) {
+	maybeResetPaymentSession( reason ) {
+		if ( typeof reason === 'undefined' || reason === null ) {
+			return false;
+		}
+
 		const invalidSessionCodes = [
 			'SESSION_AUTHENTICATION_LIMIT_EXCEEDED',
 			'SYSTEM_ERROR',
@@ -482,9 +612,11 @@ const hostedSessions = {
 			'TIMEOUT',
 		];
 
-		if ( invalidSessionCodes.includes( fieldResults?.errorReason ) ) {
+		if ( invalidSessionCodes.includes( reason.toUpperCase() ) ) {
 			hostedSessions.resetPaymentSession();
+			return true;
 		}
+		return false;
 	},
 
 	resetPaymentSession() {
@@ -527,11 +659,19 @@ const hostedSessions = {
 		jQuery(
 			'.woocommerce-NoticeGroup-checkout, .woocommerce-error, .woocommerce-message, .is-error, .is-success'
 		).remove();
-		hostedSessions.$wcForm.prepend(
-			'<div class="woocommerce-NoticeGroup woocommerce-NoticeGroup-checkout"><div class="woocommerce-error">' +
-				error_message +
-				'</div></div>'
-		);
+		const errors =
+			typeof error_message === 'string'
+				? [ error_message ]
+				: error_message;
+
+		for ( const message of errors ) {
+			hostedSessions.$wcForm.prepend(
+				'<div class="woocommerce-NoticeGroup woocommerce-NoticeGroup-checkout"><div class="woocommerce-error">' +
+					message +
+					'</div></div>'
+			);
+		}
+
 		hostedSessions.unblockFieldset();
 		hostedSessions.unblockForm();
 		hostedSessions.$wcForm
@@ -539,11 +679,12 @@ const hostedSessions = {
 			.trigger( 'validate' )
 			.trigger( 'blur' );
 		hostedSessions.scrollToNotices();
-		jQuery( document.body ).trigger( 'checkout_error', [ error_message ] );
-		if ( hostedSessions.isWooBlocks() ) {
-			hostedSessions.$wcForm.trigger( 'checkout_error', [
-				error_message,
-			] );
+
+		for ( const message of errors ) {
+			jQuery( document.body ).trigger( 'checkout_error', [ message ] );
+			if ( hostedSessions.isWooBlocks() ) {
+				hostedSessions.$wcForm.trigger( 'checkout_error', [ message ] );
+			}
 		}
 	},
 
@@ -797,171 +938,347 @@ const hostedSessions = {
 			} );
 	},
 
-	maybeTriggerCurrencyConversion() {
-		if ( hostedSessions.dccChecked || hostedSessions.dccRequesting ) {
-			return;
-		}
+	dcc: {
+		checked: false,
+		requesting: false,
+		currentNumber: null,
+		currentQuote: false,
+		currentQuoteKey: false,
 
-		const $dccWrapper = jQuery(
-			`#${ hostedSessions.pluginPrefix }_currency_conversion`
-		);
-		if ( ! $dccWrapper.length ) {
-			return;
-		}
+		setQuoteId( requestId ) {
+			return hostedSessions.dcc.getQuoteIdField().val( requestId );
+		},
 
-		hostedSessions.blockFieldset();
-		$dccWrapper.html( '' );
-		hostedSessions.dccRequesting = true;
+		getQuoteIdField() {
+			return jQuery( `#${ hostedSessions.pluginPrefix }_dcc_request_id` );
+		},
 
-		PaymentSession.updateSessionFromForm(
-			'card',
-			undefined,
-			hostedSessions.paymentScope()
-		);
-	},
-
-	requestCurrencyConversionQuote( response ) {
-		if ( ! response?.status || response.status !== 'ok' ) {
-			hostedSessions.completeCurrencyConversionRequest();
-			return;
-		}
-
-		if ( ! response?.session?.id || ! response?.session?.version ) {
-			hostedSessions.completeCurrencyConversionRequest();
-			return;
-		}
-
-		if ( ! response?.sourceOfFunds?.provided?.card?.number ) {
-			hostedSessions.completeCurrencyConversionRequest();
-			return;
-		}
-
-		const currentNumber = response.sourceOfFunds.provided.card.number;
-		if ( hostedSessions.dccCurrentNumber === currentNumber ) {
-			hostedSessions.completeCurrencyConversionRequest();
-			return;
-		}
-		hostedSessions.dccCurrentNumber = currentNumber;
-
-		hostedSessions.dccRequesting = true;
-
-		jQuery
-			.ajax( {
-				url: core_gateway_params.dccRequestEndpoint,
-				method: 'POST',
-				headers: {
-					Authorization: `Basic ${ btoa(
-						`merchant.${ core_gateway_params.merchantId }:${ response.session.id }`
-					) }`,
-					'Content-Type': 'application/json',
-					Accept: 'application/json',
-				},
-				data: JSON.stringify( {
-					apiOperation: 'PAYMENT_OPTIONS_INQUIRY',
-					session: {
-						id: response.session.id,
-						version: response.session.version,
-					},
-				} ),
-			} )
-			.done( function ( res ) {
-				if (
-					! res?.paymentTypes?.card?.currencyConversion?.requestId
-				) {
-					hostedSessions.completeCurrencyConversionRequest();
-					return;
+		setQuoteArea( html ) {
+			const $dccWrapper = hostedSessions.dcc.getQuoteArea();
+			if ( $dccWrapper.length ) {
+				if ( $dccWrapper.data( 'offer-text' ) !== html ) {
+					$dccWrapper.data( 'offer-text', html );
+					$dccWrapper.html( html );
 				}
+			}
+		},
 
-				const conversionQuote =
-					res.paymentTypes.card?.currencyConversion;
+		getQuoteArea( clean = false ) {
+			const $dccWrapper = jQuery(
+				`#${ hostedSessions.pluginPrefix }_currency_conversion`
+			);
 
-				jQuery(
-					`#${ hostedSessions.pluginPrefix }_currency_conversion`
-				).html( conversionQuote.offerText );
+			if ( $dccWrapper.length && clean ) {
+				hostedSessions.dcc.setQuoteArea( '' );
+			}
+			return $dccWrapper;
+		},
 
-				jQuery(
-					`#${ hostedSessions.pluginPrefix }_dcc_request_id`
-				).val( conversionQuote.requestId );
+		maybeTriggerCurrencyConversion() {
+			if ( ! core_gateway_params.dccEnabled ) {
+				return Promise.resolve();
+			}
 
-				hostedSessions.dccChecked = true;
-			} )
-			.always( function () {
-				hostedSessions.completeCurrencyConversionRequest();
+			if ( hostedSessions.isChangePayment() ) {
+				// There's no point in showing DCC offers when changing payment methods
+				return Promise.resolve();
+			}
+
+			if ( hostedSessions.dcc.requesting ) {
+				return Promise.resolve();
+			}
+
+			const $dccWrapper = hostedSessions.dcc.getQuoteArea();
+
+			if ( ! $dccWrapper.length ) {
+				return Promise.resolve();
+			}
+
+			const $dccRequestId = hostedSessions.dcc.getQuoteIdField();
+
+			if ( ! $dccRequestId.length ) {
+				return Promise.resolve();
+			}
+
+			hostedSessions.dcc.requesting = true;
+
+			hostedSessions.blockFieldset();
+
+			let quotePromise;
+
+			if ( !! hostedSessions.selectedTokenId ) {
+				quotePromise =
+					hostedSessions.dcc.requestCurrencyConversionQuoteSavedToken(
+						hostedSessions.selectedTokenId
+					);
+			} else {
+				quotePromise =
+					hostedSessions.dcc.requestCurrencyConversionQuote();
+			}
+
+			return quotePromise
+				.then( function ( res ) {
+					// Quote handled in the promise.
+					if ( res.offerText.length === 0 ) {
+						res.offerText =
+							'<input type="hidden" name="dccOfferState" value="Unavailable" />';
+					}
+					hostedSessions.dcc.setQuoteArea( res.offerText );
+					hostedSessions.dcc.setQuoteId( res.requestId );
+				} )
+				.catch( () => {
+					hostedSessions.dcc.setQuoteArea( '' );
+					hostedSessions.dcc.setQuoteId( '' );
+				} )
+				.finally( function () {
+					hostedSessions.unblockFieldset();
+					hostedSessions.dcc.requesting = false;
+				} );
+		},
+
+		getCachedQuote( key ) {
+			if (
+				key === hostedSessions.dcc.currentQuoteKey &&
+				hostedSessions.dcc.currentQuote !== false
+			) {
+				return hostedSessions.dcc.currentQuote;
+			}
+			return false;
+		},
+
+		cacheQuote( key, quote ) {
+			if ( typeof quote === 'undefined' ) {
+				return hostedSessions.dcc.getCachedQuote( key );
+			}
+
+			hostedSessions.dcc.currentQuoteKey = key;
+			hostedSessions.dcc.currentQuote = quote;
+
+			return hostedSessions.dcc.currentQuote;
+		},
+
+		clearCachedQuote() {
+			hostedSessions.dcc.currentQuoteKey = false;
+			hostedSessions.dcc.currentQuote = false;
+		},
+
+		requestCurrencyConversionQuote() {
+			return new Promise( function ( resolve, reject ) {
+				let promise;
+				if (
+					hostedSessions.fieldIsDirty( [
+						'number',
+						'expiryMonth',
+						'expiryYear',
+					] )
+				) {
+					promise = hostedSessions.updateSession();
+				} else {
+					promise = Promise.resolve(
+						hostedSessions.lastSessionUpdateResponse
+					);
+				}
+				promise
+					.then( function ( response ) {
+						if ( ! response?.status || response.status !== 'ok' ) {
+							return reject();
+						}
+
+						if (
+							! response?.session?.id ||
+							! response?.session?.version
+						) {
+							return reject();
+						}
+
+						if (
+							! response?.sourceOfFunds?.provided?.card?.number
+						) {
+							return reject();
+						}
+
+						const currentNumber =
+							response.sourceOfFunds.provided.card.number;
+
+						const cached =
+							hostedSessions.dcc.getCachedQuote( currentNumber );
+						if ( cached ) {
+							return resolve( cached );
+						}
+
+						hostedSessions.dcc.clearCachedQuote();
+
+						jQuery
+							.ajax( {
+								url: core_gateway_params.dccRequestEndpoint,
+								method: 'POST',
+								headers: {
+									Authorization: `Basic ${ btoa(
+										`merchant.${ core_gateway_params.merchantId }:${ response.session.id }`
+									) }`,
+									'Content-Type': 'application/json',
+									Accept: 'application/json',
+								},
+								data: JSON.stringify( {
+									apiOperation: 'PAYMENT_OPTIONS_INQUIRY',
+									session: {
+										id: response.session.id,
+										version: response.session.version,
+									},
+								} ),
+							} )
+							.done( function ( res ) {
+								if (
+									! res?.paymentTypes?.card
+										?.currencyConversion?.requestId
+								) {
+									return reject();
+								}
+
+								const conversionQuote =
+									res.paymentTypes.card?.currencyConversion;
+
+								return resolve(
+									hostedSessions.dcc.cacheQuote(
+										currentNumber,
+										{
+											requestId:
+												conversionQuote.requestId,
+											offerText:
+												conversionQuote.offerText || '',
+										}
+									)
+								);
+							} );
+					} )
+					.catch( reject );
 			} );
-	},
+		},
 
-	completeCurrencyConversionRequest() {
-		hostedSessions.dccRequesting = false;
-		hostedSessions.unblockFieldset();
-	},
+		getCurrencyConversionDataRaw() {
+			const dccData = {};
 
-	getCurrencyConversionData() {
-		const dccData = {};
+			if ( ! core_gateway_params.dccEnabled ) {
+				return dccData;
+			}
 
-		if ( ! core_gateway_params.dccEnabled || ! hostedSessions.dccChecked ) {
+			const $dccRequestId = hostedSessions.dcc.getQuoteIdField();
+			if ( ! $dccRequestId.length || $dccRequestId.val().length === 0 ) {
+				return dccData;
+			}
+
+			dccData.dccRequestId = $dccRequestId.val();
+
+			const $dccOfferState = jQuery( 'input[name="dccOfferState"]' );
+			if (
+				$dccOfferState.length === 1 &&
+				$dccOfferState.is( '[type="hidden"]' )
+			) {
+				dccData.dccOfferState = $dccOfferState.val();
+			} else if ( $dccOfferState.length > 1 ) {
+				if ( $dccOfferState.filter( ':checked' ).length ) {
+					dccData.dccOfferState = $dccOfferState
+						.filter( ':checked' )
+						.val();
+				} else {
+					dccData.dccOfferState = false;
+				}
+			} else {
+				dccData.dccOfferState = false;
+			}
+
 			return dccData;
-		}
+		},
 
-		dccData[ `${ hostedSessions.pluginPrefix }_dcc_request_id` ] = jQuery(
-			`#${ hostedSessions.pluginPrefix }_dcc_request_id`
-		).val();
-		dccData.dccOfferState =
-			jQuery( 'input[name="dccOfferState"]' ).val() || 'Reject';
+		getCurrencyConversionData() {
+			const dccData = {};
 
-		return dccData;
-	},
+			if ( ! core_gateway_params.dccEnabled ) {
+				return dccData;
+			}
 
-	requestCurrencyConversionQuoteSavedToken( tokenId ) {
-		if ( ! core_gateway_params.dccEnabled || ! tokenId ) {
-			return;
-		}
+			const rawData = hostedSessions.dcc.getCurrencyConversionDataRaw();
+			if ( ! rawData.dccRequestId ) {
+				return dccData;
+			}
 
-		if ( hostedSessions.dccChecked || hostedSessions.dccRequesting ) {
-			return;
-		}
+			dccData[ `${ hostedSessions.pluginPrefix }_dcc_request_id` ] =
+				rawData.dccRequestId;
+			if ( rawData.dccOfferState !== false ) {
+				dccData.dccOfferState = dccData.dccOfferState;
+			}
 
-		const $dccWrapper = jQuery(
-			`#${ hostedSessions.pluginPrefix }_currency_conversion`
-		);
-		if ( ! $dccWrapper.length ) {
-			return;
-		}
+			return dccData;
+		},
 
-		$dccWrapper.html( '' );
-		hostedSessions.blockFieldset();
-		hostedSessions.dccRequesting = true;
+		validateCurrencyConversionData() {
+			const errors = [];
 
-		jQuery
-			.ajax( {
-				url: getWcAjaxUrl( 'dcc_quote', hostedSessions.pluginPrefix ),
-				method: 'POST',
-				data: {
-					token_id: tokenId,
-					nonce: core_gateway_params.dccNonce,
-				},
-			} )
-			.done( function ( res ) {
-				if (
-					! res?.success ||
-					! res?.data?.requestId ||
-					! res?.data?.offerText
-				) {
+			if ( ! core_gateway_params.dccEnabled ) {
+				return errors;
+			}
+
+			const data = hostedSessions.dcc.getCurrencyConversionDataRaw();
+
+			if ( ! data?.dccRequestId ) {
+				return errors;
+			}
+
+			if ( data?.dccOfferState === false ) {
+				errors.push(
+					__(
+						'Please select whether you want to accept or reject the currency conversion offer.',
+						core_gateway_params.textDomain
+					)
+				);
+			}
+
+			return errors;
+		},
+
+		requestCurrencyConversionQuoteSavedToken( tokenId ) {
+			return new Promise( function ( resolve, reject ) {
+				if ( ! tokenId ) {
 					return;
 				}
 
-				jQuery(
-					`#${ hostedSessions.pluginPrefix }_currency_conversion`
-				).html( res.data.offerText );
+				const cached = hostedSessions.dcc.getCachedQuote( tokenId );
+				if ( cached ) {
+					return resolve( cached );
+				}
 
-				jQuery(
-					`#${ hostedSessions.pluginPrefix }_dcc_request_id`
-				).val( res.data.requestId );
-			} )
-			.always( function () {
-				hostedSessions.completeCurrencyConversionRequest();
-				hostedSessions.unblockFieldset();
-				hostedSessions.dccChecked = true;
+				hostedSessions.dcc.clearCachedQuote();
+
+				jQuery
+					.ajax( {
+						url: getWcAjaxUrl(
+							'dcc_quote',
+							hostedSessions.pluginPrefix
+						),
+						method: 'POST',
+						data: {
+							token_id: tokenId,
+							nonce: core_gateway_params.dccNonce,
+						},
+					} )
+					.done( function ( res ) {
+						if (
+							! res?.success ||
+							! res?.data?.requestId ||
+							! res?.data?.offerText
+						) {
+							return reject();
+						}
+
+						return resolve(
+							hostedSessions.dcc.cacheQuote( tokenId, {
+								requestId: res.data.requestId,
+								offerText: res.data.offerText,
+							} )
+						);
+					} );
 			} );
+		},
 	},
 };
 
