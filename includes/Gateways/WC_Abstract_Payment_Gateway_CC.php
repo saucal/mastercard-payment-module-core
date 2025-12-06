@@ -761,7 +761,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		$this->maybe_clean_hosted_cached_session( $this->get_hosted_session_data_hash() );
 
-		$this->maybe_save_cards( $order, $session_data );
+		$saved_token_id = $this->maybe_save_cards( $order, $session_data );
 
 		if ( $this->enable_3ds ) {
 			// Clean once more after saving the cards.
@@ -769,8 +769,9 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		}
 
 		return array(
-			'result'   => 'success',
-			'redirect' => $this->get_return_url( $order ),
+			'result'         => 'success',
+			'redirect'       => $this->get_return_url( $order ),
+			'saved_token_id' => $saved_token_id,
 		);
 	}
 
@@ -877,7 +878,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				return;
 			}
 			do_action( $this->prefix_hook( 'payment_method_saved' ), $order, $current_token_id );
-			return;
+			return $current_token_id;
 		}
 
 		if ( ! $forced_save && ! $this->is_saving_payment_method() && ! WC()->session->get( $this->prefix_hook( 'saving_payment_method' ) ) ) {
@@ -904,6 +905,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		do_action( $this->prefix_hook( 'payment_method_saved' ), $order, $payment_token_id );
 
 		WC()->session->__unset( $this->prefix_hook( 'saving_payment_method' ) );
+
+		return $payment_token_id;
 	}
 
 
