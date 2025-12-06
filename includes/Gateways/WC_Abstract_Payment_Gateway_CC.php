@@ -517,7 +517,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$this->save_payment_method_checkbox();
 		}
 
-		if ( $this->dcc_enabled ) {
+		if ( $this->dcc_enabled && ! is_add_payment_method_page() ) {
 			echo '<div id="' . esc_attr( $this->id ) . '_currency_conversion" class="payment-core-currency-conversion"></div>';
 		}
 	}
@@ -780,6 +780,21 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		return $order_data;
 	}
 
+	/**
+	 * Is forcing the save of the payment method.
+	 *
+	 * @return bool
+	 */
+	public function is_forcing_save_payment_method() {
+		// Always save on add payment method page
+		if ( is_add_payment_method_page() ) {
+			return true;
+		}
+
+		$forced_save = (bool) apply_filters( $this->prefix_hook( 'forced_save_payment_method' ), false );
+		return $forced_save;
+	}
+
 
 	/**
 	 * Maybe save the cards.
@@ -788,7 +803,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @param array    $session Session data.
 	 */
 	public function maybe_save_cards( $order, $session ) {
-		$forced_save = apply_filters( $this->prefix_hook( 'forced_save_payment_method' ), false );
+		$forced_save = $this->is_forcing_save_payment_method();
 
 		if ( ! $forced_save && ! $this->saved_cards ) {
 			return;
@@ -2323,7 +2338,18 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return void
 	 */
 	public function maybe_display_save_card_notice() {
+		// If we're displaying the checkbox, no need to show the notice.
 		if ( $this->display_save_checkbox ) {
+			return;
+		}
+
+		// Unless we're forcing the save payment method, no notice is needed.
+		if ( ! $this->is_forcing_save_payment_method() ) {
+			return;
+		}
+
+		// It is an overstatement to show the notice when adding a payment method.
+		if ( is_add_payment_method_page() ) {
 			return;
 		}
 
