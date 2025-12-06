@@ -736,6 +736,25 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$session
 		);
 
+		$saving_card = $this->is_forcing_save_payment_method() || $this->is_saving_payment_method() || WC()->session->get( $this->prefix_hook( 'saving_payment_method' ) );
+		$using_token = $this->is_saved_payment_method() || ( $session_data['sourceOfFunds']['type'] === 'CARD' && isset( $session_data['sourceOfFunds']['token'] ) );
+		if ( $saving_card || $using_token ) {
+			if ( ! isset( $payment_data['sourceOfFunds'] ) ) {
+				$payment_data['sourceOfFunds'] = array();
+			}
+			if ( ! isset( $payment_data['sourceOfFunds']['provided'] ) ) {
+				$payment_data['sourceOfFunds']['provided'] = array();
+			}
+			if ( ! isset( $payment_data['sourceOfFunds']['provided']['card'] ) ) {
+				$payment_data['sourceOfFunds']['provided']['card'] = array();
+			}
+			if ( $saving_card ) {
+				$payment_data['sourceOfFunds']['provided']['card']['storedOnFile'] = 'TO_BE_STORED';
+			} elseif ( $using_token ) {
+				$payment_data['sourceOfFunds']['provided']['card']['storedOnFile'] = 'STORED';
+			}
+		}
+
 		if ( 'VERIFY' === $payment_data['apiOperation'] || empty( $order->get_date_paid( 'edit' ) ) || ! $this->maybe_flag_order_as_paid( $order ) ) {
 			$this->create_payment_transaction( $order, $unique_order_id, $transaction_id, $payment_data );
 		}
