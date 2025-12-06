@@ -111,16 +111,7 @@ trait Subscriptions {
 	 * @return array
 	 */
 	public function maybe_add_subscription_payment_data( $payment_data, $order ) {
-		if ( null === $order || ! $order instanceof WC_Order ) {
-			return $payment_data;
-		}
-
-		if ( ! $this->has_subscription( $order ) ) {
-			return $payment_data;
-		}
-
 		$subscription = $this->get_subscription_object( $order );
-
 		if ( ! $subscription instanceof WC_Subscription ) {
 			return $payment_data;
 		}
@@ -162,16 +153,7 @@ trait Subscriptions {
 	 * @return array
 	 */
 	public function maybe_add_subscription_authentication_initiate_data( $init_authentication, $order, $session ) {
-		if ( null === $order || ! $order instanceof WC_Order ) {
-			return $init_authentication;
-		}
-
-		if ( ! $this->has_subscription( $order ) ) {
-			return $init_authentication;
-		}
-
 		$subscription = $this->get_subscription_object( $order );
-
 		if ( ! $subscription instanceof WC_Subscription ) {
 			return $init_authentication;
 		}
@@ -199,10 +181,6 @@ trait Subscriptions {
 	 * @return array
 	 */
 	public function maybe_add_subscription_authentication_data( $payment_data, $order ) {
-		if ( ! $this->has_subscription( $order ) ) {
-			return $payment_data;
-		}
-
 		$subscription = $this->get_subscription_object( $order );
 		if ( ! $subscription instanceof WC_Subscription ) {
 			return $payment_data;
@@ -300,6 +278,10 @@ trait Subscriptions {
 	 * @return WC_Subscription|false
 	 */
 	protected function get_subscription_object( $order ) {
+		if ( null === $order || ! $order instanceof WC_Order ) {
+			return false;
+		}
+
 		if ( ! $this->has_subscription( $order ) ) {
 			return false;
 		}
@@ -681,10 +663,6 @@ trait Subscriptions {
 	 * @return string
 	 */
 	public function maybe_bump_order_id_change_payment_method( $unique_order_id, $order ) {
-		if ( null === $order || ! $order instanceof WC_Order ) {
-			return $unique_order_id;
-		}
-
 		if ( ! isset( $_POST['change_payment_method'] ) && ! $this->is_subs_change_payment() ) {
 			return $unique_order_id;
 		}
