@@ -736,12 +736,12 @@ trait Subscriptions {
 	 * @return string
 	 */
 	public function maybe_change_3ds_processed_redirect( $redirect_url, $order ) {
-		if ( ! $this->is_subs_change_payment( false ) ) {
+		$subscription = $this->get_subscription_object( $order );
+		if ( ! $subscription instanceof WC_Subscription ) {
 			return $redirect_url;
 		}
 
-		$subscription = $this->get_subscription_object( $order );
-		if ( ! $subscription instanceof WC_Subscription ) {
+		if ( $subscription->get_id() !== $order->get_id() ) {
 			return $redirect_url;
 		}
 
