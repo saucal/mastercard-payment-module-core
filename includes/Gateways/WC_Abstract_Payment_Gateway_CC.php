@@ -134,6 +134,13 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	protected $display_save_checkbox = true;
 
+	/**
+	 * List of disabled addons.
+	 *
+	 * @var array
+	 */
+	protected $disabled_addons = array();
+
 
 	/**
 	 * Initialize the gateway.
@@ -219,9 +226,17 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return void
 	 */
 	public function init_addons() {
-		$this->init_addon_subscriptions();
-		$this->init_addon_pre_orders();
-		$this->init_addon_dcc();
+		$addons = array(
+			'subscriptions'               => 'init_addon_subscriptions',
+			'pre_orders'                  => 'init_addon_pre_orders',
+			'dynamic_currency_conversion' => 'init_addon_dcc',
+		);
+		foreach ( $addons as $addon => $init_method ) {
+			if ( in_array( $addon, $this->disabled_addons, true ) ) {
+				continue;
+			}
+			$this->{$init_method}();
+		}
 	}
 
 
