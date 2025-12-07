@@ -58,9 +58,6 @@ if ( empty( $session_id ) || empty( $session_attempt ) ) {
 	<?php if( isset( $enable_3ds ) && $enable_3ds ): ?>
 		<input type="hidden" id="<?php echo esc_attr( $gateway->id ); ?>_3ds_data" name="<?php echo esc_attr( $gateway->id ); ?>_3ds_data" />
 	<?php endif; ?>
-	<?php if( isset( $dcc_enabled ) && $dcc_enabled ): ?>
-		<input type="hidden" id="<?php echo esc_attr( $gateway->id ); ?>_dcc_request_id" name="<?php echo esc_attr( $gateway->id ); ?>_dcc_request_id" />
-	<?php endif; ?>
 
 	<?php
 	$gateway->maybe_display_save_card_notice();
