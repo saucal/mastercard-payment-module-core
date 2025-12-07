@@ -717,6 +717,26 @@ abstract class CorePlugin {
 
 
 	/**
+	 * Get validated transaction sources.
+	 *
+	 * @return array
+	 */
+	public function get_transaction_sources() {
+		return get_option( 'woocommerce_' . $this->plugin_id() . '_transaction_sources', array() );
+	}
+
+
+	/**
+	 * Save validated transaction sources.
+	 *
+	 * @param array $options Transaction sources.
+	 */
+	public function update_transaction_sources( $options ) {
+		update_option( 'woocommerce_' . $this->plugin_id() . '_transaction_sources', $options );
+	}
+
+
+	/**
 	 * Is the gateway enabled.
 	 *
 	 * @return bool

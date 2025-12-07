@@ -276,6 +276,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			WC_Admin_Settings::add_error( __( 'Failed to validate API credentials. Please validate your credentials and save your account details again.', $this->core_plugin->text_domain() ) );
 			$this->core_plugin->update_validated_credentials( false );
 			$this->core_plugin->update_payment_operations( array() );
+			$this->core_plugin->update_transaction_sources( array() );
 			$this->init_form_fields();
 			return;
 		}
@@ -285,6 +286,15 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		$this->core_plugin->update_validated_credentials( true );
 
 		$this->core_plugin->update_payment_operations( $response['body']['supportedPaymentOperations'] ?? array() );
+
+		$transaction_sources = array();
+		foreach ( $response['body']['paymentTypes'] as $key => $info ) {
+			$transaction_sources[ $key ] = array();
+			foreach ( $info['transactionSources'] as $source ) {
+				$transaction_sources[ $key ][] = $source['transactionSource'];
+			}
+		}
+		$this->core_plugin->update_transaction_sources( $transaction_sources );
 
 		$this->init_form_fields();
 	}

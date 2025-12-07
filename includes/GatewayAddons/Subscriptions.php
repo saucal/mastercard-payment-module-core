@@ -47,6 +47,18 @@ trait Subscriptions {
 			return; // Subscriptions are not supported in hosted checkout mode.
 		}
 
+		$supported_operations = $this->core_plugin->get_transaction_sources();
+
+		if ( ! isset( $supported_operations['card'] ) || ! in_array( 'MERCHANT', $supported_operations['card'], true ) ) {
+			if ( $this->core_plugin->is_settings_page() && $this->core_plugin->is_merchant_connected() ) {
+				$this->core_plugin->notices()->add_message(
+					__( 'WooCommerce Subscriptions support require "Merchant Initiated Transactions" to be enabled in your account. Contact your acquirer to verify this issue.', $this->core_plugin->text_domain() ),
+					'error'
+				);
+			}
+			return;
+		}
+
 		$this->supports = array_merge(
 			$this->supports,
 			array(
