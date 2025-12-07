@@ -120,14 +120,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 
 	/**
-	 * DCC enabled.
-	 *
-	 * @var bool
-	 */
-	protected $dcc_enabled = false;
-
-
-	/**
 	 * Debug enabled.
 	 *
 	 * @var bool
@@ -141,6 +133,13 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @param bool
 	 */
 	protected $display_save_checkbox = true;
+
+	/**
+	 * List of disabled addons.
+	 *
+	 * @var array
+	 */
+	protected $disabled_addons = array();
 
 
 	/**
@@ -165,7 +164,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		$this->merchant_name        = ! empty( $this->get_option( 'merchant_name' ) ) ? $this->get_option( 'merchant_name' ) : get_bloginfo( 'name' );
 		$this->saved_cards          = ! empty( $this->get_option( 'saved_cards' ) && 'yes' === $this->get_option( 'saved_cards' ) );
 		$this->enable_3ds           = ! empty( $this->get_option( '_3d_secure' ) && 'yes' === $this->get_option( '_3d_secure' ) );
-		$this->dcc_enabled          = ! empty( $this->get_option( 'currency_conversion' ) && 'yes' === $this->get_option( 'currency_conversion' ) );
 		$this->debug                = ! empty( $this->get_option( 'debug' ) && 'yes' === $this->get_option( 'debug' ) );
 
 		// Load the gateway support features.
@@ -173,6 +171,9 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		// Initialize the Addons.
 		$this->init_addons();
+
+		// Load the form fields.
+		$this->init_form_fields();
 
 		// Add hooks.
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'process_admin_options' ) );
@@ -225,9 +226,17 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return void
 	 */
 	public function init_addons() {
-		$this->init_addon_subscriptions();
-		$this->init_addon_pre_orders();
-		$this->init_addon_dcc();
+		$addons = array(
+			'subscriptions'               => 'init_addon_subscriptions',
+			'pre_orders'                  => 'init_addon_pre_orders',
+			'dynamic_currency_conversion' => 'init_addon_dcc',
+		);
+		foreach ( $addons as $addon => $init_method ) {
+			if ( in_array( $addon, $this->disabled_addons, true ) ) {
+				continue;
+			}
+			$this->{$init_method}();
+		}
 	}
 
 
@@ -282,6 +291,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			WC_Admin_Settings::add_error( __( 'Failed to validate API credentials. Please validate your credentials and save your account details again.', $this->core_plugin->text_domain() ) );
 			$this->core_plugin->update_validated_credentials( false );
 			$this->core_plugin->update_payment_operations( array() );
+			$this->core_plugin->update_transaction_sources( array() );
 			$this->init_form_fields();
 			return;
 		}
@@ -291,6 +301,15 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		$this->core_plugin->update_validated_credentials( true );
 
 		$this->core_plugin->update_payment_operations( $response['body']['supportedPaymentOperations'] ?? array() );
+
+		$transaction_sources = array();
+		foreach ( $response['body']['paymentTypes'] as $key => $info ) {
+			$transaction_sources[ $key ] = array();
+			foreach ( $info['transactionSources'] as $source ) {
+				$transaction_sources[ $key ][] = $source['transactionSource'];
+			}
+		}
+		$this->core_plugin->update_transaction_sources( $transaction_sources );
 
 		$this->init_form_fields();
 	}
@@ -496,8 +515,9 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			'session_id'      => $session_id,
 			'session_attempt' => uniqid( $session_id ),
 			'enable_3ds'      => $this->enable_3ds,
-			'dcc_enabled'     => $this->dcc_enabled,
 		);
+
+		$template_data = apply_filters( $this->prefix_hook( 'payment_fields_hosted_session_template_data' ), $template_data, $this );
 
 		if ( $this->enable_3ds && $this->is_pay_for_order_page() ) {
 			$template_data['threeds_data'] = $this->get_cached_3ds_data();
@@ -521,9 +541,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$template_data,
 		);
 
-		if ( $this->dcc_enabled && ! is_add_payment_method_page() ) {
-			echo '<div id="' . esc_attr( $this->id ) . '_currency_conversion" class="payment-core-currency-conversion"></div>';
-		}
+		do_action( $this->prefix_hook( 'after_payment_fields_hosted_session' ), $this );
 
 		if ( $this->display_save_checkbox && ! is_add_payment_method_page() ) {
 			$this->save_payment_method_checkbox();
@@ -2629,7 +2647,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 
 	/**
-	 * Relocalize cart total when DCC is enabled.
+	 * Relocalize cart total when cart is updated.
 	 *
 	 * @param  array $fragments Fragments to update via AJAX.
 	 * @return array

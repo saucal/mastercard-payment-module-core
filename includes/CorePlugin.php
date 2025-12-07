@@ -717,6 +717,26 @@ abstract class CorePlugin {
 
 
 	/**
+	 * Get validated transaction sources.
+	 *
+	 * @return array
+	 */
+	public function get_transaction_sources() {
+		return get_option( 'woocommerce_' . $this->plugin_id() . '_transaction_sources', array() );
+	}
+
+
+	/**
+	 * Save validated transaction sources.
+	 *
+	 * @param array $options Transaction sources.
+	 */
+	public function update_transaction_sources( $options ) {
+		update_option( 'woocommerce_' . $this->plugin_id() . '_transaction_sources', $options );
+	}
+
+
+	/**
 	 * Is the gateway enabled.
 	 *
 	 * @return bool
@@ -772,6 +792,7 @@ abstract class CorePlugin {
 	 * @return bool
 	 */
 	public function is_currency_conversion_enabled() {
+		// TODO: Make this function less relevate, or somehow pointed to the DCC addon
 		return 'yes' === $this->get_gateway_setting( 'currency_conversion' );
 	}
 

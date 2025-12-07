@@ -105,7 +105,7 @@ final class Notices {
 		$this->add_message(
 			sprintf(
 				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
-				__( '%1$s - There is no supported payment operation for your merchant account. Contact your adquirer to verify this issue.', $this->core_plugin->text_domain() ),
+				__( '%1$s - There is no supported payment operation for your merchant account. Contact your acquirer to verify this issue.', $this->core_plugin->text_domain() ),
 				$this->core_plugin->plugin_title(),
 			)
 		);

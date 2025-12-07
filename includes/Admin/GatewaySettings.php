@@ -292,12 +292,6 @@ final class GatewaySettings {
 					'description' => __( 'The name of your business for display to the payer on the payment interaction (The website title will be used as default).', $this->core_plugin->text_domain() ),
 					'default'     => get_bloginfo( 'name', 'display' ),
 				),
-				'currency_conversion'  => array(
-					'title'   => __( 'Dynamic Currency Conversion', $this->core_plugin->text_domain() ),
-					'label'   => __( 'Enable the Dynamic Currency Conversion (DCC) feature.', $this->core_plugin->text_domain() ),
-					'type'    => 'checkbox',
-					'default' => 'yes',
-				),
 				'advanced'             => array(
 					'title' => __( 'Advanced configurations', $this->core_plugin->text_domain() ),
 					'type'  => 'title',
@@ -312,6 +306,8 @@ final class GatewaySettings {
 				),
 			)
 		);
+
+		$this->settings = apply_filters( $this->core_plugin->payment_core()->prefix_hook( 'gateway_settings' ), $this->settings );
 	}
 
 

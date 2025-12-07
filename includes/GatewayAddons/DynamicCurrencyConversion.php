@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 trait DynamicCurrencyConversion {
 
-
+	protected $dcc_enabled = false;
 
 	/**
 	 * Initialize Subscription support features.
@@ -44,6 +44,11 @@ trait DynamicCurrencyConversion {
 			return; // DCC is automatically supported in hosted checkout mode.
 		}
 
+		// Add DCC settings to the gateway settings.
+		add_filter( $this->prefix_hook( 'gateway_settings' ), array( $this, 'settings_addon_dcc' ) );
+
+		$this->dcc_enabled = ! empty( $this->get_option( 'currency_conversion' ) && 'yes' === $this->get_option( 'currency_conversion' ) );
+
 		if ( ! $this->dcc_enabled ) {
 			return;
 		}
@@ -53,7 +58,30 @@ trait DynamicCurrencyConversion {
 
 		add_action( $this->prefix_hook( 'hosted_session_created' ), array( $this, 'clean_cached_total' ) );
 
+		add_action( $this->prefix_hook( 'after_payment_fields_hosted_session' ), array( $this, 'display_dcc_info_area' ), 20 );
+
+		add_action( $this->prefix_hook( 'payment_fields_hosted_session_template_data' ), array( $this, 'dcc_payment_fields_hosted_session_template_data' ) );
+
+		add_action( $this->prefix_hook( 'after_payment_method_fields', 'wc_' ), array( $this, 'dcc_after_payment_method_fields' ) );
+
 		add_action( 'woocommerce_cart_loaded_from_session', array( $this, 'init_dcc_hooks' ), 20 );
+	}
+
+	public function settings_addon_dcc( $settings ) {
+		$settings = Utils::insert_around_key(
+			$settings,
+			'advanced',
+			array(
+				'currency_conversion' => array(
+					'title'   => __( 'Dynamic Currency Conversion', $this->core_plugin->text_domain() ),
+					'label'   => __( 'Enable the Dynamic Currency Conversion (DCC) feature.', $this->core_plugin->text_domain() ),
+					'type'    => 'checkbox',
+					'default' => 'yes',
+				),
+			),
+			0
+		);
+		return $settings;
 	}
 
 
@@ -100,9 +128,9 @@ trait DynamicCurrencyConversion {
 
 	/**
 	 * Validate DCC data.
-	 * 
+	 *
 	 * @param \WP_Error $errors Existing errors.
-	 * 
+	 *
 	 * @return \WP_Error
 	 */
 	public function validate_dcc_data( $errors ) {
@@ -113,7 +141,7 @@ trait DynamicCurrencyConversion {
 		if ( ! isset( $_POST['dccOfferState'] ) && ! isset( $_POST['dccofferstate'] ) ) {
 			$errors->add( 'dcc_offer_state_missing', __( 'Please select whether you want to accept or reject the currency conversion offer.', $this->core_plugin->text_domain() ) );
 		}
-		
+
 		return $errors;
 	}
 
@@ -151,8 +179,8 @@ trait DynamicCurrencyConversion {
 			$offer_state = wc_clean( wp_unslash( $_POST['dccofferstate'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
 		}
 
-		if ( !! $offer_state ) {
-			if( 'Unavailable' === $offer_state ) {
+		if ( (bool) $offer_state ) {
+			if ( 'Unavailable' === $offer_state ) {
 				$payment_data['currencyConversion']['uptake'] = 'NOT_AVAILABLE';
 			} else {
 				$payment_data['currencyConversion']['uptake'] = 'Accept' === $offer_state ? 'ACCEPTED' : 'DECLINED';
@@ -356,5 +384,20 @@ trait DynamicCurrencyConversion {
 			$this->core_plugin->logger()->log( 'DCC quote request failed: ' . $e->getMessage(), 'error' );
 			wp_send_json_error();
 		}
+	}
+
+	public function display_dcc_info_area() {
+		if ( $this->dcc_enabled && ! is_add_payment_method_page() ) {
+			echo '<div id="' . esc_attr( $this->id ) . '_currency_conversion" class="payment-core-currency-conversion"></div>';
+		}
+	}
+
+	public function dcc_payment_fields_hosted_session_template_data( $template_data ) {
+		$template_data['dcc_enabled'] = $this->dcc_enabled;
+		return $template_data;
+	}
+
+	public function dcc_after_payment_method_fields() {
+		echo '<input type="hidden" id="' . $this->id . '_dcc_request_id" name="' . $this->id . '_dcc_request_id" />';
 	}
 }
