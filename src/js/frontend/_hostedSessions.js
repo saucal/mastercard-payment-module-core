@@ -290,31 +290,25 @@ const hostedSessions = {
 				'expiryMonth',
 				'expiryYear',
 			];
-			let valid = true;
 			for ( const role of roles ) {
-				const fieldSelector = fieldResults.card[ role ]?.selector;
 				hostedSessions.maybeResetPaymentSession(
 					fieldResults?.card[ role ]?.errorReason
 				);
 
-				if (
-					! hostedSessions.processValidatedField(
-						fieldSelector,
-						fieldResults.card[ role ],
-						allowEmpty
-					)
-				) {
-					valid = false;
-				}
+				hostedSessions.processValidatedField(
+					fieldResults.card[ role ]?.selector,
+					fieldResults.card[ role ],
+					allowEmpty
+				);
 			}
+
+			hostedSessions.unblockFieldset();
 
 			resolve( fieldResults.card?.isValid );
 		} );
 	},
 
 	processValidatedField( fieldSelector, result, allowEmpty = true ) {
-		hostedSessions.unblockFieldset();
-
 		const $field = jQuery( fieldSelector ).closest(
 			hostedSessions.isWooBlocks()
 				? '.wc-block-components-text-input'
