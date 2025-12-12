@@ -1633,6 +1633,13 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			}
 		}
 
+		if ( \is_add_payment_method_page() ) {
+			$scripts[ $gateway_script ]['deps'] = array_merge(
+				array( 'jquery-blockui' ),
+				$scripts[ $gateway_script ]['deps'] ?? array()
+			);
+		}
+
 		return $scripts;
 	}
 
@@ -1853,6 +1860,13 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	}
 
 
+	/**
+	 * Maybe update hosted session configuration.
+	 *
+	 * @param string $session_id Session ID.
+	 *
+	 * @return void
+	 */
 	protected function maybe_update_hosted_session_config( $session_id ) {
 
 		$current_hash = $this->get_hosted_session_data_hash();
