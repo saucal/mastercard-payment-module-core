@@ -119,6 +119,17 @@ final class GatewaySettings {
 				'description' => '',
 				'default'     => 'no',
 			),
+			'sandbox'          => array(
+				'title'       => __( 'Test Mode', $this->core_plugin->text_domain() ),
+				'label'       => __( 'Enable test mode', $this->core_plugin->text_domain() ),
+				'type'        => 'checkbox',
+				'description' => sprintf(
+					__( 'Set the payment gateway in test mode using test API credentials (real payments will not be taken). You can use %1$stest card numbers%2$s to simulate various transactions.', $this->core_plugin->text_domain() ),
+					'<a href="https://test-gateway.mastercard.com/api/documentation/integrationGuidelines/supportedFeatures/testAndGoLive.html" target="_blank">',
+					'</a>'
+				),
+				'default'     => 'no',
+			),
 			'title'            => array(
 				'title'       => __( 'Title', $this->core_plugin->text_domain() ),
 				'type'        => 'text',
@@ -140,17 +151,9 @@ final class GatewaySettings {
 				'default' => 'eu',
 			),
 			'merchant_details' => array(
-				'title'       => __( 'Merchant account details', $this->core_plugin->text_domain() ),
+				'title'       => __( 'Merchant Account Details', $this->core_plugin->text_domain() ),
 				'description' => $this->merchant_details_message(),
 				'type'        => 'title',
-			),
-			'sandbox'          => array(
-				'title'       => __( 'Test Sandbox', $this->core_plugin->text_domain() ),
-				'label'       => __( 'Enable test sandbox mode', $this->core_plugin->text_domain() ),
-				'type'        => 'checkbox',
-				'description' => __( 'Place the payment gateway in test mode using test API credentials (real payments will not be taken).', $this->core_plugin->text_domain() ),
-				'default'     => 'no',
-				'desc_tip'    => true,
 			),
 			'merchant_id'      => array(
 				'title'       => __( 'Merchant ID', $this->core_plugin->text_domain() ),
@@ -161,7 +164,7 @@ final class GatewaySettings {
 			'password'         => array(
 				'title'       => __( 'API Password', $this->core_plugin->text_domain() ),
 				'type'        => 'password',
-				'description' => __( 'This is your API password.', $this->core_plugin->text_domain() ),
+				'description' => __( 'You can obtain your API password from the Merchant Portal (Admin -> Integration Settings).', $this->core_plugin->text_domain() ),
 				'default'     => '',
 			),
 		);
@@ -207,16 +210,17 @@ final class GatewaySettings {
 			$this->settings,
 			array(
 				'webhook'              => array(
-					'title' => __( 'Webhook notifications', $this->core_plugin->text_domain() ),
+					'title' => __( 'Webhook Notifications', $this->core_plugin->text_domain() ),
 					'type'  => 'title',
 				),
 				'notification_secret'  => array(
-					'title'       => __( 'Notification secret', $this->core_plugin->text_domain() ),
+					'title'       => __( 'Notification Secret', $this->core_plugin->text_domain() ),
 					'type'        => 'text',
 					'description' => sprintf(
-						__( 'You can obtain or generate your notification secret %1$shere%2$s', $this->core_plugin->text_domain() ),
+						__( 'You can obtain or generate your notification secret on the Merchant Portal %1$s(Admin -> Webhook Notifications)%2$s. You can find more information about webhooks %3$son the API documentation%2$s.', $this->core_plugin->text_domain() ),
 						'<a href="' . esc_url( $this->webhook_notification_url() ) . '" target="_blank">',
-						'</a>'
+						'</a>',
+						'<a href="' . esc_url( untrailingslashit( $this->core_plugin->gateway_url() ) ) . '/api/documentation/integrationGuidelines/supportedFeatures/pickAdditionalFunctionality/webhookNotifications.html" target="_blank">'
 					),
 				),
 				'payments'             => array(
@@ -224,14 +228,14 @@ final class GatewaySettings {
 					'type'  => 'title',
 				),
 				'transaction_mode'     => array(
-					'title'       => __( 'Payment capture', $this->core_plugin->text_domain() ),
+					'title'       => __( 'Payment Capture', $this->core_plugin->text_domain() ),
 					'type'        => 'select',
 					'options'     => $supported_operations,
 					'default'     => 'PURCHASE',
-					'description' => __( 'Choose "Authorize and Capture" to authorize and capture the payment immediately. Choose "Authorize" to only authorize the payment, and capture it manually later from the WC admin panel. This setting has no effect subscriptions. Charges on orders related to subscriptions are always captured.', $this->core_plugin->text_domain() ),
+					'description' => __( 'Choose "Authorize and Capture" to capture the payment immediately when the order is placed. Choose "Authorize Only" to authorize the payment and capture it manually later from the WC admin panel. This setting does not affect subscriptions; charges for orders related to subscriptions are always captured.', $this->core_plugin->text_domain() ),
 				),
 				'checkout_mode'        => array(
-					'title'   => __( 'Integration mode', $this->core_plugin->text_domain() ),
+					'title'   => __( 'Integration Mode', $this->core_plugin->text_domain() ),
 					'type'    => 'select',
 					'options' => self::checkout_modes(),
 					'default' => 'hosted_session',
@@ -401,7 +405,7 @@ final class GatewaySettings {
 			}
 
 			if ( 'AUTHORIZE' === $operation ) {
-				$supported_operations['AUTHORIZE'] = __( 'Authorize', $this->core_plugin->text_domain() );
+				$supported_operations['AUTHORIZE'] = __( 'Authorize Only', $this->core_plugin->text_domain() );
 			}
 		}
 
