@@ -46,10 +46,7 @@ export const hostedSessionHandler = (
 					resolve( {
 						type: emitResponseSuccess,
 						meta: {
-							paymentMethodData: {
-								...data,
-								...hostedSessions.dcc.getCurrencyConversionData(),
-							},
+							paymentMethodData: data,
 						},
 					} );
 				}

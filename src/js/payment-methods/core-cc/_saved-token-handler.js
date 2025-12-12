@@ -17,7 +17,6 @@ export const SavedTokenHandler = ( {
 } ) => {
 	useEffect( () => {
 		hostedSessions.pluginPrefix = getPrefix();
-		hostedSessions.dcc.requestCurrencyConversionQuoteSavedToken( token );
 
 		return onPaymentSetup( () => {
 			return new Promise( ( resolve ) => {
@@ -29,10 +28,7 @@ export const SavedTokenHandler = ( {
 				resolve( {
 					type: emitResponse.responseTypes.SUCCESS,
 					meta: {
-						paymentMethodData: {
-							...data,
-							...hostedSessions.dcc.getCurrencyConversionData(),
-						},
+						paymentMethodData: data,
 					},
 				} );
 			} );
@@ -44,17 +40,5 @@ export const SavedTokenHandler = ( {
 		token,
 	] );
 
-	return (
-		<>
-			<input
-				type="hidden"
-				id={ addPrefix( 'dcc_request_id' ) }
-				name={ addPrefix( 'dcc_request_id' ) }
-			/>
-			<div
-				id={ `${ getPrefix() }_currency_conversion` }
-				className="payment-core-currency-conversion"
-			/>
-		</>
-	);
+	return <></>;
 };

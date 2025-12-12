@@ -788,17 +788,6 @@ abstract class CorePlugin {
 
 
 	/**
-	 * Is currency conversion enabled.
-	 *
-	 * @return bool
-	 */
-	public function is_currency_conversion_enabled() {
-		// TODO: Make this function less relevate, or somehow pointed to the DCC addon
-		return 'yes' === $this->get_gateway_setting( 'currency_conversion' );
-	}
-
-
-	/**
 	 * Get the gateway URL.
 	 *
 	 * @return string
