@@ -208,22 +208,13 @@ final class Utils {
 	 * @return float
 	 */
 	public static function get_current_total_amount() {
-
-		static $total = null;
-
-		if ( ! is_null( $total ) ) {
-			return $total;
-		}
-
 		$order = self::get_current_order();
 
 		if ( $order ) {
-			$total = (float) $order->get_total();
-			return $total;
+			return (float) $order->get_total();
 		}
 
-		$total = (float) ! empty( WC()->cart ) ? WC()->cart->get_total( false ) : 0;
-		return $total;
+		return (float) ! empty( WC()->cart ) ? WC()->cart->get_total( false ) : 0;
 	}
 
 
@@ -408,6 +399,18 @@ final class Utils {
 
 
 	/**
+	 * Get hosted session currency key.
+	 *
+	 * @param string $cart_hash The cart hash.
+	 *
+	 * @return string
+	 */
+	public function hosted_session_config_key( $cart_hash = '' ) {
+		return $this->payment_core->prefix_hook( 'session_config_' . ( $cart_hash ? $cart_hash : $this->unique_cart_hash() ) );
+	}
+
+
+	/**
 	 * Get hosted session duration key.
 	 *
 	 * @param string $cart_hash The cart hash.
@@ -486,5 +489,26 @@ final class Utils {
 	 */
 	public static function min_suffix() {
 		return defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ? '' : '.min';
+	}
+
+	public static function insert_around_key( $target, $key, $new_data, $operation = 1 ) {
+		// Find the index of the key to insert after
+		$keys  = array_keys( $target );
+		$index = array_search( $key, $keys, true );
+
+		// If the key is found, proceed with insertion
+		if ( false !== $index ) {
+			$first_part  = array_slice( $target, 0, $index + $operation, true ); // +1 to include the 'after_key' element
+			$second_part = array_slice( $target, $index + $operation, null, true );
+
+			$target = $first_part + $new_data + $second_part;
+		} else {
+			// If the key is not found, append
+			foreach ( $new_data as $new_key => $new_value ) {
+				$target[ $new_key ] = $new_value;
+			}
+		}
+
+		return $target;
 	}
 }

@@ -48,7 +48,7 @@ export const hostedSessionHandler = (
 						meta: {
 							paymentMethodData: {
 								...data,
-								...hostedSessions.getCurrencyConversionData(),
+								...hostedSessions.dcc.getCurrencyConversionData(),
 							},
 						},
 					} );

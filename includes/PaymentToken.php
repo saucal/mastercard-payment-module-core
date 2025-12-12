@@ -42,12 +42,12 @@ class PaymentToken {
 	/**
 	 * This function processes the saved cards for a given session and user ID.
 	 *
-	 * @param string $session_id The session ID.
-	 * @param int    $user_id    The user ID.
+	 * @param string $session_data The session ID.
+	 * @param int    $user_id      The user ID.
 	 *
 	 * @return int|bool The token ID or false.
 	 */
-	public function process_saved_cards( $session_id, $user_id ) {
+	public function process_saved_cards( $session_data, $user_id ) {
 		try {
 
 			if ( ! $this->gateway ) {
@@ -57,7 +57,7 @@ class PaymentToken {
 			$response = $this->gateway->api()->create_token(
 				array(
 					'session'       => array(
-						'id' => $session_id,
+						'id' => $session_data['session']['id'],
 					),
 					'sourceOfFunds' => array(
 						'type' => 'CARD',

@@ -125,6 +125,7 @@ final class API {
 			'method'  => $method,
 			'headers' => $this->get_headers( 'application/json', $endpoint, $payload ),
 			'body'    => apply_filters( $this->core_plugin->payment_core()->prefix_hook( 'request_body' ), $this->maybe_json_encode( $payload ) ),
+			'timeout' => 60,
 		);
 
 		// Logging request.
@@ -172,7 +173,16 @@ final class API {
 	 * @return mixed
 	 */
 	private static function maybe_json_decode( $data ) {
-		return ( is_string( $data ) && ! empty( $data ) ) ? json_decode( $data, true ) : $data;
+		if( ! is_string( $data ) || empty( $data ) ) {
+			return null;
+		}
+
+		$body = json_decode( $data, true, 512, \JSON_INVALID_UTF8_IGNORE );
+		if ( json_last_error() !== JSON_ERROR_NONE ) {
+			return null;
+		}
+
+		return $body;
 	}
 
 

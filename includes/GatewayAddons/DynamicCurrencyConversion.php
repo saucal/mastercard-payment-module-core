@@ -10,6 +10,7 @@
 namespace GatewayPaymentCore\GatewayAddons;
 
 use GatewayPaymentCore\Utils;
+use WC_Order;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
@@ -20,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 trait DynamicCurrencyConversion {
 
-
+	protected $dcc_enabled = false;
 
 	/**
 	 * Initialize Subscription support features.
@@ -33,12 +34,20 @@ trait DynamicCurrencyConversion {
 			return;
 		}
 
+		// Process DCC when the payment is processed.
+		add_action( $this->prefix_hook( 'payment_success' ), array( $this, 'process_dcc_data' ), 10, 2 );
+
+		// Render DCC data on the order edit page.
+		add_action( 'woocommerce_admin_order_data_after_billing_address', array( $this, 'render_dcc_data' ) );
+
 		if ( $this->is_hosted_checkout() ) {
 			return; // DCC is automatically supported in hosted checkout mode.
 		}
 
-		// Render DCC data on the order edit page.
-		add_action( 'woocommerce_admin_order_data_after_billing_address', array( $this, 'render_dcc_data' ) );
+		// Add DCC settings to the gateway settings.
+		add_filter( $this->prefix_hook( 'gateway_settings' ), array( $this, 'settings_addon_dcc' ) );
+
+		$this->dcc_enabled = ! empty( $this->get_option( 'currency_conversion' ) && 'yes' === $this->get_option( 'currency_conversion' ) );
 
 		if ( ! $this->dcc_enabled ) {
 			return;
@@ -49,7 +58,30 @@ trait DynamicCurrencyConversion {
 
 		add_action( $this->prefix_hook( 'hosted_session_created' ), array( $this, 'clean_cached_total' ) );
 
+		add_action( $this->prefix_hook( 'after_payment_fields_hosted_session' ), array( $this, 'display_dcc_info_area' ), 20 );
+
+		add_action( $this->prefix_hook( 'payment_fields_hosted_session_template_data' ), array( $this, 'dcc_payment_fields_hosted_session_template_data' ) );
+
+		add_action( $this->prefix_hook( 'after_payment_method_fields', 'wc_' ), array( $this, 'dcc_after_payment_method_fields' ) );
+
 		add_action( 'woocommerce_cart_loaded_from_session', array( $this, 'init_dcc_hooks' ), 20 );
+	}
+
+	public function settings_addon_dcc( $settings ) {
+		$settings = Utils::insert_around_key(
+			$settings,
+			'advanced',
+			array(
+				'currency_conversion' => array(
+					'title'   => __( 'Dynamic Currency Conversion', $this->core_plugin->text_domain() ),
+					'label'   => __( 'Enable the Dynamic Currency Conversion (DCC) feature.', $this->core_plugin->text_domain() ),
+					'type'    => 'checkbox',
+					'default' => 'yes',
+				),
+			),
+			0
+		);
+		return $settings;
 	}
 
 
@@ -63,15 +95,12 @@ trait DynamicCurrencyConversion {
 
 		add_filter( $this->prefix_hook( 'localize_frontend_script' ), array( $this, 'add_dcc_script_data' ) );
 
-		add_filter( 'woocommerce_update_order_review_fragments', array( $this, 'relocalize_cart_total' ) );
-		add_action( 'woocommerce_after_calculate_totals', array( $this, 'maybe_update_hosted_session' ) );
+		// Validate fields to ensure DCC data is correct.
+		add_action( $this->prefix_hook( 'validate_fields' ), array( $this, 'validate_dcc_data' ), 10, 2 );
 
 		// Add DCC data to the payment data.
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_data' ), array( $this, 'maybe_add_dcc_payment_data' ), 10, 2 );
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_data' ), array( $this, 'maybe_add_dcc_payment_data' ), 10, 2 );
-
-		// Process DCC when the payment is processed.
-		add_action( $this->prefix_hook( 'payment_success' ), array( $this, 'process_dcc_data' ), 10, 2 );
 
 		// Render DCC data on the order receipt page.
 		add_filter( 'woocommerce_get_order_item_totals', array( $this, 'render_dcc_data_receipt' ), 10, 2 );
@@ -97,70 +126,38 @@ trait DynamicCurrencyConversion {
 		return $data;
 	}
 
-
 	/**
-	 * Relocalize cart total when DCC is enabled.
+	 * Validate DCC data.
 	 *
-	 * @param  array $fragments Fragments to update via AJAX.
-	 * @return array
-	 */
-	public function relocalize_cart_total( $fragments ) {
-		$this->maybe_update_hosted_session();
-		return $fragments;
-	}
-
-
-	/**
-	 * Update the order amount and currency in the hosted session if needed.
+	 * @param \WP_Error $errors Existing errors.
 	 *
-	 * @return void
+	 * @return \WP_Error
 	 */
-	public function maybe_update_hosted_session() {
-		if ( ! WC()->cart || empty( WC()->session ) ) {
-			return;
+	public function validate_dcc_data( $errors ) {
+		if ( empty( $_POST[ $this->id . '_dcc_request_id' ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+			return $errors;
 		}
 
-		$current_session = $this->current_hosted_session_id();
-		if ( ! $current_session ) {
-			return;
+		if ( ! isset( $_POST['dccOfferState'] ) && ! isset( $_POST['dccofferstate'] ) ) {
+			$errors->add( 'dcc_offer_state_missing', __( 'Please select whether you want to accept or reject the currency conversion offer.', $this->core_plugin->text_domain() ) );
 		}
 
-		$session_key = $this->prefix_hook( 'session_total_' . $current_session );
-
-		$session_total = WC()->session->get( $session_key );
-		$current_total = Utils::get_current_total_amount();
-
-		if ( $current_total === $session_total ) {
-			return; // No need to update the session.
-		}
-
-		$payload = array(
-			'apiOperation' => 'UPDATE_SESSION',
-			'order'        => array(
-				'amount'   => $current_total,
-				'currency' => get_woocommerce_currency(),
-			),
-		);
-
-		try {
-			$this->api()->update_session( $current_session, $payload );
-
-			WC()->session->set( $session_key, $current_total );
-		} catch ( \Exception $e ) {
-			$this->log( 'Failed to update hosted session: ' . $e->getMessage(), 'error' );
-		}
+		return $errors;
 	}
 
 
 	/**
 	 * Add DCC payment data to the hosted session payment data if available.
 	 *
-	 * @param  array     $payment_data Existing payment data.
-	 * @param  \WC_Order $order        Order object.
+	 * @param  array         $payment_data Existing payment data.
+	 * @param  WC_Order|null $order        Order object.
 	 *
 	 * @return array
 	 */
 	public function maybe_add_dcc_payment_data( $payment_data, $order ) {
+		if ( null === $order || ! $order instanceof WC_Order ) {
+			return $payment_data;
+		}
 
 		if ( empty( $_POST[ $this->id . '_dcc_request_id' ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
 			return $payment_data;
@@ -168,8 +165,13 @@ trait DynamicCurrencyConversion {
 
 		$dcc_request_id = wc_clean( wp_unslash( $_POST[ $this->id . '_dcc_request_id' ] ) ); // phpcs:ignore WordPress.Security.NonceVerification
 
+		$payment_data['currencyConversion'] = array(
+			'requestId' => $dcc_request_id,
+			'uptake'    => 'NOT_AVAILABLE',
+		);
+
 		// Assume the offer was rejected if no offer state is provided.
-		$offer_state = 'Reject';
+		$offer_state = false;
 		if ( isset( $_POST['dccOfferState'] ) ) {
 			$offer_state = wc_clean( wp_unslash( $_POST['dccOfferState'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
 		} elseif ( $_POST['dccofferstate'] ) {
@@ -177,10 +179,13 @@ trait DynamicCurrencyConversion {
 			$offer_state = wc_clean( wp_unslash( $_POST['dccofferstate'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
 		}
 
-		$payment_data['currencyConversion'] = array(
-			'requestId' => $dcc_request_id,
-			'uptake'    => 'Accept' === $offer_state ? 'ACCEPTED' : 'DECLINED',
-		);
+		if ( (bool) $offer_state ) {
+			if ( 'Unavailable' === $offer_state ) {
+				$payment_data['currencyConversion']['uptake'] = 'NOT_AVAILABLE';
+			} else {
+				$payment_data['currencyConversion']['uptake'] = 'Accept' === $offer_state ? 'ACCEPTED' : 'DECLINED';
+			}
+		}
 
 		return $payment_data;
 	}
@@ -354,7 +359,7 @@ trait DynamicCurrencyConversion {
 			);
 
 			if ( $result['body']['result'] !== 'SUCCESS' ) {
-				$this->log( 'DCC quote request failed: ' . print_r( $result, true ), 'error' );
+				$this->core_plugin->logger()->log( 'DCC quote request failed: ' . print_r( $result, true ), 'error' );
 				wp_send_json_error();
 			}
 
@@ -376,8 +381,23 @@ trait DynamicCurrencyConversion {
 				)
 			);
 		} catch ( \Exception $e ) {
-			$this->log( 'DCC quote request failed: ' . $e->getMessage(), 'error' );
+			$this->core_plugin->logger()->log( 'DCC quote request failed: ' . $e->getMessage(), 'error' );
 			wp_send_json_error();
 		}
+	}
+
+	public function display_dcc_info_area() {
+		if ( $this->dcc_enabled && ! is_add_payment_method_page() ) {
+			echo '<div id="' . esc_attr( $this->id ) . '_currency_conversion" class="payment-core-currency-conversion"></div>';
+		}
+	}
+
+	public function dcc_payment_fields_hosted_session_template_data( $template_data ) {
+		$template_data['dcc_enabled'] = $this->dcc_enabled;
+		return $template_data;
+	}
+
+	public function dcc_after_payment_method_fields() {
+		echo '<input type="hidden" id="' . $this->id . '_dcc_request_id" name="' . $this->id . '_dcc_request_id" />';
 	}
 }
