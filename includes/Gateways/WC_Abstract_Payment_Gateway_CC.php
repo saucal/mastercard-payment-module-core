@@ -957,7 +957,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			return;
 		}
 
-		if ( ! $this->is_saving_payment_method() && ! \is_add_payment_method_page() && ! ( isset( $_REQUEST['order_id'] ) && $_REQUEST['order_id'] === 'add_payment_method' ) ) {
+		if ( ! $this->is_saving_payment_method() && ! \is_add_payment_method_page() && ! ( isset( $_REQUEST['order_id'] ) && $_REQUEST['order_id'] === \wc_clean( \wp_unslash( 'add_payment_method' ) ) ) ) {
 			return;
 		}
 
