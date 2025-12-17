@@ -290,7 +290,7 @@ trait Subscriptions {
 	 * @return WC_Subscription|false
 	 */
 	protected function get_subscription_object( $order ) {
-		if ( null === $order || ! $order instanceof WC_Order ) {
+		if ( ! $this->is_order( $order ) ) {
 			return false;
 		}
 

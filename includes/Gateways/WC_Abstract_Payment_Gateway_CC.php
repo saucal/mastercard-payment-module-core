@@ -669,7 +669,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	protected function process_payment_hosted_session( $order, $processing_3ds_callback = false ) {
 		if ( $processing_3ds_callback ) {
 			$session = null;
-			if ( null !== $order && $order instanceof WC_Order ) {
+			if ( $this->is_order( $order ) ) {
 				$session = $order->get_meta( $this->prefix_hook( 'payment_session' ) );
 			} else {
 				if ( empty( WC()->session ) ) {
@@ -701,7 +701,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			throw new Exception( __( 'Security code is missing.', $this->core_plugin->text_domain() ) );
 		}
 
-		if ( null !== $order && $order instanceof WC_Order ) {
+		if ( $this->is_order( $order ) ) {
 			$api_operation = ( 'AUTHORIZE' === $this->transaction_mode ) ? 'AUTHORIZE' : 'PAY';
 		} else {
 			$api_operation = 'VERIFY';
@@ -864,7 +864,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$order_data = $response['body']['order'];
 		}
 
-		if ( null !== $order && $order instanceof WC_Order ) {
+		if ( $this->is_order( $order ) ) {
 			$this->process_wc_order( $order, $order_data, $response['body']['transaction'] );
 		}
 
@@ -935,7 +935,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			return;
 		}
 
-		if ( null !== $order && $order instanceof WC_Order ) {
+		if ( $this->is_order( $order ) ) {
 			// This adds a list of tokens endlessly after several changes, making it very difficult to be useful.
 			// TODO: Consider revising this behavior in the future.
 			$order->add_payment_token( new WC_Payment_Token_CC( $payment_token_id ) );
@@ -1113,7 +1113,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return void
 	 */
 	protected function get_authentication_transaction( $order = null ) {
-		if ( null !== $order && $order instanceof WC_Order ) {
+		if ( $this->is_order( $order ) ) {
 			return $order->get_meta( $this->prefix_hook( 'authentication_transaction' ) );
 		} else {
 			if ( empty( WC()->session ) ) {
@@ -1133,7 +1133,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return void
 	 */
 	protected function update_authentication_transaction( $order, $transaction_id, $save = true ) {
-		if ( null !== $order && $order instanceof WC_Order ) {
+		if ( $this->is_order( $order ) ) {
 			// Clean the authentication transaction.
 			if ( null !== $transaction_id ) {
 				$order->update_meta_data( $this->prefix_hook( 'authentication_transaction' ), $transaction_id );
@@ -1281,7 +1281,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			throw new Exception( __( 'There was an error with the payment authentication. Please try again.', $this->core_plugin->text_domain() ) );
 		}
 
-		if ( null !== $order && $order instanceof WC_Order ) {
+		if ( $this->is_order( $order ) ) {
 			// Send the ACS form to the client.
 			$order->update_meta_data( $this->prefix_hook( 'payment_session' ), $session );
 			$order->save();
