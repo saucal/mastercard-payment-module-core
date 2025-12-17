@@ -311,21 +311,19 @@ const hostedSessions = {
 				}
 			}
 
-			if ( doDCC && fieldResults.card?.isValid ) {
-				hostedSessions.dcc
-					.maybeTriggerCurrencyConversion()
-					.then( () => {
-						resolve( fieldResults.card?.isValid );
-					} );
-			} else {
-				resolve( fieldResults.card?.isValid );
+			let promise = Promise.resolve();
+			if ( doDCC && valid ) {
+				promise = hostedSessions.dcc.maybeTriggerCurrencyConversion();
 			}
+
+			promise.then( () => {
+				hostedSessions.unblockFieldset();
+				resolve( valid );
+			} );
 		} );
 	},
 
 	processValidatedField( fieldSelector, result, allowEmpty = true ) {
-		hostedSessions.unblockFieldset();
-
 		const $field = jQuery( fieldSelector ).closest(
 			hostedSessions.isWooBlocks()
 				? '.wc-block-components-text-input'
