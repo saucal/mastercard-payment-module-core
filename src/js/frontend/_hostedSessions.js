@@ -213,6 +213,10 @@ const hostedSessions = {
 
 				hostedSessions.dirtyFields[ role ] = true;
 
+				if ( role === 'number' ) {
+					hostedSessions.dcc.clearCachedQuote();
+				}
+
 				hostedSessions.validateForm().then( ( fieldResults ) => {
 					clearTimeout( timeoutBlock ); // If we didn't block yet, cancel it
 					hostedSessions.validateCardFields( fieldResults );
@@ -227,7 +231,10 @@ const hostedSessions = {
 				'card.expiryMonth',
 				'card.expiryYear',
 			],
-			function ( selector, result ) {
+			function ( selector, result, role ) {
+				if ( role === 'number' ) {
+					hostedSessions.dcc.clearCachedQuote();
+				}
 				hostedSessions.maybeResetPaymentSession( result?.errorReason );
 				hostedSessions.processValidatedField( selector, result );
 			}
@@ -235,11 +242,13 @@ const hostedSessions = {
 
 		PaymentSession.onCardTypeChange( ( selector, result ) => {
 			hostedSessions.dirtyFields.number = true;
+			hostedSessions.dcc.clearCachedQuote();
 			hostedSessions.processCardTypeChange( selector, result );
 		} );
 
 		PaymentSession.onCardBINChange( () => {
 			hostedSessions.dirtyFields.number = true;
+			hostedSessions.dcc.clearCachedQuote();
 			hostedSessions.validateForm().then( ( fieldResults ) => {
 				hostedSessions.validateCardFields( fieldResults );
 			} );
