@@ -729,13 +729,21 @@ const hostedSessions = {
 				? [ error_message ]
 				: error_message;
 
+		let errorHTML = [];
+
 		for ( const message of errors ) {
-			hostedSessions.$wcForm.prepend(
-				'<div class="woocommerce-NoticeGroup woocommerce-NoticeGroup-checkout"><div class="woocommerce-error">' +
-					message +
-					'</div></div>'
+			errorHTML.push(
+				'<div class="woocommerce-error">' + message + '</div>'
 			);
 		}
+
+		errorHTML = errorHTML.join( '' );
+
+		hostedSessions.$wcForm.prepend(
+			'<div class="woocommerce-NoticeGroup woocommerce-NoticeGroup-checkout">' +
+				errorHTML +
+				'</div>'
+		);
 
 		hostedSessions.unblockFieldset();
 		hostedSessions.unblockForm();
@@ -745,11 +753,9 @@ const hostedSessions = {
 			.trigger( 'blur' );
 		hostedSessions.scrollToNotices();
 
-		for ( const message of errors ) {
-			jQuery( document.body ).trigger( 'checkout_error', [ message ] );
-			if ( hostedSessions.isWooBlocks() ) {
-				hostedSessions.$wcForm.trigger( 'checkout_error', [ message ] );
-			}
+		jQuery( document.body ).trigger( 'checkout_error', [ errorHTML ] );
+		if ( hostedSessions.isWooBlocks() ) {
+			hostedSessions.$wcForm.trigger( 'checkout_error', [ errorHTML ] );
 		}
 	},
 
