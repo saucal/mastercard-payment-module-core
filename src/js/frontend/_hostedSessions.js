@@ -1082,6 +1082,10 @@ const hostedSessions = {
 
 			hostedSessions.dcc.requesting = true;
 
+			// Clean any previously set quotes
+			hostedSessions.dcc.setQuoteArea( '' );
+			hostedSessions.dcc.setQuoteId( '' );
+
 			hostedSessions.blockFieldset();
 
 			let quotePromise;
