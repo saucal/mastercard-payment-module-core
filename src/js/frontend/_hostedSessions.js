@@ -134,6 +134,11 @@ const hostedSessions = {
 		}
 	},
 
+	preventPropagation( e ) {
+		e.stopImmediatePropagation();
+		e.stopPropagation();
+	},
+
 	initHostedSession() {
 		if ( ! hostedSessions.isWooBlocks() ) {
 			jQuery( document.body ).off(
@@ -170,6 +175,19 @@ const hostedSessions = {
 					frameEmbeddingMitigation: [ 'javascript' ],
 					callbacks: {
 						initialized: () => {
+							// Do not bubble events related to validation to avoid conflicts with WC core validation
+							hostedSessions.$ccFieldset.off(
+								'input validate change focusout',
+								'.input-text, select, input:checkbox',
+								hostedSessions.preventPropagation
+							);
+							hostedSessions.$ccFieldset.on(
+								'input validate change focusout',
+								'.input-text, select, input:checkbox',
+								hostedSessions.preventPropagation
+							);
+
+							// Initial validation of fields
 							hostedSessions
 								.validateForm()
 								.then( ( fieldResults ) => {
@@ -193,7 +211,10 @@ const hostedSessions = {
 			);
 		} catch ( error ) {
 			hostedSessions.submitError(
-				`${ core_gateway_params.hostedSessionErrors.default }: ${ error }`
+				__(
+					'There was an error initializing the payment fields. Please try again.',
+					core_gateway_params.textDomain
+				)
 			);
 			return;
 		}
@@ -213,6 +234,10 @@ const hostedSessions = {
 
 				hostedSessions.dirtyFields[ role ] = true;
 
+				if ( role === 'number' ) {
+					hostedSessions.dcc.clearCachedQuote();
+				}
+
 				hostedSessions.validateForm().then( ( fieldResults ) => {
 					clearTimeout( timeoutBlock ); // If we didn't block yet, cancel it
 					hostedSessions.validateCardFields( fieldResults );
@@ -227,7 +252,10 @@ const hostedSessions = {
 				'card.expiryMonth',
 				'card.expiryYear',
 			],
-			function ( selector, result ) {
+			function ( selector, result, role ) {
+				if ( role === 'number' ) {
+					hostedSessions.dcc.clearCachedQuote();
+				}
 				hostedSessions.maybeResetPaymentSession( result?.errorReason );
 				hostedSessions.processValidatedField( selector, result );
 			}
@@ -235,11 +263,13 @@ const hostedSessions = {
 
 		PaymentSession.onCardTypeChange( ( selector, result ) => {
 			hostedSessions.dirtyFields.number = true;
+			hostedSessions.dcc.clearCachedQuote();
 			hostedSessions.processCardTypeChange( selector, result );
 		} );
 
 		PaymentSession.onCardBINChange( () => {
 			hostedSessions.dirtyFields.number = true;
+			hostedSessions.dcc.clearCachedQuote();
 			hostedSessions.validateForm().then( ( fieldResults ) => {
 				hostedSessions.validateCardFields( fieldResults );
 			} );
@@ -471,33 +501,37 @@ const hostedSessions = {
 		} else {
 			promise = new Promise( ( resolve, reject ) => {
 				hostedSessions.validateForm().then( ( results ) => {
-					if (
-						! hostedSessions.validateCardFields(
-							results,
-							false,
-							false
-						)
-					) {
-						reject();
-						return;
-					}
-					resolve();
+					hostedSessions
+						.validateCardFields( results, false, false )
+						.then( ( valid ) => {
+							if ( ! valid ) {
+								reject(
+									__(
+										"There's an error in the payment fields. Please correct them and try again.",
+										core_gateway_params.textDomain
+									)
+								);
+								return;
+							}
+							resolve();
+						} );
 				} );
 			} );
 		}
 
 		promise
-			.catch( () => {} )
 			.then( function () {
 				hostedSessions.blockForm();
 				return hostedSessions.updateSession();
 			} )
+			.then( hostedSessions.triggerPayAfterResponse )
 			.catch( function ( error ) {
-				hostedSessions.submitError(
-					`${ core_gateway_params.hostedSessionErrors.default }: ${ error }`
-				);
-			} )
-			.then( hostedSessions.triggerPayAfterResponse );
+				let message;
+				if ( error ) {
+					message = `${ error }`;
+				}
+				hostedSessions.submitError( message );
+			} );
 	},
 
 	triggerPayAfterResponse( response ) {
@@ -724,17 +758,31 @@ const hostedSessions = {
 		jQuery(
 			'.woocommerce-NoticeGroup-checkout, .woocommerce-error, .woocommerce-message, .is-error, .is-success'
 		).remove();
-		const errors =
-			typeof error_message === 'string'
-				? [ error_message ]
-				: error_message;
 
-		for ( const message of errors ) {
+		let errorHTML = [];
+
+		if ( typeof error_message !== 'undefined' ) {
+			const errors =
+				typeof error_message === 'string'
+					? [ error_message ]
+					: error_message;
+
+			for ( const message of errors ) {
+				errorHTML.push(
+					'<div class="woocommerce-error">' + message + '</div>'
+				);
+			}
+		}
+
+		errorHTML = errorHTML.join( '' );
+
+		if ( errorHTML !== '' ) {
 			hostedSessions.$wcForm.prepend(
-				'<div class="woocommerce-NoticeGroup woocommerce-NoticeGroup-checkout"><div class="woocommerce-error">' +
-					message +
-					'</div></div>'
+				'<div class="woocommerce-NoticeGroup woocommerce-NoticeGroup-checkout">' +
+					errorHTML +
+					'</div>'
 			);
+			hostedSessions.scrollToNotices();
 		}
 
 		hostedSessions.unblockFieldset();
@@ -743,12 +791,13 @@ const hostedSessions = {
 			.find( '.input-text, select, input:checkbox' )
 			.trigger( 'validate' )
 			.trigger( 'blur' );
-		hostedSessions.scrollToNotices();
 
-		for ( const message of errors ) {
-			jQuery( document.body ).trigger( 'checkout_error', [ message ] );
+		if ( errorHTML !== '' ) {
+			jQuery( document.body ).trigger( 'checkout_error', [ errorHTML ] );
 			if ( hostedSessions.isWooBlocks() ) {
-				hostedSessions.$wcForm.trigger( 'checkout_error', [ message ] );
+				hostedSessions.$wcForm.trigger( 'checkout_error', [
+					errorHTML,
+				] );
 			}
 		}
 	},
@@ -1066,6 +1115,10 @@ const hostedSessions = {
 			}
 
 			hostedSessions.dcc.requesting = true;
+
+			// Clean any previously set quotes
+			hostedSessions.dcc.setQuoteArea( '' );
+			hostedSessions.dcc.setQuoteId( '' );
 
 			hostedSessions.blockFieldset();
 

@@ -243,7 +243,7 @@ class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 			'amount'      => '0.00',
 			'description' => ! empty( $this->core_plugin->get_gateway_setting( 'merchant_name' ) ) ? $this->core_plugin->get_gateway_setting( 'merchant_name' ) : get_bloginfo( 'name', 'display' ),
 		);
-		if ( null !== $order && $order instanceof WC_Order ) {
+		if ( $this->is_order( $order ) ) {
 			$base['reference']       = $order->get_id();
 			$base['amount']          = $order->get_total();
 			$base['notificationUrl'] = add_query_arg(
@@ -295,7 +295,7 @@ class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 */
 	protected function unique_order_id( $order = null ) {
 		$unique_order_id = null;
-		if ( null !== $order && $order instanceof WC_Order ) {
+		if ( $this->is_order( $order ) ) {
 			$unique_order_id = $order->get_meta( $this->prefix_hook( 'order_id' ) );
 
 			if ( ! $unique_order_id ) {
@@ -338,7 +338,7 @@ class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * @return string
 	 */
 	protected function unique_transaction_id( $order = null ) {
-		if ( null !== $order && $order instanceof WC_Order ) {
+		if ( $this->is_order( $order ) ) {
 			$last_transaction_id = $order->get_meta( $this->prefix_hook( 'transaction_attempt' ), true );
 		} else {
 			if ( empty( WC()->session ) ) {
@@ -353,7 +353,7 @@ class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 		$current_transaction_attempt = $last_transaction_id + 1;
 
-		if ( null !== $order && $order instanceof WC_Order ) {
+		if ( $this->is_order( $order ) ) {
 			$order->update_meta_data( $this->prefix_hook( 'transaction_attempt' ), $current_transaction_attempt );
 			$order->save_meta_data();
 		} else {
@@ -1468,5 +1468,9 @@ class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 		if ( $this->debounce_key_transaction ) {
 			delete_transient( $this->debounce_key_transaction );
 		}
+	}
+
+	protected function is_order( $order ) {
+		return null !== $order && $order instanceof WC_Order;
 	}
 }

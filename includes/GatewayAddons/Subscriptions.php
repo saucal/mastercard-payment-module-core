@@ -136,7 +136,7 @@ trait Subscriptions {
 		 *
 		 * In either case, we need to set the apiOperation to be VERIFY, to allow a 0 dollar amount
 		 */
-		if ( $subscription->get_id() === $order->get_id() || NumberUtil::round( $order->get_total(), \WC_ROUNDING_PRECISION ) <= 0 ) {
+		if ( $this->order_is_empty_or_subscription( $order, $subscription ) ) {
 			$api_operation = 'VERIFY';
 		}
 
@@ -177,7 +177,7 @@ trait Subscriptions {
 		 *
 		 * In either case, we need to set the purpose to ADD_CARD.
 		 */
-		if ( $subscription->get_id() === $order->get_id() || NumberUtil::round( $order->get_total(), \WC_ROUNDING_PRECISION ) <= 0 ) {
+		if ( $this->order_is_empty_or_subscription( $order, $subscription ) ) {
 			$init_authentication['authentication']['purpose'] = 'ADD_CARD';
 		}
 
@@ -290,7 +290,7 @@ trait Subscriptions {
 	 * @return WC_Subscription|false
 	 */
 	protected function get_subscription_object( $order ) {
-		if ( null === $order || ! $order instanceof WC_Order ) {
+		if ( ! $this->is_order( $order ) ) {
 			return false;
 		}
 
@@ -844,5 +844,9 @@ trait Subscriptions {
 
 	public function maybe_avoid_subscription_as_paid( $is_paid, $order ) {
 		return \wcs_is_subscription( $order ) ? false : $is_paid;
+	}
+
+	public function order_is_empty_or_subscription( $order, $subscription ) {
+		return $subscription->get_id() === $order->get_id() || NumberUtil::round( $order->get_total(), \WC_ROUNDING_PRECISION ) <= 0;
 	}
 }

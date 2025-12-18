@@ -155,7 +155,7 @@ trait DynamicCurrencyConversion {
 	 * @return array
 	 */
 	public function maybe_add_dcc_payment_data( $payment_data, $order ) {
-		if ( null === $order || ! $order instanceof WC_Order ) {
+		if ( ! $this->is_order( $order ) ) {
 			return $payment_data;
 		}
 
