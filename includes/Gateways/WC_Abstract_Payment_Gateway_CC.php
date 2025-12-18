@@ -1452,10 +1452,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			return array();
 		}
 
-		if ( $this->is_saved_payment_method() ) {
-			return $this->update_session_saved_payment_method( $id );
-		}
-
 		$version = ! empty( $_POST[ $this->prefix_hook( 'session_version' ) ] ) ? wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'session_version' ) ] ) ) : '';
 		if ( ! $version ) {
 			return array();
@@ -1515,24 +1511,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	protected function payment_token_key() {
 		return 'wc-' . $this->id . '-payment-token';
-	}
-
-
-	/**
-	 * Update the session if using saved payment method.
-	 *
-	 * @param array $session_id Session ID.
-	 *
-	 * @return array
-	 */
-	public function update_session_saved_payment_method( $session_id ) {
-		if ( ! $this->is_saved_payment_method() ) {
-			return array();
-		}
-
-		$payment_token_id = wc_clean( $_POST[ $this->payment_token_key() ] );
-
-		return $this->update_session_with_token( $session_id, $payment_token_id );
 	}
 
 	protected function update_session_with_token( $session_id, $payment_token_id, $return_response = false ) {
