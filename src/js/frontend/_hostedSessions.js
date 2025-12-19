@@ -1056,9 +1056,6 @@ const hostedSessions = {
 							core_gateway_params.textDomain
 						)
 				);
-			} )
-			.always( function () {
-				hostedSessions.unblockForm();
 			} );
 	},
 
