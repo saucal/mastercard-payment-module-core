@@ -589,6 +589,10 @@ const hostedSessions = {
 					'input[name="woocommerce_change_payment"]'
 				).val();
 			}
+			const maybeOrderId = hostedSessions.isOrderPay();
+			if ( maybeOrderId ) {
+				orderId = maybeOrderId;
+			}
 			hostedSessions.execute3DsAuthentication( orderId, isChangePayment );
 			return;
 		}
@@ -650,6 +654,12 @@ const hostedSessions = {
 
 	isChangePayment() {
 		return jQuery( 'input[name="woocommerce_change_payment"]' ).length > 0;
+	},
+
+	isOrderPay() {
+		const params = new URLSearchParams( document.location.search );
+		const orderId = parseInt( params.get( 'order-pay' ), 10 );
+		return ! isNaN( orderId ) ? orderId : false;
 	},
 
 	isAddPaymentMethod() {
@@ -1046,9 +1056,6 @@ const hostedSessions = {
 							core_gateway_params.textDomain
 						)
 				);
-			} )
-			.always( function () {
-				hostedSessions.unblockForm();
 			} );
 	},
 

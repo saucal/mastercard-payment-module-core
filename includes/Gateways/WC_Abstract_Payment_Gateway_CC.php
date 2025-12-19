@@ -1452,10 +1452,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			return array();
 		}
 
-		if ( $this->is_saved_payment_method() ) {
-			return $this->update_session_saved_payment_method( $id );
-		}
-
 		$version = ! empty( $_POST[ $this->prefix_hook( 'session_version' ) ] ) ? wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'session_version' ) ] ) ) : '';
 		if ( ! $version ) {
 			return array();
@@ -1515,24 +1511,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	protected function payment_token_key() {
 		return 'wc-' . $this->id . '-payment-token';
-	}
-
-
-	/**
-	 * Update the session if using saved payment method.
-	 *
-	 * @param array $session_id Session ID.
-	 *
-	 * @return array
-	 */
-	public function update_session_saved_payment_method( $session_id ) {
-		if ( ! $this->is_saved_payment_method() ) {
-			return array();
-		}
-
-		$payment_token_id = wc_clean( $_POST[ $this->payment_token_key() ] );
-
-		return $this->update_session_with_token( $session_id, $payment_token_id );
 	}
 
 	protected function update_session_with_token( $session_id, $payment_token_id, $return_response = false ) {
@@ -2398,10 +2376,15 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 			wc_add_notice( $e->getMessage(), 'error' );
 
-			$this->clean_cached_3ds_data( $order );
+			$redirect_url = $this->get_return_url( $order );
+
+			// Do cleanups
+			if ( $this->enable_3ds ) {
+				// Clean once more after saving the cards.
+				$this->clean_cached_3ds_data( $order );
+			}
 			$this->maybe_clean_hosted_cached_session( $this->get_hosted_session_data_hash() );
 
-			$redirect_url = ( is_checkout_pay_page() && $order ) ? $order->get_checkout_payment_url() : wc_get_checkout_url();
 			wp_safe_redirect( $redirect_url );
 
 			exit();
