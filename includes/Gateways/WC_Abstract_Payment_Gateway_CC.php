@@ -2376,10 +2376,15 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 			wc_add_notice( $e->getMessage(), 'error' );
 
-			$this->clean_cached_3ds_data( $order );
+			$redirect_url = $this->get_return_url( $order );
+
+			// Do cleanups
+			if ( $this->enable_3ds ) {
+				// Clean once more after saving the cards.
+				$this->clean_cached_3ds_data( $order );
+			}
 			$this->maybe_clean_hosted_cached_session( $this->get_hosted_session_data_hash() );
 
-			$redirect_url = ( is_checkout_pay_page() && $order ) ? $order->get_checkout_payment_url() : wc_get_checkout_url();
 			wp_safe_redirect( $redirect_url );
 
 			exit();
