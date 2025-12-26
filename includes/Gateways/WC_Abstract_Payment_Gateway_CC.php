@@ -650,6 +650,9 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			);
 		}
 
+		// Set current payment method
+		WC()->session->set( 'chosen_payment_method', $this->id );
+
 		return array(
 			'result'   => 'success',
 			'redirect' => $order->get_checkout_payment_url(),
