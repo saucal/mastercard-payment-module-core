@@ -584,12 +584,7 @@ const hostedSessions = {
 		) {
 			const isChangePayment = hostedSessions.isChangePayment();
 			let orderId = 'add_payment_method';
-			if ( isChangePayment ) {
-				orderId = jQuery(
-					'input[name="woocommerce_change_payment"]'
-				).val();
-			}
-			const maybeOrderId = hostedSessions.isOrderPay();
+			const maybeOrderId = hostedSessions.getCurrentOrderId();
 			if ( maybeOrderId ) {
 				orderId = maybeOrderId;
 			}
@@ -656,10 +651,15 @@ const hostedSessions = {
 		return jQuery( 'input[name="woocommerce_change_payment"]' ).length > 0;
 	},
 
-	isOrderPay() {
-		const params = new URLSearchParams( document.location.search );
-		const orderId = parseInt( params.get( 'order-pay' ), 10 );
-		return ! isNaN( orderId ) ? orderId : false;
+	getCurrentOrderId() {
+		const orderId = false;
+		const orderField = jQuery(
+			`#${ core_gateway_params.pluginPrefix }_order_id`
+		);
+		if ( orderField.length ) {
+			return parseInt( orderField.val(), 10 );
+		}
+		return orderId;
 	},
 
 	isAddPaymentMethod() {
