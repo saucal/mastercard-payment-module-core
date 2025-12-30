@@ -10,7 +10,6 @@ import { addPrefix, getPrefix, getSessionId } from './_settings';
 import hostedSessions from '../../frontend/_hostedSessions';
 
 export const SavedTokenHandler = ( {
-	activePaymentMethod,
 	token,
 	emitResponse,
 	eventRegistration: { onPaymentSetup },
@@ -38,7 +37,6 @@ export const SavedTokenHandler = ( {
 			} );
 		} );
 	}, [
-		activePaymentMethod,
 		emitResponse.responseTypes.SUCCESS,
 		onPaymentSetup,
 		token,
