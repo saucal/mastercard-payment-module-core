@@ -2,6 +2,7 @@
  * External dependencies
  */
 const { useEffect } = window.wp.element;
+import { useSelect } from '@wordpress/data';
 
 /**
  * Internal dependencies
@@ -14,6 +15,11 @@ export const SavedTokenHandler = ( {
 	emitResponse,
 	eventRegistration: { onPaymentSetup },
 } ) => {
+	const paymentMethodData = useSelect( ( select ) => {
+		const store = select( 'wc/store/payment' );
+		return store.getPaymentMethodData();
+	} );
+
 	useEffect( () => {
 		hostedSessions.pluginPrefix = getPrefix();
 		hostedSessions.dcc.requestCurrencyConversionQuoteSavedToken( token );
@@ -22,13 +28,13 @@ export const SavedTokenHandler = ( {
 			return new Promise( ( resolve ) => {
 				const data = {};
 				data[ addPrefix( 'session_id' ) ] = getSessionId();
-				data[ `wc-${ getPrefix() }-payment-token` ] = token;
 				data[ addPrefix( '3ds_data' ) ] = hostedSessions.get3DSData();
 
 				resolve( {
 					type: emitResponse.responseTypes.SUCCESS,
 					meta: {
 						paymentMethodData: {
+							...paymentMethodData,
 							...data,
 							...hostedSessions.dcc.getCurrencyConversionData(),
 						},
@@ -40,6 +46,7 @@ export const SavedTokenHandler = ( {
 		emitResponse.responseTypes.SUCCESS,
 		onPaymentSetup,
 		token,
+		paymentMethodData,
 	] );
 
 	return (
