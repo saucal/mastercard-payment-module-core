@@ -25,6 +25,16 @@ export const hostedSessionHandler = (
 
 	const unsuscribePaymentSetup = onPaymentSetup( () => {
 		return new Promise( ( resolve ) => {
+			const { validationStore } = window.wc?.wcBlocksData ?? {};
+			if ( validationStore ) {
+				const store = select( validationStore );
+				const hasValidationErrors = store.hasValidationErrors();
+				// Return if there is a validation error on the checkout fields.
+				if ( hasValidationErrors ) {
+					return;
+				}
+			}
+
 			hostedSessions
 				.triggerPay()
 				.then( ( data ) => {
