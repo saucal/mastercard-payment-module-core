@@ -67,8 +67,10 @@ export const hostedSessionHandler = (
 					} );
 				} )
 				.catch( ( errorMessage ) => {
-					errorMessage =
-						hostedSessions.stringifyErrors( errorMessage );
+					errorMessage = hostedSessions.stringifyErrors(
+						errorMessage,
+						'.\n'
+					);
 
 					hostedSessions.unblockFieldset();
 					hostedSessions.unblockForm();

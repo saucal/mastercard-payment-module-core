@@ -830,7 +830,7 @@ const hostedSessions = {
 		}, 100 )();
 	},
 
-	stringifyErrors( error_message ) {
+	stringifyErrors( error_message, separator = '' ) {
 		const errorHTML = [];
 
 		if ( typeof error_message !== 'undefined' ) {
@@ -846,7 +846,7 @@ const hostedSessions = {
 			}
 		}
 
-		return errorHTML.join( '' );
+		return errorHTML.join( separator );
 	},
 
 	submitError( error_message ) {
