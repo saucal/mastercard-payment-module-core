@@ -1330,7 +1330,7 @@ const hostedSessions = {
 			dccData[ `${ hostedSessions.pluginPrefix }_dcc_request_id` ] =
 				rawData.dccRequestId;
 			if ( rawData.dccOfferState !== false ) {
-				dccData.dccOfferState = dccData.dccOfferState;
+				dccData.dccOfferState = rawData.dccOfferState;
 			}
 
 			return dccData;
