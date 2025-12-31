@@ -106,6 +106,11 @@ export const CardElements = () => {
 					<i>{ saveCardNotice }</i>
 				</span>
 			) }
+			<input
+				type="hidden"
+				id={ addPrefix( 'dcc_request_id' ) }
+				name={ addPrefix( 'dcc_request_id' ) }
+			/>
 			<div
 				id={ `${ getPrefix() }_currency_conversion` }
 				className="payment-core-currency-conversion"
@@ -127,11 +132,6 @@ export const CardElements = () => {
 				type="hidden"
 				id={ addPrefix( 'session_version' ) }
 				name={ addPrefix( 'session_version' ) }
-			/>
-			<input
-				type="hidden"
-				id={ addPrefix( 'dcc_request_id' ) }
-				name={ addPrefix( 'dcc_request_id' ) }
 			/>
 		</div>
 	);
