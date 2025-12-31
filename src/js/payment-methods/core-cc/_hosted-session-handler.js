@@ -72,6 +72,7 @@ export const hostedSessionHandler = (
 						'.\n'
 					);
 
+					// TODO: Unblock in hostedSessions?
 					hostedSessions.unblockFieldset();
 					hostedSessions.unblockForm();
 					resolve( {
