@@ -24,7 +24,11 @@ import { hostedCheckoutHandler } from './_hosted-checkout-handler';
  * @param {Object} props
  * @return React component
  */
-const PaymentCoreCC = ( { activePaymentMethod, eventRegistration, emitResponse } ) => {
+const PaymentCoreCC = ( {
+	activePaymentMethod,
+	eventRegistration,
+	emitResponse,
+} ) => {
 	const { onPaymentSetup, onCheckoutSuccess, onCheckoutFail } =
 		eventRegistration;
 
@@ -36,7 +40,7 @@ const PaymentCoreCC = ( { activePaymentMethod, eventRegistration, emitResponse }
 					onCheckoutSuccess,
 					onCheckoutFail,
 					emitResponse.responseTypes.SUCCESS,
-					emitResponse.responseTypes.ERROR,
+					emitResponse.responseTypes.ERROR
 				);
 			}
 

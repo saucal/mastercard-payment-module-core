@@ -1,8 +1,14 @@
 /**
+ * External dependencies
+ */
+import { __ } from '@wordpress/i18n';
+import { select } from '@wordpress/data';
+
+/**
  * Internal dependencies
  */
 import hostedSessions from '../../frontend/_hostedSessions';
-import { addPrefix, getTextDomain } from './_settings';
+import { addPrefix, getTextDomain, getSessionId } from './_settings';
 
 export const hostedSessionHandler = (
 	onPaymentSetup,
@@ -11,68 +17,43 @@ export const hostedSessionHandler = (
 	emitResponseSuccess,
 	emitResponseError
 ) => {
+	hostedSessions.setSessionId( getSessionId() );
 	hostedSessions.init();
+
+	const paymentMethodData =
+		select( 'wc/store/payment' ).getPaymentMethodData();
+
 	const unsuscribePaymentSetup = onPaymentSetup( () => {
 		return new Promise( ( resolve ) => {
-			hostedSessions.triggerPay();
-			jQuery( document.body ).on(
-				'submit_payment',
-				hostedSessions.$wcForm,
-				() => {
-					const data = {};
-
-					const sessionId = hostedSessions.getSessionId();
-					const sessionVersion = hostedSessions.getSessionVersion();
-
-					if ( ! sessionId || ! sessionVersion ) {
-						resolve( {
-							type: emitResponseError,
-							meta: {
-								error: {
-									message: __(
-										'There was an error obtaining the payment session. Please try again.',
-										getTextDomain()
-									),
-								},
-							},
-						} );
-					}
-
-					data[ addPrefix( 'session_id' ) ] = sessionId;
-					data[ addPrefix( 'session_version' ) ] = sessionVersion;
-					data[ addPrefix( '3ds_data' ) ] =
-						hostedSessions.get3DSData();
-
+			hostedSessions
+				.triggerPay()
+				.then( ( data ) => {
 					resolve( {
 						type: emitResponseSuccess,
 						meta: {
 							paymentMethodData: {
+								...paymentMethodData,
 								...data,
-								...hostedSessions.dcc.getCurrencyConversionData(),
 							},
 						},
 					} );
-				}
-			);
-			jQuery( document.body ).on(
-				'checkout_error',
-				hostedSessions.$wcForm,
-				( event, errorMessage ) => {
+				} )
+				.catch( ( errorMessage ) => {
+					errorMessage =
+						hostedSessions.stringifyErrors( errorMessage );
+
+					hostedSessions.unblockFieldset();
+					hostedSessions.unblockForm();
 					resolve( {
 						type: emitResponseError,
-						meta: {
-							error: {
-								message:
-									errorMessage ||
-									__(
-										'There was an error obtaining the payment session. Please try again.',
-										getTextDomain()
-									),
-							},
-						},
+						message:
+							errorMessage ||
+							__(
+								'There was an error processing the payment. Please try again.',
+								getTextDomain()
+							),
 					} );
-				}
-			);
+				} );
 		} );
 	} );
 
@@ -85,26 +66,24 @@ export const hostedSessionHandler = (
 				return;
 			}
 
-			if (
-				! hostedSessions.process3DsAuthentication(
-					new Event( 'Redirect' ),
-					processingResponse.paymentDetails
-				)
-			) {
-				return new Promise( ( resolve ) => {
-					resolve( {
-						type: emitResponseError,
-						meta: {
-							error: {
-								message: __(
-									'There was an error redirecting to the payment page. Please try again.',
-									getTextDomain()
-								),
-							},
-						},
+			return new Promise( ( resolve ) => {
+				hostedSessions
+					.process3DsAuthenticationAsync(
+						processingResponse.paymentDetails
+					)
+					.then( () => {
+						resolve();
+					} )
+					.catch( () => {
+						resolve( {
+							type: emitResponseError,
+							message: __(
+								'There was an error redirecting to the payment page. Please try again.',
+								getTextDomain()
+							),
+						} );
 					} );
-				} );
-			}
+			} );
 		}
 	);
 

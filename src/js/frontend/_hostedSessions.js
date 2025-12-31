@@ -56,18 +56,12 @@ const hostedSessions = {
 			const data = threeDsForm.data( '3ds-data' );
 
 			if ( Object.keys( data ).length && data.action ) {
-				hostedSessions.process3DsAuthenticationRedirect(
-					data.action,
-					data
-				);
+				hostedSessions.process3DsAuthenticationRedirect( data );
 				return;
 			}
 		}
 
-		hostedSessions.sessionId = jQuery(
-			`#${ core_gateway_params.pluginPrefix }_session_id`
-		).val();
-
+		hostedSessions.getSessionId();
 		if ( ! hostedSessions.sessionId ) {
 			return;
 		}
@@ -394,7 +388,17 @@ const hostedSessions = {
 		event.preventDefault();
 
 		hostedSessions.$wcForm.addClass( 'is-processing' );
-		hostedSessions.triggerPay();
+		hostedSessions
+			.triggerPay()
+			.then( hostedSessions.updateFormWithSessionData )
+			.then( hostedSessions.submitForm )
+			.catch( function ( error ) {
+				let message;
+				if ( error ) {
+					message = error;
+				}
+				hostedSessions.submitError( message );
+			} );
 
 		return false;
 	},
@@ -437,9 +441,9 @@ const hostedSessions = {
 						return;
 					}
 				} else {
-					hostedSessions.updateSessionFromToken(
-						hostedSessions.isSavedToken()
-					);
+					hostedSessions
+						.updateSessionFromToken( hostedSessions.isSavedToken() )
+						.catch( reject );
 				}
 
 				hostedSessions.$eventProxy.one(
@@ -483,7 +487,7 @@ const hostedSessions = {
 					] );
 				} )
 				.fail( function ( res ) {
-					hostedSessions.submitError(
+					reject(
 						res?.data?.message ||
 							__(
 								'There was an error with the payment authentication. Please try again.',
@@ -519,80 +523,105 @@ const hostedSessions = {
 			} );
 		}
 
-		promise
+		return promise
 			.then( function () {
 				hostedSessions.blockForm();
 				return hostedSessions.updateSession();
 			} )
-			.then( hostedSessions.triggerPayAfterResponse )
-			.catch( function ( error ) {
-				let message;
-				if ( error ) {
-					message = `${ error }`;
-				}
-				hostedSessions.submitError( message );
-			} );
+			.then( hostedSessions.triggerPayAfterResponse );
 	},
 
 	triggerPayAfterResponse( response ) {
-		let error = false;
-		const errors = [];
+		return new Promise( ( resolve, reject ) => {
+			let error = false;
+			const errors = [];
 
-		if ( ! response.status ) {
-			error = `${ core_gateway_params.hostedSessionErrors.default }: ${ response }`;
-		} else if ( response.status !== 'ok' ) {
-			error = hostedSessions.getSessionError( response );
-		} else if (
-			! response.session ||
-			! response.session.id ||
-			! response.session.version
-		) {
-			error = core_gateway_params.hostedSessionErrors.default;
-		} else if (
-			response?.sourceOfFunds?.provided?.card &&
-			! response.sourceOfFunds.provided.card.securityCode
-		) {
-			error =
-				core_gateway_params.hostedSessionErrors.fields_in_error
-					.securityCode;
-		}
-
-		if ( error ) {
-			errors.push( error );
-		}
-
-		const dccErrors = hostedSessions.dcc.validateCurrencyConversionData();
-		if ( dccErrors.length ) {
-			errors.push( ...dccErrors );
-		}
-
-		if ( errors.length ) {
-			hostedSessions.submitError( errors );
-			return;
-		}
-
-		jQuery( `#${ hostedSessions.pluginPrefix }_session_id` ).val(
-			response.session.id
-		);
-		jQuery( `#${ hostedSessions.pluginPrefix }_session_version` ).val(
-			response.session.version
-		);
-
-		if (
-			core_gateway_params.threeDsEnabled &&
-			! hostedSessions.isCheckout()
-		) {
-			const isChangePayment = hostedSessions.isChangePayment();
-			let orderId = 'add_payment_method';
-			const maybeOrderId = hostedSessions.getCurrentOrderId();
-			if ( maybeOrderId ) {
-				orderId = maybeOrderId;
+			if ( ! response.status ) {
+				error = `${ core_gateway_params.hostedSessionErrors.default }: ${ response }`;
+			} else if ( response.status !== 'ok' ) {
+				error = hostedSessions.getSessionError( response );
+			} else if (
+				! response.session ||
+				! response.session.id ||
+				! response.session.version
+			) {
+				error = core_gateway_params.hostedSessionErrors.default;
+			} else if (
+				response?.sourceOfFunds?.provided?.card &&
+				! response.sourceOfFunds.provided.card.securityCode
+			) {
+				error =
+					core_gateway_params.hostedSessionErrors.fields_in_error
+						.securityCode;
 			}
-			hostedSessions.execute3DsAuthentication( orderId, isChangePayment );
-			return;
-		}
 
-		hostedSessions.submitForm();
+			if ( error ) {
+				errors.push( error );
+			}
+
+			const dccErrors =
+				hostedSessions.dcc.validateCurrencyConversionData();
+			if ( dccErrors.length ) {
+				errors.push( ...dccErrors );
+			}
+
+			if ( errors.length ) {
+				reject( errors );
+				return;
+			}
+
+			const data = {};
+			data[ `${ hostedSessions.pluginPrefix }_session_id` ] =
+				response.session.id;
+			data[ `${ hostedSessions.pluginPrefix }_session_version` ] =
+				response.session.version;
+			if ( core_gateway_params.threeDsEnabled ) {
+				data[ `${ hostedSessions.pluginPrefix }_3ds_data` ] =
+					hostedSessions.get3DSData();
+			}
+
+			const dccData = hostedSessions.dcc.getCurrencyConversionData();
+			for ( const key in dccData ) {
+				data[ key ] = dccData[ key ];
+			}
+
+			if (
+				core_gateway_params.threeDsEnabled &&
+				! hostedSessions.isCheckout()
+			) {
+				const isChangePayment = hostedSessions.isChangePayment();
+				let orderId = 'add_payment_method';
+				const maybeOrderId = hostedSessions.getCurrentOrderId();
+				if ( maybeOrderId ) {
+					orderId = maybeOrderId;
+				}
+
+				data.orderId = orderId || '';
+				if ( isChangePayment ) {
+					data.change_payment_method = true;
+				}
+				hostedSessions
+					.execute3DsAuthentication( data )
+					.then( ( data ) => {
+						resolve( data );
+					} );
+				return;
+			}
+
+			resolve( data );
+		} );
+	},
+
+	updateFormWithSessionData( data ) {
+		return new Promise( ( resolve ) => {
+			for ( const key in data ) {
+				const field = jQuery( `#${ key }` );
+				if ( field.length ) {
+					field.val( data[ key ] );
+				}
+			}
+			resolve( data );
+		} );
 	},
 
 	handlePaymentResponse( response ) {
@@ -600,14 +629,17 @@ const hostedSessions = {
 	},
 
 	isPaymentMethodSelected() {
+		if ( ! hostedSessions.isWooBlocks() ) {
+			return (
+				hostedSessions.$ccFieldset &&
+				jQuery( `#payment_method_${ hostedSessions.pluginPrefix }` ).is(
+					':checked'
+				)
+			);
+		}
 		return (
-			hostedSessions.$ccFieldset &&
-			( jQuery( `#payment_method_${ hostedSessions.pluginPrefix }` ).is(
-				':checked'
-			) ||
-				jQuery(
-					`input[name="radio-control-wc-payment-method-options"][value="${ hostedSessions.pluginPrefix }"]`
-				).is( ':checked' ) )
+			wp.data.select( 'wc/store/payment' ).getActivePaymentMethod() ===
+			hostedSessions.pluginPrefix
 		);
 	},
 
@@ -618,23 +650,44 @@ const hostedSessions = {
 	},
 
 	isSavedToken() {
-		if (
-			! jQuery( `#payment_method_${ hostedSessions.pluginPrefix }` ).is(
-				':checked'
-			)
-		) {
-			return false;
+		let tokenId;
+		if ( ! hostedSessions.isWooBlocks() ) {
+			if (
+				! jQuery(
+					`#payment_method_${ hostedSessions.pluginPrefix }`
+				).is( ':checked' )
+			) {
+				return false;
+			}
+
+			const paymentToken = jQuery(
+				`input[name="wc-${ hostedSessions.pluginPrefix }-payment-token"]`
+			).filter( ':checked' );
+
+			if ( ! paymentToken.length ) {
+				return false;
+			}
+
+			tokenId = paymentToken.val();
+		} else {
+			if (
+				wp.data
+					.select( 'wc/store/payment' )
+					.getActivePaymentMethod() !== hostedSessions.pluginPrefix
+			) {
+				return false;
+			}
+
+			const paymentMethodData = wp.data
+				.select( 'wc/store/payment' )
+				.getPaymentMethodData();
+
+			if ( typeof paymentMethodData?.token === 'undefined' ) {
+				return false;
+			}
+
+			tokenId = paymentMethodData.token;
 		}
-
-		const paymentToken = jQuery(
-			`input[name="wc-${ hostedSessions.pluginPrefix }-payment-token"]`
-		).filter( ':checked' );
-
-		if ( ! paymentToken.length ) {
-			return false;
-		}
-
-		const tokenId = paymentToken.val();
 
 		if ( tokenId.length === 0 ) {
 			return false;
@@ -654,7 +707,7 @@ const hostedSessions = {
 	getCurrentOrderId() {
 		const orderId = false;
 		const orderField = jQuery(
-			`#${ core_gateway_params.pluginPrefix }_order_id`
+			`#${ hostedSessions.pluginPrefix }_order_id`
 		);
 		if ( orderField.length ) {
 			return parseInt( orderField.val(), 10 );
@@ -748,10 +801,7 @@ const hostedSessions = {
 					method: 'POST',
 				} )
 				.done( function ( res ) {
-					hostedSessions.sessionId = res;
-					jQuery(
-						`#${ core_gateway_params.pluginPrefix }_session_id`
-					).val( res );
+					hostedSessions.setSessionId( res );
 					hostedSessions.submitError(
 						core_gateway_params.hostedSessionErrors.session_expired
 					);
@@ -764,12 +814,8 @@ const hostedSessions = {
 		}, 100 )();
 	},
 
-	submitError( error_message ) {
-		jQuery(
-			'.woocommerce-NoticeGroup-checkout, .woocommerce-error, .woocommerce-message, .is-error, .is-success'
-		).remove();
-
-		let errorHTML = [];
+	stringifyErrors( error_message ) {
+		const errorHTML = [];
 
 		if ( typeof error_message !== 'undefined' ) {
 			const errors =
@@ -784,7 +830,15 @@ const hostedSessions = {
 			}
 		}
 
-		errorHTML = errorHTML.join( '' );
+		return errorHTML.join( '' );
+	},
+
+	submitError( error_message ) {
+		jQuery(
+			'.woocommerce-NoticeGroup-checkout, .woocommerce-error, .woocommerce-message, .is-error, .is-success'
+		).remove();
+
+		const errorHTML = hostedSessions.stringifyErrors( error_message );
 
 		if ( errorHTML !== '' ) {
 			hostedSessions.$wcForm.prepend(
@@ -814,6 +868,7 @@ const hostedSessions = {
 
 	submitForm() {
 		if ( hostedSessions.isWooBlocks() ) {
+			// TODO: Deprecated, remove in future versions
 			hostedSessions.$wcForm.trigger( 'submit_payment' );
 		} else {
 			hostedSessions.$wcForm.trigger( 'submit' );
@@ -930,8 +985,27 @@ const hostedSessions = {
 		);
 	},
 
+	setSessionId( sessionId ) {
+		hostedSessions.sessionId = sessionId;
+		jQuery( `#${ hostedSessions.pluginPrefix }_session_id` ).val(
+			sessionId
+		);
+	},
+
 	getSessionId() {
-		return jQuery( `#${ hostedSessions.pluginPrefix }_session_id` ).val();
+		if ( hostedSessions.sessionId ) {
+			return hostedSessions.sessionId;
+		}
+		hostedSessions.sessionId = jQuery(
+			`#${ hostedSessions.pluginPrefix }_session_id`
+		).val();
+		return hostedSessions.sessionId;
+	},
+
+	setSessionVersion( sessionVersion ) {
+		jQuery( `#${ hostedSessions.pluginPrefix }_session_version` ).val(
+			sessionVersion
+		);
 	},
 
 	getSessionVersion() {
@@ -962,101 +1036,104 @@ const hostedSessions = {
 			result[ `${ hostedSessions.pluginPrefix }_3ds` ]
 		);
 
-		if ( ! Object.keys( data ).length ) {
-			return true;
-		}
-
-		hostedSessions.process3DsAuthenticationRedirect( data.action, data );
+		hostedSessions.process3DsAuthenticationRedirect( data );
 
 		return true;
 	},
 
-	process3DsAuthenticationRedirect( action, data ) {
-		hostedSessions.$wcForm.addClass( 'is-processing-3ds' );
-
-		const $threeDsForm = jQuery( '<form />', {
-			id: `${ hostedSessions.pluginPrefix }-3ds-form`,
-			name: `${ hostedSessions.pluginPrefix }-3ds-form`,
-			method: 'post',
-			action,
-		} );
-
-		jQuery( document.body ).append( $threeDsForm );
-
-		Object.keys( data ).forEach( ( key ) => {
-			if ( key !== 'action' ) {
-				$threeDsForm.append(
-					jQuery( '<input />', {
-						type: 'hidden',
-						name: key,
-						value: data[ key ],
-					} )
-				);
+	process3DsAuthenticationAsync( result ) {
+		return new Promise( ( resolve ) => {
+			if ( ! result[ `${ hostedSessions.pluginPrefix }_3ds` ] ) {
+				resolve();
+				return;
 			}
+
+			const data = JSON.parse(
+				result[ `${ hostedSessions.pluginPrefix }_3ds` ]
+			);
+
+			hostedSessions
+				.process3DsAuthenticationRedirect( data )
+				.then( resolve );
 		} );
-
-		$threeDsForm.trigger( 'submit' );
-
-		return true;
 	},
 
-	execute3DsAuthentication( orderId = null, isChangePayment = false ) {
-		const data = {
-			order_id: orderId || '',
-		};
+	process3DsAuthenticationRedirect( data ) {
+		return new Promise( ( resolve ) => {
+			if ( ! Object.keys( data ).length ) {
+				resolve();
+				return;
+			}
 
-		if ( isChangePayment ) {
-			data.change_payment_method = true;
-		}
+			const action = data.action;
 
-		data[ `${ hostedSessions.pluginPrefix }_3ds_data` ] =
-			hostedSessions.get3DSData();
-		data[ `${ core_gateway_params.pluginPrefix }_session_id` ] =
-			hostedSessions.getSessionId();
-		data[ `${ core_gateway_params.pluginPrefix }_session_version` ] =
-			hostedSessions.getSessionVersion();
+			hostedSessions.$wcForm.addClass( 'is-processing-3ds' );
 
-		jQuery
-			.ajax( {
-				url: getWcAjaxUrl(
-					'authenticate_payer',
-					hostedSessions.pluginPrefix
-				),
-				method: 'POST',
-				data,
-			} )
-			.done( function ( res ) {
-				if ( ! res?.success ) {
-					hostedSessions.submitError(
+			const $threeDsForm = jQuery( '<form />', {
+				id: `${ hostedSessions.pluginPrefix }-3ds-form`,
+				name: `${ hostedSessions.pluginPrefix }-3ds-form`,
+				method: 'post',
+				action,
+			} );
+
+			jQuery( document.body ).append( $threeDsForm );
+
+			Object.keys( data ).forEach( ( key ) => {
+				if ( key !== 'action' ) {
+					$threeDsForm.append(
+						jQuery( '<input />', {
+							type: 'hidden',
+							name: key,
+							value: data[ key ],
+						} )
+					);
+				}
+			} );
+
+			$threeDsForm.trigger( 'submit' );
+		} );
+	},
+
+	execute3DsAuthentication( data ) {
+		return new Promise( ( resolve, reject ) => {
+			jQuery
+				.ajax( {
+					url: getWcAjaxUrl(
+						'authenticate_payer',
+						hostedSessions.pluginPrefix
+					),
+					method: 'POST',
+					data,
+				} )
+				.done( function ( res ) {
+					if ( ! res?.success ) {
+						reject(
+							res?.data?.message ||
+								__(
+									'There was an error with the payment authentication. Please try again.',
+									core_gateway_params.textDomain
+								)
+						);
+						return;
+					}
+
+					hostedSessions
+						.process3DsAuthenticationRedirect( res?.data || {} )
+						.then( function () {
+							resolve( data );
+						} )
+						.catch( reject );
+				} )
+				.fail( function ( res ) {
+					reject(
 						res?.data?.message ||
 							__(
 								'There was an error with the payment authentication. Please try again.',
 								core_gateway_params.textDomain
 							)
 					);
-					return;
-				}
-
-				hostedSessions.process3DsAuthentication(
-					null,
-					res?.data || {}
-				);
-
-				if (
-					! hostedSessions.$wcForm.hasClass( 'is-processing-3ds' )
-				) {
-					hostedSessions.submitForm();
-				}
-			} )
-			.fail( function ( res ) {
-				hostedSessions.submitError(
-					res?.data?.message ||
-						__(
-							'There was an error with the payment authentication. Please try again.',
-							core_gateway_params.textDomain
-						)
-				);
-			} );
+				} );
+		} );
 	},
 
 	dcc: {

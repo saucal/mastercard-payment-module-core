@@ -2,51 +2,38 @@
  * External dependencies
  */
 const { useEffect } = window.wp.element;
-import { useSelect } from '@wordpress/data';
 
 /**
  * Internal dependencies
  */
-import { addPrefix, getPrefix, getSessionId } from './_settings';
-import hostedSessions from '../../frontend/_hostedSessions';
+import { addPrefix, getPrefix } from './_settings';
+import { hostedSessionHandler } from './_hosted-session-handler';
 
 export const SavedTokenHandler = ( {
 	token,
-	emitResponse,
-	eventRegistration: { onPaymentSetup },
+	emitResponse: {
+		responseTypes: {
+			SUCCESS: emitResponseSuccess,
+			ERROR: emitResponseError,
+		},
+	},
+	eventRegistration: { onPaymentSetup, onCheckoutSuccess, onCheckoutFail },
 } ) => {
-	const paymentMethodData = useSelect( ( select ) => {
-		const store = select( 'wc/store/payment' );
-		return store.getPaymentMethodData();
-	} );
-
 	useEffect( () => {
-		hostedSessions.pluginPrefix = getPrefix();
-		hostedSessions.dcc.requestCurrencyConversionQuoteSavedToken( token );
-
-		return onPaymentSetup( () => {
-			return new Promise( ( resolve ) => {
-				const data = {};
-				data[ addPrefix( 'session_id' ) ] = getSessionId();
-				data[ addPrefix( '3ds_data' ) ] = hostedSessions.get3DSData();
-
-				resolve( {
-					type: emitResponse.responseTypes.SUCCESS,
-					meta: {
-						paymentMethodData: {
-							...paymentMethodData,
-							...data,
-							...hostedSessions.dcc.getCurrencyConversionData(),
-						},
-					},
-				} );
-			} );
-		} );
+		return hostedSessionHandler(
+			onPaymentSetup,
+			onCheckoutSuccess,
+			onCheckoutFail,
+			emitResponseSuccess,
+			emitResponseError
+		);
 	}, [
-		emitResponse.responseTypes.SUCCESS,
 		onPaymentSetup,
+		onCheckoutSuccess,
+		onCheckoutFail,
+		emitResponseSuccess,
+		emitResponseError,
 		token,
-		paymentMethodData,
 	] );
 
 	return (
