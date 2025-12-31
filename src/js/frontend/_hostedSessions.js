@@ -318,6 +318,7 @@ const hostedSessions = {
 				'expiryYear',
 			];
 			let valid = true;
+			const errors = [];
 			for ( const role of roles ) {
 				const fieldSelector = fieldResults.card[ role ]?.selector;
 				hostedSessions.maybeResetPaymentSession(
@@ -332,6 +333,16 @@ const hostedSessions = {
 					)
 				) {
 					valid = false;
+
+					if (
+						typeof core_gateway_params.hostedSessionErrors
+							.fields_in_error[ role ] !== 'undefined'
+					) {
+						errors.push(
+							core_gateway_params.hostedSessionErrors
+								.fields_in_error[ role ]
+						);
+					}
 				}
 			}
 
@@ -342,7 +353,10 @@ const hostedSessions = {
 
 			promise.then( () => {
 				hostedSessions.unblockFieldset();
-				resolve( valid );
+				resolve( {
+					valid,
+					errors,
+				} );
 			} );
 		} );
 	},
@@ -507,8 +521,13 @@ const hostedSessions = {
 				hostedSessions.validateForm().then( ( results ) => {
 					hostedSessions
 						.validateCardFields( results, false, false )
-						.then( ( valid ) => {
-							if ( ! valid ) {
+						.then( ( result ) => {
+							if ( ! result.valid ) {
+								if ( typeof result.errors !== 'undefined' ) {
+									reject( result.errors );
+									return;
+								}
+
 								reject(
 									__(
 										"There's an error in the payment fields. Please correct them and try again.",
