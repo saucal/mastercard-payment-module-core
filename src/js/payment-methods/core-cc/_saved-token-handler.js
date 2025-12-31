@@ -17,13 +17,19 @@ export const SavedTokenHandler = ( {
 			ERROR: emitResponseError,
 		},
 	},
-	eventRegistration: { onPaymentSetup, onCheckoutSuccess, onCheckoutFail },
+	eventRegistration: {
+		onPaymentSetup,
+		onCheckoutSuccess,
+		onCheckoutFail,
+		onCheckoutValidation,
+	},
 } ) => {
 	useEffect( () => {
 		return hostedSessionHandler(
 			onPaymentSetup,
 			onCheckoutSuccess,
 			onCheckoutFail,
+			onCheckoutValidation,
 			emitResponseSuccess,
 			emitResponseError
 		);
@@ -32,6 +38,7 @@ export const SavedTokenHandler = ( {
 		onCheckoutSuccess,
 		onCheckoutFail,
 		emitResponseSuccess,
+		onCheckoutValidation,
 		emitResponseError,
 		token,
 	] );

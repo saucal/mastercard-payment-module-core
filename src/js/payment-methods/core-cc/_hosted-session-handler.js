@@ -14,6 +14,7 @@ export const hostedSessionHandler = (
 	onPaymentSetup,
 	onCheckoutSuccess,
 	onCheckoutFail,
+	onCheckoutValidation,
 	emitResponseSuccess,
 	emitResponseError
 ) => {
@@ -22,6 +23,22 @@ export const hostedSessionHandler = (
 
 	const paymentMethodData =
 		select( 'wc/store/payment' ).getPaymentMethodData();
+
+	const unsuscribeCheckoutValidation = onCheckoutValidation( () => {
+		return new Promise( ( resolve ) => {
+			hostedSessions
+				.validatePay( true )
+				.then( () => {
+					return resolve( { type: emitResponseSuccess } );
+				} )
+				.catch( ( validationErrors ) => {
+					// TODO: Implement validation per field.
+					return resolve( {
+						type: emitResponseError,
+					} );
+				} );
+		} );
+	} );
 
 	const unsuscribePaymentSetup = onPaymentSetup( () => {
 		return new Promise( ( resolve ) => {
@@ -35,6 +52,7 @@ export const hostedSessionHandler = (
 				}
 			}
 
+			// Validation is done before @ onCheckoutValidation, so we can safely move fowrard
 			hostedSessions
 				.triggerPay()
 				.then( ( data ) => {
@@ -114,5 +132,6 @@ export const hostedSessionHandler = (
 		unsuscribePaymentSetup();
 		unsuscribeCheckoutSuccess();
 		unsuscribeCheckoutFail();
+		unsuscribeCheckoutValidation();
 	};
 };

@@ -403,7 +403,8 @@ const hostedSessions = {
 
 		hostedSessions.$wcForm.addClass( 'is-processing' );
 		hostedSessions
-			.triggerPay()
+			.validatePay()
+			.then( hostedSessions.triggerPay )
 			.then( hostedSessions.updateFormWithSessionData )
 			.then( hostedSessions.submitForm )
 			.catch( function ( error ) {
@@ -512,7 +513,7 @@ const hostedSessions = {
 		} );
 	},
 
-	triggerPay() {
+	validatePay( full = false ) {
 		let promise;
 		if ( !! hostedSessions.isSavedToken() ) {
 			promise = Promise.resolve();
@@ -523,18 +524,10 @@ const hostedSessions = {
 						.validateCardFields( results, false, false )
 						.then( ( result ) => {
 							if ( ! result.valid ) {
-								if ( typeof result.errors !== 'undefined' ) {
+								if ( ! full ) {
 									reject( result.errors );
-									return;
 								}
-
-								reject(
-									__(
-										"There's an error in the payment fields. Please correct them and try again.",
-										core_gateway_params.textDomain
-									)
-								);
-								return;
+								reject( result );
 							}
 							resolve();
 						} );
@@ -542,7 +535,11 @@ const hostedSessions = {
 			} );
 		}
 
-		return promise
+		return promise;
+	},
+
+	triggerPay() {
+		return Promise.resolve()
 			.then( function () {
 				hostedSessions.blockForm();
 				return hostedSessions.updateSession();

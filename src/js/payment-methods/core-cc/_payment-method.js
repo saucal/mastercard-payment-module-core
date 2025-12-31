@@ -29,8 +29,12 @@ const PaymentCoreCC = ( {
 	eventRegistration,
 	emitResponse,
 } ) => {
-	const { onPaymentSetup, onCheckoutSuccess, onCheckoutFail } =
-		eventRegistration;
+	const {
+		onPaymentSetup,
+		onCheckoutSuccess,
+		onCheckoutFail,
+		onCheckoutValidation,
+	} = eventRegistration;
 
 	useEffect(
 		() => {
@@ -39,6 +43,7 @@ const PaymentCoreCC = ( {
 					onPaymentSetup,
 					onCheckoutSuccess,
 					onCheckoutFail,
+					onCheckoutValidation,
 					emitResponse.responseTypes.SUCCESS,
 					emitResponse.responseTypes.ERROR
 				);
@@ -54,6 +59,7 @@ const PaymentCoreCC = ( {
 			onPaymentSetup,
 			onCheckoutSuccess,
 			onCheckoutFail,
+			onCheckoutValidation,
 			emitResponse.responseTypes.SUCCESS,
 			emitResponse.responseTypes.ERROR,
 		]
