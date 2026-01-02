@@ -1,78 +1,90 @@
 /**
+ * External dependencies
+ */
+import { __ } from '@wordpress/i18n';
+import { select } from '@wordpress/data';
+
+/**
  * Internal dependencies
  */
 import hostedSessions from '../../frontend/_hostedSessions';
-import { addPrefix, getTextDomain } from './_settings';
+import { addPrefix, getTextDomain, getSessionId } from './_settings';
 
 export const hostedSessionHandler = (
 	onPaymentSetup,
 	onCheckoutSuccess,
 	onCheckoutFail,
+	onCheckoutValidation,
 	emitResponseSuccess,
 	emitResponseError
 ) => {
+	hostedSessions.setSessionId( getSessionId() );
 	hostedSessions.init();
+
+	const paymentMethodData =
+		select( 'wc/store/payment' ).getPaymentMethodData();
+
+	const unsuscribeCheckoutValidation = onCheckoutValidation( () => {
+		return new Promise( ( resolve ) => {
+			hostedSessions
+				.validatePay( true )
+				.then( () => {
+					return resolve( { type: emitResponseSuccess } );
+				} )
+				.catch( ( validationErrors ) => {
+					// TODO: Implement validation per field.
+					return resolve( {
+						type: emitResponseError,
+					} );
+				} );
+		} );
+	} );
+
 	const unsuscribePaymentSetup = onPaymentSetup( () => {
 		return new Promise( ( resolve ) => {
-			hostedSessions.triggerPay();
-			jQuery( document.body ).on(
-				'submit_payment',
-				hostedSessions.$wcForm,
-				() => {
-					const data = {};
+			const { validationStore } = window.wc?.wcBlocksData ?? {};
+			if ( validationStore ) {
+				const store = select( validationStore );
+				const hasValidationErrors = store.hasValidationErrors();
+				// Return if there is a validation error on the checkout fields.
+				if ( hasValidationErrors ) {
+					return;
+				}
+			}
 
-					const sessionId = hostedSessions.getSessionId();
-					const sessionVersion = hostedSessions.getSessionVersion();
-
-					if ( ! sessionId || ! sessionVersion ) {
-						resolve( {
-							type: emitResponseError,
-							meta: {
-								error: {
-									message: __(
-										'There was an error obtaining the payment session. Please try again.',
-										getTextDomain()
-									),
-								},
-							},
-						} );
-					}
-
-					data[ addPrefix( 'session_id' ) ] = sessionId;
-					data[ addPrefix( 'session_version' ) ] = sessionVersion;
-					data[ addPrefix( '3ds_data' ) ] =
-						hostedSessions.get3DSData();
-
+			// Validation is done before @ onCheckoutValidation, so we can safely move fowrard
+			hostedSessions
+				.triggerPay()
+				.then( ( data ) => {
 					resolve( {
 						type: emitResponseSuccess,
 						meta: {
 							paymentMethodData: {
+								...paymentMethodData,
 								...data,
-								...hostedSessions.dcc.getCurrencyConversionData(),
 							},
 						},
 					} );
-				}
-			);
-			jQuery( document.body ).on(
-				'checkout_error',
-				hostedSessions.$wcForm,
-				( event, errorMessage ) => {
+				} )
+				.catch( ( errorMessage ) => {
+					errorMessage = hostedSessions.stringifyErrors(
+						errorMessage,
+						'.\n'
+					);
+
+					// TODO: Unblock in hostedSessions?
+					hostedSessions.unblockFieldset();
+					hostedSessions.unblockForm();
 					resolve( {
 						type: emitResponseError,
-						meta: {
-							error: {
-								message:
-									errorMessage ||
-									__(
-										'There was an error obtaining the payment session. Please try again.',
-										getTextDomain()
-									),
-							},
-						},
+						message:
+							errorMessage ||
+							__(
+								'There was an error processing the payment. Please try again.',
+								getTextDomain()
+							),
 					} );
-				}
-			);
+				} );
 		} );
 	} );
 
@@ -85,26 +97,24 @@ export const hostedSessionHandler = (
 				return;
 			}
 
-			if (
-				! hostedSessions.process3DsAuthentication(
-					new Event( 'Redirect' ),
-					processingResponse.paymentDetails
-				)
-			) {
-				return new Promise( ( resolve ) => {
-					resolve( {
-						type: emitResponseError,
-						meta: {
-							error: {
-								message: __(
-									'There was an error redirecting to the payment page. Please try again.',
-									getTextDomain()
-								),
-							},
-						},
+			return new Promise( ( resolve ) => {
+				hostedSessions
+					.process3DsAuthenticationAsync(
+						processingResponse.paymentDetails
+					)
+					.then( () => {
+						resolve();
+					} )
+					.catch( () => {
+						resolve( {
+							type: emitResponseError,
+							message: __(
+								'There was an error redirecting to the payment page. Please try again.',
+								getTextDomain()
+							),
+						} );
 					} );
-				} );
-			}
+			} );
 		}
 	);
 
@@ -125,5 +135,6 @@ export const hostedSessionHandler = (
 		unsuscribePaymentSetup();
 		unsuscribeCheckoutSuccess();
 		unsuscribeCheckoutFail();
+		unsuscribeCheckoutValidation();
 	};
 };

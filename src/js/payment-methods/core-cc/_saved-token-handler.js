@@ -6,41 +6,40 @@ const { useEffect } = window.wp.element;
 /**
  * Internal dependencies
  */
-import { addPrefix, getPrefix, getSessionId } from './_settings';
-import hostedSessions from '../../frontend/_hostedSessions';
+import { addPrefix, getPrefix } from './_settings';
+import { hostedSessionHandler } from './_hosted-session-handler';
 
 export const SavedTokenHandler = ( {
-	activePaymentMethod,
 	token,
-	emitResponse,
-	eventRegistration: { onPaymentSetup },
+	emitResponse: {
+		responseTypes: {
+			SUCCESS: emitResponseSuccess,
+			ERROR: emitResponseError,
+		},
+	},
+	eventRegistration: {
+		onPaymentSetup,
+		onCheckoutSuccess,
+		onCheckoutFail,
+		onCheckoutValidation,
+	},
 } ) => {
 	useEffect( () => {
-		hostedSessions.pluginPrefix = getPrefix();
-		hostedSessions.dcc.requestCurrencyConversionQuoteSavedToken( token );
-
-		return onPaymentSetup( () => {
-			return new Promise( ( resolve ) => {
-				const data = {};
-				data[ addPrefix( 'session_id' ) ] = getSessionId();
-				data[ `wc-${ getPrefix() }-payment-token` ] = token;
-				data[ addPrefix( '3ds_data' ) ] = hostedSessions.get3DSData();
-
-				resolve( {
-					type: emitResponse.responseTypes.SUCCESS,
-					meta: {
-						paymentMethodData: {
-							...data,
-							...hostedSessions.dcc.getCurrencyConversionData(),
-						},
-					},
-				} );
-			} );
-		} );
+		return hostedSessionHandler(
+			onPaymentSetup,
+			onCheckoutSuccess,
+			onCheckoutFail,
+			onCheckoutValidation,
+			emitResponseSuccess,
+			emitResponseError
+		);
 	}, [
-		activePaymentMethod,
-		emitResponse.responseTypes.SUCCESS,
 		onPaymentSetup,
+		onCheckoutSuccess,
+		onCheckoutFail,
+		onCheckoutValidation,
+		emitResponseSuccess,
+		emitResponseError,
 		token,
 	] );
 

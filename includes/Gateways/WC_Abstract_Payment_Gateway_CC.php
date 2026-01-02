@@ -523,6 +523,12 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$template_data['threeds_data'] = $this->get_cached_3ds_data();
 		}
 
+		$template_data['order_id'] = false;
+		$order = Utils::get_current_order();
+		if ( $order instanceof WC_Order ) {
+			$template_data['order_id'] = $order->get_id();
+		}
+
 		$display_tokenization = $this->display_saved_card_methods();
 
 		// There is an ongoing 3DS transaction, do not display the tokenization.
@@ -649,6 +655,9 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				'redirect'  => '#',
 			);
 		}
+
+		// Set current payment method
+		WC()->session->set( 'chosen_payment_method', $this->id );
 
 		return array(
 			'result'   => 'success',
