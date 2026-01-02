@@ -731,7 +731,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 			if ( is_array( $authentication_transaction_id ) ) {
 
-				$this->maybe_cache_saving_card( $order );
+				$this->maybe_cache_location( $order );
 
 				return $authentication_transaction_id;
 			}
@@ -810,7 +810,15 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 *
 	 * @return string
 	 */
-	public function get_return_url( $order = null ) {
+	public function get_return_url( $order = null, $success = true ) {
+		if ( ! $success ) {
+			$is_checkout_pay_page = $this->is_pay_for_order_page() || WC()->session->get( $this->prefix_hook( 'pay_for_order_page' ), false );
+			if ( $is_checkout_pay_page ) {
+				WC()->session->__unset( $this->prefix_hook( 'pay_for_order_page' ) );
+			}
+			return ( $is_checkout_pay_page && $order ) ? $order->get_checkout_payment_url() : wc_get_checkout_url();
+		}
+
 		// Attempt to use a custom redirect URL if set in the session.
 		$redirect = WC()->session->get( $this->prefix_hook( 'payment_success_redirect' ) );
 		if ( $redirect ) {
@@ -960,16 +968,16 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	/**
 	 * Maybe cache the saving card.
 	 */
-	public function maybe_cache_saving_card() {
-		if ( ! $this->saved_cards ) {
-			return;
+	public function maybe_cache_location() {
+		if ( $this->saved_cards ) {
+			if ( $this->is_saving_payment_method() || \is_add_payment_method_page() || ( isset( $_REQUEST['order_id'] ) && \wc_clean( \wp_unslash( $_REQUEST['order_id'] ) ) === 'add_payment_method' ) ) {
+				WC()->session->set( $this->prefix_hook( 'saving_payment_method' ), true );
+			}
 		}
 
-		if ( ! $this->is_saving_payment_method() && ! \is_add_payment_method_page() && ! ( isset( $_REQUEST['order_id'] ) && \wc_clean( \wp_unslash( $_REQUEST['order_id'] ) ) === 'add_payment_method' ) ) {
-			return;
+		if ( $this->is_pay_for_order_page() || ( isset( $_REQUEST['order_id'] ) && \wc_clean( \wp_unslash( $_REQUEST['order_id'] ) ) ) ) {
+			WC()->session->set( $this->prefix_hook( 'pay_for_order_page' ), true );
 		}
-
-		WC()->session->set( $this->prefix_hook( 'saving_payment_method' ), true );
 	}
 
 
@@ -2384,7 +2392,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 			wc_add_notice( $e->getMessage(), 'error' );
 
-			$redirect_url = $this->get_return_url( $order );
+			$redirect_url = $this->get_return_url( $order, false );
 
 			// Do cleanups
 			if ( $this->enable_3ds ) {
@@ -2592,7 +2600,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 			if ( is_array( $authentication_transaction_id ) ) {
 
-				$this->maybe_cache_saving_card( $order );
+				$this->maybe_cache_location( $order );
 
 				wp_send_json_success( $authentication_transaction_id );
 			}
