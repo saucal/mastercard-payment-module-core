@@ -513,6 +513,25 @@ const hostedSessions = {
 		} );
 	},
 
+	savingPaymentMethodField() {
+		const field = jQuery(
+			`#wc-${ hostedSessions.pluginPrefix }-new-payment-method`
+		);
+
+		if ( field.length ) {
+			return field;
+		}
+		return false;
+	},
+
+	isSavingPaymentMethod() {
+		const field = hostedSessions.savingPaymentMethodField();
+		if ( field ) {
+			return field.is( ':checked' );
+		}
+		return false;
+	},
+
 	validatePay( full = false ) {
 		let promise;
 		if ( !! hostedSessions.isSavedToken() ) {
@@ -616,6 +635,16 @@ const hostedSessions = {
 				if ( isChangePayment ) {
 					data.change_payment_method = true;
 				}
+
+				const savingPaymentMethod =
+					hostedSessions.isSavingPaymentMethod();
+				if ( savingPaymentMethod ) {
+					const key = hostedSessions
+						.savingPaymentMethodField()
+						.attr( 'name' );
+					data[ key ] = 'true';
+				}
+
 				hostedSessions
 					.execute3DsAuthentication( data )
 					.then( ( threedsResponseData ) => {
