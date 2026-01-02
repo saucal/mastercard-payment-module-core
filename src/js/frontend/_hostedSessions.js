@@ -618,8 +618,11 @@ const hostedSessions = {
 				}
 				hostedSessions
 					.execute3DsAuthentication( data )
-					.then( ( data ) => {
-						resolve( data );
+					.then( ( threedsResponseData ) => {
+						resolve( threedsResponseData );
+					} )
+					.catch( ( threedsErrorMessage ) => {
+						reject( threedsErrorMessage );
 					} );
 				return;
 			}
@@ -1133,9 +1136,29 @@ const hostedSessions = {
 						return;
 					}
 
+					if (
+						typeof res?.data[
+							`${ hostedSessions.pluginPrefix }_3ds`
+						] === 'undefined'
+					) {
+						reject(
+							__(
+								'There was an error with the payment authentication. Please try again.',
+								core_gateway_params.textDomain
+							)
+						);
+						return;
+					}
+
+					const threeDSdata =
+						JSON.parse(
+							res?.data[ `${ hostedSessions.pluginPrefix }_3ds` ]
+						) || {};
+
 					hostedSessions
-						.process3DsAuthenticationRedirect( res?.data || {} )
+						.process3DsAuthenticationRedirect( threeDSdata || {} )
 						.then( function () {
+							// Note: This will be reached if there's no redirect required, which means we bubble up the data received originally.
 							resolve( data );
 						} )
 						.catch( reject );
