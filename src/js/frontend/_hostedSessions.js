@@ -1498,6 +1498,16 @@ const hostedSessions = {
 
 				hostedSessions.dcc.clearCachedQuote();
 
+				const data = {
+					token_id: tokenId,
+					nonce: core_gateway_params.dccNonce,
+				};
+
+				const orderId = hostedSessions.getCurrentOrderId() || undefined;
+				if ( orderId ) {
+					data.order_id = orderId;
+				}
+
 				jQuery
 					.ajax( {
 						url: getWcAjaxUrl(
@@ -1505,10 +1515,7 @@ const hostedSessions = {
 							hostedSessions.pluginPrefix
 						),
 						method: 'POST',
-						data: {
-							token_id: tokenId,
-							nonce: core_gateway_params.dccNonce,
-						},
+						data,
 					} )
 					.done( function ( res ) {
 						if (

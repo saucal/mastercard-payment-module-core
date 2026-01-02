@@ -337,6 +337,11 @@ trait DynamicCurrencyConversion {
 		}
 
 		$token_id = wc_clean( wp_unslash( $_POST['token_id'] ) );
+		$order    = null;
+		if ( isset( $_POST['order_id'] ) ) {
+			$order_id = wc_clean( wp_unslash( $_POST['order_id'] ) );
+			$order    = wc_get_order( $order_id );
+		}
 
 		try {
 			$token = new \WC_Payment_Token_CC( $token_id );
@@ -349,8 +354,8 @@ trait DynamicCurrencyConversion {
 				array(
 					'apiOperation'  => 'PAYMENT_OPTIONS_INQUIRY',
 					'order'         => array(
-						'amount'   => Utils::get_current_total_amount(),
-						'currency' => Utils::get_current_currency(),
+						'amount'   => Utils::get_current_total_amount( $order ),
+						'currency' => Utils::get_current_currency( $order ),
 					),
 					'sourceOfFunds' => array(
 						'token' => $token->get_token(),
