@@ -612,9 +612,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			do_action( $this->prefix_hook( 'process_payment_error' ), $e, ! empty( $order ) ? $order : null );
 
 			return array(
-				'result'       => 'failure',
+				'result'       => 'error',
 				'redirect'     => '',
-				'messages'     => (array) $e->getMessage(),
 				'errorMessage' => $e->getMessage(),
 			);
 		}
@@ -643,7 +642,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			if ( ! $session_id ) {
 				wc_add_notice( __( 'There was an error creating the payment session. Please try again.', $this->core_plugin->text_domain() ), 'error' );
 				return array(
-					'result'   => 'failure',
+					'result'   => 'error',
 					'redirect' => $order->get_checkout_payment_url(),
 				);
 			}
@@ -1588,7 +1587,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$this->core_plugin->logger()->log( $e->getMessage(), 'error' );
 			wc_add_notice( $e->getMessage(), 'error' );
 			return array(
-				'result'   => 'failure',
+				'result'   => 'error',
 				'redirect' => wc_get_account_endpoint_url( 'payment-methods' ),
 			);
 		}

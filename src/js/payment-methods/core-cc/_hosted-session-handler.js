@@ -112,10 +112,11 @@ export const hostedSessionHandler = (
 				return true;
 			}
 
-			processingResponse.message =
-				processingResponse.paymentDetails.errorMessage;
-
-			return true;
+			return {
+				type: emitResponseError,
+				message: processingResponse.paymentDetails.errorMessage,
+				messageContext: 'wc/checkout/payments',
+			};
 		}
 	);
 
