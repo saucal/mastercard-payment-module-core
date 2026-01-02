@@ -1137,6 +1137,14 @@ const hostedSessions = {
 					}
 
 					if (
+						res?.success === true &&
+						typeof res.data === 'undefined'
+					) {
+						resolve( data );
+						return;
+					}
+
+					if (
 						typeof res?.data[
 							`${ hostedSessions.pluginPrefix }_3ds`
 						] === 'undefined'
