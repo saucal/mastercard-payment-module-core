@@ -612,7 +612,7 @@ const hostedSessions = {
 					orderId = maybeOrderId;
 				}
 
-				data.orderId = orderId || '';
+				data.order_id = orderId || '';
 				if ( isChangePayment ) {
 					data.change_payment_method = true;
 				}
