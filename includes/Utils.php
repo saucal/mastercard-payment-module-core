@@ -207,8 +207,10 @@ final class Utils {
 	 *
 	 * @return float
 	 */
-	public static function get_current_total_amount() {
-		$order = self::get_current_order();
+	public static function get_current_total_amount( $order = null ) {
+		if ( null === $order ) {
+			$order = self::get_current_order();
+		}
 
 		if ( $order ) {
 			return (float) $order->get_total();
@@ -223,8 +225,10 @@ final class Utils {
 	 *
 	 * @return string
 	 */
-	public static function get_current_currency() {
-		$order = self::get_current_order();
+	public static function get_current_currency( $order = null ) {
+		if ( null === $order ) {
+			$order = self::get_current_order();
+		}
 
 		if ( $order ) {
 			return $order->get_currency();
