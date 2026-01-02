@@ -37,8 +37,8 @@ export const SavedTokenHandler = ( {
 		onPaymentSetup,
 		onCheckoutSuccess,
 		onCheckoutFail,
-		emitResponseSuccess,
 		onCheckoutValidation,
+		emitResponseSuccess,
 		emitResponseError,
 		token,
 	] );
