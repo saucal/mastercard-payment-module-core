@@ -24,21 +24,7 @@ export const hostedSessionHandler = (
 	const paymentMethodData =
 		select( 'wc/store/payment' ).getPaymentMethodData();
 
-	const unsuscribeCheckoutValidation = onCheckoutValidation( () => {
-		return new Promise( ( resolve ) => {
-			hostedSessions
-				.validatePay( true )
-				.then( () => {
-					return resolve( { type: emitResponseSuccess } );
-				} )
-				.catch( ( validationErrors ) => {
-					// TODO: Implement validation per field.
-					return resolve( {
-						type: emitResponseError,
-					} );
-				} );
-		} );
-	} );
+	// TODO: Implement validation per field, using onCheckoutValidation
 
 	const unsuscribePaymentSetup = onPaymentSetup( () => {
 		return new Promise( ( resolve ) => {
@@ -54,7 +40,8 @@ export const hostedSessionHandler = (
 
 			// Validation is done before @ onCheckoutValidation, so we can safely move fowrard
 			hostedSessions
-				.triggerPay()
+				.validatePay()
+				.then( hostedSessions.triggerPay )
 				.then( ( data ) => {
 					resolve( {
 						type: emitResponseSuccess,
@@ -71,10 +58,6 @@ export const hostedSessionHandler = (
 						errorMessage,
 						'.\n'
 					);
-
-					// TODO: Unblock in hostedSessions?
-					hostedSessions.unblockFieldset();
-					hostedSessions.unblockForm();
 					resolve( {
 						type: emitResponseError,
 						message:
@@ -84,6 +67,11 @@ export const hostedSessionHandler = (
 								getTextDomain()
 							),
 					} );
+				} )
+				.then( () => {
+					// TODO: Unblock in hostedSessions?
+					hostedSessions.unblockFieldset();
+					hostedSessions.unblockForm();
 				} );
 		} );
 	} );
@@ -124,10 +112,11 @@ export const hostedSessionHandler = (
 				return true;
 			}
 
-			processingResponse.message =
-				processingResponse.paymentDetails.errorMessage;
-
-			return true;
+			return {
+				type: emitResponseError,
+				message: processingResponse.paymentDetails.errorMessage,
+				messageContext: 'wc/checkout/payments',
+			};
 		}
 	);
 
@@ -135,6 +124,5 @@ export const hostedSessionHandler = (
 		unsuscribePaymentSetup();
 		unsuscribeCheckoutSuccess();
 		unsuscribeCheckoutFail();
-		unsuscribeCheckoutValidation();
 	};
 };
