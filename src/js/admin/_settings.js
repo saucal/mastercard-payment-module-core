@@ -20,7 +20,18 @@ const Settings = {
 	maybeShowHide( $el, $relElement ) {
 		const $row = $el.closest( 'tr' );
 		if ( $relElement.attr( 'type' ) === 'checkbox' ) {
-			if ( $relElement.is( ':checked' ) ) {
+			const value = $el.data( 'show-if' );
+			let expected;
+			if ( typeof value !== 'undefined' ) {
+				if ( value === 'yes' || value === '1' || value === true ) {
+					expected = true;
+				} else {
+					expected = false;
+				}
+			} else {
+				expected = true;
+			}
+			if ( $relElement.is( ':checked' ) === expected ) {
 				$row.show();
 			} else {
 				$row.hide();
