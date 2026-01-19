@@ -345,23 +345,8 @@ final class GatewaySettings {
 			return array();
 		}
 
-		return array(
-			'eu' => array(
-				'name' => __( 'Europe', $this->core_plugin->text_domain() ),
-				'code' => 'eu',
-				'url'  => 'https://eu-gateway.mastercard.com',
-			),
-			'ap' => array(
-				'name' => __( 'Asia Pacific and Middle East', $this->core_plugin->text_domain() ),
-				'code' => 'ap',
-				'url'  => 'https://ap-gateway.mastercard.com',
-			),
-			'na' => array(
-				'name' => __( 'North America', $this->core_plugin->text_domain() ),
-				'code' => 'na',
-				'url'  => 'https://na-gateway.mastercard.com',
-			),
-		);
+		return $this->core_plugin->payment_regions();
+
 	}
 
 

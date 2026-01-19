@@ -797,6 +797,30 @@ abstract class CorePlugin {
 		return 'yes' === $this->get_gateway_setting( 'currency_conversion' );
 	}
 
+	/**
+	 * Get the payment regions available.
+	 *
+	 * @return array
+	 */
+	public function payment_regions() {
+		return array(
+			'eu' => array(
+				'name' => __( 'Europe', $this->text_domain() ),
+				'code' => 'eu',
+				'url'  => 'https://eu-gateway.mastercard.com',
+			),
+			'ap' => array(
+				'name' => __( 'Asia Pacific and Middle East', $this->text_domain() ),
+				'code' => 'ap',
+				'url'  => 'https://ap-gateway.mastercard.com',
+			),
+			'na' => array(
+				'name' => __( 'North America', $this->text_domain() ),
+				'code' => 'na',
+				'url'  => 'https://na-gateway.mastercard.com',
+			),
+		);
+	}
 
 	/**
 	 * Get the gateway URL.
