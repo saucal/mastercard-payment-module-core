@@ -119,17 +119,6 @@ final class GatewaySettings {
 				'description' => '',
 				'default'     => 'no',
 			),
-			'sandbox'          => array(
-				'title'       => __( 'Test Mode', $this->core_plugin->text_domain() ),
-				'label'       => __( 'Enable test mode', $this->core_plugin->text_domain() ),
-				'type'        => 'checkbox',
-				'description' => sprintf(
-					__( 'Set the payment gateway in test mode using test API credentials (real payments will not be taken). You can use %1$stest card numbers%2$s to simulate various transactions.', $this->core_plugin->text_domain() ),
-					'<a href="https://test-gateway.mastercard.com/api/documentation/integrationGuidelines/supportedFeatures/testAndGoLive.html" target="_blank">',
-					'</a>'
-				),
-				'default'     => 'no',
-			),
 			'title'            => array(
 				'title'       => __( 'Title', $this->core_plugin->text_domain() ),
 				'type'        => 'text',
@@ -144,17 +133,23 @@ final class GatewaySettings {
 				'default'     => esc_html__( 'Pay with your Credit/Debit Card', $this->core_plugin->text_domain() ),
 				'desc_tip'    => true,
 			),
-			'region'           => array(
-				'title'   => __( 'Merchant Region', $this->core_plugin->text_domain() ),
-				'type'    => 'select',
-				'options' => wp_list_pluck( self::payment_regions(), 'name', 'code' ),
-				'default' => 'eu',
-			),
 			'merchant_details' => array(
 				'title'       => __( 'Merchant Account Details', $this->core_plugin->text_domain() ),
 				'description' => $this->merchant_details_message(),
 				'type'        => 'title',
 			),
+			'sandbox'          => array(
+				'title'       => __( 'Test Mode', $this->core_plugin->text_domain() ),
+				'label'       => __( 'Enable test mode', $this->core_plugin->text_domain() ),
+				'type'        => 'checkbox',
+				'description' => sprintf(
+					__( 'Set the payment gateway in test mode using test API credentials (real payments will not be taken). You can use %1$stest card numbers%2$s to simulate various transactions.', $this->core_plugin->text_domain() ),
+					'<a href="https://test-gateway.mastercard.com/api/documentation/integrationGuidelines/supportedFeatures/testAndGoLive.html" target="_blank">',
+					'</a>'
+				),
+				'default'     => 'no',
+			),
+			...( $this->get_region_setting() ),
 			'merchant_id'      => array(
 				'title'       => __( 'Merchant ID', $this->core_plugin->text_domain() ),
 				'type'        => 'text',
@@ -172,6 +167,30 @@ final class GatewaySettings {
 		$this->maybe_add_advanced_settings();
 	}
 
+	/**
+	 * Get the regions field.
+	 */
+	private function get_region_setting() {
+		$regions = wp_list_pluck( self::payment_regions(), 'name', 'code' );
+
+		if ( empty( $regions ) || count( $regions ) < 2 ) {
+			return array();
+		}
+
+		return array(
+			'region' => array(
+				'title'             => __( 'Merchant Region', $this->core_plugin->text_domain() ),
+				'type'              => 'select',
+				'options'           => $regions,
+				'default'           => array_key_first( $regions ),
+				'class'             => 'conditional-hide',
+				'custom_attributes' => array(
+					'data-show-rel' => 'sandbox',
+					'data-show-if'  => 'no',
+				),
+			),
+		);
+	}
 
 	/**
 	 * Webhook notification URL.
@@ -327,15 +346,15 @@ final class GatewaySettings {
 		}
 
 		return array(
-			'ap' => array(
-				'name' => __( 'Asia Pacific and Middle East', $this->core_plugin->text_domain() ),
-				'code' => 'ap',
-				'url'  => 'https://ap-gateway.mastercard.com',
-			),
 			'eu' => array(
 				'name' => __( 'Europe', $this->core_plugin->text_domain() ),
 				'code' => 'eu',
 				'url'  => 'https://eu-gateway.mastercard.com',
+			),
+			'ap' => array(
+				'name' => __( 'Asia Pacific and Middle East', $this->core_plugin->text_domain() ),
+				'code' => 'ap',
+				'url'  => 'https://ap-gateway.mastercard.com',
 			),
 			'na' => array(
 				'name' => __( 'North America', $this->core_plugin->text_domain() ),
@@ -353,14 +372,30 @@ final class GatewaySettings {
 	 *
 	 * @return string
 	 */
-	public function payment_region_url( $region ) {
-
+	public function payment_region_url() {
 		$regions = $this->payment_regions();
 
+		// If we don't have regions, return empty string.
+		if ( empty( $regions ) ) {
+			return '';
+		}
+
+		// If we have only one region, return its URL.
+		if ( count( $regions ) < 2 ) {
+			$first_region = reset( $regions );
+
+			return $first_region['url'];
+		}
+
+		// If we have multiple regions, get the selected one (or the default)
+		$region = $this->core_plugin->get_gateway_setting( 'region' );
+
+		// If the setting is empty or invalid, return empty string.
 		if ( ! isset( $regions[ $region ] ) ) {
 			return '';
 		}
 
+		// Return the region URL.
 		return $regions[ $region ]['url'];
 	}
 

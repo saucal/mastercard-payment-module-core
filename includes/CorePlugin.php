@@ -804,7 +804,7 @@ abstract class CorePlugin {
 	 * @return string
 	 */
 	public function gateway_url() {
-		$gateway_url = $this->gateway_settings()->payment_region_url( $this->get_gateway_setting( 'region' ) );
+		$gateway_url = $this->gateway_settings()->payment_region_url();
 
 		if ( defined( 'PAYMENT_CORE_GATEWAY_URL' ) && ! empty( \PAYMENT_CORE_GATEWAY_URL ) ) {
 			$gateway_url = \PAYMENT_CORE_GATEWAY_URL;
