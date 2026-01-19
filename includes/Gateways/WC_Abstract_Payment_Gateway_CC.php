@@ -12,6 +12,7 @@ namespace GatewayPaymentCore\Gateways;
 use WC_Admin_Settings;
 use WC_Order;
 use Exception;
+use GatewayPaymentCore\API;
 use WP_Error;
 use GatewayPaymentCore\Utils;
 use WC_Payment_Token_CC;
@@ -1755,7 +1756,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		return sprintf(
 			'%1$s/form/version/%2$s/merchant/%3$s/session.js',
 			untrailingslashit( $this->core_plugin->gateway_url() ),
-			100,
+			API::API_VERSION,
 			$this->merchant_id()
 		);
 	}
