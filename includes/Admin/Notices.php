@@ -73,6 +73,10 @@ final class Notices {
 			return;
 		}
 
+		if ( did_action( 'woocommerce_update_options_payment_gateways_' . $this->core_plugin->plugin_id() ) ) {
+			return;
+		}
+
 		$message = sprintf(
 				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
 			__( 'The %1$s credentials are either empty or not valid.', $this->core_plugin->text_domain() ),
