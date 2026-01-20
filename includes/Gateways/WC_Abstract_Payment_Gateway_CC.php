@@ -283,7 +283,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		$this->core_plugin->update_gateway_setting( 'merchant_id', $merchant_id );
 		$this->core_plugin->update_gateway_setting( 'password', $password );
-		$this->core_plugin->update_gateway_setting( 'sandbox', ! empty( $is_sandbox ) ? 'yes' : 'no' );
+		$this->core_plugin->update_gateway_setting( 'sandbox', 'no' === $is_sandbox ? 'no' : 'yes' );
 		$this->core_plugin->update_gateway_setting( 'region', $region );
 
 		$response = $this->api()->payment_options_inquiry();

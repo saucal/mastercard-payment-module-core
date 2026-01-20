@@ -762,8 +762,8 @@ abstract class CorePlugin {
 	 *
 	 * @return bool
 	 */
-	public function is_sandbox() {
-		return ( $this->is_enabled() && ! $this->get_validated_credentials() ) || ( 'yes' === $this->get_gateway_setting( 'sandbox' ) );
+	public function is_sandbox( $strict = true ) {
+		return ( $strict && $this->is_enabled() && ! $this->get_validated_credentials() ) || ( 'yes' === $this->get_gateway_setting( 'sandbox' ) );
 	}
 
 
@@ -862,6 +862,10 @@ abstract class CorePlugin {
 	 * @return string
 	 */
 	public function gateway_url() {
+		if ( $this->is_sandbox( false ) ) {
+			return 'https://test-gateway.mastercard.com';
+		}
+
 		$gateway_url = $this->payment_region_url();
 
 		if ( defined( 'PAYMENT_CORE_GATEWAY_URL' ) && ! empty( \PAYMENT_CORE_GATEWAY_URL ) ) {
