@@ -351,41 +351,6 @@ final class GatewaySettings {
 
 
 	/**
-	 * Get payment region URL.
-	 *
-	 * @param string $region Region code.
-	 *
-	 * @return string
-	 */
-	public function payment_region_url() {
-		$regions = $this->payment_regions();
-
-		// If we don't have regions, return empty string.
-		if ( empty( $regions ) ) {
-			return '';
-		}
-
-		// If we have only one region, return its URL.
-		if ( count( $regions ) < 2 ) {
-			$first_region = reset( $regions );
-
-			return $first_region['url'];
-		}
-
-		// If we have multiple regions, get the selected one (or the default)
-		$region = $this->core_plugin->get_gateway_setting( 'region' );
-
-		// If the setting is empty or invalid, return empty string.
-		if ( ! isset( $regions[ $region ] ) ) {
-			return '';
-		}
-
-		// Return the region URL.
-		return $regions[ $region ]['url'];
-	}
-
-
-	/**
 	 * Get the checkout modes.
 	 *
 	 * @return array
