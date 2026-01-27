@@ -252,6 +252,13 @@ final class GatewaySettings {
 			return $this->settings;
 		}
 
+		$supported_operations_options = wp_list_pluck( $supported_operations, 'label' );
+
+		$supported_operations_explain = wp_list_pluck( $supported_operations, 'explain' );
+
+		// TODO: Move to the Subscription addon class.
+		$supported_operations_explain['subscriptions'] = '' . __( 'This setting does not affect subscriptions; charges for orders related to subscriptions are always captured.', $this->core_plugin->text_domain() );
+
 		$this->settings = array_merge(
 			$this->settings,
 			array(
@@ -283,9 +290,9 @@ final class GatewaySettings {
 				'transaction_mode'     => array(
 					'title'       => __( 'Payment Capture', $this->core_plugin->text_domain() ),
 					'type'        => 'select',
-					'options'     => $supported_operations,
-					'default'     => 'PURCHASE',
-					'description' => __( 'Choose "Authorize and Capture" to capture the payment immediately when the order is placed. Choose "Authorize Only" to authorize the payment and capture it manually later from the WC admin panel. This setting does not affect subscriptions; charges for orders related to subscriptions are always captured.', $this->core_plugin->text_domain() ),
+					'options'     => $supported_operations_options,
+					'default'     => \array_key_first( $supported_operations_options ),
+					'description' => implode( ' ', $supported_operations_explain ),
 				),
 				'checkout_mode'        => array(
 					'title'   => __( 'Integration Mode', $this->core_plugin->text_domain() ),
@@ -413,15 +420,34 @@ final class GatewaySettings {
 			return $supported_operations;
 		}
 
+		$supported_operations['PURCHASE'] = array(
+			'label'   => __( 'Authorize and Capture', $this->core_plugin->text_domain() ),
+			'explain' => __( '"Authorize and Capture" captures the payment immediately when the order is placed.', $this->core_plugin->text_domain() ),
+		);
+
+		$supported_operations['AUTHORIZE'] = array(
+			'label'   => __( 'Authorize Only', $this->core_plugin->text_domain() ),
+			'explain' => __( '"Authorize Only" authorizes the payment and allows you to capture it manually later from the WC admin panel.', $this->core_plugin->text_domain() ),
+		);
+
 		foreach ( $payment_operations as $supported_operation ) {
 			$operation = reset( $supported_operation );
 
 			if ( 'PURCHASE' === $operation ) {
-				$supported_operations['PURCHASE'] = __( 'Authorize and Capture', $this->core_plugin->text_domain() );
+				$supported_operations['PURCHASE']['found'] = true;
 			}
 
 			if ( 'AUTHORIZE' === $operation ) {
-				$supported_operations['AUTHORIZE'] = __( 'Authorize Only', $this->core_plugin->text_domain() );
+				$supported_operations['AUTHORIZE']['found'] = true;
+			}
+		}
+
+		// Remove unsupported operations.
+		foreach ( $supported_operations as $key => $supported_operation ) {
+			if ( empty( $supported_operation['found'] ) ) {
+				unset( $supported_operations[ $key ] );
+			} else {
+				unset( $supported_operations[ $key ]['found'] );
 			}
 		}
 
