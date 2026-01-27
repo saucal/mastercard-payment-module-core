@@ -302,8 +302,19 @@ abstract class CorePlugin {
 	 *
 	 * @return string
 	 */
-	public function merchant_registration_url() {
-		return $this->merchant_registration_url;
+	public function merchant_registration_message() {
+		$message = __( 'Enter your Merchant Account details.', $this->payment_core()->text_domain() );
+
+		if ( ! empty( $this->merchant_registration_url ) ) {
+			$message .= ' ' . sprintf(
+				/* translators: %s: Merchant registration URL */
+				__( 'Don\'t have an account? %1$sSign up here%2$s', $this->payment_core()->text_domain() ),
+				'<a href="' . esc_url( $this->merchant_registration_url ) . '" target="_blank">',
+				'</a>'
+			);
+		}
+
+		return $message;
 	}
 
 
@@ -762,8 +773,8 @@ abstract class CorePlugin {
 	 *
 	 * @return bool
 	 */
-	public function is_sandbox() {
-		return ( $this->is_enabled() && ! $this->get_validated_credentials() ) || ( 'yes' === $this->get_gateway_setting( 'sandbox' ) );
+	public function is_sandbox( $strict = true ) {
+		return ( $strict && $this->is_enabled() && ! $this->get_validated_credentials() ) || ( 'yes' === $this->get_gateway_setting( 'sandbox' ) );
 	}
 
 
@@ -797,6 +808,68 @@ abstract class CorePlugin {
 		return 'yes' === $this->get_gateway_setting( 'currency_conversion' );
 	}
 
+	/**
+	 * Get the payment regions available.
+	 *
+	 * @return array
+	 */
+	public function payment_regions() {
+		return array(
+			'eu' => array(
+				'name' => __( 'Europe', $this->text_domain() ),
+				'code' => 'eu',
+				'url'  => 'https://eu-gateway.mastercard.com',
+			),
+			'ap' => array(
+				'name' => __( 'Asia Pacific and Middle East', $this->text_domain() ),
+				'code' => 'ap',
+				'url'  => 'https://ap-gateway.mastercard.com',
+			),
+			'na' => array(
+				'name' => __( 'North America', $this->text_domain() ),
+				'code' => 'na',
+				'url'  => 'https://na-gateway.mastercard.com',
+			),
+		);
+	}
+
+	public function get_test_region_url() {
+		return 'https://test-gateway.mastercard.com';
+	}
+
+	/**
+	 * Get payment region URL.
+	 *
+	 * @param string $region Region code.
+	 *
+	 * @return string
+	 */
+	public function payment_region_url() {
+		$regions = $this->payment_regions();
+
+		// If we don't have regions, return empty string.
+		if ( empty( $regions ) ) {
+			return '';
+		}
+
+		// If we have only one region, return its URL.
+		if ( count( $regions ) < 2 ) {
+			$first_region = reset( $regions );
+
+			return $first_region['url'];
+		}
+
+		// If we have multiple regions, get the selected one (or the default)
+		$region = $this->get_gateway_setting( 'region' );
+
+		// If the setting is empty or invalid, return empty string.
+		if ( ! isset( $regions[ $region ] ) ) {
+			return '';
+		}
+
+		// Return the region URL.
+		return $regions[ $region ]['url'];
+	}
 
 	/**
 	 * Get the gateway URL.
@@ -804,7 +877,14 @@ abstract class CorePlugin {
 	 * @return string
 	 */
 	public function gateway_url() {
-		$gateway_url = $this->gateway_settings()->payment_region_url( $this->get_gateway_setting( 'region' ) );
+		if ( $this->is_sandbox( false ) ) {
+			$test_region = $this->get_test_region_url();
+			if ( ! empty( $test_region ) ) {
+				return $test_region;
+			}
+		}
+
+		$gateway_url = $this->payment_region_url();
 
 		if ( defined( 'PAYMENT_CORE_GATEWAY_URL' ) && ! empty( \PAYMENT_CORE_GATEWAY_URL ) ) {
 			$gateway_url = \PAYMENT_CORE_GATEWAY_URL;

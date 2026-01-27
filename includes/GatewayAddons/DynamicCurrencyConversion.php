@@ -73,10 +73,15 @@ trait DynamicCurrencyConversion {
 			'advanced',
 			array(
 				'currency_conversion' => array(
-					'title'   => __( 'Dynamic Currency Conversion', $this->core_plugin->text_domain() ),
-					'label'   => __( 'Enable the Dynamic Currency Conversion (DCC) feature.', $this->core_plugin->text_domain() ),
-					'type'    => 'checkbox',
-					'default' => 'yes',
+					'title'       => __( 'Dynamic Currency Conversion', $this->core_plugin->text_domain() ),
+					'label'       => __( 'Enable the Dynamic Currency Conversion (DCC) feature.', $this->core_plugin->text_domain() ),
+					'type'        => 'checkbox',
+					'default'     => 'yes',
+					'description' => __(
+						'If enabled, offers real-time exchange rates and lets payers choose between paying in your preferred currency or their card\'s currency.',
+						$this->core_plugin->text_domain()
+					),
+					'desc_tip'    => true,
 				),
 			),
 			0

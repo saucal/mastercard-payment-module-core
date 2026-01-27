@@ -73,10 +73,14 @@ final class Notices {
 			return;
 		}
 
+		if ( did_action( 'woocommerce_update_options_payment_gateways_' . $this->core_plugin->plugin_id() ) ) {
+			return;
+		}
+
 		$message = sprintf(
 				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
-			__( 'The %1$s credentials are either empty or not valid.', $this->core_plugin->text_domain() ),
-			$this->core_plugin->plugin_title(),
+			__( '%1$s - The credentials are either empty or not valid.', $this->core_plugin->text_domain() ),
+			'<strong>' . $this->core_plugin->plugin_title() . '</strong>',
 		);
 
 		if ( ! $this->core_plugin->is_settings_page() ) {
@@ -106,7 +110,7 @@ final class Notices {
 			sprintf(
 				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
 				__( '%1$s - There is no supported payment operation for your merchant account. Contact your acquirer to verify this issue.', $this->core_plugin->text_domain() ),
-				$this->core_plugin->plugin_title(),
+				'<strong>' . $this->core_plugin->plugin_title() . '</strong>'
 			)
 		);
 	}
@@ -122,8 +126,8 @@ final class Notices {
 
 		$message = sprintf(
 				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
-			__( '%1$s - The Notification Secret is not set.', $this->core_plugin->text_domain() ),
-			$this->core_plugin->plugin_title(),
+			__( '%1$s - The Notification Secret is not set. Webhook notifications are required for stores to process asyncronous operations such as captures, refunds, and order status updates.', $this->core_plugin->text_domain() ),
+			'<strong>' . $this->core_plugin->plugin_title() . '</strong>'
 		);
 
 		if ( ! $this->core_plugin->is_settings_page() ) {

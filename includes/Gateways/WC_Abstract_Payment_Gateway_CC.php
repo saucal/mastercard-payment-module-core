@@ -12,6 +12,7 @@ namespace GatewayPaymentCore\Gateways;
 use WC_Admin_Settings;
 use WC_Order;
 use Exception;
+use GatewayPaymentCore\API;
 use WP_Error;
 use GatewayPaymentCore\Utils;
 use WC_Payment_Token_CC;
@@ -282,7 +283,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		$this->core_plugin->update_gateway_setting( 'merchant_id', $merchant_id );
 		$this->core_plugin->update_gateway_setting( 'password', $password );
-		$this->core_plugin->update_gateway_setting( 'sandbox', ! empty( $is_sandbox ) ? 'yes' : 'no' );
+		$this->core_plugin->update_gateway_setting( 'sandbox', 'no' === $is_sandbox ? 'no' : 'yes' );
 		$this->core_plugin->update_gateway_setting( 'region', $region );
 
 		$response = $this->api()->payment_options_inquiry();
@@ -524,7 +525,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		}
 
 		$template_data['order_id'] = false;
-		$order = Utils::get_current_order();
+		$order                     = Utils::get_current_order();
 		if ( $order instanceof WC_Order ) {
 			$template_data['order_id'] = $order->get_id();
 		}
@@ -1755,7 +1756,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		return sprintf(
 			'%1$s/form/version/%2$s/merchant/%3$s/session.js',
 			untrailingslashit( $this->core_plugin->gateway_url() ),
-			100,
+			API::API_VERSION,
 			$this->merchant_id()
 		);
 	}
