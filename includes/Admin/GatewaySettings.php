@@ -252,12 +252,32 @@ final class GatewaySettings {
 			return $this->settings;
 		}
 
+		// Supported operations options and explanations.
 		$supported_operations_options = wp_list_pluck( $supported_operations, 'label' );
 
 		$supported_operations_explain = wp_list_pluck( $supported_operations, 'explain' );
 
 		// TODO: Move to the Subscription addon class.
 		$supported_operations_explain['subscriptions'] = '' . __( 'This setting does not affect subscriptions; charges for orders related to subscriptions are always captured.', $this->core_plugin->text_domain() );
+
+		// Checkout modes options and explanations.
+		$checkout_modes         = self::checkout_modes();
+		$checkout_modes_options = wp_list_pluck( $checkout_modes, 'label' );
+		$checkout_modes_explain = wp_list_pluck( $checkout_modes, 'explain' );
+
+		// Hosted Checkout Modes and explanations
+		$hosted_checkout_modes = array(
+			'embedded' => array(
+				'label' => __( 'Embedded', $this->core_plugin->text_domain() ),
+				'explain' => __( '"Embedded" displays the payment form inside an iframe on your checkout page.', $this->core_plugin->text_domain() ),
+			),
+			'redirect' => array(
+				'label' => __( 'Redirect', $this->core_plugin->text_domain() ),
+				'explain' => __( '"Redirect" sends customers to a secure external page to complete payment, and then back to your store.', $this->core_plugin->text_domain() ),
+			),
+		);
+		$hosted_checkout_modes_options = wp_list_pluck( $hosted_checkout_modes, 'label' );
+		$hosted_checkout_modes_explain = wp_list_pluck( $hosted_checkout_modes, 'explain' );
 
 		$this->settings = array_merge(
 			$this->settings,
@@ -295,19 +315,18 @@ final class GatewaySettings {
 					'description' => implode( ' ', $supported_operations_explain ),
 				),
 				'checkout_mode'        => array(
-					'title'   => __( 'Integration Mode', $this->core_plugin->text_domain() ),
-					'type'    => 'select',
-					'options' => self::checkout_modes(),
-					'default' => 'hosted_session',
+					'title'       => __( 'Integration Mode', $this->core_plugin->text_domain() ),
+					'type'        => 'select',
+					'options'     => $checkout_modes_options,
+					'default'     => \array_key_first( $checkout_modes_options ),
+					'description' => implode( ' ', $checkout_modes_explain ),
 				),
 				'hosted_checkout_mode' => array(
 					'title'             => __( 'Hosted Checkout Mode', $this->core_plugin->text_domain() ),
 					'type'              => 'select',
-					'options'           => array(
-						'embedded' => __( 'Embedded', $this->core_plugin->text_domain() ),
-						'redirect' => __( 'Redirect to Payment Page', $this->core_plugin->text_domain() ),
-					),
-					'default'           => 'embedded',
+					'options'           => $hosted_checkout_modes_options,
+					'default'           => \array_key_first( $hosted_checkout_modes_options ),
+					'description'       => implode( ' ', $hosted_checkout_modes_explain ),
 					'class'             => 'conditional-hide',
 					'custom_attributes' => array(
 						'data-show-rel' => 'checkout_mode',
@@ -396,8 +415,14 @@ final class GatewaySettings {
 	 */
 	public function checkout_modes() {
 		return array(
-			'hosted_session'  => __( 'Hosted Session', $this->core_plugin->text_domain() ),
-			'hosted_checkout' => __( 'Hosted Checkout', $this->core_plugin->text_domain() ),
+			'hosted_session'  => array(
+				'label'   => __( 'Hosted Session', $this->core_plugin->text_domain() ),
+				'explain' => __( '"Hosted Session" allows you to manage the layout and styling of your payment page while minimizing PCI compliance costs.', $this->core_plugin->text_domain() ),
+			),
+			'hosted_checkout' => array(
+				'label'   => __( 'Hosted Checkout', $this->core_plugin->text_domain() ),
+				'explain' => __( '"Hosted Checkout" allows you to gather payment details through a hosted interface.', $this->core_plugin->text_domain() ),
+			),
 		);
 	}
 
