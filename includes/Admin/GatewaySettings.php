@@ -272,6 +272,14 @@ final class GatewaySettings {
 					'title' => __( 'Payment configurations', $this->core_plugin->text_domain() ),
 					'type'  => 'title',
 				),
+				'merchant_name'        => array(
+					'title'       => __( 'Merchant Name', $this->core_plugin->text_domain() ),
+					'type'        => 'text',
+					'description' => __( 'The name of your business for display to the payer on the payment interaction.', $this->core_plugin->text_domain() ),
+					'desc_tip'    => true,
+					'default'     => get_bloginfo( 'name', 'display' ),
+					'placeholder' => get_bloginfo( 'name', 'display' ),
+				),
 				'transaction_mode'     => array(
 					'title'       => __( 'Payment Capture', $this->core_plugin->text_domain() ),
 					'type'        => 'select',
@@ -310,6 +318,10 @@ final class GatewaySettings {
 						'data-show-if'  => 'hosted_checkout',
 					),
 				),
+				'features'             => array(
+					'title' => __( 'Features', $this->core_plugin->text_domain() ),
+					'type'  => 'title',
+				),
 				'_3d_secure'           => array(
 					'title'             => __( '3D Secure', $this->core_plugin->text_domain() ),
 					'type'              => 'checkbox',
@@ -334,12 +346,6 @@ final class GatewaySettings {
 						'data-show-rel' => 'checkout_mode',
 						'data-show-if'  => 'hosted_session',
 					),
-				),
-				'merchant_name'        => array(
-					'title'       => __( 'Merchant Name', $this->core_plugin->text_domain() ),
-					'type'        => 'text',
-					'description' => __( 'The name of your business for display to the payer on the payment interaction (The website title will be used as default).', $this->core_plugin->text_domain() ),
-					'default'     => get_bloginfo( 'name', 'display' ),
 				),
 				'advanced'             => array(
 					'title' => __( 'Advanced configurations', $this->core_plugin->text_domain() ),
