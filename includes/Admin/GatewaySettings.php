@@ -330,7 +330,8 @@ final class GatewaySettings {
 					'type'  => 'title',
 				),
 				'_3d_secure'           => array(
-					'title'             => __( '3D Secure', $this->core_plugin->text_domain() ),
+					'title'             => __( '3-D Secure', $this->core_plugin->text_domain() ),
+					'label'             => __( 'Enable 3-D Secure (3DS)', $this->core_plugin->text_domain() ),
 					'type'              => 'checkbox',
 					'default'           => 'yes',
 					'description'       => __( 'If enabled, adds an additional layer of security to online purchases by requiring cardholders to authenticate themselves with the card issuer when making payments.', $this->core_plugin->text_domain() ),
