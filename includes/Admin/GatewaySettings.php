@@ -266,13 +266,13 @@ final class GatewaySettings {
 		$checkout_modes_explain = wp_list_pluck( $checkout_modes, 'explain' );
 
 		// Hosted Checkout Modes and explanations
-		$hosted_checkout_modes = array(
+		$hosted_checkout_modes         = array(
 			'embedded' => array(
-				'label' => __( 'Embedded', $this->core_plugin->text_domain() ),
+				'label'   => __( 'Embedded', $this->core_plugin->text_domain() ),
 				'explain' => __( '"Embedded" displays the payment form inside an iframe on your checkout page.', $this->core_plugin->text_domain() ),
 			),
 			'redirect' => array(
-				'label' => __( 'Redirect', $this->core_plugin->text_domain() ),
+				'label'   => __( 'Redirect', $this->core_plugin->text_domain() ),
 				'explain' => __( '"Redirect" sends customers to a secure external page to complete payment, and then back to your store.', $this->core_plugin->text_domain() ),
 			),
 		);
@@ -312,21 +312,24 @@ final class GatewaySettings {
 					'type'        => 'select',
 					'options'     => $supported_operations_options,
 					'default'     => \array_key_first( $supported_operations_options ),
-					'description' => implode( ' ', $supported_operations_explain ),
+					'description' => implode( '<br/><br/>', $supported_operations_explain ),
+					'desc_tip'    => true,
 				),
 				'checkout_mode'        => array(
 					'title'       => __( 'Integration Mode', $this->core_plugin->text_domain() ),
 					'type'        => 'select',
 					'options'     => $checkout_modes_options,
 					'default'     => \array_key_first( $checkout_modes_options ),
-					'description' => implode( ' ', $checkout_modes_explain ),
+					'description' => implode( '<br/><br/>', $checkout_modes_explain ),
+					'desc_tip'    => true,
 				),
 				'hosted_checkout_mode' => array(
 					'title'             => __( 'Hosted Checkout Mode', $this->core_plugin->text_domain() ),
 					'type'              => 'select',
 					'options'           => $hosted_checkout_modes_options,
 					'default'           => \array_key_first( $hosted_checkout_modes_options ),
-					'description'       => implode( ' ', $hosted_checkout_modes_explain ),
+					'description'       => implode( '<br/><br/>', $hosted_checkout_modes_explain ),
+					'desc_tip'          => true,
 					'class'             => 'conditional-hide',
 					'custom_attributes' => array(
 						'data-show-rel' => 'checkout_mode',
