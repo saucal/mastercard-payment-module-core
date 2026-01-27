@@ -111,6 +111,11 @@ final class GatewaySettings {
 	 * @return void
 	 */
 	private function init_settings() {
+		$regions     = wp_list_pluck( self::payment_regions(), 'url', 'code' );
+		$test_region = $this->core_plugin->get_test_region_url();
+		if ( ! empty( $test_region ) ) {
+			$regions['test'] = $test_region;
+		}
 		$this->settings = array(
 			'enabled'          => array(
 				'title'       => __( 'Enable/Disable', $this->core_plugin->text_domain() ),
@@ -139,15 +144,19 @@ final class GatewaySettings {
 				'type'        => 'title',
 			),
 			'sandbox'          => array(
-				'title'       => __( 'Test Mode', $this->core_plugin->text_domain() ),
-				'label'       => __( 'Enable test mode', $this->core_plugin->text_domain() ),
-				'type'        => 'checkbox',
-				'description' => sprintf(
+				'title'             => __( 'Test Mode', $this->core_plugin->text_domain() ),
+				'label'             => __( 'Enable test mode', $this->core_plugin->text_domain() ),
+				'type'              => 'checkbox',
+				'description'       => sprintf(
 					__( 'Set the payment gateway in test mode using test API credentials (real payments will not be taken). You can use %1$stest card numbers%2$s to simulate various transactions.', $this->core_plugin->text_domain() ),
 					'<a href="https://test-gateway.mastercard.com/api/documentation/integrationGuidelines/supportedFeatures/testAndGoLive.html" target="_blank">',
 					'</a>'
 				),
-				'default'     => 'no',
+				'default'           => 'no',
+				'custom_attributes' => array(
+					'data-region-urls' => wp_json_encode( $regions ),
+					'data-region-is'   => 'test',
+				),
 			),
 			...( $this->get_region_setting() ),
 			'merchant_id'      => array(

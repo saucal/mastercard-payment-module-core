@@ -822,6 +822,10 @@ abstract class CorePlugin {
 		);
 	}
 
+	public function get_test_region_url() {
+		return 'https://test-gateway.mastercard.com';
+	}
+
 	/**
 	 * Get payment region URL.
 	 *
@@ -863,7 +867,10 @@ abstract class CorePlugin {
 	 */
 	public function gateway_url() {
 		if ( $this->is_sandbox( false ) ) {
-			return 'https://test-gateway.mastercard.com';
+			$test_region = $this->get_test_region_url();
+			if ( ! empty( $test_region ) ) {
+				return $test_region;
+			}
 		}
 
 		$gateway_url = $this->payment_region_url();
