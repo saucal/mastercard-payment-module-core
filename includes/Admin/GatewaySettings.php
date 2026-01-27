@@ -308,7 +308,7 @@ final class GatewaySettings {
 					'title'             => __( '3D Secure', $this->core_plugin->text_domain() ),
 					'type'              => 'checkbox',
 					'default'           => 'yes',
-					'description'       => __( 'Contact your payment service provider if you need more information.', $this->core_plugin->text_domain() ),
+					'description'       => __( 'If enabled, adds an additional layer of security to online purchases by requiring cardholders to authenticate themselves with the card issuer when making payments.', $this->core_plugin->text_domain() ),
 					'desc_tip'          => true,
 					'class'             => 'conditional-hide',
 					'custom_attributes' => array(
