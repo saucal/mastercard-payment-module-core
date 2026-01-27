@@ -162,7 +162,13 @@ final class GatewaySettings {
 			'merchant_id'      => array(
 				'title'       => __( 'Merchant ID', $this->core_plugin->text_domain() ),
 				'type'        => 'text',
-				'description' => __( 'This is your merchant profile ID.', $this->core_plugin->text_domain() ),
+				'description' => sprintf(
+					__( 'This is the Merchant ID you use to log into the %1$sMerchant Portal%2$s.', $this->core_plugin->text_domain() ),
+					'<a href="' . esc_url(
+						untrailingslashit( $this->core_plugin->gateway_url() ) . '/ma/login.s'
+					) . '" target="_blank">',
+					'</a>'
+				),
 				'default'     => '',
 			),
 			'password'         => array(
