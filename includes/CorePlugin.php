@@ -302,8 +302,19 @@ abstract class CorePlugin {
 	 *
 	 * @return string
 	 */
-	public function merchant_registration_url() {
-		return $this->merchant_registration_url;
+	public function merchant_registration_message() {
+		$message = __( 'Enter your Merchant Account details.', $this->payment_core()->text_domain() );
+
+		if ( ! empty( $this->merchant_registration_url ) ) {
+			$message .= ' ' . sprintf(
+				/* translators: %s: Merchant registration URL */
+				__( 'Don\'t have an account? %1$sSign up here%2$s', $this->payment_core()->text_domain() ),
+				'<a href="' . esc_url( $this->merchant_registration_url ) . '" target="_blank">',
+				'</a>'
+			);
+		}
+
+		return $message;
 	}
 
 
