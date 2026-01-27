@@ -81,6 +81,7 @@ trait DynamicCurrencyConversion {
 						'If enabled, offers real-time exchange rates and lets payers choose between paying in your preferred currency or their card\'s currency.',
 						$this->core_plugin->text_domain()
 					),
+					'desc_tip'    => true,
 				),
 			),
 			0
