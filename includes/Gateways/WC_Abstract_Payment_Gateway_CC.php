@@ -525,7 +525,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		}
 
 		$template_data['order_id'] = false;
-		$order = Utils::get_current_order();
+		$order                     = Utils::get_current_order();
 		if ( $order instanceof WC_Order ) {
 			$template_data['order_id'] = $order->get_id();
 		}
