@@ -157,9 +157,21 @@ final class GatewaySettings {
 				'default'     => '',
 			),
 			'password'         => array(
-				'title'       => __( 'API Password', $this->core_plugin->text_domain() ),
+				'title'       => __( 'Integration Authentication Password', $this->core_plugin->text_domain() ),
 				'type'        => 'password',
-				'description' => __( 'You can obtain your API password from the Merchant Portal (Admin -> Integration Settings).', $this->core_plugin->text_domain() ),
+				'description' => sprintf(
+					__( 'You can obtain your integration authentication password from the Merchant Portal (%1$sAdmin -> Integration Settings%2$s).', $this->core_plugin->text_domain() ),
+					'<a href="' . esc_url(
+						add_query_arg(
+							array(
+								'_authDomain'      => 'ma',
+								'selectedMenuItem' => 'apiConfiguration',
+							),
+							untrailingslashit( $this->core_plugin->gateway_url() ) . '/ma/apiConfiguration.s'
+						)
+					) . '" target="_blank">',
+					'</a>'
+				),
 				'default'     => '',
 			),
 		);
@@ -236,10 +248,9 @@ final class GatewaySettings {
 					'title'       => __( 'Notification Secret', $this->core_plugin->text_domain() ),
 					'type'        => 'text',
 					'description' => sprintf(
-						__( 'You can obtain or generate your notification secret on the Merchant Portal %1$s(Admin -> Webhook Notifications)%2$s. You can find more information about webhooks %3$son the API documentation%2$s.', $this->core_plugin->text_domain() ),
+						__( 'You can obtain or generate your notification secret on the Merchant Portal (%1$sAdmin -> Webhook Notifications%2$s).', $this->core_plugin->text_domain() ),
 						'<a href="' . esc_url( $this->webhook_notification_url() ) . '" target="_blank">',
-						'</a>',
-						'<a href="' . esc_url( untrailingslashit( $this->core_plugin->gateway_url() ) ) . '/api/documentation/integrationGuidelines/supportedFeatures/pickAdditionalFunctionality/webhookNotifications.html" target="_blank">'
+						'</a>'
 					),
 				),
 				'payments'             => array(
@@ -346,7 +357,6 @@ final class GatewaySettings {
 		}
 
 		return $this->core_plugin->payment_regions();
-
 	}
 
 
