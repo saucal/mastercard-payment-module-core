@@ -858,20 +858,30 @@ abstract class CorePlugin {
 	 */
 	public function payment_regions() {
 		return array(
-			'eu' => array(
+			'eu'  => array(
 				'name' => __( 'Europe', $this->text_domain() ),
 				'code' => 'eu',
 				'url'  => 'https://eu-gateway.mastercard.com',
 			),
-			'ap' => array(
+			'ap'  => array(
 				'name' => __( 'Asia Pacific and Middle East', $this->text_domain() ),
 				'code' => 'ap',
 				'url'  => 'https://ap-gateway.mastercard.com',
 			),
-			'na' => array(
+			'na'  => array(
 				'name' => __( 'North America', $this->text_domain() ),
 				'code' => 'na',
 				'url'  => 'https://na-gateway.mastercard.com',
+			),
+			'ksa' => array(
+				'name' => __( 'Kingdom of Saudi Arabia', $this->text_domain() ),
+				'code' => 'ksa',
+				'url'  => 'https://ksa-gateway.mastercard.com',
+			),
+			'in'  => array(
+				'name' => __( 'India', $this->text_domain() ),
+				'code' => 'in',
+				'url'  => 'https://in-gateway.mastercard.com',
 			),
 		);
 	}
