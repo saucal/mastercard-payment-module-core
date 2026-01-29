@@ -65,14 +65,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 
 	/**
-	 * Merchant ID.
-	 *
-	 * @var string
-	 */
-	protected $merchant_id;
-
-
-	/**
 	 * Merchant name.
 	 *
 	 * @var string
@@ -161,7 +153,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		$this->checkout_mode        = $this->get_option( 'checkout_mode' );
 		$this->hosted_checkout_mode = $this->get_option( 'hosted_checkout_mode' );
 		$this->transaction_mode     = $this->get_option( 'transaction_mode' );
-		$this->merchant_id          = $this->get_option( 'merchant_id' );
 		$this->merchant_name        = ! empty( $this->get_option( 'merchant_name' ) ) ? $this->get_option( 'merchant_name' ) : get_bloginfo( 'name' );
 		$this->saved_cards          = ! empty( $this->get_option( 'saved_cards' ) && 'yes' === $this->get_option( 'saved_cards' ) );
 		$this->enable_3ds           = ! empty( $this->get_option( '_3d_secure' ) && 'yes' === $this->get_option( '_3d_secure' ) );
@@ -178,7 +169,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		// Add hooks.
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'process_admin_options' ) );
-		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'validate_credentials' ) );
 		add_action( 'woocommerce_receipt_' . $this->id, array( $this, 'payment_fields' ) );
 		add_action( $this->prefix_hook( 'process_payment_error' ), array( $this, 'handle_failed_payment' ), 10, 2 );
 		add_filter( 'woocommerce_get_customer_payment_tokens', array( $this, 'hide_saved_token_hosted_checkout' ), 10 );
@@ -257,12 +247,16 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return void
 	 */
 	public function process_admin_options() {
-		// Update settings that needs to be updated before saving to correctly display the notices.
-		$notification_secret = isset( $_POST[ $this->prefix_hook( 'notification_secret', 'woocommerce_' ) ] ) ? wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'notification_secret', 'woocommerce_' ) ] ) ) : $this->get_option( 'notification_secret' ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
-
-		$this->core_plugin->update_gateway_setting( 'notification_secret', $notification_secret );
-
 		parent::process_admin_options();
+
+		// Update settings that needs to be updated before saving to correctly display the notices.
+		$this->validate_credentials();
+
+		$this->init_form_fields();
+	}
+
+	private function get_posted_config_value( $key ) {
+		return isset( $_POST[ $this->prefix_hook( $key, 'woocommerce_' ) ] ) ? wc_clean( wp_unslash( $_POST[ $this->prefix_hook( $key, 'woocommerce_' ) ] ) ) : $this->get_option( $key ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
 	}
 
 
@@ -272,19 +266,39 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return void
 	 */
 	public function validate_credentials() {
-		$merchant_id = isset( $_POST[ $this->prefix_hook( 'merchant_id', 'woocommerce_' ) ] ) ? wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'merchant_id', 'woocommerce_' ) ] ) ) : $this->get_option( 'merchant_id' ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
-		$password    = isset( $_POST[ $this->prefix_hook( 'password', 'woocommerce_' ) ] ) ? wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'password', 'woocommerce_' ) ] ) ) : $this->get_option( 'password' ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
-		$is_sandbox  = isset( $_POST[ $this->prefix_hook( 'sandbox', 'woocommerce_' ) ] ) ? wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'sandbox', 'woocommerce_' ) ] ) ) : $this->get_option( 'sandbox' ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
-		$region      = isset( $_POST[ $this->prefix_hook( 'region', 'woocommerce_' ) ] ) ? wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'region', 'woocommerce_' ) ] ) ) : $this->get_option( 'region' ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$is_sandbox = 'no' === $this->get_posted_config_value( 'sandbox' ) ? false : true;
+		$this->core_plugin->update_gateway_setting( 'sandbox', $is_sandbox ? 'yes' : 'no' );
 
-		if ( empty( $merchant_id ) || empty( $password ) ) {
-			WC_Admin_Settings::add_error( __( 'Merchant ID and API Key are required.', $this->core_plugin->text_domain() ) );
+		// TODO: Check when region is single
+		$region = $this->get_posted_config_value( 'region' );
+		$this->core_plugin->update_gateway_setting( 'region', $region );
+
+		$credentials = array(
+			'' => false,
+			'test_' => true,
+		);
+
+		foreach ( $credentials as $prefix => $is_set_for_test ) {
+			$merchant_id         = $this->get_posted_config_value( $prefix . 'merchant_id' );
+			$password            = $this->get_posted_config_value( $prefix . 'password' );
+			$notification_secret = $this->get_posted_config_value( $prefix . 'notification_secret' );
+
+			if ( $is_sandbox === $is_set_for_test ) {
+				// Validate that at least the current set of credentials is set.
+				if ( empty( $merchant_id ) || empty( $password ) ) {
+					WC_Admin_Settings::add_error( __( 'Merchant ID and API Key are required.', $this->core_plugin->text_domain() ) );
+				}
+			}
+
+			$this->core_plugin->update_gateway_setting( $prefix . 'merchant_id', $merchant_id );
+			$this->core_plugin->update_gateway_setting( $prefix . 'password', $password );
+			$this->core_plugin->update_gateway_setting( $prefix . 'notification_secret', $notification_secret );
 		}
 
-		$this->core_plugin->update_gateway_setting( 'merchant_id', $merchant_id );
-		$this->core_plugin->update_gateway_setting( 'password', $password );
-		$this->core_plugin->update_gateway_setting( 'sandbox', 'no' === $is_sandbox ? 'no' : 'yes' );
-		$this->core_plugin->update_gateway_setting( 'region', $region );
+		// Force read settings again.
+		$this->core_plugin->merchant_id( true ); // Force refresh merchant ID.
+		$this->core_plugin->password( true ); // Force refresh merchant password.
+		$this->core_plugin->notification_secret( true ); // Force refresh merchant notification secret.
 
 		$response = $this->api()->payment_options_inquiry();
 
@@ -293,7 +307,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$this->core_plugin->update_validated_credentials( false );
 			$this->core_plugin->update_payment_operations( array() );
 			$this->core_plugin->update_transaction_sources( array() );
-			$this->init_form_fields();
 			return;
 		}
 
@@ -311,8 +324,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			}
 		}
 		$this->core_plugin->update_transaction_sources( $transaction_sources );
-
-		$this->init_form_fields();
 	}
 
 
@@ -335,16 +346,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		}
 
 		return true;
-	}
-
-
-	/**
-	 * Get the merchant ID.
-	 *
-	 * @return string
-	 */
-	public function merchant_id() {
-		return $this->merchant_id;
 	}
 
 
@@ -1757,7 +1758,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			'%1$s/form/version/%2$s/merchant/%3$s/session.js',
 			untrailingslashit( $this->core_plugin->gateway_url() ),
 			API::API_VERSION,
-			$this->merchant_id()
+			$this->core_plugin->merchant_id()
 		);
 	}
 

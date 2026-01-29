@@ -120,7 +120,7 @@ final class Notices {
 	 * Display an admin notice if the webhook secret is not set.
 	 */
 	public function maybe_no_webhook_secret_notice() {
-		if ( ! $this->core_plugin->is_merchant_connected() || ! empty( $this->core_plugin->get_gateway_setting( 'notification_secret' ) ) ) {
+		if ( ! $this->core_plugin->is_merchant_connected() || ! empty( $this->core_plugin->notification_secret() ) ) {
 			return;
 		}
 
