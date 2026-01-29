@@ -101,10 +101,6 @@ final class GatewaySettings {
 	 */
 	private function init_settings() {
 		$regions     = wp_list_pluck( self::payment_regions(), 'url', 'code' );
-		$test_region = $this->core_plugin->get_test_region_url();
-		if ( ! empty( $test_region ) ) {
-			$regions['test'] = $test_region;
-		}
 		$this->settings = array(
 			'enabled'                  => array(
 				'title'       => __( 'Enable/Disable', $this->core_plugin->text_domain() ),
@@ -270,6 +266,10 @@ final class GatewaySettings {
 	 */
 	private function get_region_setting() {
 		$regions = wp_list_pluck( self::payment_regions(), 'name', 'code' );
+
+		if ( isset( $regions['test'] ) ) {
+			unset( $regions['test'] );
+		}
 
 		if ( empty( $regions ) || count( $regions ) < 2 ) {
 			return array();

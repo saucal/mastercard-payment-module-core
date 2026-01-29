@@ -856,7 +856,7 @@ abstract class CorePlugin {
 	 *
 	 * @return array
 	 */
-	public function payment_regions() {
+	public function payment_regions_available() {
 		return array(
 			'eu'  => array(
 				'name' => __( 'Europe', $this->text_domain() ),
@@ -885,20 +885,35 @@ abstract class CorePlugin {
 			),
 		);
 	}
+	public function payment_regions() {
+		$list = $this->payment_regions_available();
+		$list = array_merge( $list, $this->get_test_region() );
+		return $list;
+	}
 
-	public function get_test_region_url() {
-		return 'https://test-gateway.mastercard.com';
+	public function get_test_region() {
+		return array(
+			'test' => array(
+				'name' => __( 'Test Region', $this->text_domain() ),
+				'code' => 'test',
+				'url'  => 'https://test-gateway.mastercard.com',
+			),
+		);
 	}
 
 	/**
 	 * Get payment region URL.
 	 *
-	 * @param string $region Region code.
-	 *
 	 * @return string
 	 */
 	public function payment_region_url() {
 		$regions = $this->payment_regions();
+
+		if ( $this->is_sandbox( false ) ) {
+			if ( isset( $regions['test'] ) ) {
+				return $regions['test']['url'];
+			}
+		}
 
 		// If we don't have regions, return empty string.
 		if ( empty( $regions ) ) {
@@ -930,13 +945,6 @@ abstract class CorePlugin {
 	 * @return string
 	 */
 	public function gateway_url() {
-		if ( $this->is_sandbox( false ) ) {
-			$test_region = $this->get_test_region_url();
-			if ( ! empty( $test_region ) ) {
-				return $test_region;
-			}
-		}
-
 		$gateway_url = $this->payment_region_url();
 
 		if ( defined( 'PAYMENT_CORE_GATEWAY_URL' ) && ! empty( \PAYMENT_CORE_GATEWAY_URL ) ) {
