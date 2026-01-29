@@ -247,6 +247,17 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return void
 	 */
 	public function process_admin_options() {
+		// Fix issue when there's a single region, and the setting already exists.
+		$regions = wp_list_pluck( $this->core_plugin->payment_regions(), 'name', 'code' );
+
+		if ( isset( $regions['test'] ) ) {
+			unset( $regions['test'] );
+		}
+
+		if ( empty( $regions ) || count( $regions ) < 2 ) {
+			$_POST[ $this->prefix_hook( 'region', 'woocommerce_' ) ] = \array_key_first( $regions ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		}
+
 		parent::process_admin_options();
 
 		// Update settings that needs to be updated before saving to correctly display the notices.
@@ -269,7 +280,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		$is_sandbox = 'no' === $this->get_posted_config_value( 'sandbox' ) ? false : true;
 		$this->core_plugin->update_gateway_setting( 'sandbox', $is_sandbox ? 'yes' : 'no' );
 
-		// TODO: Check when region is single
 		$region = $this->get_posted_config_value( 'region' );
 		$this->core_plugin->update_gateway_setting( 'region', $region );
 
