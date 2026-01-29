@@ -1437,12 +1437,12 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		// Validate the session values.
 		if ( empty( $session ) ) {
 			$errors->add( 'invalid_session', __( 'There was an error obtaining the payment session. Please try again.', $this->core_plugin->text_domain() ) );
-		}
-
-		// Validate the session.
-		if ( ! $this->validate_payment_session_status( $session['id'], $session['version'] ) ) {
-			$this->maybe_clean_hosted_cached_session();
-			$errors->add( 'invalid_session', __( 'The Payment Session is invalid or has expired. Please try again.', $this->core_plugin->text_domain() ) );
+		} else {
+			// Validate the session.
+			if ( ! $this->validate_payment_session_status( $session['id'], $session['version'] ) ) {
+				$this->maybe_clean_hosted_cached_session();
+				$errors->add( 'invalid_session', __( 'The Payment Session is invalid or has expired. Please try again.', $this->core_plugin->text_domain() ) );
+			}
 		}
 
 		$errors = apply_filters( $this->prefix_hook( 'validate_fields' ), $errors );
