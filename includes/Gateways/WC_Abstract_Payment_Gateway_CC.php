@@ -247,6 +247,17 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return void
 	 */
 	public function process_admin_options() {
+		// Fix issue when there's a single region, and the setting already exists.
+		$regions = wp_list_pluck( $this->core_plugin->payment_regions(), 'name', 'code' );
+
+		if ( isset( $regions['test'] ) ) {
+			unset( $regions['test'] );
+		}
+
+		if ( empty( $regions ) || count( $regions ) < 2 ) {
+			$_POST[ $this->prefix_hook( 'region', 'woocommerce_' ) ] = \array_key_first( $regions ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		}
+
 		parent::process_admin_options();
 
 		// Update settings that needs to be updated before saving to correctly display the notices.
@@ -269,7 +280,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		$is_sandbox = 'no' === $this->get_posted_config_value( 'sandbox' ) ? false : true;
 		$this->core_plugin->update_gateway_setting( 'sandbox', $is_sandbox ? 'yes' : 'no' );
 
-		// TODO: Check when region is single
 		$region = $this->get_posted_config_value( 'region' );
 		$this->core_plugin->update_gateway_setting( 'region', $region );
 
@@ -300,11 +310,37 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		$this->core_plugin->password( true ); // Force refresh merchant password.
 		$this->core_plugin->notification_secret( true ); // Force refresh merchant notification secret.
 
-		$response = $this->api()->payment_options_inquiry();
+		$validated = false;
+		$regions = $this->core_plugin->payment_regions();
 
-		if ( ! $response['success'] || empty( $response['body'] ) ) {
+		$attempting_region = $is_sandbox ? 'test' : $region;
+
+		if ( isset( $regions[ $attempting_region ] ) ) {
+			$regions = array( $attempting_region => $regions[ $attempting_region ] );
+		} else {
+			// TODO: Maybe cycle through all regions if region is not set or invalid.
+			$regions = array();
+		}
+
+		foreach ( $regions as $region_key => $region_info ) {
+			$urls = isset( $region_info['urls'] ) ? $region_info['urls'] : array();
+			if ( empty( $urls ) && isset( $region_info['url'] ) ) {
+				$urls = array( $region_info['url'] );
+			}
+			foreach ( $urls as $url ) {
+				$this->core_plugin->update_validated_domain( $url );
+				$response = $this->api()->payment_options_inquiry();
+				if ( $response['success'] && ! empty( $response['body'] ) ) {
+					$validated = true;
+					break 2;
+				}
+			}
+		}
+
+		if ( ! $validated ) {
 			WC_Admin_Settings::add_error( __( 'Failed to validate API credentials. Please validate your credentials and save your account details again.', $this->core_plugin->text_domain() ) );
 			$this->core_plugin->update_validated_credentials( false );
+			$this->core_plugin->update_validated_domain( false );
 			$this->core_plugin->update_payment_operations( array() );
 			$this->core_plugin->update_transaction_sources( array() );
 			return;

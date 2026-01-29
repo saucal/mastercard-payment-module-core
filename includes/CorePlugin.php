@@ -752,6 +752,26 @@ abstract class CorePlugin {
 
 
 	/**
+	 * Get validated domain.
+	 *
+	 * @return array
+	 */
+	public function get_validated_domain() {
+		return get_option( 'woocommerce_' . $this->plugin_id() . '_validated_domain', false );
+	}
+
+
+	/**
+	 * Update validated domain.
+	 *
+	 * @param bool $validated_domain Validated domain.
+	 */
+	public function update_validated_domain( $validated_domain ) {
+		update_option( 'woocommerce_' . $this->plugin_id() . '_validated_domain', $validated_domain );
+	}
+
+
+	/**
 	 * Get validated payment operations.
 	 *
 	 * @return array
@@ -856,62 +876,82 @@ abstract class CorePlugin {
 	 *
 	 * @return array
 	 */
-	public function payment_regions() {
+	public function payment_regions_available() {
 		return array(
-			'eu' => array(
+			'eu'  => array(
 				'name' => __( 'Europe', $this->text_domain() ),
 				'code' => 'eu',
-				'url'  => 'https://eu-gateway.mastercard.com',
+				'urls'  => array(
+					'https://eu-gateway.mastercard.com',
+					'https://eu.gateway.mastercard.com',
+				),
 			),
-			'ap' => array(
+			'ap'  => array(
 				'name' => __( 'Asia Pacific and Middle East', $this->text_domain() ),
 				'code' => 'ap',
-				'url'  => 'https://ap-gateway.mastercard.com',
+				'urls'  => array(
+					'https://ap-gateway.mastercard.com',
+					'https://ap.gateway.mastercard.com',
+				),
 			),
-			'na' => array(
+			'na'  => array(
 				'name' => __( 'North America', $this->text_domain() ),
 				'code' => 'na',
-				'url'  => 'https://na-gateway.mastercard.com',
+				'urls'  => array(
+					'https://na-gateway.mastercard.com',
+					'https://na.gateway.mastercard.com',
+				),
+			),
+			'ksa' => array(
+				'name' => __( 'Kingdom of Saudi Arabia', $this->text_domain() ),
+				'code' => 'ksa',
+				'urls'  => array(
+					'https://ksa-gateway.mastercard.com',
+					'https://ksa.gateway.mastercard.com',
+				),
+			),
+			'in' => array(
+				'name' => __( 'India', $this->text_domain() ),
+				'code' => 'in',
+				'urls'  => array(
+					'https://in-gateway.mastercard.com',
+					'https://in.gateway.mastercard.com',
+				),
 			),
 		);
 	}
+	public function payment_regions() {
+		$list = $this->payment_regions_available();
+		$list = array_merge( $list, $this->get_test_region() );
+		return $list;
+	}
 
-	public function get_test_region_url() {
-		return 'https://test-gateway.mastercard.com';
+	public function get_test_region() {
+		return array(
+			'test' => array(
+				'name' => __( 'Test Region', $this->text_domain() ),
+				'code' => 'test',
+				'urls'  => array(
+					'https://test-gateway.mastercard.com',
+					'https://test.gateway.mastercard.com',
+				),
+			),
+		);
 	}
 
 	/**
 	 * Get payment region URL.
 	 *
-	 * @param string $region Region code.
-	 *
 	 * @return string
 	 */
 	public function payment_region_url() {
-		$regions = $this->payment_regions();
+		$url = $this->get_validated_domain();
 
-		// If we don't have regions, return empty string.
-		if ( empty( $regions ) ) {
+		if ( empty( $url ) ) {
 			return '';
 		}
 
-		// If we have only one region, return its URL.
-		if ( count( $regions ) < 2 ) {
-			$first_region = reset( $regions );
-
-			return $first_region['url'];
-		}
-
-		// If we have multiple regions, get the selected one (or the default)
-		$region = $this->get_gateway_setting( 'region' );
-
-		// If the setting is empty or invalid, return empty string.
-		if ( ! isset( $regions[ $region ] ) ) {
-			return '';
-		}
-
-		// Return the region URL.
-		return $regions[ $region ]['url'];
+		return $url;
 	}
 
 	/**
@@ -920,13 +960,6 @@ abstract class CorePlugin {
 	 * @return string
 	 */
 	public function gateway_url() {
-		if ( $this->is_sandbox( false ) ) {
-			$test_region = $this->get_test_region_url();
-			if ( ! empty( $test_region ) ) {
-				return $test_region;
-			}
-		}
-
 		$gateway_url = $this->payment_region_url();
 
 		if ( defined( 'PAYMENT_CORE_GATEWAY_URL' ) && ! empty( \PAYMENT_CORE_GATEWAY_URL ) ) {
