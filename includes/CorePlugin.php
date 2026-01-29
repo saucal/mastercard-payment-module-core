@@ -676,17 +676,60 @@ abstract class CorePlugin {
 	 *
 	 * @return string
 	 */
-	public function merchant_id() {
+	public function merchant_id( $force = false ) {
 		static $merchant_id;
 
-		if ( ! empty( $merchant_id ) ) {
+		if ( ! empty( $merchant_id ) && ! $force ) {
 			return $merchant_id;
 		}
 
-		$merchant_id = $this->get_gateway_setting( 'merchant_id' );
+		$prefix = $this->is_sandbox( false ) ? 'test_' : '';
+
+		$merchant_id = $this->get_gateway_setting( $prefix . 'merchant_id' );
 
 		return $merchant_id;
 	}
+
+
+	/**
+	 * Get the merchant password.
+	 *
+	 * @return string
+	 */
+	public function password( $force = false ) {
+		static $password;
+
+		if ( ! empty( $password ) && ! $force ) {
+			return $password;
+		}
+
+		$prefix = $this->is_sandbox( false ) ? 'test_' : '';
+
+		$password = $this->get_gateway_setting( $prefix . 'password' );
+
+		return $password;
+	}
+
+
+	/**
+	 * Get the webhook notification secret.
+	 *
+	 * @return string
+	 */
+	public function notification_secret( $force = false ) {
+		static $notification_secret;
+
+		if ( ! empty( $notification_secret ) && ! $force ) {
+			return $notification_secret;
+		}
+
+		$prefix = $this->is_sandbox( false ) ? 'test_' : '';
+
+		$notification_secret = $this->get_gateway_setting( $prefix . 'notification_secret' );
+
+		return $notification_secret;
+	}
+
 
 	/**
 	 * Get validated credentials.

@@ -55,7 +55,7 @@ final class API {
 	 * @return string
 	 */
 	private function get_password() {
-		return $this->core_plugin->get_gateway_setting( 'password' );
+		return $this->core_plugin->password();
 	}
 
 

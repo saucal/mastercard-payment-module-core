@@ -1294,7 +1294,7 @@ class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 			return false;
 		}
 
-		$notification_secret = $this->get_option( 'notification_secret' );
+		$notification_secret = $this->core_plugin->notification_secret();
 
 		if ( empty( $notification_secret ) || $notification_secret !== wc_clean( wp_unslash( $_SERVER['HTTP_X_NOTIFICATION_SECRET'] ) ) ) {
 			return false;

@@ -106,33 +106,33 @@ final class GatewaySettings {
 			$regions['test'] = $test_region;
 		}
 		$this->settings = array(
-			'enabled'          => array(
+			'enabled'                  => array(
 				'title'       => __( 'Enable/Disable', $this->core_plugin->text_domain() ),
 				'label'       => __( 'Enable', $this->core_plugin->text_domain() ),
 				'type'        => 'checkbox',
 				'description' => '',
 				'default'     => 'no',
 			),
-			'title'            => array(
+			'title'                    => array(
 				'title'       => __( 'Title', $this->core_plugin->text_domain() ),
 				'type'        => 'text',
 				'description' => __( 'The payment method title displayed during checkout.', $this->core_plugin->text_domain() ),
 				'default'     => $this->core_plugin->payment_core()->plugin_title(),
 				'desc_tip'    => true,
 			),
-			'description'      => array(
+			'description'              => array(
 				'title'       => __( 'Description', $this->core_plugin->text_domain() ),
 				'type'        => 'text',
 				'description' => esc_html__( 'The description displayed when this payment method is selected.', $this->core_plugin->text_domain() ),
 				'default'     => esc_html__( 'Pay with your Credit/Debit Card', $this->core_plugin->text_domain() ),
 				'desc_tip'    => true,
 			),
-			'merchant_details' => array(
+			'merchant_details'         => array(
 				'title'       => __( 'Merchant Account Details', $this->core_plugin->text_domain() ),
 				'description' => $this->merchant_details_message(),
 				'type'        => 'title',
 			),
-			'sandbox'          => array(
+			'sandbox'                  => array(
 				'title'             => __( 'Test Mode', $this->core_plugin->text_domain() ),
 				'label'             => __( 'Enable test mode', $this->core_plugin->text_domain() ),
 				'type'              => 'checkbox',
@@ -148,22 +148,27 @@ final class GatewaySettings {
 				),
 			),
 			...( $this->get_region_setting() ),
-			'merchant_id'      => array(
-				'title'       => __( 'Merchant ID', $this->core_plugin->text_domain() ),
-				'type'        => 'text',
-				'description' => sprintf(
+			'merchant_id'              => array(
+				'title'             => __( 'Merchant ID', $this->core_plugin->text_domain() ),
+				'type'              => 'text',
+				'description'       => sprintf(
 					__( 'This is the Merchant ID you use to log into the %1$sMerchant Portal%2$s.', $this->core_plugin->text_domain() ),
 					'<a href="' . esc_url(
 						untrailingslashit( $this->core_plugin->gateway_url() ) . '/ma/login.s'
 					) . '" target="_blank">',
 					'</a>'
 				),
-				'default'     => '',
+				'default'           => '',
+				'class'             => 'conditional-hide',
+				'custom_attributes' => array(
+					'data-show-rel' => 'sandbox',
+					'data-show-if'  => 'no',
+				),
 			),
-			'password'         => array(
-				'title'       => __( 'Integration Authentication Password', $this->core_plugin->text_domain() ),
-				'type'        => 'password',
-				'description' => sprintf(
+			'password'                 => array(
+				'title'             => __( 'Integration Authentication Password', $this->core_plugin->text_domain() ),
+				'type'              => 'password',
+				'description'       => sprintf(
 					__( 'You can obtain your integration authentication password from the Merchant Portal (%1$sAdmin -> Integration Settings%2$s).', $this->core_plugin->text_domain() ),
 					'<a href="' . esc_url(
 						add_query_arg(
@@ -176,7 +181,84 @@ final class GatewaySettings {
 					) . '" target="_blank">',
 					'</a>'
 				),
-				'default'     => '',
+				'default'           => '',
+				'class'             => 'conditional-hide',
+				'custom_attributes' => array(
+					'data-show-rel' => 'sandbox',
+					'data-show-if'  => 'no',
+				),
+			),
+			'test_merchant_id'         => array(
+				'title'             => __( 'Test Merchant ID', $this->core_plugin->text_domain() ),
+				'type'              => 'text',
+				'description'       => sprintf(
+					__( 'This is the Merchant ID you use to log into the %1$sMerchant Portal%2$s.', $this->core_plugin->text_domain() ),
+					'<a href="' . esc_url(
+						untrailingslashit( $this->core_plugin->gateway_url() ) . '/ma/login.s'
+					) . '" target="_blank">',
+					'</a>'
+				),
+				'default'           => '',
+				'class'             => 'conditional-hide',
+				'custom_attributes' => array(
+					'data-show-rel' => 'sandbox',
+					'data-show-if'  => 'yes',
+				),
+			),
+			'test_password'            => array(
+				'title'             => __( 'Test Integration Authentication Password', $this->core_plugin->text_domain() ),
+				'type'              => 'password',
+				'description'       => sprintf(
+					__( 'You can obtain your integration authentication password from the Merchant Portal (%1$sAdmin -> Integration Settings%2$s).', $this->core_plugin->text_domain() ),
+					'<a href="' . esc_url(
+						add_query_arg(
+							array(
+								'_authDomain'      => 'ma',
+								'selectedMenuItem' => 'apiConfiguration',
+							),
+							untrailingslashit( $this->core_plugin->gateway_url() ) . '/ma/apiConfiguration.s'
+						)
+					) . '" target="_blank">',
+					'</a>'
+				),
+				'default'           => '',
+				'class'             => 'conditional-hide',
+				'custom_attributes' => array(
+					'data-show-rel' => 'sandbox',
+					'data-show-if'  => 'yes',
+				),
+			),
+			'webhook'                  => array(
+				'title' => __( 'Webhook Notifications', $this->core_plugin->text_domain() ),
+				'type'  => 'title',
+			),
+			'notification_secret'      => array(
+				'title'             => __( 'Notification Secret', $this->core_plugin->text_domain() ),
+				'type'              => 'text',
+				'description'       => sprintf(
+					__( 'You can obtain or generate your notification secret on the Merchant Portal (%1$sAdmin -> Webhook Notifications%2$s).', $this->core_plugin->text_domain() ),
+					'<a href="' . esc_url( $this->webhook_notification_url() ) . '" target="_blank">',
+					'</a>'
+				),
+				'class'             => 'conditional-hide',
+				'custom_attributes' => array(
+					'data-show-rel' => 'sandbox',
+					'data-show-if'  => 'no',
+				),
+			),
+			'test_notification_secret' => array(
+				'title'             => __( 'Test Notification Secret', $this->core_plugin->text_domain() ),
+				'type'              => 'text',
+				'description'       => sprintf(
+					__( 'You can obtain or generate your notification secret on the Merchant Portal (%1$sAdmin -> Webhook Notifications%2$s).', $this->core_plugin->text_domain() ),
+					'<a href="' . esc_url( $this->webhook_notification_url() ) . '" target="_blank">',
+					'</a>'
+				),
+				'class'             => 'conditional-hide',
+				'custom_attributes' => array(
+					'data-show-rel' => 'sandbox',
+					'data-show-if'  => 'yes',
+				),
 			),
 		);
 
@@ -271,19 +353,6 @@ final class GatewaySettings {
 		$this->settings = array_merge(
 			$this->settings,
 			array(
-				'webhook'              => array(
-					'title' => __( 'Webhook Notifications', $this->core_plugin->text_domain() ),
-					'type'  => 'title',
-				),
-				'notification_secret'  => array(
-					'title'       => __( 'Notification Secret', $this->core_plugin->text_domain() ),
-					'type'        => 'text',
-					'description' => sprintf(
-						__( 'You can obtain or generate your notification secret on the Merchant Portal (%1$sAdmin -> Webhook Notifications%2$s).', $this->core_plugin->text_domain() ),
-						'<a href="' . esc_url( $this->webhook_notification_url() ) . '" target="_blank">',
-						'</a>'
-					),
-				),
 				'payments'             => array(
 					'title' => __( 'Payment configurations', $this->core_plugin->text_domain() ),
 					'type'  => 'title',
