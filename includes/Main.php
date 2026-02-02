@@ -218,7 +218,7 @@ final class Main {
 				'admin_notices',
 				function () use ( $errors ) {
 					foreach ( $errors as $error ) {
-						Notices::render_error_notice( $error );
+						Notices::render_admin_notice( $error );
 					}
 				}
 			);

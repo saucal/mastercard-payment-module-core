@@ -101,7 +101,7 @@ trait DynamicCurrencyConversion {
 		add_filter( $this->prefix_hook( 'localize_frontend_script' ), array( $this, 'add_dcc_script_data' ) );
 
 		// Validate fields to ensure DCC data is correct.
-		add_action( $this->prefix_hook( 'validate_fields' ), array( $this, 'validate_dcc_data' ), 10, 2 );
+		add_filter( $this->prefix_hook( 'validate_fields' ), array( $this, 'validate_dcc_data' ), 10, 1 );
 
 		// Add DCC data to the payment data.
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_data' ), array( $this, 'maybe_add_dcc_payment_data' ), 10, 2 );

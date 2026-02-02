@@ -26,7 +26,7 @@ use WC_Payment_Gateway_CC;
 /**
  * Show the payment form for the Payment Gateway.
  */
-class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
+abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 
 	/**
@@ -91,6 +91,11 @@ class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * @var string
 	 */
 	protected $refund_transaction_id;
+
+	/**
+	 * Constructor.
+	 */
+	abstract public function __construct();
 
 
 	/**
