@@ -309,7 +309,7 @@ final class GatewaySettings {
 	/**
 	 * Add advanced settings if the credentials are valid.
 	 *
-	 * @return array
+	 * @return void
 	 */
 	private function maybe_add_advanced_settings() {
 

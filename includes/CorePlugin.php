@@ -544,6 +544,8 @@ abstract class CorePlugin {
 				return $gateway_instance->id;
 			}
 		}
+
+		return '';
 	}
 
 

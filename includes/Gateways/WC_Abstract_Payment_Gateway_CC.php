@@ -181,7 +181,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		add_action( 'woocommerce_api_' . $this->prefix_hook( 'wc-webhook' ), array( $this, 'process_notification_api_callback' ) );
 
 		add_filter( $this->prefix_hook( 'enqueue_scripts' ), array( $this, 'enqueue_scripts' ), 20 );
-		add_filter( 'script_loader_tag', array( $this, 'maybe_add_callbacks_attr' ), 10, 3 );
+		add_filter( 'script_loader_tag', array( $this, 'maybe_add_callbacks_attr' ), 10, 2 );
 
 		// Gateway AJAX actions.
 		add_action( 'wc_ajax_' . $this->prefix_hook( 'reset_hosted_session' ), array( $this, 'ajax_clean_hosted_cached_session' ) );
@@ -1159,12 +1159,12 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 
 	/**
-	 * Clean the cached authentication transaction.
+	 * Get the authentication transaction ID.
 	 *
 	 * @param WC_Order $order          Order object.
 	 * @param string   $transaction_id Transaction ID.
 	 *
-	 * @return void
+	 * @return string|null
 	 */
 	protected function get_authentication_transaction( $order = null ) {
 		if ( $this->is_order( $order ) ) {
