@@ -80,6 +80,11 @@ final class API {
 	 */
 	protected function get_headers( $content_type = 'application/json', $endpoint = null, $payload = array() ) {
 
+		/**
+		 * Filters the API request headers.
+		 *
+		 * @since 1.0.0
+		 */
 		return apply_filters(
 			$this->core_plugin->payment_core()->prefix_hook( 'request_headers' ),
 			array(
@@ -124,6 +129,11 @@ final class API {
 		$args = array(
 			'method'  => $method,
 			'headers' => $this->get_headers( 'application/json', $endpoint, $payload ),
+			/**
+			 * Filters the API request body.
+			 *
+			 * @since 1.0.0
+			 */
 			'body'    => apply_filters( $this->core_plugin->payment_core()->prefix_hook( 'request_body' ), $this->maybe_json_encode( $payload ) ),
 			'timeout' => 60,
 		);
@@ -173,7 +183,7 @@ final class API {
 	 * @return mixed
 	 */
 	private static function maybe_json_decode( $data ) {
-		if( ! is_string( $data ) || empty( $data ) ) {
+		if ( ! is_string( $data ) || empty( $data ) ) {
 			return null;
 		}
 
@@ -197,7 +207,7 @@ final class API {
 		if ( empty( $response['response']['code'] ) ) {
 			return array(
 				'success' => false,
-				'error'   => __( 'Empty response code.', 'payment-core' ),
+				'error'   => __( 'Empty response code.', $this->core_plugin->text_domain() ),
 			);
 		}
 
@@ -225,6 +235,8 @@ final class API {
 
 	/**
 	 * Payment options inquiry.
+	 *
+	 * @param array $payload Payload.
 	 */
 	public function payment_options_inquiry( $payload = array() ) {
 		return $this->request( 'paymentOptionsInquiry', 'POST', $payload );

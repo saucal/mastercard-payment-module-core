@@ -72,6 +72,11 @@ class BlockCompatibility {
 	 * @return void
 	 */
 	public function init( PaymentMethodRegistry $registry ) {
+		/**
+		 * Filters the list of block compatibility classes to register.
+		 *
+		 * @since 1.0.0
+		 */
 		$compats = apply_filters( $this->core_plugin->payment_core()->prefix_hook( 'block_compatibility_classes' ), $this->core_plugin->regisreted_block_gateways() );
 		if ( ! empty( $compats ) ) {
 			require_once __DIR__ . '/Abstract_Block_Compat.php';

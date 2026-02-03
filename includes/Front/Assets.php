@@ -92,6 +92,11 @@ final class Assets {
 		$scripts[ $this->core_plugin->payment_core()->prefix_hook( 'gateway' ) ] = array(
 			'src'  => $this->core_plugin->assets_controller()->localize_asset( 'js/frontend/payment-core.js' ),
 			'deps' => array( 'jquery', 'wp-i18n' ),
+			/**
+			 * Filters the localized data for the frontend script.
+			 *
+			 * @since 1.0.0
+			 */
 			'data' => apply_filters( $this->core_plugin->payment_core()->prefix_hook( 'localize_frontend_script' ), $data ),
 		);
 

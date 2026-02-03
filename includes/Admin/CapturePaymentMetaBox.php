@@ -75,6 +75,11 @@ class CapturePaymentMetaBox {
 			return;
 		}
 
+		/**
+		 * Filters whether to add the payment meta boxes to the order screen.
+		 *
+		 * @since 1.0.0
+		 */
 		if ( ! apply_filters( $this->core_plugin->payment_core()->prefix_hook( 'add_meta_boxes' ), true, $order, $post_type ) ) {
 			return;
 		}

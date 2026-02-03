@@ -110,7 +110,11 @@ final class Utils {
 	 * @return string
 	 */
 	public function template_path() {
-		// Allow 3rd party plugin filter template path from their plugin.
+		/**
+		 * Filters the template path for third-party plugin overrides.
+		 *
+		 * @since 1.0.0
+		 */
 		return apply_filters( $this->payment_core->prefix_hook( 'template_path' ), 'payment-core/' );
 	}
 
@@ -141,7 +145,7 @@ final class Utils {
 			$orders   = wc_get_orders(
 				array(
 					'limit'      => 1,
-					'meta_query' => array(
+					'meta_query' => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
 						array(
 							'key'   => $order_meta_key,
 							'value' => $success_indicator,
@@ -208,6 +212,8 @@ final class Utils {
 	/**
 	 * Get current total on the cart, either from the cart or from the current order.
 	 *
+	 * @param \WC_Order|null $order The order.
+	 *
 	 * @return float
 	 */
 	public static function get_current_total_amount( $order = null ) {
@@ -225,6 +231,8 @@ final class Utils {
 
 	/**
 	 * Get current currency on the cart, either from the cart or from the current order.
+	 *
+	 * @param \WC_Order|null $order The order.
 	 *
 	 * @return string
 	 */
@@ -445,6 +453,11 @@ final class Utils {
 	 * @return array
 	 */
 	public function hosted_session_errors() {
+		/**
+		 * Filters the list of possible hosted session form errors.
+		 *
+		 * @since 1.0.0
+		 */
 		return apply_filters(
 			$this->payment_core->prefix_hook( 'hosted_session_errors' ),
 			array(
@@ -498,19 +511,29 @@ final class Utils {
 		return defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ? '' : '.min';
 	}
 
+	/**
+	 * Insert data around a key in an array.
+	 *
+	 * @param array  $target    The target array.
+	 * @param string $key       The key to insert around.
+	 * @param array  $new_data  The new data to insert.
+	 * @param int    $operation The operation offset.
+	 *
+	 * @return array
+	 */
 	public static function insert_around_key( $target, $key, $new_data, $operation = 1 ) {
-		// Find the index of the key to insert after
+		// Find the index of the key to insert after.
 		$keys  = array_keys( $target );
 		$index = array_search( $key, $keys, true );
 
-		// If the key is found, proceed with insertion
+		// If the key is found, proceed with insertion.
 		if ( false !== $index ) {
-			$first_part  = array_slice( $target, 0, $index + $operation, true ); // +1 to include the 'after_key' element
+			$first_part  = array_slice( $target, 0, $index + $operation, true ); // +1 to include the 'after_key' element.
 			$second_part = array_slice( $target, $index + $operation, null, true );
 
 			$target = $first_part + $new_data + $second_part;
 		} else {
-			// If the key is not found, append
+			// If the key is not found, append.
 			foreach ( $new_data as $new_key => $new_value ) {
 				$target[ $new_key ] = $new_value;
 			}

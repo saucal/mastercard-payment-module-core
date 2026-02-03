@@ -354,6 +354,11 @@ abstract class CorePlugin {
 	 * @return void
 	 */
 	public function install() {
+		/**
+		 * Fires when the plugin is installed.
+		 *
+		 * @since 1.0.0
+		 */
 		do_action( $this->payment_core()->prefix_hook( 'installed' ) );
 	}
 
@@ -428,7 +433,11 @@ abstract class CorePlugin {
 	 */
 	public function load_plugin_textdomain() {
 
-		// Add plugin's locale.
+		/**
+		 * Filters the locale used for loading plugin translation files.
+		 *
+		 * @since 1.0.0
+		 */
 		$locale = apply_filters( 'plugin_locale', get_locale(), $this->text_domain() );
 
 		load_textdomain(
@@ -676,6 +685,8 @@ abstract class CorePlugin {
 	/**
 	 * Get the merchant ID.
 	 *
+	 * @param bool $force Force refresh of the value.
+	 *
 	 * @return string
 	 */
 	public function merchant_id( $force = false ) {
@@ -696,6 +707,8 @@ abstract class CorePlugin {
 	/**
 	 * Get the merchant password.
 	 *
+	 * @param bool $force Force refresh of the value.
+	 *
 	 * @return string
 	 */
 	public function password( $force = false ) {
@@ -715,6 +728,8 @@ abstract class CorePlugin {
 
 	/**
 	 * Get the webhook notification secret.
+	 *
+	 * @param bool $force Force refresh of the value.
 	 *
 	 * @return string
 	 */
@@ -836,6 +851,8 @@ abstract class CorePlugin {
 	/**
 	 * Is sandbox mode enabled.
 	 *
+	 * @param bool $strict Whether to strictly check credentials.
+	 *
 	 * @return bool
 	 */
 	public function is_sandbox( $strict = true ) {
@@ -869,7 +886,7 @@ abstract class CorePlugin {
 	 * @return bool
 	 */
 	public function is_currency_conversion_enabled() {
-		// TODO: Make this function less relevate, or somehow pointed to the DCC addon
+		// TODO: Make this function less relevate, or somehow pointed to the DCC addon.
 		return 'yes' === $this->get_gateway_setting( 'currency_conversion' );
 	}
 
@@ -883,7 +900,7 @@ abstract class CorePlugin {
 			'eu'  => array(
 				'name' => __( 'Europe', $this->text_domain() ),
 				'code' => 'eu',
-				'urls'  => array(
+				'urls' => array(
 					'https://eu-gateway.mastercard.com',
 					'https://eu.gateway.mastercard.com',
 				),
@@ -891,7 +908,7 @@ abstract class CorePlugin {
 			'ap'  => array(
 				'name' => __( 'Asia Pacific and Middle East', $this->text_domain() ),
 				'code' => 'ap',
-				'urls'  => array(
+				'urls' => array(
 					'https://ap-gateway.mastercard.com',
 					'https://ap.gateway.mastercard.com',
 				),
@@ -899,7 +916,7 @@ abstract class CorePlugin {
 			'na'  => array(
 				'name' => __( 'North America', $this->text_domain() ),
 				'code' => 'na',
-				'urls'  => array(
+				'urls' => array(
 					'https://na-gateway.mastercard.com',
 					'https://na.gateway.mastercard.com',
 				),
@@ -907,33 +924,44 @@ abstract class CorePlugin {
 			'ksa' => array(
 				'name' => __( 'Kingdom of Saudi Arabia', $this->text_domain() ),
 				'code' => 'ksa',
-				'urls'  => array(
+				'urls' => array(
 					'https://ksa-gateway.mastercard.com',
 					'https://ksa.gateway.mastercard.com',
 				),
 			),
-			'in' => array(
+			'in'  => array(
 				'name' => __( 'India', $this->text_domain() ),
 				'code' => 'in',
-				'urls'  => array(
+				'urls' => array(
 					'https://in-gateway.mastercard.com',
 					'https://in.gateway.mastercard.com',
 				),
 			),
 		);
 	}
+
+	/**
+	 * Get the payment regions including the test region.
+	 *
+	 * @return array
+	 */
 	public function payment_regions() {
 		$list = $this->payment_regions_available();
 		$list = array_merge( $list, $this->get_test_region() );
 		return $list;
 	}
 
+	/**
+	 * Get the test region.
+	 *
+	 * @return array
+	 */
 	public function get_test_region() {
 		return array(
 			'test' => array(
 				'name' => __( 'Test Region', $this->text_domain() ),
 				'code' => 'test',
-				'urls'  => array(
+				'urls' => array(
 					'https://test-gateway.mastercard.com',
 					'https://test.gateway.mastercard.com',
 				),

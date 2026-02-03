@@ -64,7 +64,11 @@ final class Template {
 			$template = locate_template( array( "{$slug}.php", $this->payment_core->utils()->template_path() . "{$slug}.php" ) );
 		}
 
-		// Allow 3rd party plugins to filter template file from their plugin.
+		/**
+		 * Filters the template part file path for third-party plugin overrides.
+		 *
+		 * @since 1.0.0
+		 */
 		$template = apply_filters( 'payment_core_get_template_part', $template, $slug, $name );
 
 		if ( $template ) {
@@ -97,10 +101,18 @@ final class Template {
 			return;
 		}
 
-		// Allow 3rd party plugin filter template file from their plugin.
+		/**
+		 * Filters the template file path for third-party plugin overrides.
+		 *
+		 * @since 1.0.0
+		 */
 		$located = apply_filters( 'payment_core_get_template', $located, $template_name, $args, $template_path, $default_path );
 
-		// Perform other actions before template part is included.
+		/**
+		 * Fires before a template part is included.
+		 *
+		 * @since 1.0.0
+		 */
 		do_action( 'payment_core_before_template_part', $template_name, $template_path, $located, $args );
 
 		if ( ! file_exists( $located ) ) {
@@ -110,7 +122,11 @@ final class Template {
 
 		include $located;
 
-		// Perform other actions after template part is included.
+		/**
+		 * Fires after a template part is included.
+		 *
+		 * @since 1.0.0
+		 */
 		do_action( 'payment_core_after_template_part', $template_name, $template_path, $located, $args );
 	}
 
@@ -174,7 +190,11 @@ final class Template {
 			$template = $default_path . $template_name;
 		}
 
-		// Return what we found.
+		/**
+		 * Filters the located template file path.
+		 *
+		 * @since 1.0.0
+		 */
 		return apply_filters( 'payment_core_locate_template', $template, $template_name, $template_path );
 	}
 }

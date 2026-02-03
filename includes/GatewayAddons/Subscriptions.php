@@ -75,7 +75,7 @@ trait Subscriptions {
 
 		// Add subscription payment data to the payment request.
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_data' ), array( $this, 'maybe_add_subscription_payment_data' ), 10, 2 );
-		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_data' ), array( $this, 'maybe_add_subscription_authentication_initiate_data' ), 10, 3 );
+		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_data' ), array( $this, 'maybe_add_subscription_authentication_initiate_data' ), 10, 2 );
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_authenticate_payer_data' ), array( $this, 'maybe_add_subscription_authentication_data' ), 10, 2 );
 
 		// Remove redirect to checkout page for subscriptions.
@@ -161,10 +161,9 @@ trait Subscriptions {
 	 *
 	 * @param array         $init_authentication Init authentication data.
 	 * @param WC_Order|null $order               Order object.
-	 * @param array         $session             Session data.
 	 * @return array
 	 */
-	public function maybe_add_subscription_authentication_initiate_data( $init_authentication, $order, $session ) {
+	public function maybe_add_subscription_authentication_initiate_data( $init_authentication, $order ) {
 		$subscription = $this->get_subscription_object( $order );
 		if ( ! $subscription instanceof WC_Subscription ) {
 			return $init_authentication;
@@ -424,10 +423,12 @@ trait Subscriptions {
 	/**
 	 * Checks if page is pay for order and change subs payment page.
 	 *
+	 * @param bool $from_pay_for_order Whether to also check for pay_for_order parameter.
+	 *
 	 * @return bool
 	 */
 	protected function is_subs_change_payment( $from_pay_for_order = true ) {
-		return isset( $_GET['change_payment_method'] ) && ( $from_pay_for_order ? isset( $_GET['pay_for_order'] ) : true ); // WPCS: CSRF ok.
+		return isset( $_GET['change_payment_method'] ) && ( $from_pay_for_order ? isset( $_GET['pay_for_order'] ) : true ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 	}
 
 
@@ -517,7 +518,17 @@ trait Subscriptions {
 		try {
 			$this->process_subscription_payment( $renewal_order );
 
+			/**
+			 * Fires after subscription payments are processed for an order.
+			 *
+			 * @since 1.0.0
+			 */
 			do_action( 'processed_subscription_payments_for_order', $renewal_order );
+			/**
+			 * Fires after a scheduled subscription payment succeeds.
+			 *
+			 * @since 1.0.0
+			 */
 			do_action( $this->prefix_hook( 'scheduled_subscription_success' ), $total_amount, $renewal_order );
 		} catch ( Exception $e ) {
 
@@ -535,7 +546,17 @@ trait Subscriptions {
 
 			$this->core_plugin->logger()->log( $e->getMessage(), 'error' );
 
+			/**
+			 * Fires after a subscription payment failure for an order.
+			 *
+			 * @since 1.0.0
+			 */
 			do_action( 'processed_subscription_payment_failure_for_order', $renewal_order );
+			/**
+			 * Fires after a scheduled subscription payment fails.
+			 *
+			 * @since 1.0.0
+			 */
 			do_action( $this->prefix_hook( 'scheduled_subscription_failure' ), $total_amount, $renewal_order );
 		}
 	}
@@ -556,17 +577,17 @@ trait Subscriptions {
 		$subscription_id = $order->get_meta( '_subscription_renewal' );
 		$subscription    = wcs_get_subscription( $subscription_id );
 		if ( ! $subscription instanceof WC_Subscription ) {
-			throw new Exception( __( 'The subscription order was not found.', $this->core_plugin->text_domain() ) );
+			throw new Exception( esc_html( __( 'The subscription order was not found.', $this->core_plugin->text_domain() ) ) );
 		}
 
 		$parent_id = ! empty( $subscription_id ) ? wc_get_order( $subscription_id )->get_parent_id() : null;
 		if ( ! $parent_id ) {
-			throw new Exception( __( 'No subscription found for this renewal order.', $this->core_plugin->text_domain() ) );
+			throw new Exception( esc_html( __( 'No subscription found for this renewal order.', $this->core_plugin->text_domain() ) ) );
 		}
 
 		$parent_order = wc_get_order( $parent_id );
 		if ( ! $parent_order instanceof WC_Order ) {
-			throw new Exception( __( 'The subscription order was not found.', $this->core_plugin->text_domain() ) );
+			throw new Exception( esc_html( __( 'The subscription order was not found.', $this->core_plugin->text_domain() ) ) );
 		}
 
 		// This meta duplicates the gateway token ID to the meta.
@@ -576,19 +597,19 @@ trait Subscriptions {
 		if ( empty( $payment_token ) ) {
 			$payment_tokens = $parent_order->get_payment_tokens();
 			if ( empty( $payment_tokens ) || ! is_array( $payment_tokens ) ) {
-				throw new Exception( __( 'No payment token found for the subscription order.', $this->core_plugin->text_domain() ) );
+				throw new Exception( esc_html( __( 'No payment token found for the subscription order.', $this->core_plugin->text_domain() ) ) );
 			}
 
 			$payment_token = new WC_Payment_Token_CC( reset( $payment_tokens ) );
 			if ( ! $payment_token instanceof WC_Payment_Token_CC ) {
-				throw new Exception( __( 'Invalid payment token for the subscription order.', $this->core_plugin->text_domain() ) );
+				throw new Exception( esc_html( __( 'Invalid payment token for the subscription order.', $this->core_plugin->text_domain() ) ) );
 			}
 
 			$payment_token = $payment_token->get_token();
 		}
 
 		$payment_data = array(
-			'apiOperation'     => 'PAY', // TODO: Respect authorize / capture settings
+			'apiOperation'     => 'PAY', // TODO: Respect authorize / capture settings.
 			'order'            => $this->hosted_session_order_payload( $order ),
 			'agreement'        => array(
 				'id' => $this->unique_subscription_id( $subscription ),
@@ -675,7 +696,7 @@ trait Subscriptions {
 	 * @return string
 	 */
 	public function maybe_bump_order_id_change_payment_method( $unique_order_id, $order ) {
-		if ( ! isset( $_POST['change_payment_method'] ) && ! $this->is_subs_change_payment() ) {
+		if ( ! isset( $_POST['change_payment_method'] ) && ! $this->is_subs_change_payment() ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
 			return $unique_order_id;
 		}
 
@@ -704,7 +725,7 @@ trait Subscriptions {
 	 * @return array
 	 */
 	public function maybe_change_3ds_return_url( $payment_data ) {
-		if ( ! isset( $_POST['change_payment_method'] ) ) {
+		if ( ! isset( $_POST['change_payment_method'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
 			return $payment_data;
 		}
 
@@ -732,7 +753,7 @@ trait Subscriptions {
 	 * @return string
 	 */
 	public function maybe_add_change_payment_method_flag( $redirect_url ) {
-		if ( ! isset( $_GET['change_payment_method'] ) ) {
+		if ( ! isset( $_GET['change_payment_method'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			return $redirect_url;
 		}
 
@@ -842,10 +863,26 @@ trait Subscriptions {
 		return false;
 	}
 
+	/**
+	 * Maybe avoid marking a subscription as paid.
+	 *
+	 * @param bool     $is_paid Whether the order is paid.
+	 * @param WC_Order $order   The order object.
+	 *
+	 * @return bool
+	 */
 	public function maybe_avoid_subscription_as_paid( $is_paid, $order ) {
 		return \wcs_is_subscription( $order ) ? false : $is_paid;
 	}
 
+	/**
+	 * Check if the order is empty or is a subscription (no parent order total).
+	 *
+	 * @param WC_Order        $order        The order object.
+	 * @param WC_Subscription $subscription The subscription object.
+	 *
+	 * @return bool
+	 */
 	public function order_is_empty_or_subscription( $order, $subscription ) {
 		return $subscription->get_id() === $order->get_id() || NumberUtil::round( $order->get_total(), \WC_ROUNDING_PRECISION ) <= 0;
 	}

@@ -205,6 +205,11 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	public function get_icon() {
 		$icon = $this->icon ? '<img src="' . esc_url( WC_HTTPS::force_https_url( $this->icon ) ) . '" class="payment-core-icon ' . $this->id . '-icon" alt="' . esc_attr( $this->get_title() ) . '" />' : '';
 
+		/**
+		 * Filters the gateway icon HTML output.
+		 *
+		 * @since 1.0.0
+		 */
 		return apply_filters( 'woocommerce_gateway_icon', $icon, $this->id );
 	}
 
@@ -315,7 +320,11 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				return null;
 			}
 
-			/** @var WC_Session_Handler $session */
+			/**
+			 * Session handler.
+			 *
+			 * @var WC_Session_Handler $session Session handler.
+			 */
 			$session = WC()->session;
 
 			$unique_order_id = $session->__get( $this->prefix_hook( 'order_id' ) );
@@ -335,6 +344,11 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 			}
 		}
 
+		/**
+		 * Filters the unique order ID used for payment gateway transactions.
+		 *
+		 * @since 1.0.0
+		 */
 		return apply_filters( $this->prefix_hook( 'unique_order_id' ), $unique_order_id, $order );
 	}
 
@@ -366,7 +380,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 			$order->update_meta_data( $this->prefix_hook( 'transaction_attempt' ), $current_transaction_attempt );
 			$order->save_meta_data();
 		} else {
-			// No need to check session exists again, as we checked above, and if we don't have a session we wouldn't be here
+			// No need to check session exists again, as we checked above, and if we don't have a session we wouldn't be here.
 			WC()->session->__set( $this->prefix_hook( 'transaction_attempt' ), $current_transaction_attempt );
 		}
 
@@ -510,6 +524,11 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				return false;
 			}
 
+			/**
+			 * Filters whether the order should be validated as paid.
+			 *
+			 * @since 1.0.0
+			 */
 			$is_valid = apply_filters( $this->prefix_hook( 'validate_order_as_paid' ), true, $order, $this );
 			if ( ! $is_valid ) {
 				return false;
@@ -569,15 +588,15 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	protected function process_wc_order( $order, $order_data, $transaction, $order_note_msg = '', $order_status_msg = '' ) {
 
 		if ( ! $order || ! is_a( $order, WC_Order::class ) ) {
-			throw new Exception( __( 'The order object is not valid.', $this->core_plugin->text_domain() ) );
+			throw new Exception( esc_html( __( 'The order object is not valid.', $this->core_plugin->text_domain() ) ) );
 		}
 
 		if ( ! isset( $order_data['status'] ) || ! isset( $order_data['id'] ) ) {
-			throw new Exception( __( 'The order data is not valid.', $this->core_plugin->text_domain() ) );
+			throw new Exception( esc_html( __( 'The order data is not valid.', $this->core_plugin->text_domain() ) ) );
 		}
 
 		if ( empty( $transaction['id'] ) ) {
-			throw new Exception( __( 'The transaction data is not valid.', $this->core_plugin->text_domain() ) );
+			throw new Exception( esc_html( __( 'The transaction data is not valid.', $this->core_plugin->text_domain() ) ) );
 		}
 
 		if ( $this->is_transaction_processed( $order, $transaction['id'] ) ) {
@@ -609,6 +628,11 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				);
 				$order->payment_complete( $order_data['id'] );
 
+				/**
+				 * Fires after a verified payment has been successfully processed.
+				 *
+				 * @since 1.0.0
+				 */
 				do_action( $this->prefix_hook( 'payment_success' ), $order, $order_data, $transaction );
 				break;
 			case 'CAPTURED':
@@ -623,6 +647,11 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), null );
 				$order->payment_complete( $order_data['id'] );
 
+				/**
+				 * Fires after a captured payment has been successfully processed.
+				 *
+				 * @since 1.0.0
+				 */
 				do_action( $this->prefix_hook( 'payment_success' ), $order, $order_data, $transaction );
 				break;
 			case 'AUTHORIZED':
@@ -640,6 +669,11 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 					$order_data['id'],
 				);
 
+				/**
+				 * Fires after an authorized payment has been successfully processed.
+				 *
+				 * @since 1.0.0
+				 */
 				do_action( $this->prefix_hook( 'payment_success' ), $order, $order_data, $transaction );
 				break;
 			case 'PARTIALLY_CAPTURED':
@@ -672,6 +706,11 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 			return;
 		}
 
+		/**
+		 * Filters whether the order status should be changed after payment processing.
+		 *
+		 * @since 1.0.0
+		 */
 		if ( ! apply_filters( $this->prefix_hook( 'change_order_status' ), true, $order ) ) {
 			return;
 		}
@@ -692,7 +731,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	protected function validate_payment_status( $order, $order_data = array() ) {
 
 		if ( ! $order || ! is_a( $order, WC_Order::class ) ) {
-			throw new Exception( __( 'The order object is not valid.', $this->core_plugin->text_domain() ) );
+			throw new Exception( esc_html( __( 'The order object is not valid.', $this->core_plugin->text_domain() ) ) );
 		}
 
 		if ( empty( $order_data ) ) {
@@ -700,15 +739,15 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 		}
 
 		if ( ! $order_data['success'] || empty( $order_data['body'] ) || empty( $order_data['body']['result'] ) ) {
-			throw new Exception( __( 'Failed to retrieve the order.', $this->core_plugin->text_domain() ) );
+			throw new Exception( esc_html( __( 'Failed to retrieve the order.', $this->core_plugin->text_domain() ) ) );
 		}
 
 		if ( 'SUCCESS' !== $order_data['body']['result'] ) {
-			throw new Exception( 'Payment was declined.', $this->core_plugin->text_domain() );
+			throw new Exception( esc_html( __( 'Payment was declined.', $this->core_plugin->text_domain() ) ) );
 		}
 
 		if ( empty( $order_data['body']['transaction'] ) || ! is_array( $order_data['body']['transaction'] ) ) {
-			throw new Exception( __( 'The transaction data is not valid.', $this->core_plugin->text_domain() ) );
+			throw new Exception( esc_html( __( 'The transaction data is not valid.', $this->core_plugin->text_domain() ) ) );
 		}
 	}
 
@@ -822,6 +861,8 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * @param float    $auth_amount Authorized amount.
 	 *
 	 * @return void
+	 *
+	 * @throws Exception Exception.
 	 */
 	public function process_capture_payment( $order, $amount = 0, $auth_amount = 0 ) {
 
@@ -948,8 +989,18 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 			// Add the transaction ID to the refund meta.
 			$this->refund_transaction_id = $transaction_id;
+			/**
+			 * Add refund transaction ID meta when order is refunded.
+			 *
+			 * @since 1.0.0
+			 */
 			add_action( 'woocommerce_order_refunded', array( $this, 'add_refund_meta' ), 10, 2 );
 
+			/**
+			 * Fires after a refund has been successfully processed.
+			 *
+			 * @since 1.0.0
+			 */
 			do_action( $this->prefix_hook( 'process_refund_success' ), $order, $currency, $amount, $reason );
 
 			return true;
@@ -1001,6 +1052,8 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * @param array    $transaction Transaction data.
 	 *
 	 * @return void
+	 *
+	 * @throws Exception Exception.
 	 */
 	protected function refund( $order, $transaction ) {
 		if ( ! $order ) {
@@ -1045,7 +1098,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 		if ( is_wp_error( $refund ) ) {
 			/* translators: %1$s reason */
-			throw new Exception( sprintf( __( 'Create refund failed: %1$s.', $this->core_plugin->text_domain() ), $refund->get_error_message() ) );
+			throw new Exception( esc_html( sprintf( __( 'Create refund failed: %1$s.', $this->core_plugin->text_domain() ), esc_html( $refund->get_error_message() ) ) ) );
 		}
 
 		$refund->update_meta_data( $this->prefix_hook( 'transaction_id' ), $transaction['id'] );
@@ -1062,6 +1115,8 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * @param array    $transaction Transaction data.
 	 *
 	 * @return void
+	 *
+	 * @throws Exception Exception.
 	 */
 	protected function void_refund( $order, $transaction ) {
 		if ( ! $order ) {
@@ -1084,14 +1139,16 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 		if ( ! $voided_refund ) {
 			throw new Exception(
 				sprintf(
-					__( 'Refund with Transaction ID (%s) not found.', $this->core_plugin->text_domain() ),
-					$transaction['id']
+					/* translators: %s: transaction ID */
+					esc_html( __( 'Refund with Transaction ID (%s) not found.', $this->core_plugin->text_domain() ) ),
+					esc_html( $transaction['id'] )
 				)
 			);
 		}
 
 		$voided_refund->delete( true );
 
+		/* translators: %s: transaction ID */
 		$order->add_order_note( sprintf( __( 'Refund was cancelled. Transaction ID: %s', $this->core_plugin->text_domain() ), $transaction['id'] ) );
 
 		$this->flag_transaction_as_processed( $order, $transaction['id'] );
@@ -1104,6 +1161,8 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * @param WC_Order $order Order object.
 	 *
 	 * @return void
+	 *
+	 * @throws Exception Exception.
 	 */
 	public function process_void_payment( $order ) {
 
@@ -1173,12 +1232,14 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 		}
 
 		$message = sprintf(
+			/* translators: %s: payment method title */
 			__( '%s payment was charged back.', $this->core_plugin->text_domain() ),
 			$this->title,
 		);
 
 		if ( ! empty( $transaction['dispute']['amount'] ) && ! empty( $transaction['dispute']['currency'] ) ) {
 			$message .= ' ' . sprintf(
+				/* translators: %s: chargeback amount with currency */
 				__( 'Chargeback Amount: %s', $this->core_plugin->text_domain() ),
 				wc_price( $transaction['dispute']['amount'], array( 'currency' => $transaction['dispute']['currency'] ) )
 			);
@@ -1186,6 +1247,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 		if ( ! empty( $transaction['dispute']['reason'] ) ) {
 			$message .= ' ' . sprintf(
+				/* translators: %s: chargeback reason */
 				__( 'Reason: %s', $this->core_plugin->text_domain() ),
 				$transaction['dispute']['reason']
 			);
@@ -1238,7 +1300,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	/**
 	 * Linking transaction id order to BlueSnap.
 	 *
-	 * @param WC_Order $order
+	 * @param WC_Order $order Order object.
 	 *
 	 * @return string
 	 */
@@ -1295,7 +1357,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * @return WC_Order|false
 	 */
 	private function validate_source() {
-		if ( ( 'POST' !== $_SERVER['REQUEST_METHOD'] ) ) {
+		if ( ! isset( $_SERVER['REQUEST_METHOD'] ) || 'POST' !== $_SERVER['REQUEST_METHOD'] ) {
 			return false;
 		}
 
@@ -1305,15 +1367,15 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 		$notification_secret = $this->core_plugin->notification_secret();
 
-		if ( empty( $notification_secret ) || $notification_secret !== wc_clean( wp_unslash( $_SERVER['HTTP_X_NOTIFICATION_SECRET'] ) ) ) {
+		if ( empty( $notification_secret ) || wc_clean( wp_unslash( $_SERVER['HTTP_X_NOTIFICATION_SECRET'] ) ) !== $notification_secret ) {
 			return false;
 		}
 
-		if ( ! isset( $_GET['order-id'] ) ) {
+		if ( ! isset( $_GET['order-id'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			return false;
 		}
 
-		$order_id = absint( wp_unslash( $_GET['order-id'] ) );
+		$order_id = absint( wp_unslash( $_GET['order-id'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
 		if ( ! $order_id ) {
 			return false;
@@ -1381,7 +1443,8 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				$should_process_order = false;
 				break;
 			case 'VOID_PAYMENT':
-				$order_note_msg   = sprintf(
+				$order_note_msg = sprintf(
+					/* translators: %1$s: original transaction ID, %2$s: void transaction ID */
 					__( 'Webhook Notification: Payment Transaction ID: %1$s was voided (Void Transaction ID: %2$s)', $this->core_plugin->text_domain() ),
 					$transaction['targetTransactionId'] ?? '',
 					$transaction['id'] ?? '',
@@ -1389,7 +1452,8 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				$order_status_msg = __( 'Payment was voided.', $this->core_plugin->text_domain() );
 				break;
 			case 'VOID_CAPTURE':
-				$order_note_msg   = sprintf(
+				$order_note_msg = sprintf(
+					/* translators: %1$s: original transaction ID, %2$s: void transaction ID */
 					__( 'Webhook Notification: Capture Transaction ID: %1$s was voided (Void Transaction ID: %2$s)', $this->core_plugin->text_domain() ),
 					$transaction['targetTransactionId'] ?? '',
 					$transaction['id'] ?? '',
@@ -1397,7 +1461,8 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				$order_status_msg = __( 'Capture was voided.', $this->core_plugin->text_domain() );
 				break;
 			case 'VOID_AUTHORIZATION':
-				$order_note_msg   = sprintf(
+				$order_note_msg = sprintf(
+					/* translators: %1$s: original transaction ID, %2$s: void transaction ID */
 					__( 'Webhook Notification: Authorization Transaction ID: %1$s was voided (Void Transaction ID: %2$s)', $this->core_plugin->text_domain() ),
 					$transaction['targetTransactionId'] ?? '',
 					$transaction['id'] ?? '',
@@ -1425,14 +1490,14 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * @param string $raw_body Raw body of the Webhook request.
 	 *
 	 * @return void
-	 * @throws Exception
+	 * @throws Exception When the request is repeated too soon.
 	 */
 	protected function debounce_webhook_request( $raw_body ) {
 
 		$this->debounce_key = $this->prefix_hook( 'webhook_debounce_' . md5( $raw_body ) );
 
 		if ( false !== get_transient( $this->debounce_key ) ) {
-			throw new Exception( __( 'Notification Webhook repeated too soon or previous request exited abnormally.', $this->core_plugin->text_domain() ) );
+			throw new Exception( esc_html( __( 'Notification Webhook repeated too soon or previous request exited abnormally.', $this->core_plugin->text_domain() ) ) );
 		}
 
 		set_transient( $this->debounce_key, time(), MINUTE_IN_SECONDS );
@@ -1445,7 +1510,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * @param array $transaction Transaction data.
 	 *
 	 * @return void
-	 * @throws Exception
+	 * @throws Exception When the transaction is repeated too soon.
 	 */
 	protected function debounce_webhook_transaction( $transaction ) {
 
@@ -1456,7 +1521,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 		$this->debounce_key_transaction = $this->prefix_hook( 'webhook_debounce_transaction_' . $transaction['id'] );
 
 		if ( false !== get_transient( $this->debounce_key_transaction ) ) {
-			throw new Exception( __( 'Notification Webhook repeated too soon or previous request exited abnormally.', $this->core_plugin->text_domain() ) );
+			throw new Exception( esc_html( __( 'Notification Webhook repeated too soon or previous request exited abnormally.', $this->core_plugin->text_domain() ) ) );
 		}
 
 		set_transient( $this->debounce_key_transaction, time(), MINUTE_IN_SECONDS );
@@ -1479,6 +1544,13 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 		}
 	}
 
+	/**
+	 * Check if the given object is a valid WC_Order instance.
+	 *
+	 * @param mixed $order The object to check.
+	 *
+	 * @return bool
+	 */
 	protected function is_order( $order ) {
 		return null !== $order && $order instanceof WC_Order;
 	}

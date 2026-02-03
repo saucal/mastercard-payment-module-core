@@ -18,7 +18,7 @@ if ( ! empty( $authorized_transaction ) ) :
 	<div class="payment-core-void-form <?php echo esc_attr( $gateway->id ); ?>-void-form">
 		<h4><?php esc_html_e( 'The Authorization can be Cancelled.', $gateway->core_plugin()->text_domain() ); ?></h4>
 		<div>
-			<button type="submit" id="<?php echo esc_attr( $gateway->prefix_hook( 'void_transaction_button' ) ) ?>" type="submit" class="button button-primary"><?php esc_html_e( 'Cancel Authorization', $gateway->core_plugin()->text_domain() ); ?></button>
+			<button type="submit" id="<?php echo esc_attr( $gateway->prefix_hook( 'void_transaction_button' ) ); ?>" type="submit" class="button button-primary"><?php esc_html_e( 'Cancel Authorization', $gateway->core_plugin()->text_domain() ); ?></button>
 			<input type="hidden" name="<?php echo esc_attr( $gateway->prefix_hook( 'void_transaction' ) ); ?>" value="0" />
 		</div>
 	</div>

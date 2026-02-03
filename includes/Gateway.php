@@ -60,6 +60,11 @@ final class Gateway {
 	 * @return array
 	 */
 	private static function init_gateways() {
+		/**
+		 * Filters the list of payment gateways to register.
+		 *
+		 * @since 1.0.0
+		 */
 		$gateways = apply_filters( 'payment_core_payment_gateways', array() );
 
 		if ( empty( $gateways ) || ! is_array( $gateways ) ) {

@@ -132,7 +132,11 @@ class Assets {
 	 * @return array<string,array>
 	 */
 	public function get_styles() {
-		// Allow to change the list of styles.
+		/**
+		 * Filters the list of styles to enqueue.
+		 *
+		 * @since 1.0.0
+		 */
 		return apply_filters( $this->core_plugin->payment_core()->prefix_hook( 'enqueue_styles' ), array() );
 	}
 
@@ -143,7 +147,11 @@ class Assets {
 	 * @return array<string,array>
 	 */
 	public function get_scripts() {
-		// Allow to change the list of scripts.
+		/**
+		 * Filters the list of scripts to enqueue.
+		 *
+		 * @since 1.0.0
+		 */
 		return apply_filters( $this->core_plugin->payment_core()->prefix_hook( 'enqueue_scripts' ), array() );
 	}
 
@@ -316,7 +324,11 @@ class Assets {
 			if ( $data ) {
 				$name                        = str_replace( array( $this->core_plugin->payment_core()->get_prefix(), '-' ), array( 'core', '_' ), $handle ) . '_params';
 				$this->wp_localize_scripts[] = $handle;
-				// Let plugins to filter the script data.
+				/**
+				 * Filters the localized script data before it is output.
+				 *
+				 * @since 1.0.0
+				 */
 				wp_localize_script( $handle, $name, apply_filters( $name, $data ) );
 			}
 		}
