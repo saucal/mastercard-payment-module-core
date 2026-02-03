@@ -518,7 +518,17 @@ trait Subscriptions {
 		try {
 			$this->process_subscription_payment( $renewal_order );
 
+			/**
+			 * Fires after subscription payments are processed for an order.
+			 *
+			 * @since 1.0.0
+			 */
 			do_action( 'processed_subscription_payments_for_order', $renewal_order );
+			/**
+			 * Fires after a scheduled subscription payment succeeds.
+			 *
+			 * @since 1.0.0
+			 */
 			do_action( $this->prefix_hook( 'scheduled_subscription_success' ), $total_amount, $renewal_order );
 		} catch ( Exception $e ) {
 
@@ -536,7 +546,17 @@ trait Subscriptions {
 
 			$this->core_plugin->logger()->log( $e->getMessage(), 'error' );
 
+			/**
+			 * Fires after a subscription payment failure for an order.
+			 *
+			 * @since 1.0.0
+			 */
 			do_action( 'processed_subscription_payment_failure_for_order', $renewal_order );
+			/**
+			 * Fires after a scheduled subscription payment fails.
+			 *
+			 * @since 1.0.0
+			 */
 			do_action( $this->prefix_hook( 'scheduled_subscription_failure' ), $total_amount, $renewal_order );
 		}
 	}

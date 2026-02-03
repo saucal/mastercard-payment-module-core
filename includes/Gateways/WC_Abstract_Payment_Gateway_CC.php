@@ -563,6 +563,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			'enable_3ds'      => $this->enable_3ds,
 		);
 
+		/**
+		 * Filter the hosted session payment fields template data.
+		 *
+		 * @since 1.0.0
+		 */
 		$template_data = apply_filters( $this->prefix_hook( 'payment_fields_hosted_session_template_data' ), $template_data, $this );
 
 		if ( $this->enable_3ds && $this->is_pay_for_order_page() ) {
@@ -586,6 +591,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$this->saved_payment_methods();
 		}
 
+		/**
+		 * Filter whether to display the save payment method checkbox.
+		 *
+		 * @since 1.0.0
+		 */
 		$this->display_save_checkbox = apply_filters( 'wc_' . $this->id . '_display_save_payment_method_checkbox', $display_tokenization );
 
 		$this->core_plugin->payment_core()->template()->get(
@@ -593,6 +603,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$template_data,
 		);
 
+		/**
+		 * Fires after the hosted session payment fields are rendered.
+		 *
+		 * @since 1.0.0
+		 */
 		do_action( $this->prefix_hook( 'after_payment_fields_hosted_session' ), $this );
 
 		if ( $this->display_save_checkbox && ! is_add_payment_method_page() ) {
@@ -621,8 +636,18 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				throw new Exception( __( 'Invalid order.', $this->core_plugin->text_domain() ), 'error' );
 			}
 
+			/**
+			 * Fires before the payment is processed.
+			 *
+			 * @since 1.0.0
+			 */
 			do_action( $this->prefix_hook( 'process_payment_before' ), $order );
 
+			/**
+			 * Filter to allow addons to handle payment processing.
+			 *
+			 * @since 1.0.0
+			 */
 			$addon_payment = apply_filters( $this->prefix_hook( 'process_payment_addon' ), false, $order );
 			if ( ! empty( $addon_payment ) && is_array( $addon_payment ) ) {
 				return $addon_payment;
@@ -655,6 +680,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$this->clean_cached_3ds_data( $order );
 			$this->maybe_clean_hosted_cached_session( $this->get_hosted_session_data_hash() );
 
+			/**
+			 * Fires when a payment processing error occurs.
+			 *
+			 * @since 1.0.0
+			 */
 			do_action( $this->prefix_hook( 'process_payment_error' ), $e, ! empty( $order ) ? $order : null );
 
 			return array(
@@ -770,6 +800,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			),
 		);
 
+		/**
+		 * Filter the payment data before processing the transaction.
+		 *
+		 * @since 1.0.0
+		 */
 		$payment_data = apply_filters( $this->prefix_hook( 'process_payment_data' ), $payment_data, $order );
 
 		if ( $this->enable_3ds ) {
@@ -801,6 +836,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		$payment_data['transaction']['reference'] = $transaction_id;
 
+		/**
+		 * Filter the hosted session payment data before processing.
+		 *
+		 * @since 1.0.0
+		 */
 		$payment_data = apply_filters(
 			$this->prefix_hook( 'process_payment_hosted_session_data' ),
 			$payment_data,
@@ -945,6 +985,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			return true;
 		}
 
+		/**
+		 * Filter whether saving the payment method should be forced.
+		 *
+		 * @since 1.0.0
+		 */
 		$forced_save = (bool) apply_filters( $this->prefix_hook( 'forced_save_payment_method' ), false );
 		return $forced_save;
 	}
@@ -979,6 +1024,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			if ( ! $current_token_id ) {
 				return;
 			}
+			/**
+			 * Fires after a payment method is saved to the order.
+			 *
+			 * @since 1.0.0
+			 */
 			do_action( $this->prefix_hook( 'payment_method_saved' ), $order, $current_token_id );
 			return $current_token_id;
 		}
@@ -1004,6 +1054,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$order->add_payment_token( new WC_Payment_Token_CC( $payment_token_id ) );
 		}
 
+		/**
+		 * Fires after a new payment method token is saved.
+		 *
+		 * @since 1.0.0
+		 */
 		do_action( $this->prefix_hook( 'payment_method_saved' ), $order, $payment_token_id );
 
 		WC()->session->__unset( $this->prefix_hook( 'saving_payment_method' ) );
@@ -1080,6 +1135,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			'session'      => $session,
 		);
 
+		/**
+		 * Filter the 3DS authentication initiation data.
+		 *
+		 * @since 1.0.0
+		 */
 		$init_authentication = apply_filters(
 			$this->prefix_hook( 'process_payment_hosted_session_3ds_data' ),
 			$init_authentication,
@@ -1145,6 +1205,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				'session'        => $session,
 			);
 
+			/**
+			 * Filter the 3DS authenticate payer request data.
+			 *
+			 * @since 1.0.0
+			 */
 			$authenticate_payer = apply_filters(
 				$this->prefix_hook( 'process_payment_hosted_session_3ds_authenticate_payer_data' ),
 				$authenticate_payer,
@@ -1499,6 +1564,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$errors->add( 'invalid_session', __( 'The Payment Session is invalid or has expired. Please try again.', $this->core_plugin->text_domain() ) );
 		}
 
+		/**
+		 * Filter the validation errors for the payment fields.
+		 *
+		 * @since 1.0.0
+		 */
 		$errors = apply_filters( $this->prefix_hook( 'validate_fields' ), $errors );
 
 		$errors_messages = $errors->get_error_messages();
@@ -1652,6 +1722,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				throw new Exception( __( 'There was an error saving the payment method. Please try again.', $this->core_plugin->text_domain() ) );
 			}
 
+			/**
+			 * Fires after a payment method is successfully added.
+			 *
+			 * @since 1.0.0
+			 */
 			do_action( $this->prefix_hook( 'add_payment_method_success', 'wc_' ), $token_id, $this );
 
 			return $result;
@@ -1763,6 +1838,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				break;
 			case 'hosted_session':
 				if ( $this->should_render_hosted_session() ) {
+					/**
+					 * Filter whether to display the save payment method checkbox in the hosted session.
+					 *
+					 * @since 1.0.0
+					 */
 					$this->display_save_checkbox = apply_filters( 'wc_' . $this->id . '_display_save_payment_method_checkbox', $this->display_saved_card_methods() );
 
 					$session_id                      = $this->hosted_session_id();
@@ -1773,6 +1853,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				break;
 		}
 
+		/**
+		 * Filter the payment method data passed to the frontend scripts.
+		 *
+		 * @since 1.0.0
+		 */
 		return apply_filters( $this->prefix_hook( 'payment_method_data' ), $data, $this );
 	}
 
@@ -1885,6 +1970,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		$payload = $this->maybe_add_customer_data( $payload, $order );
 
+		/**
+		 * Filter the checkout session payload before creating the session.
+		 *
+		 * @since 1.0.0
+		 */
 		$payload = apply_filters(
 			$this->prefix_hook( 'checkout_session_payload' ),
 			$payload,
@@ -1951,6 +2041,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			WC()->session->set( $this->hosted_session_duration_key(), time() + 5 * MINUTE_IN_SECONDS );
 			$this->set_hosted_session_data_hash();
 
+			/**
+			 * Fires after a new hosted session is created.
+			 *
+			 * @since 1.0.0
+			 */
 			do_action( $this->prefix_hook( 'hosted_session_created' ), $session_id, $this );
 		}
 
@@ -2065,6 +2160,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return array
 	 */
 	protected function hosted_checkout_order_payload( $order ) {
+		/**
+		 * Filter the order payload for the hosted checkout session.
+		 *
+		 * @since 1.0.0
+		 */
 		return apply_filters(
 			$this->prefix_hook( 'checkout_session_order_payload' ),
 			array_merge(
@@ -2085,6 +2185,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return array
 	 */
 	protected function hosted_session_order_payload( $order ) {
+		/**
+		 * Filter the order payload for the hosted session.
+		 *
+		 * @since 1.0.0
+		 */
 		return apply_filters(
 			$this->prefix_hook( 'session_order_payload' ),
 			$this->base_order_payload( $order ),
@@ -2101,6 +2206,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return array
 	 */
 	protected function hosted_checkout_interaction_payload( $order ) {
+		/**
+		 * Filter the interaction payload for the hosted checkout session.
+		 *
+		 * @since 1.0.0
+		 */
 		return apply_filters(
 			$this->prefix_hook( 'checkout_session_interaction_payload' ),
 			array(
@@ -2388,6 +2498,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		// Redirect to self because of SameSite cookie issues.
 		// Data posted from a third party will not be able to handle sessions.
 		wp_safe_redirect(
+			/**
+			 * Filter the redirect URL after 3DS return callback.
+			 *
+			 * @since 1.0.0
+			 */
 			apply_filters(
 				$this->prefix_hook( '3ds_return_redirect' ),
 				add_query_arg(
@@ -2449,6 +2564,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				wc_add_notice( __( 'Payment method successfully added.', 'woocommerce' ) );
 			}
 
+			/**
+			 * Filter the redirect URL after 3DS processing completes.
+			 *
+			 * @since 1.0.0
+			 */
 			wp_safe_redirect( apply_filters( $this->prefix_hook( '3ds_process_redirect' ), $result['redirect'], $order, $this ) );
 			exit();
 		} catch ( Exception $e ) {
@@ -2722,6 +2842,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return string
 	 */
 	protected function save_card_notice_text() {
+		/**
+		 * Filter the save card notice text displayed to the customer.
+		 *
+		 * @since 1.0.0
+		 */
 		return apply_filters(
 			$this->prefix_hook( 'save_card_notice' ),
 			__( 'Your payment method will be saved for future purchases.', $this->core_plugin->text_domain() )

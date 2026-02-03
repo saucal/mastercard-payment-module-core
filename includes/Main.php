@@ -140,7 +140,11 @@ final class Main {
 
 		add_action( 'init', array( $this, 'init' ) );
 
-		// Init action.
+		/**
+		 * Fires when the plugin has finished loading.
+		 *
+		 * @since 1.0.0
+		 */
 		do_action( $this->prefix_hook( 'loaded' ) );
 	}
 
@@ -162,7 +166,11 @@ final class Main {
 	 * @return void
 	 */
 	public function init() {
-		// After init action.
+		/**
+		 * Fires after the plugin initialization.
+		 *
+		 * @since 1.0.0
+		 */
 		do_action( $this->prefix_hook( 'init' ) );
 	}
 
@@ -236,6 +244,11 @@ final class Main {
 	 * @return string
 	 */
 	public function plugin_file() {
+		/**
+		 * Filters the plugin file path.
+		 *
+		 * @since 1.0.0
+		 */
 		return apply_filters( $this->prefix_hook( 'plugin_file' ), __FILE__ );
 	}
 
@@ -246,6 +259,11 @@ final class Main {
 	 * @return string
 	 */
 	public function core_plugin_file() {
+		/**
+		 * Filters the core plugin file path.
+		 *
+		 * @since 1.0.0
+		 */
 		return apply_filters( $this->prefix_hook( 'core_plugin_file' ), __DIR__ . '../payment-core.php' );
 	}
 
@@ -256,6 +274,11 @@ final class Main {
 	 * @return string
 	 */
 	public static function version() {
+		/**
+		 * Filters the payment core plugin version.
+		 *
+		 * @since 1.0.0
+		 */
 		return apply_filters( 'payment_core_version', CORE_VERSION );
 	}
 
@@ -266,6 +289,11 @@ final class Main {
 	 * @return string
 	 */
 	public function plugin_title() {
+		/**
+		 * Filters the plugin title.
+		 *
+		 * @since 1.0.0
+		 */
 		return apply_filters( $this->prefix_hook( 'plugin_title' ), 'Payment Core' );
 	}
 
@@ -276,6 +304,11 @@ final class Main {
 	 * @return string
 	 */
 	public function text_domain() {
+		/**
+		 * Filters the plugin text domain.
+		 *
+		 * @since 1.0.0
+		 */
 		return apply_filters( $this->prefix_hook( '_text_domain' ), 'payment-core' );
 	}
 

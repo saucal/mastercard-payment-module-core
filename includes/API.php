@@ -80,6 +80,11 @@ final class API {
 	 */
 	protected function get_headers( $content_type = 'application/json', $endpoint = null, $payload = array() ) {
 
+		/**
+		 * Filters the API request headers.
+		 *
+		 * @since 1.0.0
+		 */
 		return apply_filters(
 			$this->core_plugin->payment_core()->prefix_hook( 'request_headers' ),
 			array(
@@ -124,6 +129,11 @@ final class API {
 		$args = array(
 			'method'  => $method,
 			'headers' => $this->get_headers( 'application/json', $endpoint, $payload ),
+			/**
+			 * Filters the API request body.
+			 *
+			 * @since 1.0.0
+			 */
 			'body'    => apply_filters( $this->core_plugin->payment_core()->prefix_hook( 'request_body' ), $this->maybe_json_encode( $payload ) ),
 			'timeout' => 60,
 		);

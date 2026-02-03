@@ -452,6 +452,11 @@ final class GatewaySettings {
 			)
 		);
 
+		/**
+		 * Filters the gateway settings before they are displayed.
+		 *
+		 * @since 1.0.0
+		 */
 		$this->settings = apply_filters( $this->core_plugin->payment_core()->prefix_hook( 'gateway_settings' ), $this->settings );
 	}
 

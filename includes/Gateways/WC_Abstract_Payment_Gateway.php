@@ -205,6 +205,11 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	public function get_icon() {
 		$icon = $this->icon ? '<img src="' . esc_url( WC_HTTPS::force_https_url( $this->icon ) ) . '" class="payment-core-icon ' . $this->id . '-icon" alt="' . esc_attr( $this->get_title() ) . '" />' : '';
 
+		/**
+		 * Filters the gateway icon HTML output.
+		 *
+		 * @since 1.0.0
+		 */
 		return apply_filters( 'woocommerce_gateway_icon', $icon, $this->id );
 	}
 
@@ -339,6 +344,11 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 			}
 		}
 
+		/**
+		 * Filters the unique order ID used for payment gateway transactions.
+		 *
+		 * @since 1.0.0
+		 */
 		return apply_filters( $this->prefix_hook( 'unique_order_id' ), $unique_order_id, $order );
 	}
 
@@ -514,6 +524,11 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				return false;
 			}
 
+			/**
+			 * Filters whether the order should be validated as paid.
+			 *
+			 * @since 1.0.0
+			 */
 			$is_valid = apply_filters( $this->prefix_hook( 'validate_order_as_paid' ), true, $order, $this );
 			if ( ! $is_valid ) {
 				return false;
@@ -613,6 +628,11 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				);
 				$order->payment_complete( $order_data['id'] );
 
+				/**
+				 * Fires after a verified payment has been successfully processed.
+				 *
+				 * @since 1.0.0
+				 */
 				do_action( $this->prefix_hook( 'payment_success' ), $order, $order_data, $transaction );
 				break;
 			case 'CAPTURED':
@@ -627,6 +647,11 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), null );
 				$order->payment_complete( $order_data['id'] );
 
+				/**
+				 * Fires after a captured payment has been successfully processed.
+				 *
+				 * @since 1.0.0
+				 */
 				do_action( $this->prefix_hook( 'payment_success' ), $order, $order_data, $transaction );
 				break;
 			case 'AUTHORIZED':
@@ -644,6 +669,11 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 					$order_data['id'],
 				);
 
+				/**
+				 * Fires after an authorized payment has been successfully processed.
+				 *
+				 * @since 1.0.0
+				 */
 				do_action( $this->prefix_hook( 'payment_success' ), $order, $order_data, $transaction );
 				break;
 			case 'PARTIALLY_CAPTURED':
@@ -676,6 +706,11 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 			return;
 		}
 
+		/**
+		 * Filters whether the order status should be changed after payment processing.
+		 *
+		 * @since 1.0.0
+		 */
 		if ( ! apply_filters( $this->prefix_hook( 'change_order_status' ), true, $order ) ) {
 			return;
 		}
@@ -954,8 +989,18 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 			// Add the transaction ID to the refund meta.
 			$this->refund_transaction_id = $transaction_id;
+			/**
+			 * Add refund transaction ID meta when order is refunded.
+			 *
+			 * @since 1.0.0
+			 */
 			add_action( 'woocommerce_order_refunded', array( $this, 'add_refund_meta' ), 10, 2 );
 
+			/**
+			 * Fires after a refund has been successfully processed.
+			 *
+			 * @since 1.0.0
+			 */
 			do_action( $this->prefix_hook( 'process_refund_success' ), $order, $currency, $amount, $reason );
 
 			return true;

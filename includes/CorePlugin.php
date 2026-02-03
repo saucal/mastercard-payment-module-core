@@ -354,6 +354,11 @@ abstract class CorePlugin {
 	 * @return void
 	 */
 	public function install() {
+		/**
+		 * Fires when the plugin is installed.
+		 *
+		 * @since 1.0.0
+		 */
 		do_action( $this->payment_core()->prefix_hook( 'installed' ) );
 	}
 
@@ -428,7 +433,11 @@ abstract class CorePlugin {
 	 */
 	public function load_plugin_textdomain() {
 
-		// Add plugin's locale.
+		/**
+		 * Filters the locale used for loading plugin translation files.
+		 *
+		 * @since 1.0.0
+		 */
 		$locale = apply_filters( 'plugin_locale', get_locale(), $this->text_domain() );
 
 		load_textdomain(

@@ -67,6 +67,8 @@ if ( empty( $session_id ) || empty( $session_attempt ) ) {
 
 	/**
 	 * Render additional content after the payment method fields.
+	 *
+	 * @since 1.0.0
 	 */
 	do_action( 'wc_' . $gateway->id . '_after_payment_method_fields' );
 	?>

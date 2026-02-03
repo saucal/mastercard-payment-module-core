@@ -110,7 +110,11 @@ final class Utils {
 	 * @return string
 	 */
 	public function template_path() {
-		// Allow 3rd party plugin filter template path from their plugin.
+		/**
+		 * Filters the template path for third-party plugin overrides.
+		 *
+		 * @since 1.0.0
+		 */
 		return apply_filters( $this->payment_core->prefix_hook( 'template_path' ), 'payment-core/' );
 	}
 
@@ -449,6 +453,11 @@ final class Utils {
 	 * @return array
 	 */
 	public function hosted_session_errors() {
+		/**
+		 * Filters the list of possible hosted session form errors.
+		 *
+		 * @since 1.0.0
+		 */
 		return apply_filters(
 			$this->payment_core->prefix_hook( 'hosted_session_errors' ),
 			array(
