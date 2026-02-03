@@ -653,7 +653,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				return $addon_payment;
 			}
 
-			// TODO: Document why is this needed.
+			// Prevent double payment processing if the order is already paid. Specially relevant for hosted checkout mode.
 			if ( ! empty( $order->get_date_paid( 'edit' ) ) || $this->maybe_flag_order_as_paid( $order, false ) ) {
 				return array(
 					'result'   => 'success',
