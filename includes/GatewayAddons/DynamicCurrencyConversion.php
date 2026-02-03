@@ -21,6 +21,11 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 trait DynamicCurrencyConversion {
 
+	/**
+	 * Whether DCC is enabled.
+	 *
+	 * @var bool
+	 */
 	protected $dcc_enabled = false;
 
 	/**
@@ -67,6 +72,13 @@ trait DynamicCurrencyConversion {
 		add_action( 'woocommerce_cart_loaded_from_session', array( $this, 'init_dcc_hooks' ), 20 );
 	}
 
+	/**
+	 * Add DCC settings to the gateway settings.
+	 *
+	 * @param array $settings Gateway settings.
+	 *
+	 * @return array
+	 */
 	public function settings_addon_dcc( $settings ) {
 		$settings = Utils::insert_around_key(
 			$settings,
@@ -368,7 +380,7 @@ trait DynamicCurrencyConversion {
 				)
 			);
 
-			if ( $result['body']['result'] !== 'SUCCESS' ) {
+			if ( 'SUCCESS' !== $result['body']['result'] ) {
 				$this->core_plugin->logger()->log( 'DCC quote request failed: ' . print_r( $result, true ), 'error' );
 				wp_send_json_error();
 			}
@@ -396,18 +408,35 @@ trait DynamicCurrencyConversion {
 		}
 	}
 
+	/**
+	 * Display DCC info area on the checkout page.
+	 *
+	 * @return void
+	 */
 	public function display_dcc_info_area() {
 		if ( $this->dcc_enabled && ! is_add_payment_method_page() ) {
 			echo '<div id="' . esc_attr( $this->id ) . '_currency_conversion" class="payment-core-currency-conversion"></div>';
 		}
 	}
 
+	/**
+	 * Add DCC data to the hosted session template data.
+	 *
+	 * @param array $template_data Template data.
+	 *
+	 * @return array
+	 */
 	public function dcc_payment_fields_hosted_session_template_data( $template_data ) {
 		$template_data['dcc_enabled'] = $this->dcc_enabled;
 		return $template_data;
 	}
 
+	/**
+	 * Output hidden DCC request ID field after payment method fields.
+	 *
+	 * @return void
+	 */
 	public function dcc_after_payment_method_fields() {
-		echo '<input type="hidden" id="' . $this->id . '_dcc_request_id" name="' . $this->id . '_dcc_request_id" />';
+		echo '<input type="hidden" id="' . esc_attr( $this->id ) . '_dcc_request_id" name="' . esc_attr( $this->id ) . '_dcc_request_id" />';
 	}
 }

@@ -45,6 +45,8 @@ class PaymentToken {
 	 * @param string $session_data The session ID.
 	 * @param int    $user_id      The user ID.
 	 *
+	 * @throws Exception If there is an error processing the saved cards.
+	 *
 	 * @return int|bool The token ID or false.
 	 */
 	public function process_saved_cards( $session_data, $user_id ) {

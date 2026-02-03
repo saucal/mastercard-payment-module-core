@@ -315,7 +315,11 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				return null;
 			}
 
-			/** @var WC_Session_Handler $session */
+			/**
+			 * Session handler.
+			 *
+			 * @var WC_Session_Handler $session Session handler.
+			 */
 			$session = WC()->session;
 
 			$unique_order_id = $session->__get( $this->prefix_hook( 'order_id' ) );
@@ -366,7 +370,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 			$order->update_meta_data( $this->prefix_hook( 'transaction_attempt' ), $current_transaction_attempt );
 			$order->save_meta_data();
 		} else {
-			// No need to check session exists again, as we checked above, and if we don't have a session we wouldn't be here
+			// No need to check session exists again, as we checked above, and if we don't have a session we wouldn't be here.
 			WC()->session->__set( $this->prefix_hook( 'transaction_attempt' ), $current_transaction_attempt );
 		}
 
@@ -569,15 +573,15 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	protected function process_wc_order( $order, $order_data, $transaction, $order_note_msg = '', $order_status_msg = '' ) {
 
 		if ( ! $order || ! is_a( $order, WC_Order::class ) ) {
-			throw new Exception( __( 'The order object is not valid.', $this->core_plugin->text_domain() ) );
+			throw new Exception( esc_html( __( 'The order object is not valid.', $this->core_plugin->text_domain() ) ) );
 		}
 
 		if ( ! isset( $order_data['status'] ) || ! isset( $order_data['id'] ) ) {
-			throw new Exception( __( 'The order data is not valid.', $this->core_plugin->text_domain() ) );
+			throw new Exception( esc_html( __( 'The order data is not valid.', $this->core_plugin->text_domain() ) ) );
 		}
 
 		if ( empty( $transaction['id'] ) ) {
-			throw new Exception( __( 'The transaction data is not valid.', $this->core_plugin->text_domain() ) );
+			throw new Exception( esc_html( __( 'The transaction data is not valid.', $this->core_plugin->text_domain() ) ) );
 		}
 
 		if ( $this->is_transaction_processed( $order, $transaction['id'] ) ) {
@@ -692,7 +696,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	protected function validate_payment_status( $order, $order_data = array() ) {
 
 		if ( ! $order || ! is_a( $order, WC_Order::class ) ) {
-			throw new Exception( __( 'The order object is not valid.', $this->core_plugin->text_domain() ) );
+			throw new Exception( esc_html( __( 'The order object is not valid.', $this->core_plugin->text_domain() ) ) );
 		}
 
 		if ( empty( $order_data ) ) {
@@ -700,15 +704,15 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 		}
 
 		if ( ! $order_data['success'] || empty( $order_data['body'] ) || empty( $order_data['body']['result'] ) ) {
-			throw new Exception( __( 'Failed to retrieve the order.', $this->core_plugin->text_domain() ) );
+			throw new Exception( esc_html( __( 'Failed to retrieve the order.', $this->core_plugin->text_domain() ) ) );
 		}
 
 		if ( 'SUCCESS' !== $order_data['body']['result'] ) {
-			throw new Exception( 'Payment was declined.', $this->core_plugin->text_domain() );
+			throw new Exception( esc_html( __( 'Payment was declined.', $this->core_plugin->text_domain() ) ) );
 		}
 
 		if ( empty( $order_data['body']['transaction'] ) || ! is_array( $order_data['body']['transaction'] ) ) {
-			throw new Exception( __( 'The transaction data is not valid.', $this->core_plugin->text_domain() ) );
+			throw new Exception( esc_html( __( 'The transaction data is not valid.', $this->core_plugin->text_domain() ) ) );
 		}
 	}
 
@@ -822,6 +826,8 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * @param float    $auth_amount Authorized amount.
 	 *
 	 * @return void
+	 *
+	 * @throws Exception Exception.
 	 */
 	public function process_capture_payment( $order, $amount = 0, $auth_amount = 0 ) {
 
@@ -1001,6 +1007,8 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * @param array    $transaction Transaction data.
 	 *
 	 * @return void
+	 *
+	 * @throws Exception Exception.
 	 */
 	protected function refund( $order, $transaction ) {
 		if ( ! $order ) {
@@ -1045,7 +1053,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 		if ( is_wp_error( $refund ) ) {
 			/* translators: %1$s reason */
-			throw new Exception( sprintf( __( 'Create refund failed: %1$s.', $this->core_plugin->text_domain() ), $refund->get_error_message() ) );
+			throw new Exception( esc_html( sprintf( __( 'Create refund failed: %1$s.', $this->core_plugin->text_domain() ), esc_html( $refund->get_error_message() ) ) ) );
 		}
 
 		$refund->update_meta_data( $this->prefix_hook( 'transaction_id' ), $transaction['id'] );
@@ -1062,6 +1070,8 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * @param array    $transaction Transaction data.
 	 *
 	 * @return void
+	 *
+	 * @throws Exception Exception.
 	 */
 	protected function void_refund( $order, $transaction ) {
 		if ( ! $order ) {
@@ -1084,8 +1094,8 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 		if ( ! $voided_refund ) {
 			throw new Exception(
 				sprintf(
-					__( 'Refund with Transaction ID (%s) not found.', $this->core_plugin->text_domain() ),
-					$transaction['id']
+					esc_html( __( 'Refund with Transaction ID (%s) not found.', $this->core_plugin->text_domain() ) ),
+					esc_html( $transaction['id'] )
 				)
 			);
 		}
@@ -1104,6 +1114,8 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * @param WC_Order $order Order object.
 	 *
 	 * @return void
+	 *
+	 * @throws Exception Exception.
 	 */
 	public function process_void_payment( $order ) {
 
@@ -1238,7 +1250,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	/**
 	 * Linking transaction id order to BlueSnap.
 	 *
-	 * @param WC_Order $order
+	 * @param WC_Order $order Order object.
 	 *
 	 * @return string
 	 */
@@ -1295,7 +1307,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * @return WC_Order|false
 	 */
 	private function validate_source() {
-		if ( ( 'POST' !== $_SERVER['REQUEST_METHOD'] ) ) {
+		if ( ! isset( $_SERVER['REQUEST_METHOD'] ) || 'POST' !== $_SERVER['REQUEST_METHOD'] ) {
 			return false;
 		}
 
@@ -1305,7 +1317,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 		$notification_secret = $this->core_plugin->notification_secret();
 
-		if ( empty( $notification_secret ) || $notification_secret !== wc_clean( wp_unslash( $_SERVER['HTTP_X_NOTIFICATION_SECRET'] ) ) ) {
+		if ( empty( $notification_secret ) || wc_clean( wp_unslash( $_SERVER['HTTP_X_NOTIFICATION_SECRET'] ) ) !== $notification_secret ) {
 			return false;
 		}
 
@@ -1425,14 +1437,14 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * @param string $raw_body Raw body of the Webhook request.
 	 *
 	 * @return void
-	 * @throws Exception
+	 * @throws Exception When the request is repeated too soon.
 	 */
 	protected function debounce_webhook_request( $raw_body ) {
 
 		$this->debounce_key = $this->prefix_hook( 'webhook_debounce_' . md5( $raw_body ) );
 
 		if ( false !== get_transient( $this->debounce_key ) ) {
-			throw new Exception( __( 'Notification Webhook repeated too soon or previous request exited abnormally.', $this->core_plugin->text_domain() ) );
+			throw new Exception( esc_html( __( 'Notification Webhook repeated too soon or previous request exited abnormally.', $this->core_plugin->text_domain() ) ) );
 		}
 
 		set_transient( $this->debounce_key, time(), MINUTE_IN_SECONDS );
@@ -1445,7 +1457,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * @param array $transaction Transaction data.
 	 *
 	 * @return void
-	 * @throws Exception
+	 * @throws Exception When the transaction is repeated too soon.
 	 */
 	protected function debounce_webhook_transaction( $transaction ) {
 
@@ -1456,7 +1468,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 		$this->debounce_key_transaction = $this->prefix_hook( 'webhook_debounce_transaction_' . $transaction['id'] );
 
 		if ( false !== get_transient( $this->debounce_key_transaction ) ) {
-			throw new Exception( __( 'Notification Webhook repeated too soon or previous request exited abnormally.', $this->core_plugin->text_domain() ) );
+			throw new Exception( esc_html( __( 'Notification Webhook repeated too soon or previous request exited abnormally.', $this->core_plugin->text_domain() ) ) );
 		}
 
 		set_transient( $this->debounce_key_transaction, time(), MINUTE_IN_SECONDS );
@@ -1479,6 +1491,13 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 		}
 	}
 
+	/**
+	 * Check if the given object is a valid WC_Order instance.
+	 *
+	 * @param mixed $order The object to check.
+	 *
+	 * @return bool
+	 */
 	protected function is_order( $order ) {
 		return null !== $order && $order instanceof WC_Order;
 	}

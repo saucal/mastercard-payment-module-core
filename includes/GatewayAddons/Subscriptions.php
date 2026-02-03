@@ -424,6 +424,8 @@ trait Subscriptions {
 	/**
 	 * Checks if page is pay for order and change subs payment page.
 	 *
+	 * @param bool $from_pay_for_order Whether to also check for pay_for_order parameter.
+	 *
 	 * @return bool
 	 */
 	protected function is_subs_change_payment( $from_pay_for_order = true ) {
@@ -556,17 +558,17 @@ trait Subscriptions {
 		$subscription_id = $order->get_meta( '_subscription_renewal' );
 		$subscription    = wcs_get_subscription( $subscription_id );
 		if ( ! $subscription instanceof WC_Subscription ) {
-			throw new Exception( __( 'The subscription order was not found.', $this->core_plugin->text_domain() ) );
+			throw new Exception( esc_html( __( 'The subscription order was not found.', $this->core_plugin->text_domain() ) ) );
 		}
 
 		$parent_id = ! empty( $subscription_id ) ? wc_get_order( $subscription_id )->get_parent_id() : null;
 		if ( ! $parent_id ) {
-			throw new Exception( __( 'No subscription found for this renewal order.', $this->core_plugin->text_domain() ) );
+			throw new Exception( esc_html( __( 'No subscription found for this renewal order.', $this->core_plugin->text_domain() ) ) );
 		}
 
 		$parent_order = wc_get_order( $parent_id );
 		if ( ! $parent_order instanceof WC_Order ) {
-			throw new Exception( __( 'The subscription order was not found.', $this->core_plugin->text_domain() ) );
+			throw new Exception( esc_html( __( 'The subscription order was not found.', $this->core_plugin->text_domain() ) ) );
 		}
 
 		// This meta duplicates the gateway token ID to the meta.
@@ -576,19 +578,19 @@ trait Subscriptions {
 		if ( empty( $payment_token ) ) {
 			$payment_tokens = $parent_order->get_payment_tokens();
 			if ( empty( $payment_tokens ) || ! is_array( $payment_tokens ) ) {
-				throw new Exception( __( 'No payment token found for the subscription order.', $this->core_plugin->text_domain() ) );
+				throw new Exception( esc_html( __( 'No payment token found for the subscription order.', $this->core_plugin->text_domain() ) ) );
 			}
 
 			$payment_token = new WC_Payment_Token_CC( reset( $payment_tokens ) );
 			if ( ! $payment_token instanceof WC_Payment_Token_CC ) {
-				throw new Exception( __( 'Invalid payment token for the subscription order.', $this->core_plugin->text_domain() ) );
+				throw new Exception( esc_html( __( 'Invalid payment token for the subscription order.', $this->core_plugin->text_domain() ) ) );
 			}
 
 			$payment_token = $payment_token->get_token();
 		}
 
 		$payment_data = array(
-			'apiOperation'     => 'PAY', // TODO: Respect authorize / capture settings
+			'apiOperation'     => 'PAY', // TODO: Respect authorize / capture settings.
 			'order'            => $this->hosted_session_order_payload( $order ),
 			'agreement'        => array(
 				'id' => $this->unique_subscription_id( $subscription ),
@@ -842,10 +844,26 @@ trait Subscriptions {
 		return false;
 	}
 
+	/**
+	 * Maybe avoid marking a subscription as paid.
+	 *
+	 * @param bool     $is_paid Whether the order is paid.
+	 * @param WC_Order $order   The order object.
+	 *
+	 * @return bool
+	 */
 	public function maybe_avoid_subscription_as_paid( $is_paid, $order ) {
 		return \wcs_is_subscription( $order ) ? false : $is_paid;
 	}
 
+	/**
+	 * Check if the order is empty or is a subscription (no parent order total).
+	 *
+	 * @param WC_Order        $order        The order object.
+	 * @param WC_Subscription $subscription The subscription object.
+	 *
+	 * @return bool
+	 */
 	public function order_is_empty_or_subscription( $order, $subscription ) {
 		return $subscription->get_id() === $order->get_id() || NumberUtil::round( $order->get_total(), \WC_ROUNDING_PRECISION ) <= 0;
 	}

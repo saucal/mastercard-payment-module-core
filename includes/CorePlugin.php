@@ -676,6 +676,8 @@ abstract class CorePlugin {
 	/**
 	 * Get the merchant ID.
 	 *
+	 * @param bool $force Force refresh of the value.
+	 *
 	 * @return string
 	 */
 	public function merchant_id( $force = false ) {
@@ -696,6 +698,8 @@ abstract class CorePlugin {
 	/**
 	 * Get the merchant password.
 	 *
+	 * @param bool $force Force refresh of the value.
+	 *
 	 * @return string
 	 */
 	public function password( $force = false ) {
@@ -715,6 +719,8 @@ abstract class CorePlugin {
 
 	/**
 	 * Get the webhook notification secret.
+	 *
+	 * @param bool $force Force refresh of the value.
 	 *
 	 * @return string
 	 */
@@ -836,6 +842,8 @@ abstract class CorePlugin {
 	/**
 	 * Is sandbox mode enabled.
 	 *
+	 * @param bool $strict Whether to strictly check credentials.
+	 *
 	 * @return bool
 	 */
 	public function is_sandbox( $strict = true ) {
@@ -869,7 +877,7 @@ abstract class CorePlugin {
 	 * @return bool
 	 */
 	public function is_currency_conversion_enabled() {
-		// TODO: Make this function less relevate, or somehow pointed to the DCC addon
+		// TODO: Make this function less relevate, or somehow pointed to the DCC addon.
 		return 'yes' === $this->get_gateway_setting( 'currency_conversion' );
 	}
 
@@ -922,12 +930,23 @@ abstract class CorePlugin {
 			),
 		);
 	}
+
+	/**
+	 * Get the payment regions including the test region.
+	 *
+	 * @return array
+	 */
 	public function payment_regions() {
 		$list = $this->payment_regions_available();
 		$list = array_merge( $list, $this->get_test_region() );
 		return $list;
 	}
 
+	/**
+	 * Get the test region.
+	 *
+	 * @return array
+	 */
 	public function get_test_region() {
 		return array(
 			'test' => array(
