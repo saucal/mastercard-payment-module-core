@@ -75,7 +75,7 @@ trait Subscriptions {
 
 		// Add subscription payment data to the payment request.
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_data' ), array( $this, 'maybe_add_subscription_payment_data' ), 10, 2 );
-		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_data' ), array( $this, 'maybe_add_subscription_authentication_initiate_data' ), 10, 3 );
+		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_data' ), array( $this, 'maybe_add_subscription_authentication_initiate_data' ), 10, 2 );
 		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_authenticate_payer_data' ), array( $this, 'maybe_add_subscription_authentication_data' ), 10, 2 );
 
 		// Remove redirect to checkout page for subscriptions.
@@ -161,10 +161,9 @@ trait Subscriptions {
 	 *
 	 * @param array         $init_authentication Init authentication data.
 	 * @param WC_Order|null $order               Order object.
-	 * @param array         $session             Session data.
 	 * @return array
 	 */
-	public function maybe_add_subscription_authentication_initiate_data( $init_authentication, $order, $session ) {
+	public function maybe_add_subscription_authentication_initiate_data( $init_authentication, $order ) {
 		$subscription = $this->get_subscription_object( $order );
 		if ( ! $subscription instanceof WC_Subscription ) {
 			return $init_authentication;
