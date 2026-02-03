@@ -6,7 +6,7 @@
  *
  * @package GatewayPaymentCore/Templates
  *
- * @var GatewayPaymentCore\Gateways\WC_Abstract_Payment_Gateway_CC $gateway
+ * @var \GatewayPaymentCore\Gateways\WC_Abstract_Payment_Gateway_CC $gateway
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

@@ -111,7 +111,7 @@ abstract class CorePlugin {
 	/**
 	 * Blocks compatibility instance.
 	 *
-	 * @var Compat\Block_Compatibility
+	 * @var BlockCompatibility
 	 */
 	private $block_compatibility;
 
@@ -127,7 +127,7 @@ abstract class CorePlugin {
 	/**
 	 * Assets class instance.
 	 *
-	 * @var GatewayPaymentCore\Assets
+	 * @var \GatewayPaymentCore\Assets
 	 */
 	private $assets_controller;
 
@@ -552,7 +552,7 @@ abstract class CorePlugin {
 	/**
 	 * Get the block compatibility instance.
 	 *
-	 * @return Compat\BlockCompatibility
+	 * @return BlockCompatibility
 	 */
 	public function block_compatibility() {
 		return $this->block_compatibility;

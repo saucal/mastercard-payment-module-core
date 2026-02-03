@@ -11,6 +11,7 @@ namespace GatewayPaymentCore;
 
 use Automattic\WooCommerce\Utilities\OrderUtil;
 use GatewayPaymentCore\Constants\Countries;
+use WC_Order;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -184,7 +185,7 @@ final class Utils {
 
 		static $order;
 
-		if ( ! is_null( $order ) && is_a( $order, 'WC_Order' ) ) {
+		if ( ! is_null( $order ) && is_a( $order, WC_Order::class ) ) {
 			return $order;
 		}
 
@@ -249,7 +250,7 @@ final class Utils {
 	 */
 	public static function get_formatted_info_billing( $order ) {
 
-		if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
+		if ( ! $order || ! is_a( $order, WC_Order::class ) ) {
 			return array();
 		}
 
@@ -277,7 +278,7 @@ final class Utils {
 	 */
 	public static function get_formatted_info_shipping( $order ) {
 
-		if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
+		if ( ! $order || ! is_a( $order, WC_Order::class ) ) {
 			return array();
 		}
 
@@ -313,7 +314,7 @@ final class Utils {
 	 */
 	public static function get_formatted_info_customer( $order ) {
 
-		if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
+		if ( ! $order || ! is_a( $order, WC_Order::class ) ) {
 			return array();
 		}
 

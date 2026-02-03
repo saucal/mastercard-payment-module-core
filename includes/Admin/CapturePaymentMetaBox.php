@@ -16,6 +16,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 use GatewayPaymentCore\Gateways\WC_Abstract_Payment_Gateway;
 use GatewayPaymentCore\CorePlugin;
 use GatewayPaymentCore\Utils;
+use WC_Order;
+use WP_Post;
 
 /**
  * Capture Payment Meta Box class
@@ -33,7 +35,7 @@ class CapturePaymentMetaBox {
 	/**
 	 * Instance of WC_Order to be used in metaboxes.
 	 *
-	 * @var \WC_Order
+	 * @var WC_Order
 	 */
 	private $order;
 
@@ -68,8 +70,8 @@ class CapturePaymentMetaBox {
 	 * @return void
 	 */
 	public function add_meta_boxes( $post_type, $post ) {
-		$order = $post instanceof \WC_Order ? $post : wc_get_order( $post->ID );
-		if ( ! ( $order instanceof \WC_Order ) ) {
+		$order = $post instanceof WC_Order ? $post : wc_get_order( $post->ID );
+		if ( ! ( $order instanceof WC_Order ) ) {
 			return;
 		}
 
@@ -128,7 +130,7 @@ class CapturePaymentMetaBox {
 		}
 
 		$order = wc_get_order( $post_id );
-		if ( ! $order instanceof \WC_Order || ! $this->core_plugin->is_gateway_order( $order ) ) {
+		if ( ! $order instanceof WC_Order || ! $this->core_plugin->is_gateway_order( $order ) ) {
 			return;
 		}
 

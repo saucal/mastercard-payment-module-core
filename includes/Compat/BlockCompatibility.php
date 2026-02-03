@@ -23,7 +23,7 @@ class BlockCompatibility {
 
 
 	const BLOCK_COMPAT_MAP = array(
-		'WC_Payment_Gateway_Block_Compat_CC',
+		WC_Payment_Gateway_Block_Compat_CC::class,
 	);
 
 
