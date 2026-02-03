@@ -141,7 +141,7 @@ final class Utils {
 			$orders   = wc_get_orders(
 				array(
 					'limit'      => 1,
-					'meta_query' => array(
+					'meta_query' => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
 						array(
 							'key'   => $order_meta_key,
 							'value' => $success_indicator,

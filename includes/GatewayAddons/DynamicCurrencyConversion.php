@@ -155,7 +155,7 @@ trait DynamicCurrencyConversion {
 			return $errors;
 		}
 
-		if ( ! isset( $_POST['dccOfferState'] ) && ! isset( $_POST['dccofferstate'] ) ) {
+		if ( ! isset( $_POST['dccOfferState'] ) && ! isset( $_POST['dccofferstate'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
 			$errors->add( 'dcc_offer_state_missing', __( 'Please select whether you want to accept or reject the currency conversion offer.', $this->core_plugin->text_domain() ) );
 		}
 
@@ -189,11 +189,11 @@ trait DynamicCurrencyConversion {
 
 		// Assume the offer was rejected if no offer state is provided.
 		$offer_state = false;
-		if ( isset( $_POST['dccOfferState'] ) ) {
-			$offer_state = wc_clean( wp_unslash( $_POST['dccOfferState'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
-		} elseif ( isset( $_POST['dccofferstate'] ) ) {
+		if ( isset( $_POST['dccOfferState'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+			$offer_state = wc_clean( wp_unslash( $_POST['dccOfferState'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		} elseif ( isset( $_POST['dccofferstate'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
 			// Checkout Blocks lowercase the field names.
-			$offer_state = wc_clean( wp_unslash( $_POST['dccofferstate'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
+			$offer_state = wc_clean( wp_unslash( $_POST['dccofferstate'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
 		}
 
 		if ( (bool) $offer_state ) {
@@ -381,7 +381,7 @@ trait DynamicCurrencyConversion {
 			);
 
 			if ( 'SUCCESS' !== $result['body']['result'] ) {
-				$this->core_plugin->logger()->log( 'DCC quote request failed: ' . print_r( $result, true ), 'error' );
+				$this->core_plugin->logger()->log( 'DCC quote request failed: ' . wp_json_encode( $result ), 'error' );
 				wp_send_json_error();
 			}
 

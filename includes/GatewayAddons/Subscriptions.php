@@ -429,7 +429,7 @@ trait Subscriptions {
 	 * @return bool
 	 */
 	protected function is_subs_change_payment( $from_pay_for_order = true ) {
-		return isset( $_GET['change_payment_method'] ) && ( $from_pay_for_order ? isset( $_GET['pay_for_order'] ) : true ); // WPCS: CSRF ok.
+		return isset( $_GET['change_payment_method'] ) && ( $from_pay_for_order ? isset( $_GET['pay_for_order'] ) : true ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 	}
 
 
@@ -677,7 +677,7 @@ trait Subscriptions {
 	 * @return string
 	 */
 	public function maybe_bump_order_id_change_payment_method( $unique_order_id, $order ) {
-		if ( ! isset( $_POST['change_payment_method'] ) && ! $this->is_subs_change_payment() ) {
+		if ( ! isset( $_POST['change_payment_method'] ) && ! $this->is_subs_change_payment() ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
 			return $unique_order_id;
 		}
 
@@ -706,7 +706,7 @@ trait Subscriptions {
 	 * @return array
 	 */
 	public function maybe_change_3ds_return_url( $payment_data ) {
-		if ( ! isset( $_POST['change_payment_method'] ) ) {
+		if ( ! isset( $_POST['change_payment_method'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
 			return $payment_data;
 		}
 
@@ -734,7 +734,7 @@ trait Subscriptions {
 	 * @return string
 	 */
 	public function maybe_add_change_payment_method_flag( $redirect_url ) {
-		if ( ! isset( $_GET['change_payment_method'] ) ) {
+		if ( ! isset( $_GET['change_payment_method'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			return $redirect_url;
 		}
 

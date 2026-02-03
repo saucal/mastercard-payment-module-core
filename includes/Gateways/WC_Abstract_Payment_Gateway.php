@@ -1321,11 +1321,11 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 			return false;
 		}
 
-		if ( ! isset( $_GET['order-id'] ) ) {
+		if ( ! isset( $_GET['order-id'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			return false;
 		}
 
-		$order_id = absint( wp_unslash( $_GET['order-id'] ) );
+		$order_id = absint( wp_unslash( $_GET['order-id'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
 		if ( ! $order_id ) {
 			return false;

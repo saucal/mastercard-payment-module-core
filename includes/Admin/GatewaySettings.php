@@ -314,13 +314,13 @@ final class GatewaySettings {
 	private function maybe_add_advanced_settings() {
 
 		if ( ! $this->core_plugin->get_validated_credentials() ) {
-			return $this->settings;
+			return;
 		}
 
 		$supported_operations = self::supported_payment_operations();
 
 		if ( empty( $supported_operations ) ) {
-			return $this->settings;
+			return;
 		}
 
 		// Supported operations options and explanations.
@@ -336,7 +336,7 @@ final class GatewaySettings {
 		$checkout_modes_options = wp_list_pluck( $checkout_modes, 'label' );
 		$checkout_modes_explain = wp_list_pluck( $checkout_modes, 'explain' );
 
-		// Hosted Checkout Modes and explanations
+		// Hosted Checkout Modes and explanations.
 		$hosted_checkout_modes         = array(
 			'embedded' => array(
 				'label'   => __( 'Embedded', $this->core_plugin->text_domain() ),
