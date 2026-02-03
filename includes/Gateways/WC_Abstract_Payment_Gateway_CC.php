@@ -285,7 +285,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		$this->core_plugin->update_gateway_setting( 'region', $region );
 
 		$credentials = array(
-			'' => false,
+			''      => false,
 			'test_' => true,
 		);
 
@@ -312,7 +312,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		$this->core_plugin->notification_secret( true ); // Force refresh merchant notification secret.
 
 		$validated = false;
-		$regions = $this->core_plugin->payment_regions();
+		$regions   = $this->core_plugin->payment_regions();
 
 		$attempting_region = $is_sandbox ? 'test' : $region;
 

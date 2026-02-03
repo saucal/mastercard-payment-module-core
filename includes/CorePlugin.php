@@ -883,7 +883,7 @@ abstract class CorePlugin {
 			'eu'  => array(
 				'name' => __( 'Europe', $this->text_domain() ),
 				'code' => 'eu',
-				'urls'  => array(
+				'urls' => array(
 					'https://eu-gateway.mastercard.com',
 					'https://eu.gateway.mastercard.com',
 				),
@@ -891,7 +891,7 @@ abstract class CorePlugin {
 			'ap'  => array(
 				'name' => __( 'Asia Pacific and Middle East', $this->text_domain() ),
 				'code' => 'ap',
-				'urls'  => array(
+				'urls' => array(
 					'https://ap-gateway.mastercard.com',
 					'https://ap.gateway.mastercard.com',
 				),
@@ -899,7 +899,7 @@ abstract class CorePlugin {
 			'na'  => array(
 				'name' => __( 'North America', $this->text_domain() ),
 				'code' => 'na',
-				'urls'  => array(
+				'urls' => array(
 					'https://na-gateway.mastercard.com',
 					'https://na.gateway.mastercard.com',
 				),
@@ -907,15 +907,15 @@ abstract class CorePlugin {
 			'ksa' => array(
 				'name' => __( 'Kingdom of Saudi Arabia', $this->text_domain() ),
 				'code' => 'ksa',
-				'urls'  => array(
+				'urls' => array(
 					'https://ksa-gateway.mastercard.com',
 					'https://ksa.gateway.mastercard.com',
 				),
 			),
-			'in' => array(
+			'in'  => array(
 				'name' => __( 'India', $this->text_domain() ),
 				'code' => 'in',
-				'urls'  => array(
+				'urls' => array(
 					'https://in-gateway.mastercard.com',
 					'https://in.gateway.mastercard.com',
 				),
@@ -933,7 +933,7 @@ abstract class CorePlugin {
 			'test' => array(
 				'name' => __( 'Test Region', $this->text_domain() ),
 				'code' => 'test',
-				'urls'  => array(
+				'urls' => array(
 					'https://test-gateway.mastercard.com',
 					'https://test.gateway.mastercard.com',
 				),

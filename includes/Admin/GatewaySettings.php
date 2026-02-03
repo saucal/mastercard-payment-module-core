@@ -100,7 +100,7 @@ final class GatewaySettings {
 	 * @return void
 	 */
 	private function init_settings() {
-		$regions     = wp_list_pluck( self::payment_regions(), 'url', 'code' );
+		$regions        = wp_list_pluck( self::payment_regions(), 'url', 'code' );
 		$this->settings = array(
 			'enabled'                  => array(
 				'title'       => __( 'Enable/Disable', $this->core_plugin->text_domain() ),

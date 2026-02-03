@@ -173,7 +173,7 @@ final class API {
 	 * @return mixed
 	 */
 	private static function maybe_json_decode( $data ) {
-		if( ! is_string( $data ) || empty( $data ) ) {
+		if ( ! is_string( $data ) || empty( $data ) ) {
 			return null;
 		}
 
