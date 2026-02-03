@@ -2561,7 +2561,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 			// TODO: Maybe do this via action instead?
 			if ( wc_get_account_endpoint_url( 'payment-methods' ) === $result['redirect'] ) {
-				wc_add_notice( __( 'Payment method successfully added.', 'woocommerce' ) );
+				wc_add_notice( __( 'Payment method successfully added.', $this->core_plugin->text_domain() ) );
 			}
 
 			/**

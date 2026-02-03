@@ -207,7 +207,7 @@ final class API {
 		if ( empty( $response['response']['code'] ) ) {
 			return array(
 				'success' => false,
-				'error'   => __( 'Empty response code.', 'payment-core' ),
+				'error'   => __( 'Empty response code.', $this->core_plugin->text_domain() ),
 			);
 		}
 
