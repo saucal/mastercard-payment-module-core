@@ -22,6 +22,7 @@ use GatewayPaymentCore\Utils;
 use WC_HTTPS;
 use WC_Order;
 use WC_Payment_Gateway_CC;
+use WC_Session_Handler;
 
 /**
  * Show the payment form for the Payment Gateway.
@@ -111,7 +112,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	/**
 	 * Is gateway enabled.
 	 *
-	 * @var bool
+	 * @return bool
 	 */
 	public function is_enabled() {
 		return 'yes' === $this->get_option( 'enabled' );
@@ -314,20 +315,23 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				return null;
 			}
 
-			$unique_order_id = WC()->session->__get( $this->prefix_hook( 'order_id' ) );
+			/** @var WC_Session_Handler $session */
+			$session = WC()->session;
+
+			$unique_order_id = $session->__get( $this->prefix_hook( 'order_id' ) );
 			if ( ! $unique_order_id ) {
-				if ( ! wc()->session->has_session() ) {
-					wc()->session->set_customer_session_cookie( true );
+				if ( ! $session->has_session() ) {
+					$session->set_customer_session_cookie( true );
 				}
 				if ( is_user_logged_in() ) {
 					$prefix = 'user';
 				} else {
 					$prefix = 'guest';
 				}
-				$user_hash       = wc()->session->get_customer_unique_id();
+				$user_hash       = $session->get_customer_unique_id();
 				$unique_order_id = $prefix . '-' . substr( md5( get_site_url() . '-' . $user_hash . '-' . wp_rand() ), 0, 16 );
 
-				WC()->session->__set( $this->prefix_hook( 'order_id' ), $unique_order_id );
+				$session->__set( $this->prefix_hook( 'order_id' ), $unique_order_id );
 			}
 		}
 
@@ -399,7 +403,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 			return;
 		}
 
-		$order_note = __( 'Error processing payment. Reason: ', $this->core_plugin->text_domain() ) . $error_message->getMessage();
+		$order_note = __( 'Error processing payment. Reason: ', $this->core_plugin->text_domain() ) . $error_message->get_error_message();
 
 		if ( ! $order->has_status( 'failed' ) ) {
 			$order->update_status( 'failed', $order_note );
@@ -502,7 +506,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 */
 	protected function maybe_flag_order_as_paid( $order, $redirect = true ) {
 		try {
-			if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
+			if ( ! $order || ! is_a( $order, WC_Order::class ) ) {
 				return false;
 			}
 
@@ -564,7 +568,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 */
 	protected function process_wc_order( $order, $order_data, $transaction, $order_note_msg = '', $order_status_msg = '' ) {
 
-		if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
+		if ( ! $order || ! is_a( $order, WC_Order::class ) ) {
 			throw new Exception( __( 'The order object is not valid.', $this->core_plugin->text_domain() ) );
 		}
 
@@ -687,7 +691,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 */
 	protected function validate_payment_status( $order, $order_data = array() ) {
 
-		if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
+		if ( ! $order || ! is_a( $order, WC_Order::class ) ) {
 			throw new Exception( __( 'The order object is not valid.', $this->core_plugin->text_domain() ) );
 		}
 
@@ -1103,7 +1107,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 */
 	public function process_void_payment( $order ) {
 
-		if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
+		if ( ! $order || ! is_a( $order, WC_Order::class ) ) {
 			return;
 		}
 

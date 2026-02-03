@@ -13,6 +13,7 @@ use WC_Admin_Settings;
 use WC_Order;
 use Exception;
 use GatewayPaymentCore\API;
+use GatewayPaymentCore\Compat\WC_Payment_Gateway_Block_Compat_CC;
 use WP_Error;
 use GatewayPaymentCore\Utils;
 use WC_Payment_Token_CC;
@@ -61,7 +62,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 *
 	 * @var string
 	 */
-	protected $block_compat_class = 'WC_Payment_Gateway_Block_Compat_CC';
+	protected $block_compat_class = WC_Payment_Gateway_Block_Compat_CC::class;
 
 
 	/**
@@ -123,7 +124,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	/**
 	 * Display save card checkbox.
 	 *
-	 * @param bool
+	 * @var bool
 	 */
 	protected $display_save_checkbox = true;
 
@@ -337,7 +338,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			}
 		}
 
-		if ( ! $validated ) {
+		if ( ! $validated || ! isset( $response ) ) {
 			WC_Admin_Settings::add_error( __( 'Failed to validate API credentials. Please validate your credentials and save your account details again.', $this->core_plugin->text_domain() ) );
 			$this->core_plugin->update_validated_credentials( false );
 			$this->core_plugin->update_validated_domain( false );
@@ -769,7 +770,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 			if ( is_array( $authentication_transaction_id ) ) {
 
-				$this->maybe_cache_location( $order );
+				$this->maybe_cache_location();
 
 				return $authentication_transaction_id;
 			}
@@ -1162,7 +1163,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * Get the authentication transaction ID.
 	 *
 	 * @param WC_Order $order          Order object.
-	 * @param string   $transaction_id Transaction ID.
 	 *
 	 * @return string|null
 	 */
@@ -1445,7 +1445,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			WC()->session->__unset( $this->prefix_hook( 'payment_session' ) );
 		}
 
-		if ( $order instanceof \WC_Order ) {
+		if ( $order instanceof WC_Order ) {
 			$order->delete_meta_data( $this->prefix_hook( '3ds_data' ) );
 			$order->save_meta_data();
 		}
@@ -2386,12 +2386,12 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	private function process_3ds_process_callback() {
 		try {
+			$order = null;
 
 			if ( ! isset( $_REQUEST['nonce'] ) || ! wp_verify_nonce( wc_clean( wp_unslash( $_REQUEST['nonce'] ) ), $this->prefix_hook( '3ds_nonce' ) ) ) {
 				throw new Exception( __( 'Nonce verification is missing or invalid.', $this->core_plugin->text_domain() ) );
 			}
 
-			$order = null;
 			if ( ! empty( $_REQUEST['order-id'] ) ) {
 				$order_id = (int) wc_clean( wp_unslash( $_REQUEST['order-id'] ) );
 
@@ -2603,11 +2603,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		}
 
 		try {
+			$order = null;
+
 			if ( ! isset( $_POST['order_id'] ) ) {
 				throw new Exception( __( 'Missing order ID.', $this->core_plugin->text_domain() ) );
 			}
-
-			$order = null;
 
 			$order_id = wc_clean( wp_unslash( $_POST['order_id'] ) );
 			if ( 'add_payment_method' !== $order_id ) {
@@ -2638,7 +2638,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 			if ( is_array( $authentication_transaction_id ) ) {
 
-				$this->maybe_cache_location( $order );
+				$this->maybe_cache_location();
 
 				wp_send_json_success( $authentication_transaction_id );
 			}

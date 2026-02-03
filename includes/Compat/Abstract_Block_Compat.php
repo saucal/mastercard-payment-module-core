@@ -167,7 +167,7 @@ abstract class Abstract_Block_Compat extends AbstractPaymentMethodType {
 	 * @return string[]
 	 */
 	public function get_supported_features() {
-		$gateways = WC()->payment_gateways->get_available_payment_gateways();
+		$gateways = WC()->payment_gateways()->get_available_payment_gateways();
 		if ( isset( $gateways[ $this->gateway_id() ] ) ) {
 			return $gateways[ $this->gateway_id() ]->supports;
 		}

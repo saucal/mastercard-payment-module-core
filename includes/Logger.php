@@ -9,6 +9,10 @@
 
 namespace GatewayPaymentCore;
 
+use WC_Logger;
+use WP_Error;
+use WP_HTTP_Requests_Response;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -104,7 +108,7 @@ final class Logger {
 			$data  = $response->get_error_code() . ': ' . $response->get_error_message();
 		}
 
-		if ( is_array( $response ) && isset( $response['http_response'] ) && is_a( $response['http_response'], 'WP_HTTP_Requests_Response' ) ) {
+		if ( is_array( $response ) && isset( $response['http_response'] ) && is_a( $response['http_response'], WP_HTTP_Requests_Response::class ) ) {
 			$data   = $response['http_response']->get_response_object()->raw;
 			$orig   = $response['http_response']->get_data();
 			$masked = self::maybe_mask_in_json( $orig );

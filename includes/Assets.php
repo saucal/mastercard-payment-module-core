@@ -46,7 +46,7 @@ class Assets {
 	/**
 	 * Admin assets controller.
 	 *
-	 * @var Admin\Assets
+	 * @var Admin
 	 */
 	private $admin_assets_controller;
 
@@ -54,7 +54,7 @@ class Assets {
 	/**
 	 * Front assets controller.
 	 *
-	 * @var Front\Assets
+	 * @var Front
 	 */
 	private $front_assets_controller;
 

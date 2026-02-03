@@ -115,7 +115,7 @@ final class API {
 	 *
 	 * @param string $endpoint API endpoint.
 	 * @param string $method   Method.
-	 * @param null   $payload  Payload.
+	 * @param array  $payload  Payload.
 	 *
 	 * @return array
 	 */
