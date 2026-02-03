@@ -1139,6 +1139,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 		if ( ! $voided_refund ) {
 			throw new Exception(
 				sprintf(
+					/* translators: %s: transaction ID */
 					esc_html( __( 'Refund with Transaction ID (%s) not found.', $this->core_plugin->text_domain() ) ),
 					esc_html( $transaction['id'] )
 				)
@@ -1147,6 +1148,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 		$voided_refund->delete( true );
 
+		/* translators: %s: transaction ID */
 		$order->add_order_note( sprintf( __( 'Refund was cancelled. Transaction ID: %s', $this->core_plugin->text_domain() ), $transaction['id'] ) );
 
 		$this->flag_transaction_as_processed( $order, $transaction['id'] );
@@ -1230,12 +1232,14 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 		}
 
 		$message = sprintf(
+			/* translators: %s: payment method title */
 			__( '%s payment was charged back.', $this->core_plugin->text_domain() ),
 			$this->title,
 		);
 
 		if ( ! empty( $transaction['dispute']['amount'] ) && ! empty( $transaction['dispute']['currency'] ) ) {
 			$message .= ' ' . sprintf(
+				/* translators: %s: chargeback amount with currency */
 				__( 'Chargeback Amount: %s', $this->core_plugin->text_domain() ),
 				wc_price( $transaction['dispute']['amount'], array( 'currency' => $transaction['dispute']['currency'] ) )
 			);
@@ -1243,6 +1247,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 		if ( ! empty( $transaction['dispute']['reason'] ) ) {
 			$message .= ' ' . sprintf(
+				/* translators: %s: chargeback reason */
 				__( 'Reason: %s', $this->core_plugin->text_domain() ),
 				$transaction['dispute']['reason']
 			);
@@ -1438,7 +1443,8 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				$should_process_order = false;
 				break;
 			case 'VOID_PAYMENT':
-				$order_note_msg   = sprintf(
+				$order_note_msg = sprintf(
+					/* translators: %1$s: original transaction ID, %2$s: void transaction ID */
 					__( 'Webhook Notification: Payment Transaction ID: %1$s was voided (Void Transaction ID: %2$s)', $this->core_plugin->text_domain() ),
 					$transaction['targetTransactionId'] ?? '',
 					$transaction['id'] ?? '',
@@ -1446,7 +1452,8 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				$order_status_msg = __( 'Payment was voided.', $this->core_plugin->text_domain() );
 				break;
 			case 'VOID_CAPTURE':
-				$order_note_msg   = sprintf(
+				$order_note_msg = sprintf(
+					/* translators: %1$s: original transaction ID, %2$s: void transaction ID */
 					__( 'Webhook Notification: Capture Transaction ID: %1$s was voided (Void Transaction ID: %2$s)', $this->core_plugin->text_domain() ),
 					$transaction['targetTransactionId'] ?? '',
 					$transaction['id'] ?? '',
@@ -1454,7 +1461,8 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				$order_status_msg = __( 'Capture was voided.', $this->core_plugin->text_domain() );
 				break;
 			case 'VOID_AUTHORIZATION':
-				$order_note_msg   = sprintf(
+				$order_note_msg = sprintf(
+					/* translators: %1$s: original transaction ID, %2$s: void transaction ID */
 					__( 'Webhook Notification: Authorization Transaction ID: %1$s was voided (Void Transaction ID: %2$s)', $this->core_plugin->text_domain() ),
 					$transaction['targetTransactionId'] ?? '',
 					$transaction['id'] ?? '',

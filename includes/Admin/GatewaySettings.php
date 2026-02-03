@@ -134,6 +134,7 @@ final class GatewaySettings {
 					'label'             => __( 'Enable test mode', $this->core_plugin->text_domain() ),
 					'type'              => 'checkbox',
 					'description'       => sprintf(
+						/* translators: %1$s: opening link tag, %2$s: closing link tag */
 						__( 'Set the payment gateway in test mode using test API credentials (real payments will not be taken). You can use %1$stest card numbers%2$s to simulate various transactions.', $this->core_plugin->text_domain() ),
 						'<a href="https://test-gateway.mastercard.com/api/documentation/integrationGuidelines/supportedFeatures/testAndGoLive.html" target="_blank">',
 						'</a>'
@@ -151,6 +152,7 @@ final class GatewaySettings {
 					'title'             => __( 'Merchant ID', $this->core_plugin->text_domain() ),
 					'type'              => 'text',
 					'description'       => sprintf(
+						/* translators: %1$s: opening link tag, %2$s: closing link tag */
 						__( 'This is the Merchant ID you use to log into the %1$sMerchant Portal%2$s.', $this->core_plugin->text_domain() ),
 						'<a href="' . esc_url(
 							untrailingslashit( $this->core_plugin->gateway_url() ) . '/ma/login.s'
@@ -168,6 +170,7 @@ final class GatewaySettings {
 					'title'             => __( 'Integration Authentication Password', $this->core_plugin->text_domain() ),
 					'type'              => 'password',
 					'description'       => sprintf(
+						/* translators: %1$s: opening link tag, %2$s: closing link tag */
 						__( 'You can obtain your integration authentication password from the Merchant Portal (%1$sAdmin -> Integration Settings%2$s).', $this->core_plugin->text_domain() ),
 						'<a href="' . esc_url(
 							add_query_arg(
@@ -191,6 +194,7 @@ final class GatewaySettings {
 					'title'             => __( 'Test Merchant ID', $this->core_plugin->text_domain() ),
 					'type'              => 'text',
 					'description'       => sprintf(
+						/* translators: %1$s: opening link tag, %2$s: closing link tag */
 						__( 'This is the Merchant ID you use to log into the %1$sMerchant Portal%2$s.', $this->core_plugin->text_domain() ),
 						'<a href="' . esc_url(
 							untrailingslashit( $this->core_plugin->gateway_url() ) . '/ma/login.s'
@@ -208,6 +212,7 @@ final class GatewaySettings {
 					'title'             => __( 'Test Integration Authentication Password', $this->core_plugin->text_domain() ),
 					'type'              => 'password',
 					'description'       => sprintf(
+						/* translators: %1$s: opening link tag, %2$s: closing link tag */
 						__( 'You can obtain your integration authentication password from the Merchant Portal (%1$sAdmin -> Integration Settings%2$s).', $this->core_plugin->text_domain() ),
 						'<a href="' . esc_url(
 							add_query_arg(
@@ -235,6 +240,7 @@ final class GatewaySettings {
 					'title'             => __( 'Notification Secret', $this->core_plugin->text_domain() ),
 					'type'              => 'text',
 					'description'       => sprintf(
+						/* translators: %1$s: opening link tag, %2$s: closing link tag */
 						__( 'You can obtain or generate your notification secret on the Merchant Portal (%1$sAdmin -> Webhook Notifications%2$s).', $this->core_plugin->text_domain() ),
 						'<a href="' . esc_url( $this->webhook_notification_url() ) . '" target="_blank">',
 						'</a>'
@@ -249,6 +255,7 @@ final class GatewaySettings {
 					'title'             => __( 'Test Notification Secret', $this->core_plugin->text_domain() ),
 					'type'              => 'text',
 					'description'       => sprintf(
+						/* translators: %1$s: opening link tag, %2$s: closing link tag */
 						__( 'You can obtain or generate your notification secret on the Merchant Portal (%1$sAdmin -> Webhook Notifications%2$s).', $this->core_plugin->text_domain() ),
 						'<a href="' . esc_url( $this->webhook_notification_url() ) . '" target="_blank">',
 						'</a>'
