@@ -898,19 +898,19 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return string
 	 */
 	public function get_return_url( $order = null, $success = true ) {
+		// Attempt to use a custom redirect URL if set in the session.
+		$redirect = WC()->session->get( $this->prefix_hook( 'payment_return_url_redirect' ) );
+		if ( $redirect ) {
+			WC()->session->__unset( $this->prefix_hook( 'payment_return_url_redirect' ) );
+			return $redirect;
+		}
+
 		if ( ! $success ) {
 			$is_checkout_pay_page = $this->is_pay_for_order_page() || WC()->session->get( $this->prefix_hook( 'pay_for_order_page' ), false );
 			if ( $is_checkout_pay_page ) {
 				WC()->session->__unset( $this->prefix_hook( 'pay_for_order_page' ) );
 			}
 			return ( $is_checkout_pay_page && $order ) ? $order->get_checkout_payment_url() : wc_get_checkout_url();
-		}
-
-		// Attempt to use a custom redirect URL if set in the session.
-		$redirect = WC()->session->get( $this->prefix_hook( 'payment_success_redirect' ) );
-		if ( $redirect ) {
-			WC()->session->__unset( $this->prefix_hook( 'payment_success_redirect' ) );
-			return $redirect;
 		}
 
 		// Fallback to the parent return URL.
@@ -1709,7 +1709,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	public function add_payment_method() {
 		try {
-			WC()->session->set( $this->prefix_hook( 'payment_success_redirect' ), wc_get_account_endpoint_url( 'payment-methods' ) );
+			WC()->session->set( $this->prefix_hook( 'payment_return_url_redirect' ), wc_get_account_endpoint_url( 'payment-methods' ) );
 			$result = $this->process_payment_hosted_session( null );
 
 			if ( 'success' !== $result['result'] ) {
@@ -2295,7 +2295,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			return;
 		}
 
-		WC()->session->__unset( $this->prefix_hook( 'payment_success_redirect' ) );
+		WC()->session->__unset( $this->prefix_hook( 'payment_return_url_redirect' ) );
 		WC()->session->__unset( $this->prefix_hook( 'order_id' ) );
 		WC()->session->__unset( $this->prefix_hook( 'transaction_attempt' ) );
 		WC()->session->__unset( $this->hosted_session_id_key( $cart_hash ) );
@@ -2773,7 +2773,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 					throw new Exception( __( 'There was an error obtaining the order. Please refresh the page and try again.', $this->core_plugin->text_domain() ) );
 				}
 			} else {
-				WC()->session->set( $this->prefix_hook( 'payment_success_redirect' ), wc_get_account_endpoint_url( 'payment-methods' ) );
+				WC()->session->set( $this->prefix_hook( 'payment_return_url_redirect' ), wc_get_account_endpoint_url( 'payment-methods' ) );
 			}
 
 			$session = $this->get_posted_session_data();
