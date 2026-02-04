@@ -78,19 +78,11 @@ class BlockCompatibility {
 		 * @since 1.0.0
 		 */
 		$compats = apply_filters( $this->core_plugin->payment_core()->prefix_hook( 'block_compatibility_classes' ), $this->core_plugin->regisreted_block_gateways() );
-		if ( ! empty( $compats ) ) {
-			require_once __DIR__ . '/Abstract_Block_Compat.php';
-		}
-		foreach ( $compats as $id => $filename ) {
-			$path = __DIR__ . '/' . $filename . '.php';
-			if ( file_exists( $path ) ) {
-				require_once $path;
-				$class = __NAMESPACE__ . '\\' . $filename;
-				if ( class_exists( $class ) ) {
-					$compat_class = new $class();
-					$compat_class->init_core( $this->core_plugin, $id );
-					$registry->register( $compat_class );
-				}
+		foreach ( $compats as $id => $class ) {
+			if ( class_exists( $class ) ) {
+				$compat_class = new $class();
+				$compat_class->init_core( $this->core_plugin, $id );
+				$registry->register( $compat_class );
 			}
 		}
 	}
