@@ -37,3 +37,7 @@ export const isRedirectToPaymentPage = () => {
 export const getSaveCardNotice = () => {
 	return settings?.saveCardNotice || '';
 };
+
+export const getPaymentErrorMessage = () => {
+	return settings?.paymentErrorMessage || false;
+};
