@@ -677,7 +677,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$this->core_plugin->logger()->log( $e->getMessage(), 'error' );
 			wc_add_notice( $e->getMessage(), 'error' );
 
-			$this->clean_cached_3ds_data( $order );
+			// Do cleanups.
+			if ( $this->enable_3ds ) {
+				// Clean once more after saving the cards.
+				$this->clean_cached_3ds_data( $order );
+			}
 			$this->maybe_clean_hosted_cached_session( $this->get_hosted_session_data_hash() );
 
 			/**
@@ -2572,11 +2576,10 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			wp_safe_redirect( apply_filters( $this->prefix_hook( '3ds_process_redirect' ), $result['redirect'], $order, $this ) );
 			exit();
 		} catch ( Exception $e ) {
-			$this->core_plugin->logger()->log( $e->getMessage(), 'error' );
-
-			wc_add_notice( $e->getMessage(), 'error' );
-
 			$redirect_url = $this->get_return_url( $order, false );
+
+			$this->core_plugin->logger()->log( $e->getMessage(), 'error' );
+			wc_add_notice( $e->getMessage(), 'error' );
 
 			// Do cleanups.
 			if ( $this->enable_3ds ) {
@@ -2584,6 +2587,13 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				$this->clean_cached_3ds_data( $order );
 			}
 			$this->maybe_clean_hosted_cached_session( $this->get_hosted_session_data_hash() );
+
+			/**
+			 * Fires when a payment processing error occurs.
+			 *
+			 * @since 1.0.0
+			 */
+			do_action( $this->prefix_hook( 'process_payment_error' ), $e, ! empty( $order ) ? $order : null );
 
 			wp_safe_redirect( $redirect_url );
 
