@@ -357,7 +357,7 @@ abstract class CorePlugin {
 		 *
 		 * @since 1.0.0
 		 */
-		do_action( $this->payment_core()->prefix_hook( 'installed' ) );
+		do_action( 'PAYMENTS_CORE_HOOK_PREFIX_installed' );
 	}
 
 
@@ -383,9 +383,9 @@ abstract class CorePlugin {
 		$this->payment_core = Main::instance( $this->plugin_id() );
 
 		// Add filters for the core class.
-		add_filter( $this->payment_core()->prefix_hook( 'plugin_file' ), array( $this, 'plugin_file' ) );
-		add_filter( $this->payment_core()->prefix_hook( 'core_plugin_file' ), array( $this, 'core_plugin_file' ) );
-		add_filter( $this->payment_core()->prefix_hook( 'plugin_title' ), array( $this, 'plugin_title' ) );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_plugin_file', array( $this, 'plugin_file' ) );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_core_plugin_file', array( $this, 'core_plugin_file' ) );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_plugin_title', array( $this, 'plugin_title' ) );
 		// Register the payment gateways.
 		add_filter( 'payment_core_payment_gateways', array( $this, 'add_gateways' ) );
 	}
@@ -397,13 +397,13 @@ abstract class CorePlugin {
 	 * @return void
 	 */
 	public function maybe_redirect_to_settings() {
-		$already_redirected = get_option( $this->payment_core()->prefix_hook( 'installed', 'woocommerce_' ) );
+		$already_redirected = get_option( 'woocommerce_PAYMENTS_CORE_HOOK_PREFIX_installed' );
 
 		if ( $already_redirected ) {
 			return;
 		}
 
-		update_option( $this->payment_core()->prefix_hook( 'installed', 'woocommerce_' ), true );
+		update_option( 'woocommerce_PAYMENTS_CORE_HOOK_PREFIX_installed', true );
 
 		// Redirect to the settings page.
 		wp_safe_redirect( $this->settings_url() );

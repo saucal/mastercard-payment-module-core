@@ -80,7 +80,7 @@ class CapturePaymentMetaBox {
 		 *
 		 * @since 1.0.0
 		 */
-		if ( ! apply_filters( $this->core_plugin->payment_core()->prefix_hook( 'add_meta_boxes' ), true, $order, $post_type ) ) {
+		if ( ! apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_add_meta_boxes', true, $order, $post_type ) ) {
 			return;
 		}
 
@@ -90,17 +90,17 @@ class CapturePaymentMetaBox {
 		$this->order = $order;
 
 		$order_gateway = $this->core_plugin->get_order_gateway_instance( $order );
-		if ( ! $order_gateway instanceof WC_Abstract_Payment_Gateway || $order->get_meta( $this->core_plugin->payment_core()->prefix_hook( 'order_captured' ) ) ) {
+		if ( ! $order_gateway instanceof WC_Abstract_Payment_Gateway || $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_order_captured' ) ) {
 			return;
 		}
 
-		if ( $this->core_plugin->get_capturable_amount( $order ) <= 0 && ! $order->get_meta( $this->core_plugin->payment_core()->prefix_hook( 'authorize_transaction' ) ) ) {
+		if ( $this->core_plugin->get_capturable_amount( $order ) <= 0 && ! $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_authorize_transaction' ) ) {
 			return;
 		}
 
 		$this->gateway = $order_gateway;
 
-		add_meta_box( $this->core_plugin->payment_core()->prefix_hook( 'order-payment-actions' ), __( 'Payment Actions', '__PAYMENTS_CORE_TEXT_DOMAIN__' ), array( $this, 'output' ), Utils::get_edit_order_screen_id(), 'side', 'high' );
+		add_meta_box( 'PAYMENTS_CORE_HOOK_PREFIX_order-payment-actions', __( 'Payment Actions', '__PAYMENTS_CORE_TEXT_DOMAIN__' ), array( $this, 'output' ), Utils::get_edit_order_screen_id(), 'side', 'high' );
 	}
 
 
@@ -117,7 +117,7 @@ class CapturePaymentMetaBox {
 			array(
 				'gateway'                => $this->gateway,
 				'order'                  => $this->order,
-				'authorized_transaction' => $this->order->get_meta( $this->core_plugin->payment_core()->prefix_hook( 'authorize_transaction' ) ),
+				'authorized_transaction' => $this->order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_authorize_transaction' ),
 				'auth_amount'            => $this->core_plugin->get_capturable_amount( $this->order ),
 			)
 		);
@@ -145,7 +145,7 @@ class CapturePaymentMetaBox {
 		}
 
 		// phpcs:ignore WordPress.Security.NonceVerification
-		$void_transaction = isset( $_POST[ $gateway->prefix_hook( 'void_transaction' ) ] ) ? wc_clean( wp_unslash( $_POST[ $gateway->prefix_hook( 'void_transaction' ) ] ) ) : 0;
+		$void_transaction = isset( $_POST[ 'PAYMENTS_CORE_HOOK_PREFIX_void_transaction' ] ) ? wc_clean( wp_unslash( $_POST[ 'PAYMENTS_CORE_HOOK_PREFIX_void_transaction' ] ) ) : 0;
 		if ( $void_transaction ) {
 			// Void transaction takes precedence over capture.
 			$gateway->process_void_payment( $order );
@@ -153,7 +153,7 @@ class CapturePaymentMetaBox {
 		}
 
 		// phpcs:ignore WordPress.Security.NonceVerification
-		$capture_amount = isset( $_POST[ $gateway->prefix_hook( 'capture_amount' ) ] ) ? wc_format_decimal( wc_clean( wp_unslash( $_POST[ $gateway->prefix_hook( 'capture_amount' ) ] ) ) ) : 0;
+		$capture_amount = isset( $_POST[ 'PAYMENTS_CORE_HOOK_PREFIX_capture_amount' ] ) ? wc_format_decimal( wc_clean( wp_unslash( $_POST[ 'PAYMENTS_CORE_HOOK_PREFIX_capture_amount' ] ) ) ) : 0;
 		if ( $capture_amount <= 0 ) {
 			return;
 		}

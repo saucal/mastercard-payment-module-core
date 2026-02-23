@@ -46,8 +46,8 @@ final class Assets {
 	 * Init hooks.
 	 */
 	public function init_hooks() {
-		add_filter( $this->core_plugin->payment_core()->prefix_hook( 'enqueue_styles' ), array( $this, 'add_styles' ), 9 );
-		add_filter( $this->core_plugin->payment_core()->prefix_hook( 'enqueue_scripts' ), array( $this, 'add_scripts' ), 9 );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_enqueue_styles', array( $this, 'add_styles' ), 9 );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_enqueue_scripts', array( $this, 'add_scripts' ), 9 );
 		add_action( 'wp_enqueue_scripts', array( $this->core_plugin->assets_controller(), 'load_scripts' ) );
 		add_action( 'wp_print_scripts', array( $this->core_plugin->assets_controller(), 'localize_printed_scripts' ), 5 );
 		add_action( 'wp_print_footer_scripts', array( $this->core_plugin->assets_controller(), 'localize_printed_scripts' ), 5 );
@@ -62,7 +62,7 @@ final class Assets {
 	 */
 	public function add_styles( $styles ) {
 
-		$styles[ $this->core_plugin->payment_core()->prefix_hook( 'gateway' ) ] = array(
+		$styles[ 'PAYMENTS_CORE_HOOK_PREFIX_gateway' ] = array(
 			'src' => $this->core_plugin->assets_controller()->localize_asset( 'css/frontend/payment-core.css' ),
 		);
 
@@ -89,7 +89,7 @@ final class Assets {
 			'threeDsEnabled'      => $this->core_plugin->is_3ds_enabled(),
 		);
 
-		$scripts[ $this->core_plugin->payment_core()->prefix_hook( 'gateway' ) ] = array(
+		$scripts[ 'PAYMENTS_CORE_HOOK_PREFIX_gateway' ] = array(
 			'src'  => $this->core_plugin->assets_controller()->localize_asset( 'js/frontend/payment-core.js' ),
 			'deps' => array( 'jquery', 'wp-i18n' ),
 			/**
@@ -97,7 +97,7 @@ final class Assets {
 			 *
 			 * @since 1.0.0
 			 */
-			'data' => apply_filters( $this->core_plugin->payment_core()->prefix_hook( 'localize_frontend_script' ), $data ),
+			'data' => apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_localize_frontend_script', $data ),
 		);
 
 		return $scripts;

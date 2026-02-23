@@ -40,7 +40,7 @@ trait DynamicCurrencyConversion {
 		}
 
 		// Process DCC when the payment is processed.
-		add_action( $this->prefix_hook( 'payment_success' ), array( $this, 'process_dcc_data' ), 10, 2 );
+		add_action( 'PAYMENTS_CORE_HOOK_PREFIX_payment_success', array( $this, 'process_dcc_data' ), 10, 2 );
 
 		// Render DCC data on the order edit page.
 		add_action( 'woocommerce_admin_order_data_after_billing_address', array( $this, 'render_dcc_data' ) );
@@ -50,7 +50,7 @@ trait DynamicCurrencyConversion {
 		}
 
 		// Add DCC settings to the gateway settings.
-		add_filter( $this->prefix_hook( 'gateway_settings' ), array( $this, 'settings_addon_dcc' ) );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_gateway_settings', array( $this, 'settings_addon_dcc' ) );
 
 		$this->dcc_enabled = ! empty( $this->get_option( 'currency_conversion' ) && 'yes' === $this->get_option( 'currency_conversion' ) );
 
@@ -59,15 +59,15 @@ trait DynamicCurrencyConversion {
 		}
 
 		// Get a quote for a saved token.
-		add_action( 'wc_ajax_' . $this->prefix_hook( 'dcc_quote' ), array( $this, 'ajax_dcc_quote' ) );
+		add_action( 'wc_ajax_PAYMENTS_CORE_HOOK_PREFIX_dcc_quote', array( $this, 'ajax_dcc_quote' ) );
 
-		add_action( $this->prefix_hook( 'hosted_session_created' ), array( $this, 'clean_cached_total' ) );
+		add_action( 'PAYMENTS_CORE_HOOK_PREFIX_hosted_session_created', array( $this, 'clean_cached_total' ) );
 
-		add_action( $this->prefix_hook( 'after_payment_fields_hosted_session' ), array( $this, 'display_dcc_info_area' ), 20 );
+		add_action( 'PAYMENTS_CORE_HOOK_PREFIX_after_payment_fields_hosted_session', array( $this, 'display_dcc_info_area' ), 20 );
 
-		add_action( $this->prefix_hook( 'payment_fields_hosted_session_template_data' ), array( $this, 'dcc_payment_fields_hosted_session_template_data' ) );
+		add_action( 'PAYMENTS_CORE_HOOK_PREFIX_payment_fields_hosted_session_template_data', array( $this, 'dcc_payment_fields_hosted_session_template_data' ) );
 
-		add_action( $this->prefix_hook( 'after_payment_method_fields', 'wc_' ), array( $this, 'dcc_after_payment_method_fields' ) );
+		add_action( 'wc_PAYMENTS_CORE_HOOK_PREFIX_after_payment_method_fields', array( $this, 'dcc_after_payment_method_fields' ) );
 
 		add_action( 'woocommerce_cart_loaded_from_session', array( $this, 'init_dcc_hooks' ), 20 );
 	}
@@ -110,14 +110,14 @@ trait DynamicCurrencyConversion {
 			return; // DCC is not supported with subscriptions.
 		}
 
-		add_filter( $this->prefix_hook( 'localize_frontend_script' ), array( $this, 'add_dcc_script_data' ) );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_localize_frontend_script', array( $this, 'add_dcc_script_data' ) );
 
 		// Validate fields to ensure DCC data is correct.
-		add_filter( $this->prefix_hook( 'validate_fields' ), array( $this, 'validate_dcc_data' ), 10, 1 );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_validate_fields', array( $this, 'validate_dcc_data' ), 10, 1 );
 
 		// Add DCC data to the payment data.
-		add_filter( $this->prefix_hook( 'process_payment_hosted_session_data' ), array( $this, 'maybe_add_dcc_payment_data' ), 10, 2 );
-		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_data' ), array( $this, 'maybe_add_dcc_payment_data' ), 10, 2 );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_hosted_session_data', array( $this, 'maybe_add_dcc_payment_data' ), 10, 2 );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_hosted_session_3ds_data', array( $this, 'maybe_add_dcc_payment_data' ), 10, 2 );
 
 		// Render DCC data on the order receipt page.
 		add_filter( 'woocommerce_get_order_item_totals', array( $this, 'render_dcc_data_receipt' ), 10, 2 );
@@ -136,7 +136,7 @@ trait DynamicCurrencyConversion {
 			array(
 				'dccEnabled'         => $this->core_plugin->is_currency_conversion_enabled(),
 				'dccRequestEndpoint' => $this->api()->get_domain() . 'paymentOptionsInquiry',
-				'dccNonce'           => wp_create_nonce( $this->prefix_hook( 'dcc_nonce' ) ),
+				'dccNonce'           => wp_create_nonce( 'PAYMENTS_CORE_HOOK_PREFIX_dcc_nonce' ),
 			)
 		);
 
@@ -225,9 +225,9 @@ trait DynamicCurrencyConversion {
 			return;
 		}
 
-		$order->update_meta_data( $this->prefix_hook( 'dcc_exchange_rate' ), $order_data['currencyConversion']['payerExchangeRate'] );
-		$order->update_meta_data( $this->prefix_hook( 'dcc_currency' ), $order_data['currencyConversion']['payerCurrency'] );
-		$order->update_meta_data( $this->prefix_hook( 'dcc_amount' ), $order_data['currencyConversion']['payerAmount'] );
+		$order->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_dcc_exchange_rate', $order_data['currencyConversion']['payerExchangeRate'] );
+		$order->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_dcc_currency', $order_data['currencyConversion']['payerCurrency'] );
+		$order->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_dcc_amount', $order_data['currencyConversion']['payerAmount'] );
 		$order->save_meta_data();
 	}
 
@@ -243,7 +243,7 @@ trait DynamicCurrencyConversion {
 			return;
 		}
 
-		$session_key = $this->prefix_hook( 'session_total_' . $session_id );
+		$session_key = 'PAYMENTS_CORE_HOOK_PREFIX_session_total_' . $session_id;
 		WC()->session->__unset( $session_key );
 	}
 
@@ -319,9 +319,9 @@ trait DynamicCurrencyConversion {
 			return null;
 		}
 
-		$dcc_exchange_rate = $order->get_meta( $this->prefix_hook( 'dcc_exchange_rate' ) );
-		$dcc_currency      = $order->get_meta( $this->prefix_hook( 'dcc_currency' ) );
-		$dcc_amount        = $order->get_meta( $this->prefix_hook( 'dcc_amount' ) );
+		$dcc_exchange_rate = $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_dcc_exchange_rate' );
+		$dcc_currency      = $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_dcc_currency' );
+		$dcc_amount        = $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_dcc_amount' );
 
 		if ( ! $dcc_exchange_rate || ! $dcc_currency || ! $dcc_amount ) {
 			return null;
@@ -341,7 +341,7 @@ trait DynamicCurrencyConversion {
 	 * @return void
 	 */
 	public function ajax_dcc_quote() {
-		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( wc_clean( wp_unslash( $_POST['nonce'] ) ), $this->prefix_hook( 'dcc_nonce' ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( wc_clean( wp_unslash( $_POST['nonce'] ) ), 'PAYMENTS_CORE_HOOK_PREFIX_dcc_nonce' ) ) { // phpcs:ignore WordPress.Security.NonceVerification
 			wp_send_json_error();
 		}
 

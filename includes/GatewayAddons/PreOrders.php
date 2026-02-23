@@ -53,27 +53,27 @@ trait PreOrders {
 		);
 
 		// Add pre-order payment data to the payment request.
-		add_filter( $this->prefix_hook( 'process_payment_data' ), array( $this, 'maybe_add_pre_order_payment_data' ), 10, 2 );
-		add_filter( $this->prefix_hook( 'process_payment_hosted_session_data' ), array( $this, 'maybe_add_pre_order_payment_data' ), 10, 2 );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_data', array( $this, 'maybe_add_pre_order_payment_data' ), 10, 2 );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_hosted_session_data', array( $this, 'maybe_add_pre_order_payment_data' ), 10, 2 );
 
 		// Hide the save payment method checkbox for subscriptions.
 		add_filter( 'wc_' . $this->id . '_display_save_payment_method_checkbox', array( $this, 'maybe_display_save_checkbox_pre_orders' ) );
 
 		// Force save payment method for pre-orders that require tokenization.
-		add_filter( $this->prefix_hook( 'forced_save_payment_method' ), array( $this, 'maybe_force_save_method_pre_order' ) );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_forced_save_payment_method', array( $this, 'maybe_force_save_method_pre_order' ) );
 
 		// Adjust the save card notice display for pre-orders.
-		add_filter( $this->prefix_hook( 'save_card_notice' ), array( $this, 'change_save_card_notice_pre_order' ) );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_save_card_notice', array( $this, 'change_save_card_notice_pre_order' ) );
 
 		// Flag pre-order as completed after successful payment.
-		add_action( $this->prefix_hook( 'payment_success' ), array( $this, 'maybe_flag_pre_order_as_completed' ) );
-		add_filter( $this->prefix_hook( 'change_order_status' ), array( $this, 'maybe_bypass_change_status' ), 10, 2 );
+		add_action( 'PAYMENTS_CORE_HOOK_PREFIX_payment_success', array( $this, 'maybe_flag_pre_order_as_completed' ) );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_change_order_status', array( $this, 'maybe_bypass_change_status' ), 10, 2 );
 
 		// Process pre-order payment when released (charged upon release).
 		add_action( 'wc_pre_orders_process_pre_order_completion_payment_' . $this->id, array( $this, 'process_pre_order_release_payment' ), 10, 1 );
 
 		// Hide the capture meta box for the pre-order order.
-		add_filter( $this->prefix_hook( 'add_meta_boxes' ), array( $this, 'maybe_hide_capture_meta_box_pre_order' ), 10, 2 );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_add_meta_boxes', array( $this, 'maybe_hide_capture_meta_box_pre_order' ), 10, 2 );
 	}
 
 
@@ -219,7 +219,7 @@ trait PreOrders {
 		}
 
 		// Check if already captured.
-		if ( $order->get_meta( $this->prefix_hook( 'order_captured' ) ) ) {
+		if ( $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_order_captured' ) ) {
 			$this->core_plugin->logger()->log( sprintf( 'Pre-order %d already captured', $order_id ), 'info' );
 			return;
 		}

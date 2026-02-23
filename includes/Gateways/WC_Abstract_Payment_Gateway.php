@@ -259,7 +259,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 			$base['amount']          = $order->get_total();
 			$base['notificationUrl'] = add_query_arg(
 				array(
-					'wc-api'   => $this->prefix_hook( 'wc-webhook' ),
+					'wc-api'   => 'PAYMENTS_CORE_HOOK_PREFIX_wc-webhook',
 					'order-id' => $order->get_id(),
 				),
 				trailingslashit( get_home_url() )
@@ -307,12 +307,12 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	protected function unique_order_id( $order = null ) {
 		$unique_order_id = null;
 		if ( $this->is_order( $order ) ) {
-			$unique_order_id = $order->get_meta( $this->prefix_hook( 'order_id' ) );
+			$unique_order_id = $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_order_id' );
 
 			if ( ! $unique_order_id ) {
 				$unique_order_id = $order->get_id() . '-' . substr( md5( get_site_url() . '-' . $order->get_cart_hash() ), 0, 16 );
 
-				$order->update_meta_data( $this->prefix_hook( 'order_id' ), $unique_order_id );
+				$order->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_order_id', $unique_order_id );
 				$order->save_meta_data();
 			}
 		} else {
@@ -327,7 +327,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 			 */
 			$session = WC()->session;
 
-			$unique_order_id = $session->__get( $this->prefix_hook( 'order_id' ) );
+			$unique_order_id = $session->__get( 'PAYMENTS_CORE_HOOK_PREFIX_order_id' );
 			if ( ! $unique_order_id ) {
 				if ( ! $session->has_session() ) {
 					$session->set_customer_session_cookie( true );
@@ -340,7 +340,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				$user_hash       = $session->get_customer_unique_id();
 				$unique_order_id = $prefix . '-' . substr( md5( get_site_url() . '-' . $user_hash . '-' . wp_rand() ), 0, 16 );
 
-				$session->__set( $this->prefix_hook( 'order_id' ), $unique_order_id );
+				$session->__set( 'PAYMENTS_CORE_HOOK_PREFIX_order_id', $unique_order_id );
 			}
 		}
 
@@ -349,7 +349,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 		 *
 		 * @since 1.0.0
 		 */
-		return apply_filters( $this->prefix_hook( 'unique_order_id' ), $unique_order_id, $order );
+		return apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_unique_order_id', $unique_order_id, $order );
 	}
 
 
@@ -362,12 +362,12 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 */
 	protected function unique_transaction_id( $order = null ) {
 		if ( $this->is_order( $order ) ) {
-			$last_transaction_id = $order->get_meta( $this->prefix_hook( 'transaction_attempt' ), true );
+			$last_transaction_id = $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_transaction_attempt', true );
 		} else {
 			if ( empty( WC()->session ) ) {
 				return null;
 			}
-			$last_transaction_id = WC()->session->__get( $this->prefix_hook( 'transaction_attempt' ) );
+			$last_transaction_id = WC()->session->__get( 'PAYMENTS_CORE_HOOK_PREFIX_transaction_attempt' );
 		}
 
 		if ( ! $last_transaction_id ) {
@@ -377,11 +377,11 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 		$current_transaction_attempt = $last_transaction_id + 1;
 
 		if ( $this->is_order( $order ) ) {
-			$order->update_meta_data( $this->prefix_hook( 'transaction_attempt' ), $current_transaction_attempt );
+			$order->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_transaction_attempt', $current_transaction_attempt );
 			$order->save_meta_data();
 		} else {
 			// No need to check session exists again, as we checked above, and if we don't have a session we wouldn't be here.
-			WC()->session->__set( $this->prefix_hook( 'transaction_attempt' ), $current_transaction_attempt );
+			WC()->session->__set( 'PAYMENTS_CORE_HOOK_PREFIX_transaction_attempt', $current_transaction_attempt );
 		}
 
 		return $this->unique_order_id( $order ) . '-' . $current_transaction_attempt;
@@ -531,16 +531,16 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 			 *
 			 * @since 1.0.0
 			 */
-			$is_valid = apply_filters( $this->prefix_hook( 'validate_order_as_paid' ), true, $order, $this );
+			$is_valid = apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_validate_order_as_paid', true, $order, $this );
 			if ( ! $is_valid ) {
 				return false;
 			}
 
-			if ( $order->get_meta( $this->prefix_hook( 'order_captured' ) ) ) {
+			if ( $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_order_captured' ) ) {
 				return true;
 			}
 
-			$unique_order_id = $order->get_meta( $this->prefix_hook( 'order_id' ) );
+			$unique_order_id = $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_order_id' );
 			if ( ! $unique_order_id ) {
 				$unique_order_id = $this->unique_order_id( $order );
 			}
@@ -558,7 +558,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 			$this->process_wc_order( $order, $order_data['body'], $transaction_data );
 
-			if ( ! $order->get_meta( $this->prefix_hook( 'order_captured' ) ) ) {
+			if ( ! $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_order_captured' ) ) {
 				return false;
 			}
 
@@ -605,8 +605,8 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 			return;
 		}
 
-		$order->update_meta_data( $this->prefix_hook( 'order_captured' ), 'CAPTURED' === $order_data['status'] );
-		$order->update_meta_data( $this->prefix_hook( 'order_id' ), $order_data['id'] );
+		$order->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_order_captured', 'CAPTURED' === $order_data['status'] );
+		$order->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_order_id', $order_data['id'] );
 
 		$order->set_payment_method( $this->id );
 		$order->set_payment_method_title( $this->title );
@@ -635,7 +635,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				 *
 				 * @since 1.0.0
 				 */
-				do_action( $this->prefix_hook( 'payment_success' ), $order, $order_data, $transaction );
+				do_action( 'PAYMENTS_CORE_HOOK_PREFIX_payment_success', $order, $order_data, $transaction );
 				break;
 			case 'CAPTURED':
 				$order->add_order_note(
@@ -646,7 +646,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 						$order_data['id'],
 					)
 				);
-				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), null );
+				$order->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_authorize_transaction', null );
 				$order->payment_complete( $order_data['id'] );
 
 				/**
@@ -654,13 +654,13 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				 *
 				 * @since 1.0.0
 				 */
-				do_action( $this->prefix_hook( 'payment_success' ), $order, $order_data, $transaction );
+				do_action( 'PAYMENTS_CORE_HOOK_PREFIX_payment_success', $order, $order_data, $transaction );
 				break;
 			case 'AUTHORIZED':
 				$order->set_transaction_id( $order_data['id'] );
 				$authorize_transaction = $this->get_authorize_transaction( $order_data['transaction'] ?? array() );
 				if ( ! empty( $authorize_transaction['id'] ) ) {
-					$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), $authorize_transaction['id'] );
+					$order->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_authorize_transaction', $authorize_transaction['id'] );
 				}
 				$new_order_status     = 'on-hold';
 				$new_order_status_msg = __( 'Payment authorized, waiting for capture.', '__PAYMENTS_CORE_TEXT_DOMAIN__' );
@@ -676,10 +676,10 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				 *
 				 * @since 1.0.0
 				 */
-				do_action( $this->prefix_hook( 'payment_success' ), $order, $order_data, $transaction );
+				do_action( 'PAYMENTS_CORE_HOOK_PREFIX_payment_success', $order, $order_data, $transaction );
 				break;
 			case 'PARTIALLY_CAPTURED':
-				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), null );
+				$order->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_authorize_transaction', null );
 				$new_order_status     = 'on-hold';
 				$new_order_status_msg = __( 'Payment partially captured, waiting for full capture.', '__PAYMENTS_CORE_TEXT_DOMAIN__' );
 				$new_order_note_msg   = sprintf(
@@ -690,7 +690,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				);
 				break;
 			case 'CANCELLED':
-				$order->update_meta_data( $this->prefix_hook( 'authorize_transaction' ), null );
+				$order->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_authorize_transaction', null );
 				$new_order_status     = 'cancelled';
 				$new_order_status_msg = __( 'Authorization was cancelled successfully.', '__PAYMENTS_CORE_TEXT_DOMAIN__' );
 				break;
@@ -713,7 +713,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 		 *
 		 * @since 1.0.0
 		 */
-		if ( ! apply_filters( $this->prefix_hook( 'change_order_status' ), true, $order ) ) {
+		if ( ! apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_change_order_status', true, $order ) ) {
 			return;
 		}
 
@@ -823,7 +823,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * @return bool
 	 */
 	protected function is_transaction_processed( $order, $transaction_id ) {
-		$processed_transactions = $order->get_meta( $this->prefix_hook( 'processed_transactions' ) );
+		$processed_transactions = $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_processed_transactions' );
 
 		if ( ! $processed_transactions ) {
 			return false;
@@ -842,7 +842,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * @return void
 	 */
 	protected function flag_transaction_as_processed( $order, $transaction_id ) {
-		$processed_transactions = $order->get_meta( $this->prefix_hook( 'processed_transactions' ) );
+		$processed_transactions = $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_processed_transactions' );
 
 		if ( ! $processed_transactions ) {
 			$processed_transactions = array();
@@ -850,7 +850,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 		$processed_transactions[] = $transaction_id;
 
-		$order->update_meta_data( $this->prefix_hook( 'processed_transactions' ), $processed_transactions );
+		$order->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_processed_transactions', $processed_transactions );
 		$order->save();
 	}
 
@@ -873,11 +873,11 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				throw new Exception( __( 'The payment method is invalid.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
-			if ( $order->get_meta( $this->prefix_hook( 'order_captured' ) ) ) {
+			if ( $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_order_captured' ) ) {
 				return;
 			}
 
-			$unique_order_id = $order->get_meta( $this->prefix_hook( 'order_id' ) );
+			$unique_order_id = $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_order_id' );
 
 			if ( ! $unique_order_id ) {
 				throw new Exception( __( 'The order data is missing or invalid.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
@@ -1003,7 +1003,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 			 *
 			 * @since 1.0.0
 			 */
-			do_action( $this->prefix_hook( 'process_refund_success' ), $order, $currency, $amount, $reason );
+			do_action( 'PAYMENTS_CORE_HOOK_PREFIX_process_refund_success', $order, $currency, $amount, $reason );
 
 			return true;
 		} catch ( Exception $e ) {
@@ -1042,7 +1042,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 			return;
 		}
 
-		$refund->update_meta_data( $this->prefix_hook( 'transaction_id' ), $this->refund_transaction_id );
+		$refund->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_transaction_id', $this->refund_transaction_id );
 		$refund->save();
 	}
 
@@ -1103,7 +1103,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 			throw new Exception( esc_html( sprintf( __( 'Create refund failed: %1$s.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ), esc_html( $refund->get_error_message() ) ) ) );
 		}
 
-		$refund->update_meta_data( $this->prefix_hook( 'transaction_id' ), $transaction['id'] );
+		$refund->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_transaction_id', $transaction['id'] );
 		$refund->save();
 
 		$this->flag_transaction_as_processed( $order, $transaction['id'] );
@@ -1132,7 +1132,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 		$voided_refund = null;
 
 		foreach ( $order->get_refunds() as $refund ) {
-			if ( $transaction['targetTransactionId'] === $refund->get_meta( $this->prefix_hook( 'transaction_id' ) ) ) {
+			if ( $transaction['targetTransactionId'] === $refund->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_transaction_id' ) ) {
 				$voided_refund = $refund;
 				break;
 			}
@@ -1185,7 +1185,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				throw new Exception( __( 'The order cannot be voided anymore.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
-			$transaction_id = $order->get_meta( $this->prefix_hook( 'authorize_transaction' ) );
+			$transaction_id = $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_authorize_transaction' );
 			if ( empty( $transaction_id ) ) {
 				throw new Exception( __( 'The Authorize transaction ID is missing. Try to void the authorization from the Merchant Portal.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
@@ -1285,7 +1285,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				throw new Exception( __( 'The request body is empty.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
-			$this->core_plugin->logger()->log( __( 'Webhook Notification: ', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) . $raw_body, 'info', $this->prefix_hook( 'webhooks', '', '-' ) );
+			$this->core_plugin->logger()->log( __( 'Webhook Notification: ', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) . $raw_body, 'info', 'PAYMENTS_CORE_HOOK_PREFIX-webhooks' );
 
 			$this->handle_webhook_request( $body, $order );
 
@@ -1311,7 +1311,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 			return parent::get_transaction_url( $order );
 		}
 
-		$order_id = $order->get_meta( $this->prefix_hook( 'order_id' ) );
+		$order_id = $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_order_id' );
 
 		if ( ! $order_id ) {
 			$order_id = $this->unique_order_id( $order );
@@ -1496,7 +1496,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 */
 	protected function debounce_webhook_request( $raw_body ) {
 
-		$this->debounce_key = $this->prefix_hook( 'webhook_debounce_' . md5( $raw_body ) );
+		$this->debounce_key = 'PAYMENTS_CORE_HOOK_PREFIX_webhook_debounce_' . md5( $raw_body );
 
 		if ( false !== get_transient( $this->debounce_key ) ) {
 			throw new Exception( esc_html( __( 'Notification Webhook repeated too soon or previous request exited abnormally.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
@@ -1520,7 +1520,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 			return;
 		}
 
-		$this->debounce_key_transaction = $this->prefix_hook( 'webhook_debounce_transaction_' . $transaction['id'] );
+		$this->debounce_key_transaction = 'PAYMENTS_CORE_HOOK_PREFIX_webhook_debounce_transaction_' . $transaction['id'];
 
 		if ( false !== get_transient( $this->debounce_key_transaction ) ) {
 			throw new Exception( esc_html( __( 'Notification Webhook repeated too soon or previous request exited abnormally.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );

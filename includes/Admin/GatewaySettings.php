@@ -468,7 +468,7 @@ final class GatewaySettings {
 		 *
 		 * @since 1.0.0
 		 */
-		$this->settings = apply_filters( $this->core_plugin->payment_core()->prefix_hook( 'gateway_settings' ), $this->settings );
+		$this->settings = apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_gateway_settings', $this->settings );
 	}
 
 

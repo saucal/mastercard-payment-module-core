@@ -137,7 +137,7 @@ class Assets {
 		 *
 		 * @since 1.0.0
 		 */
-		return apply_filters( $this->core_plugin->payment_core()->prefix_hook( 'enqueue_styles' ), array() );
+		return apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_enqueue_styles', array() );
 	}
 
 
@@ -152,7 +152,7 @@ class Assets {
 		 *
 		 * @since 1.0.0
 		 */
-		return apply_filters( $this->core_plugin->payment_core()->prefix_hook( 'enqueue_scripts' ), array() );
+		return apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_enqueue_scripts', array() );
 	}
 
 
@@ -254,7 +254,7 @@ class Assets {
 	 */
 	public function load_scripts() {
 
-		if ( ! $this->core_plugin || ! did_action( $this->core_plugin->payment_core()->prefix_hook( 'init' ) ) ) {
+		if ( ! $this->core_plugin || ! did_action( 'PAYMENTS_CORE_HOOK_PREFIX_init' ) ) {
 			return;
 		}
 

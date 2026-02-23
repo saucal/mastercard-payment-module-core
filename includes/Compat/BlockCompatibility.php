@@ -77,7 +77,7 @@ class BlockCompatibility {
 		 *
 		 * @since 1.0.0
 		 */
-		$compats = apply_filters( $this->core_plugin->payment_core()->prefix_hook( 'block_compatibility_classes' ), $this->core_plugin->regisreted_block_gateways() );
+		$compats = apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_block_compatibility_classes', $this->core_plugin->regisreted_block_gateways() );
 		foreach ( $compats as $id => $class ) {
 			if ( class_exists( $class ) ) {
 				$compat_class = new $class();

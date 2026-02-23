@@ -74,44 +74,44 @@ trait Subscriptions {
 		);
 
 		// Add subscription payment data to the payment request.
-		add_filter( $this->prefix_hook( 'process_payment_hosted_session_data' ), array( $this, 'maybe_add_subscription_payment_data' ), 10, 2 );
-		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_data' ), array( $this, 'maybe_add_subscription_authentication_initiate_data' ), 10, 2 );
-		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_authenticate_payer_data' ), array( $this, 'maybe_add_subscription_authentication_data' ), 10, 2 );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_hosted_session_data', array( $this, 'maybe_add_subscription_payment_data' ), 10, 2 );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_hosted_session_3ds_data', array( $this, 'maybe_add_subscription_authentication_initiate_data' ), 10, 2 );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_hosted_session_3ds_authenticate_payer_data', array( $this, 'maybe_add_subscription_authentication_data' ), 10, 2 );
 
 		// Remove redirect to checkout page for subscriptions.
 		add_filter( 'woocommerce_get_checkout_url', array( __CLASS__, 'maybe_remove_redirect_to_checkout' ) );
 
 		// Hide the save payment method checkbox for subscriptions.
 		add_filter( 'wc_' . $this->id . '_display_save_payment_method_checkbox', array( $this, 'maybe_display_save_checkbox_subscription' ) );
-		add_filter( $this->prefix_hook( 'payment_method_data' ), array( $this, 'maybe_add_display_save_card_notice' ) );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_payment_method_data', array( $this, 'maybe_add_display_save_card_notice' ) );
 
 		// Forcefully save the payment method for subscriptions.
-		add_filter( $this->prefix_hook( 'forced_save_payment_method' ), array( $this, 'maybe_force_save_method' ) );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_forced_save_payment_method', array( $this, 'maybe_force_save_method' ) );
 
 		// Add the payment token as a meta data to the subscription order.
-		add_action( $this->prefix_hook( 'payment_method_saved' ), array( $this, 'save_payment_token' ), 10, 2 );
+		add_action( 'PAYMENTS_CORE_HOOK_PREFIX_payment_method_saved', array( $this, 'save_payment_token' ), 10, 2 );
 
 		// Process renewal orders.
 		add_action( 'woocommerce_scheduled_subscription_payment_' . $this->id, array( $this, 'scheduled_subscription_payment' ), 10, 2 );
 
 		// Remove the parent unique order ID from the renewal order.
-		add_action( $this->prefix_hook( 'process_payment_before' ), array( $this, 'remove_parent_unique_order_id' ) );
+		add_action( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_before', array( $this, 'remove_parent_unique_order_id' ) );
 
 		add_action( 'woocommerce_payment_token_deleted', array( $this, 'maybe_remove_token_from_subscriptions' ), 10, 2 );
 
 		// Handle subscription change payment method.
-		add_filter( $this->prefix_hook( 'unique_order_id' ), array( $this, 'maybe_bump_order_id_change_payment_method' ), 10, 2 );
-		add_filter( $this->prefix_hook( 'process_payment_addon' ), array( $this, 'maybe_handle_sub_change_payment_method' ), 10, 2 );
-		add_action( 'wc_ajax_' . $this->prefix_hook( 'update_hosted_session' ), array( $this, 'handle_change_payment_method' ) );
-		add_filter( $this->prefix_hook( 'process_payment_hosted_session_3ds_authenticate_payer_data' ), array( $this, 'maybe_change_3ds_return_url' ) );
-		add_filter( $this->prefix_hook( '3ds_return_redirect' ), array( $this, 'maybe_add_change_payment_method_flag' ) );
-		add_filter( $this->prefix_hook( '3ds_process_redirect' ), array( $this, 'maybe_change_3ds_processed_redirect' ), 10, 2 );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_unique_order_id', array( $this, 'maybe_bump_order_id_change_payment_method' ), 10, 2 );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_addon', array( $this, 'maybe_handle_sub_change_payment_method' ), 10, 2 );
+		add_action( 'wc_ajax_PAYMENTS_CORE_HOOK_PREFIX_update_hosted_session', array( $this, 'handle_change_payment_method' ) );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_hosted_session_3ds_authenticate_payer_data', array( $this, 'maybe_change_3ds_return_url' ) );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_3ds_return_redirect', array( $this, 'maybe_add_change_payment_method_flag' ) );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_3ds_process_redirect', array( $this, 'maybe_change_3ds_processed_redirect' ), 10, 2 );
 
 		// Hide the capture meta box for the subscription order.
-		add_filter( $this->prefix_hook( 'add_meta_boxes' ), array( $this, 'maybe_hide_capture_meta_box_subscription' ), 10, 2 );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_add_meta_boxes', array( $this, 'maybe_hide_capture_meta_box_subscription' ), 10, 2 );
 
 		// Subscriptions are never considered "paid".
-		add_filter( $this->prefix_hook( 'validate_order_as_paid' ), array( $this, 'maybe_avoid_subscription_as_paid' ), 10, 2 );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_validate_order_as_paid', array( $this, 'maybe_avoid_subscription_as_paid' ), 10, 2 );
 	}
 
 
@@ -336,7 +336,7 @@ trait Subscriptions {
 			return '';
 		}
 
-		return $this->prefix_hook( 'subscription-order-' . $subscription->get_id() );
+		return 'PAYMENTS_CORE_HOOK_PREFIX_subscription-order-' . $subscription->get_id();
 	}
 
 
@@ -529,7 +529,7 @@ trait Subscriptions {
 			 *
 			 * @since 1.0.0
 			 */
-			do_action( $this->prefix_hook( 'scheduled_subscription_success' ), $total_amount, $renewal_order );
+			do_action( 'PAYMENTS_CORE_HOOK_PREFIX_scheduled_subscription_success', $total_amount, $renewal_order );
 		} catch ( Exception $e ) {
 
 			$order_note = __( 'Error processing scheduled_subscription_payment. Reason: ', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) . $e->getMessage();
@@ -557,7 +557,7 @@ trait Subscriptions {
 			 *
 			 * @since 1.0.0
 			 */
-			do_action( $this->prefix_hook( 'scheduled_subscription_failure' ), $total_amount, $renewal_order );
+			do_action( 'PAYMENTS_CORE_HOOK_PREFIX_scheduled_subscription_failure', $total_amount, $renewal_order );
 		}
 	}
 
@@ -593,7 +593,7 @@ trait Subscriptions {
 		// This meta duplicates the gateway token ID to the meta.
 		// TODO: Consider revising this behavior in the future using the integrated get_payment_tokens on subscriptions.
 		// That method typically adds items to an array, for which we'll have to reconsider to have only one token associated at a time to an order.
-		$payment_token = $subscription->get_meta( $this->prefix_hook( 'payment_token' ) );
+		$payment_token = $subscription->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_payment_token' );
 		if ( empty( $payment_token ) ) {
 			$payment_tokens = $parent_order->get_payment_tokens();
 			if ( empty( $payment_tokens ) || ! is_array( $payment_tokens ) ) {
@@ -663,7 +663,7 @@ trait Subscriptions {
 		// This adds a list of tokens endlessly after several changes, making it very difficult to be useful.
 		// TODO: Consider revising this behavior in the future.
 		$subscription->add_payment_token( $payment_token->get_id() );
-		$subscription->update_meta_data( $this->prefix_hook( 'payment_token' ), $payment_token->get_token() );
+		$subscription->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_payment_token', $payment_token->get_token() );
 		$subscription->save();
 	}
 
@@ -683,7 +683,7 @@ trait Subscriptions {
 			return;
 		}
 
-		$renewal_order->delete_meta_data( $this->prefix_hook( 'order_id' ) );
+		$renewal_order->delete_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_order_id' );
 		$renewal_order->save_meta_data();
 	}
 
@@ -707,11 +707,11 @@ trait Subscriptions {
 
 		$unique_order_id = md5( $unique_order_id . time() );
 
-		$order->update_meta_data( $this->prefix_hook( 'order_id' ), $unique_order_id );
+		$order->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_order_id', $unique_order_id );
 		$order->save_meta_data();
 
 		// TODO: This is a weird way of bumping the order_id once per request. Consider revising in the future.
-		remove_filter( $this->prefix_hook( 'unique_order_id' ), array( $this, 'maybe_bump_order_id_change_payment_method' ), 10 );
+		remove_filter( 'PAYMENTS_CORE_HOOK_PREFIX_unique_order_id', array( $this, 'maybe_bump_order_id_change_payment_method' ), 10 );
 
 		return $unique_order_id;
 	}
@@ -779,7 +779,7 @@ trait Subscriptions {
 		}
 
 		// Clean forced order ID.
-		$order->delete_meta_data( $this->prefix_hook( 'order_id' ) );
+		$order->delete_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_order_id' );
 		$order->save_meta_data();
 
 		$notice = $subscription->has_payment_gateway() ? __( 'Payment method updated.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) : __( 'Payment method added.', '__PAYMENTS_CORE_TEXT_DOMAIN__' );
@@ -808,11 +808,11 @@ trait Subscriptions {
 		}
 
 		foreach ( $subscriptions as $subscription ) {
-			if ( $token->get_token() !== $subscription->get_meta( $this->prefix_hook( 'payment_token' ) ) ) {
+			if ( $token->get_token() !== $subscription->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_payment_token' ) ) {
 				continue;
 			}
 
-			$subscription->delete_meta_data( $this->prefix_hook( 'payment_token' ) );
+			$subscription->delete_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_payment_token' );
 			$subscription->save_meta_data();
 		}
 	}

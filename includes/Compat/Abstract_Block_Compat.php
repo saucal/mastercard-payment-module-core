@@ -155,7 +155,7 @@ abstract class Abstract_Block_Compat extends AbstractPaymentMethodType {
 		$scripts[] = $script_handle;
 
 		if ( Utils::is_request( 'frontend' ) ) {
-			$scripts[] = $this->core_plugin->payment_core()->prefix_hook( 'gateway' );
+			$scripts[] = 'PAYMENTS_CORE_HOOK_PREFIX_gateway';
 		}
 
 		return $scripts;

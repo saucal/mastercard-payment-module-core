@@ -171,7 +171,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		// Add hooks.
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'process_admin_options' ) );
 		add_action( 'woocommerce_receipt_' . $this->id, array( $this, 'payment_fields' ) );
-		add_action( $this->prefix_hook( 'process_payment_error' ), array( $this, 'handle_failed_payment' ), 10, 2 );
+		add_action( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_error', array( $this, 'handle_failed_payment' ), 10, 2 );
 		add_filter( 'woocommerce_get_customer_payment_tokens', array( $this, 'hide_saved_token_hosted_checkout' ), 10 );
 		add_action( 'set_logged_in_cookie', array( $this, 'set_cookie_on_current_request' ) );
 
@@ -179,15 +179,15 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		add_action( 'template_redirect', array( $this, 'maybe_handle_return_callback' ) );
 
 		// Add API actions.
-		add_action( 'woocommerce_api_' . $this->prefix_hook( 'wc-webhook' ), array( $this, 'process_notification_api_callback' ) );
+		add_action( 'woocommerce_api_PAYMENTS_CORE_HOOK_PREFIX_wc-webhook', array( $this, 'process_notification_api_callback' ) );
 
-		add_filter( $this->prefix_hook( 'enqueue_scripts' ), array( $this, 'enqueue_scripts' ), 20 );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_enqueue_scripts', array( $this, 'enqueue_scripts' ), 20 );
 		add_filter( 'script_loader_tag', array( $this, 'maybe_add_callbacks_attr' ), 10, 2 );
 
 		// Gateway AJAX actions.
-		add_action( 'wc_ajax_' . $this->prefix_hook( 'reset_hosted_session' ), array( $this, 'ajax_clean_hosted_cached_session' ) );
-		add_action( 'wc_ajax_' . $this->prefix_hook( 'update_hosted_session_from_token' ), array( $this, 'ajax_update_hosted_session_from_token' ) );
-		add_action( 'wc_ajax_' . $this->prefix_hook( 'authenticate_payer' ), array( $this, 'ajax_authenticate_payer' ) );
+		add_action( 'wc_ajax_PAYMENTS_CORE_HOOK_PREFIX_reset_hosted_session', array( $this, 'ajax_clean_hosted_cached_session' ) );
+		add_action( 'wc_ajax_PAYMENTS_CORE_HOOK_PREFIX_update_hosted_session_from_token', array( $this, 'ajax_update_hosted_session_from_token' ) );
+		add_action( 'wc_ajax_PAYMENTS_CORE_HOOK_PREFIX_authenticate_payer', array( $this, 'ajax_authenticate_payer' ) );
 
 		// Session handling.
 		add_filter( 'woocommerce_update_order_review_fragments', array( $this, 'relocalize_cart_total' ) );
@@ -256,7 +256,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		}
 
 		if ( empty( $regions ) || count( $regions ) < 2 ) {
-			$_POST[ $this->prefix_hook( 'region', 'woocommerce_' ) ] = \array_key_first( $regions ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+			$_POST[ 'woocommerce_PAYMENTS_CORE_HOOK_PREFIX_region' ] = \array_key_first( $regions ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
 		}
 
 		parent::process_admin_options();
@@ -275,7 +275,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return mixed
 	 */
 	private function get_posted_config_value( $key ) {
-		return isset( $_POST[ $this->prefix_hook( $key, 'woocommerce_' ) ] ) ? wc_clean( wp_unslash( $_POST[ $this->prefix_hook( $key, 'woocommerce_' ) ] ) ) : $this->get_option( $key ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		return isset( $_POST[ 'woocommerce_PAYMENTS_CORE_HOOK_PREFIX_' . $key ] ) ? wc_clean( wp_unslash( $_POST[ 'woocommerce_PAYMENTS_CORE_HOOK_PREFIX_' . $key ] ) ) : $this->get_option( $key ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
 	}
 
 
@@ -568,7 +568,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		 *
 		 * @since 1.0.0
 		 */
-		$template_data = apply_filters( $this->prefix_hook( 'payment_fields_hosted_session_template_data' ), $template_data, $this );
+		$template_data = apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_payment_fields_hosted_session_template_data', $template_data, $this );
 
 		if ( $this->enable_3ds && $this->is_pay_for_order_page() ) {
 			$template_data['threeds_data'] = $this->get_cached_3ds_data();
@@ -608,7 +608,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		 *
 		 * @since 1.0.0
 		 */
-		do_action( $this->prefix_hook( 'after_payment_fields_hosted_session' ), $this );
+		do_action( 'PAYMENTS_CORE_HOOK_PREFIX_after_payment_fields_hosted_session', $this );
 
 		if ( $this->display_save_checkbox && ! is_add_payment_method_page() ) {
 			$this->save_payment_method_checkbox();
@@ -641,14 +641,14 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			 *
 			 * @since 1.0.0
 			 */
-			do_action( $this->prefix_hook( 'process_payment_before' ), $order );
+			do_action( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_before', $order );
 
 			/**
 			 * Filter to allow addons to handle payment processing.
 			 *
 			 * @since 1.0.0
 			 */
-			$addon_payment = apply_filters( $this->prefix_hook( 'process_payment_addon' ), false, $order );
+			$addon_payment = apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_addon', false, $order );
 			if ( ! empty( $addon_payment ) && is_array( $addon_payment ) ) {
 				return $addon_payment;
 			}
@@ -689,7 +689,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			 *
 			 * @since 1.0.0
 			 */
-			do_action( $this->prefix_hook( 'process_payment_error' ), $e, ! empty( $order ) ? $order : null );
+			do_action( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_error', $e, ! empty( $order ) ? $order : null );
 
 			return array(
 				'result'       => 'error',
@@ -758,12 +758,12 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		if ( $processing_3ds_callback ) {
 			$session = null;
 			if ( $this->is_order( $order ) ) {
-				$session = $order->get_meta( $this->prefix_hook( 'payment_session' ) );
+				$session = $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_payment_session' );
 			} else {
 				if ( empty( WC()->session ) ) {
 					throw new Exception( esc_html( __( 'There was an error with the payment authentication. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 				}
-				$session = WC()->session->get( $this->prefix_hook( 'payment_session' ) );
+				$session = WC()->session->get( 'PAYMENTS_CORE_HOOK_PREFIX_payment_session' );
 			}
 		} else {
 			$session = $this->get_posted_session_data();
@@ -809,7 +809,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		 *
 		 * @since 1.0.0
 		 */
-		$payment_data = apply_filters( $this->prefix_hook( 'process_payment_data' ), $payment_data, $order );
+		$payment_data = apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_data', $payment_data, $order );
 
 		if ( $this->enable_3ds ) {
 			$authentication_transaction_id = $this->get_3ds_authentication( $order, $session, $processing_3ds_callback );
@@ -846,13 +846,13 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		 * @since 1.0.0
 		 */
 		$payment_data = apply_filters(
-			$this->prefix_hook( 'process_payment_hosted_session_data' ),
+			'PAYMENTS_CORE_HOOK_PREFIX_process_payment_hosted_session_data',
 			$payment_data,
 			$order,
 			$session
 		);
 
-		$saving_card = $this->is_forcing_save_payment_method() || $this->is_saving_payment_method() || WC()->session->get( $this->prefix_hook( 'saving_payment_method' ) );
+		$saving_card = $this->is_forcing_save_payment_method() || $this->is_saving_payment_method() || WC()->session->get( 'PAYMENTS_CORE_HOOK_PREFIX_saving_payment_method' );
 		$using_token = $this->is_saved_payment_method() || ( 'CARD' === $session_data['sourceOfFunds']['type'] && isset( $session_data['sourceOfFunds']['token'] ) );
 		if ( $saving_card || $using_token ) {
 			if ( ! isset( $payment_data['sourceOfFunds'] ) ) {
@@ -903,16 +903,16 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	public function get_return_url( $order = null, $success = true ) {
 		// Attempt to use a custom redirect URL if set in the session.
-		$redirect = WC()->session->get( $this->prefix_hook( 'payment_return_url_redirect' ) );
+		$redirect = WC()->session->get( 'PAYMENTS_CORE_HOOK_PREFIX_payment_return_url_redirect' );
 		if ( $redirect ) {
-			WC()->session->__unset( $this->prefix_hook( 'payment_return_url_redirect' ) );
+			WC()->session->__unset( 'PAYMENTS_CORE_HOOK_PREFIX_payment_return_url_redirect' );
 			return $redirect;
 		}
 
 		if ( ! $success ) {
-			$is_checkout_pay_page = $this->is_pay_for_order_page() || WC()->session->get( $this->prefix_hook( 'pay_for_order_page' ), false );
+			$is_checkout_pay_page = $this->is_pay_for_order_page() || WC()->session->get( 'PAYMENTS_CORE_HOOK_PREFIX_pay_for_order_page', false );
 			if ( $is_checkout_pay_page ) {
-				WC()->session->__unset( $this->prefix_hook( 'pay_for_order_page' ) );
+				WC()->session->__unset( 'PAYMENTS_CORE_HOOK_PREFIX_pay_for_order_page' );
 			}
 			return ( $is_checkout_pay_page && $order ) ? $order->get_checkout_payment_url() : wc_get_checkout_url();
 		}
@@ -994,7 +994,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		 *
 		 * @since 1.0.0
 		 */
-		$forced_save = (bool) apply_filters( $this->prefix_hook( 'forced_save_payment_method' ), false );
+		$forced_save = (bool) apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_forced_save_payment_method', false );
 		return $forced_save;
 	}
 
@@ -1033,11 +1033,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			 *
 			 * @since 1.0.0
 			 */
-			do_action( $this->prefix_hook( 'payment_method_saved' ), $order, $current_token_id );
+			do_action( 'PAYMENTS_CORE_HOOK_PREFIX_payment_method_saved', $order, $current_token_id );
 			return $current_token_id;
 		}
 
-		if ( ! $forced_save && ! $this->is_saving_payment_method() && ! WC()->session->get( $this->prefix_hook( 'saving_payment_method' ) ) ) {
+		if ( ! $forced_save && ! $this->is_saving_payment_method() && ! WC()->session->get( 'PAYMENTS_CORE_HOOK_PREFIX_saving_payment_method' ) ) {
 			return;
 		}
 
@@ -1063,9 +1063,9 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		 *
 		 * @since 1.0.0
 		 */
-		do_action( $this->prefix_hook( 'payment_method_saved' ), $order, $payment_token_id );
+		do_action( 'PAYMENTS_CORE_HOOK_PREFIX_payment_method_saved', $order, $payment_token_id );
 
-		WC()->session->__unset( $this->prefix_hook( 'saving_payment_method' ) );
+		WC()->session->__unset( 'PAYMENTS_CORE_HOOK_PREFIX_saving_payment_method' );
 
 		return $payment_token_id;
 	}
@@ -1077,16 +1077,16 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	public function maybe_cache_location() {
 		if ( $this->saved_cards ) {
 			if ( $this->is_saving_payment_method() || \is_add_payment_method_page() || ( isset( $_REQUEST['order_id'] ) && \wc_clean( \wp_unslash( $_REQUEST['order_id'] ) ) === 'add_payment_method' ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-				WC()->session->set( $this->prefix_hook( 'saving_payment_method' ), true );
+				WC()->session->set( 'PAYMENTS_CORE_HOOK_PREFIX_saving_payment_method', true );
 			}
 		}
 
 		if ( $this->is_pay_for_order_page() || ( isset( $_REQUEST['order_id'] ) && \wc_clean( \wp_unslash( $_REQUEST['order_id'] ) ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-			WC()->session->set( $this->prefix_hook( 'pay_for_order_page' ), true );
+			WC()->session->set( 'PAYMENTS_CORE_HOOK_PREFIX_pay_for_order_page', true );
 		}
 
 		if ( doing_action( 'woocommerce_rest_checkout_process_payment_with_context' ) ) {
-			WC()->session->set( $this->prefix_hook( 'processing_via_api' ), true );
+			WC()->session->set( 'PAYMENTS_CORE_HOOK_PREFIX_processing_via_api', true );
 		}
 	}
 
@@ -1149,7 +1149,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		 * @since 1.0.0
 		 */
 		$init_authentication = apply_filters(
-			$this->prefix_hook( 'process_payment_hosted_session_3ds_data' ),
+			'PAYMENTS_CORE_HOOK_PREFIX_process_payment_hosted_session_3ds_data',
 			$init_authentication,
 			$order,
 			$session
@@ -1197,10 +1197,10 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				'authentication' => array(
 					'redirectResponseUrl' => add_query_arg(
 						array(
-							$this->prefix_hook( 'callback', '', '-' ) => 'wc-3ds',
+							'PAYMENTS_CORE_HOOK_PREFIX-callback' => 'wc-3ds',
 							'order-id'  => $order ? $order->get_id() : null,
 							'signature' => $this->hashed_signature( $order, $transaction_id ),
-							'nonce'     => wp_create_nonce( $this->prefix_hook( '3ds_nonce' ) ),
+							'nonce'     => wp_create_nonce( 'PAYMENTS_CORE_HOOK_PREFIX_3ds_nonce' ),
 						),
 						home_url( '/' )
 					),
@@ -1219,7 +1219,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			 * @since 1.0.0
 			 */
 			$authenticate_payer = apply_filters(
-				$this->prefix_hook( 'process_payment_hosted_session_3ds_authenticate_payer_data' ),
+				'PAYMENTS_CORE_HOOK_PREFIX_process_payment_hosted_session_3ds_authenticate_payer_data',
 				$authenticate_payer,
 				$order,
 				$session
@@ -1259,12 +1259,12 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	protected function get_authentication_transaction( $order = null ) {
 		if ( $this->is_order( $order ) ) {
-			return $order->get_meta( $this->prefix_hook( 'authentication_transaction' ) );
+			return $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_authentication_transaction' );
 		} else {
 			if ( empty( WC()->session ) ) {
 				return null;
 			}
-			return WC()->session->get( $this->prefix_hook( 'authentication_transaction' ) );
+			return WC()->session->get( 'PAYMENTS_CORE_HOOK_PREFIX_authentication_transaction' );
 		}
 	}
 
@@ -1282,9 +1282,9 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		if ( $this->is_order( $order ) ) {
 			// Clean the authentication transaction.
 			if ( null !== $transaction_id ) {
-				$order->update_meta_data( $this->prefix_hook( 'authentication_transaction' ), $transaction_id );
+				$order->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_authentication_transaction', $transaction_id );
 			} else {
-				$order->delete_meta_data( $this->prefix_hook( 'authentication_transaction' ) );
+				$order->delete_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_authentication_transaction' );
 			}
 
 			if ( $save ) {
@@ -1297,9 +1297,9 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 			// Clean the authentication transaction.
 			if ( null !== $transaction_id ) {
-				WC()->session->set( $this->prefix_hook( 'authentication_transaction' ), $transaction_id );
+				WC()->session->set( 'PAYMENTS_CORE_HOOK_PREFIX_authentication_transaction', $transaction_id );
 			} else {
-				WC()->session->__unset( $this->prefix_hook( 'authentication_transaction' ) );
+				WC()->session->__unset( 'PAYMENTS_CORE_HOOK_PREFIX_authentication_transaction' );
 			}
 
 			// $save is irrelevant in this context.
@@ -1314,14 +1314,14 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @throws Exception Exception.
 	 */
 	protected function get_device_details() {
-		if ( ! isset( $_SERVER['HTTP_USER_AGENT'] ) || empty( $_POST[ $this->prefix_hook( '3ds_data' ) ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		if ( ! isset( $_SERVER['HTTP_USER_AGENT'] ) || empty( $_POST[ 'PAYMENTS_CORE_HOOK_PREFIX_3ds_data' ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
 			throw new Exception( esc_html( __( 'There was an error with the payment authentication. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 		}
 
 		return array(
 			'browser'        => wc_clean( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) ),
 			'browserDetails' => wp_parse_args(
-				json_decode( wc_clean( wp_unslash( $_POST[ $this->prefix_hook( '3ds_data' ) ] ) ), true ), // phpcs:ignore WordPress.Security.NonceVerification.Missing
+				json_decode( wc_clean( wp_unslash( $_POST[ 'PAYMENTS_CORE_HOOK_PREFIX_3ds_data' ] ) ), true ), // phpcs:ignore WordPress.Security.NonceVerification.Missing
 				array(
 					'3DSecureChallengeWindowSize' => 'FULL_SCREEN',
 					'acceptHeaders'               => isset( $_SERVER['HTTP_ACCEPT'] ) ? wc_clean( wp_unslash( $_SERVER['HTTP_ACCEPT'] ) ) : '',
@@ -1429,13 +1429,13 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		if ( $this->is_order( $order ) ) {
 			// Send the ACS form to the client.
-			$order->update_meta_data( $this->prefix_hook( 'payment_session' ), $session );
+			$order->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_payment_session', $session );
 			$order->save();
 		} else {
 			if ( empty( WC()->session ) ) {
 				throw new Exception( esc_html( __( 'There was an error with the payment authentication. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 			}
-			WC()->session->set( $this->prefix_hook( 'payment_session' ), $session );
+			WC()->session->set( 'PAYMENTS_CORE_HOOK_PREFIX_payment_session', $session );
 		}
 
 		$return = array(
@@ -1449,7 +1449,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			return $return;
 		}
 
-		$return[ $this->prefix_hook( '3ds' ) ] = wp_json_encode( $data );
+		$return[ 'PAYMENTS_CORE_HOOK_PREFIX_3ds' ] = wp_json_encode( $data );
 
 		return $return;
 	}
@@ -1484,12 +1484,12 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	public function cache_3ds_data( $data, $order ) {
 		if ( empty( WC()->session ) ) {
-			$order->update_meta_data( $this->prefix_hook( '3ds_data' ), $data );
+			$order->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_3ds_data', $data );
 			$order->save_meta_data();
 			return;
 		}
 
-		WC()->session->set( $this->prefix_hook( '3ds_data', $order->get_id() ), $data );
+		WC()->session->set( $order->get_id() . 'PAYMENTS_CORE_HOOK_PREFIX_3ds_data', $data );
 	}
 
 
@@ -1512,11 +1512,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		$data = array();
 
 		if ( ! empty( WC()->session ) ) {
-			$data = WC()->session->get( $this->prefix_hook( '3ds_data', $order->get_id() ) );
+			$data = WC()->session->get( $order->get_id() . 'PAYMENTS_CORE_HOOK_PREFIX_3ds_data' );
 		}
 
 		if ( empty( $data ) ) {
-			$data = $order->get_meta( $this->prefix_hook( '3ds_data' ) );
+			$data = $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_3ds_data' );
 		}
 
 		return $data;
@@ -1534,12 +1534,12 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	public function clean_cached_3ds_data( $order = null, $is_success = false ) {
 		$this->update_authentication_transaction( $order, null, false );
 		if ( ! empty( WC()->session ) ) {
-			WC()->session->__unset( $this->prefix_hook( '3ds_data' ) );
-			WC()->session->__unset( $this->prefix_hook( 'payment_session' ) );
+			WC()->session->__unset( 'PAYMENTS_CORE_HOOK_PREFIX_3ds_data' );
+			WC()->session->__unset( 'PAYMENTS_CORE_HOOK_PREFIX_payment_session' );
 		}
 
 		if ( $order instanceof WC_Order ) {
-			$order->delete_meta_data( $this->prefix_hook( '3ds_data' ) );
+			$order->delete_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_3ds_data' );
 			$order->save_meta_data();
 		}
 	}
@@ -1577,7 +1577,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		 *
 		 * @since 1.0.0
 		 */
-		$errors = apply_filters( $this->prefix_hook( 'validate_fields' ), $errors );
+		$errors = apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_validate_fields', $errors );
 
 		$errors_messages = $errors->get_error_messages();
 		if ( ! empty( $errors_messages ) ) {
@@ -1597,12 +1597,12 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return array
 	 */
 	public function get_posted_session_data() {
-		$id = ! empty( $_POST[ $this->prefix_hook( 'session_id' ) ] ) ? wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'session_id' ) ] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$id = ! empty( $_POST[ 'PAYMENTS_CORE_HOOK_PREFIX_session_id' ] ) ? wc_clean( wp_unslash( $_POST[ 'PAYMENTS_CORE_HOOK_PREFIX_session_id' ] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing
 		if ( ! $id ) {
 			return array();
 		}
 
-		$version = ! empty( $_POST[ $this->prefix_hook( 'session_version' ) ] ) ? wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'session_version' ) ] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$version = ! empty( $_POST[ 'PAYMENTS_CORE_HOOK_PREFIX_session_version' ] ) ? wc_clean( wp_unslash( $_POST[ 'PAYMENTS_CORE_HOOK_PREFIX_session_version' ] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing
 		if ( ! $version ) {
 			return array();
 		}
@@ -1717,7 +1717,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	public function add_payment_method() {
 		try {
-			WC()->session->set( $this->prefix_hook( 'payment_return_url_redirect' ), wc_get_account_endpoint_url( 'payment-methods' ) );
+			WC()->session->set( 'PAYMENTS_CORE_HOOK_PREFIX_payment_return_url_redirect', wc_get_account_endpoint_url( 'payment-methods' ) );
 			$result = $this->process_payment_hosted_session( null );
 
 			if ( 'success' !== $result['result'] ) {
@@ -1735,7 +1735,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			 *
 			 * @since 1.0.0
 			 */
-			do_action( $this->prefix_hook( 'add_payment_method_success', 'wc_' ), $token_id, $this );
+			do_action( 'wc_PAYMENTS_CORE_HOOK_PREFIX_add_payment_method_success', $token_id, $this );
 
 			return $result;
 		} catch ( Exception $e ) {
@@ -1756,7 +1756,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return string
 	 */
 	public function hosted_checkout_script_handle() {
-		return $this->prefix_hook( self::HOSTED_CHECKOUT_HANDLE );
+		return 'PAYMENTS_CORE_HOOK_PREFIX_hosted_checkout';
 	}
 
 
@@ -1766,7 +1766,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return string
 	 */
 	public function hosted_session_script_handle() {
-		return $this->prefix_hook( self::HOSTED_SESSION_HANDLE );
+		return 'PAYMENTS_CORE_HOOK_PREFIX_hosted_session';
 	}
 
 
@@ -1783,7 +1783,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			return $scripts;
 		}
 
-		$gateway_script = $this->prefix_hook( 'gateway' );
+		$gateway_script = 'PAYMENTS_CORE_HOOK_PREFIX_gateway';
 
 		if ( ! Utils::is_request( 'frontend' ) ) {
 			return $scripts;
@@ -1859,10 +1859,10 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 					$data['displaySaveCardCheckbox'] = $this->display_save_checkbox;
 
 					// Handle notices in some cases with blocks
-					$maybe_display_payment_notice = WC()->session->get( $this->prefix_hook( 'payment_error_message' ), false );
+					$maybe_display_payment_notice = WC()->session->get( 'PAYMENTS_CORE_HOOK_PREFIX_payment_error_message', false );
 					if ( $maybe_display_payment_notice ) {
 						$data['paymentErrorMessage'] = $maybe_display_payment_notice;
-						WC()->session->__unset( $this->prefix_hook( 'payment_error_message' ) );
+						WC()->session->__unset( 'PAYMENTS_CORE_HOOK_PREFIX_payment_error_message' );
 					}
 				}
 				break;
@@ -1873,7 +1873,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		 *
 		 * @since 1.0.0
 		 */
-		return apply_filters( $this->prefix_hook( 'payment_method_data' ), $data, $this );
+		return apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_payment_method_data', $data, $this );
 	}
 
 
@@ -1955,8 +1955,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		$order_id = $order->get_id();
 
-		$session_key          = $this->prefix_hook( 'session_id_' . $order_id );
-		$session_duration_key = $this->prefix_hook( 'session_duration_' . $order_id );
+		$session_key          = 'PAYMENTS_CORE_HOOK_PREFIX_session_id_' . $order_id;
+		$session_duration_key = 'PAYMENTS_CORE_HOOK_PREFIX_session_duration_' . $order_id;
 
 		if ( ! isset( $_POST['createaccount'] ) && ! empty( WC()->session ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
 			$session_id = WC()->session->get( $session_key );
@@ -1991,7 +1991,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		 * @since 1.0.0
 		 */
 		$payload = apply_filters(
-			$this->prefix_hook( 'checkout_session_payload' ),
+			'PAYMENTS_CORE_HOOK_PREFIX_checkout_session_payload',
 			$payload,
 			$order,
 		);
@@ -2005,8 +2005,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		$session_id        = $response['body']['session']['id'];
 		$success_indicator = $response['body']['successIndicator'];
 
-		$order->update_meta_data( $this->prefix_hook( 'session_id' ), $session_id );
-		$order->update_meta_data( $this->prefix_hook( 'success_indicator' ), $success_indicator );
+		$order->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_session_id', $session_id );
+		$order->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_success_indicator', $success_indicator );
 		$order->save();
 
 		if ( ! empty( WC()->session ) ) {
@@ -2061,7 +2061,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			 *
 			 * @since 1.0.0
 			 */
-			do_action( $this->prefix_hook( 'hosted_session_created' ), $session_id, $this );
+			do_action( 'PAYMENTS_CORE_HOOK_PREFIX_hosted_session_created', $session_id, $this );
 		}
 
 		$this->maybe_update_hosted_session_config( $session_id );
@@ -2181,7 +2181,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		 * @since 1.0.0
 		 */
 		return apply_filters(
-			$this->prefix_hook( 'checkout_session_order_payload' ),
+			'PAYMENTS_CORE_HOOK_PREFIX_checkout_session_order_payload',
 			array_merge(
 				$this->base_order_payload( $order ),
 				array(
@@ -2206,7 +2206,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		 * @since 1.0.0
 		 */
 		return apply_filters(
-			$this->prefix_hook( 'session_order_payload' ),
+			'PAYMENTS_CORE_HOOK_PREFIX_session_order_payload',
 			$this->base_order_payload( $order ),
 			$order
 		);
@@ -2227,14 +2227,14 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		 * @since 1.0.0
 		 */
 		return apply_filters(
-			$this->prefix_hook( 'checkout_session_interaction_payload' ),
+			'PAYMENTS_CORE_HOOK_PREFIX_checkout_session_interaction_payload',
 			array(
 				'operation'      => $this->transaction_mode,
 				'returnUrl'      => add_query_arg(
 					array(
-						$this->prefix_hook( 'callback', '', '-' ) => 'wc',
+						'PAYMENTS_CORE_HOOK_PREFIX-callback' => 'wc',
 						'order-id' => $order->get_id(),
-						'nonce'    => wp_create_nonce( $this->prefix_hook( 'nonce' ) ),
+						'nonce'    => wp_create_nonce( 'PAYMENTS_CORE_HOOK_PREFIX_nonce' ),
 					),
 					trailingslashit( get_home_url() )
 				),
@@ -2290,8 +2290,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		$order_id = $order->get_id();
 
-		$session_key          = $this->prefix_hook( 'session_id_' . $order_id );
-		$session_duration_key = $this->prefix_hook( 'session_duration_' . $order_id );
+		$session_key          = 'PAYMENTS_CORE_HOOK_PREFIX_session_id_' . $order_id;
+		$session_duration_key = 'PAYMENTS_CORE_HOOK_PREFIX_session_duration_' . $order_id;
 
 		WC()->session->set( $session_key, null );
 		WC()->session->set( $session_duration_key, null );
@@ -2310,9 +2310,9 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			return;
 		}
 
-		WC()->session->__unset( $this->prefix_hook( 'payment_return_url_redirect' ) );
-		WC()->session->__unset( $this->prefix_hook( 'order_id' ) );
-		WC()->session->__unset( $this->prefix_hook( 'transaction_attempt' ) );
+		WC()->session->__unset( 'PAYMENTS_CORE_HOOK_PREFIX_payment_return_url_redirect' );
+		WC()->session->__unset( 'PAYMENTS_CORE_HOOK_PREFIX_order_id' );
+		WC()->session->__unset( 'PAYMENTS_CORE_HOOK_PREFIX_transaction_attempt' );
 		WC()->session->__unset( $this->hosted_session_id_key( $cart_hash ) );
 		WC()->session->__unset( $this->hosted_session_attempt_key( $cart_hash ) );
 		WC()->session->__unset( $this->hosted_session_config_key( $cart_hash ) );
@@ -2390,7 +2390,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return string
 	 */
 	protected function get_current_hosted_session_data_hash() {
-		return ! empty( WC()->session ) ? WC()->session->get( $this->prefix_hook( 'session_data_hash' ), '' ) : '';
+		return ! empty( WC()->session ) ? WC()->session->get( 'PAYMENTS_CORE_HOOK_PREFIX_session_data_hash', '' ) : '';
 	}
 
 
@@ -2403,7 +2403,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	protected function set_hosted_session_data_hash( $hash = '' ) {
 		if ( ! empty( WC()->session ) ) {
-			WC()->session->set( $this->prefix_hook( 'session_data_hash' ), $hash ? $hash : $this->core_plugin()->payment_core()->utils()->unique_cart_hash() );
+			WC()->session->set( 'PAYMENTS_CORE_HOOK_PREFIX_session_data_hash', $hash ? $hash : $this->core_plugin()->payment_core()->utils()->unique_cart_hash() );
 		}
 	}
 
@@ -2414,11 +2414,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return void
 	 */
 	public function maybe_handle_return_callback() {
-		if ( ! isset( $_GET[ $this->prefix_hook( 'callback', '', '-' ) ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( ! isset( $_GET[ 'PAYMENTS_CORE_HOOK_PREFIX-callback' ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			return;
 		}
 
-		$callback = wc_clean( wp_unslash( $_GET[ $this->prefix_hook( 'callback', '', '-' ) ] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$callback = wc_clean( wp_unslash( $_GET[ 'PAYMENTS_CORE_HOOK_PREFIX-callback' ] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
 		switch ( $callback ) {
 			// Handle hosted checkout.
@@ -2445,7 +2445,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	public function process_return_callback() {
 		try {
-			if ( ! isset( $_REQUEST['nonce'] ) || ! wp_verify_nonce( wc_clean( wp_unslash( $_REQUEST['nonce'] ) ), $this->prefix_hook( 'nonce' ) ) ) {
+			if ( ! isset( $_REQUEST['nonce'] ) || ! wp_verify_nonce( wc_clean( wp_unslash( $_REQUEST['nonce'] ) ), 'PAYMENTS_CORE_HOOK_PREFIX_nonce' ) ) {
 				throw new Exception( __( 'Nonce verification is missing or invalid.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
@@ -2471,7 +2471,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 			$success_indicator = wc_clean( wp_unslash( $_REQUEST['resultIndicator'] ) );
 
-			if ( ! $success_indicator || $order->get_meta( $this->prefix_hook( 'success_indicator' ) ) !== $success_indicator ) {
+			if ( ! $success_indicator || $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_success_indicator' ) !== $success_indicator ) {
 				throw new Exception( __( 'The payment session is invalid.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
@@ -2519,10 +2519,10 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			 * @since 1.0.0
 			 */
 			apply_filters(
-				$this->prefix_hook( '3ds_return_redirect' ),
+				'PAYMENTS_CORE_HOOK_PREFIX_3ds_return_redirect',
 				add_query_arg(
 					array(
-						$this->prefix_hook( 'callback', '', '-' ) => 'wc-3ds-process',
+						'PAYMENTS_CORE_HOOK_PREFIX-callback' => 'wc-3ds-process',
 						'order-id'  => isset( $_REQUEST['order-id'] ) ? wc_clean( wp_unslash( $_REQUEST['order-id'] ) ) : '', // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 						'signature' => isset( $_REQUEST['signature'] ) ? wc_clean( wp_unslash( $_REQUEST['signature'] ) ) : '', // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 						'nonce'     => isset( $_REQUEST['nonce'] ) ? wc_clean( wp_unslash( $_REQUEST['nonce'] ) ) : '', // phpcs:ignore WordPress.Security.NonceVerification.Recommended
@@ -2544,7 +2544,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		try {
 			$order = null;
 
-			if ( ! isset( $_REQUEST['nonce'] ) || ! wp_verify_nonce( wc_clean( wp_unslash( $_REQUEST['nonce'] ) ), $this->prefix_hook( '3ds_nonce' ) ) ) {
+			if ( ! isset( $_REQUEST['nonce'] ) || ! wp_verify_nonce( wc_clean( wp_unslash( $_REQUEST['nonce'] ) ), 'PAYMENTS_CORE_HOOK_PREFIX_3ds_nonce' ) ) {
 				throw new Exception( __( 'Nonce verification is missing or invalid.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
@@ -2584,7 +2584,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			 *
 			 * @since 1.0.0
 			 */
-			wp_safe_redirect( apply_filters( $this->prefix_hook( '3ds_process_redirect' ), $result['redirect'], $order, $this ) );
+			wp_safe_redirect( apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_3ds_process_redirect', $result['redirect'], $order, $this ) );
 			exit();
 		} catch ( Exception $e ) {
 			$redirect_url = $this->get_return_url( $order, false );
@@ -2592,9 +2592,9 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$this->core_plugin->logger()->log( $e->getMessage(), 'error' );
 
 			// Need this trick here in case of blocks, as those don't display notices the regular way.
-			if ( WC()->session->get( $this->prefix_hook( 'processing_via_api' ), false ) ) {
-				WC()->session->__unset( $this->prefix_hook( 'processing_via_api' ) );
-				WC()->session->set( $this->prefix_hook( 'payment_error_message' ), $e->getMessage() );
+			if ( WC()->session->get( 'PAYMENTS_CORE_HOOK_PREFIX_processing_via_api', false ) ) {
+				WC()->session->__unset( 'PAYMENTS_CORE_HOOK_PREFIX_processing_via_api' );
+				WC()->session->set( 'PAYMENTS_CORE_HOOK_PREFIX_payment_error_message', $e->getMessage() );
 			} else {
 				wc_add_notice( $e->getMessage(), 'error' );
 			}
@@ -2611,7 +2611,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			 *
 			 * @since 1.0.0
 			 */
-			do_action( $this->prefix_hook( 'process_payment_error' ), $e, ! empty( $order ) ? $order : null );
+			do_action( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_error', $e, ! empty( $order ) ? $order : null );
 
 			wp_safe_redirect( $redirect_url );
 
@@ -2753,8 +2753,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return void
 	 */
 	public function ajax_update_hosted_session_from_token() {
-		$session_id = wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'session_id' ) ] ?? $this->hosted_session_id() ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
-		$token_id   = wc_clean( wp_unslash( $_POST[ $this->prefix_hook( 'token_id' ) ] ?? '' ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$session_id = wc_clean( wp_unslash( $_POST[ 'PAYMENTS_CORE_HOOK_PREFIX_session_id' ] ?? $this->hosted_session_id() ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$token_id   = wc_clean( wp_unslash( $_POST[ 'PAYMENTS_CORE_HOOK_PREFIX_token_id' ] ?? '' ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
 
 		$updated_session = $this->update_session_with_token( $session_id, $token_id, true );
 
@@ -2801,7 +2801,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 					throw new Exception( __( 'There was an error obtaining the order. Please refresh the page and try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 				}
 			} else {
-				WC()->session->set( $this->prefix_hook( 'payment_return_url_redirect' ), wc_get_account_endpoint_url( 'payment-methods' ) );
+				WC()->session->set( 'PAYMENTS_CORE_HOOK_PREFIX_payment_return_url_redirect', wc_get_account_endpoint_url( 'payment-methods' ) );
 			}
 
 			$session = $this->get_posted_session_data();
@@ -2876,7 +2876,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		 * @since 1.0.0
 		 */
 		return apply_filters(
-			$this->prefix_hook( 'save_card_notice' ),
+			'PAYMENTS_CORE_HOOK_PREFIX_save_card_notice',
 			__( 'Your payment method will be saved for future purchases.', '__PAYMENTS_CORE_TEXT_DOMAIN__' )
 		);
 	}

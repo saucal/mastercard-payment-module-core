@@ -150,7 +150,7 @@ final class Main {
 		 *
 		 * @since 1.0.0
 		 */
-		do_action( $this->prefix_hook( 'loaded' ) );
+		do_action( 'PAYMENTS_CORE_HOOK_PREFIX_loaded' );
 	}
 
 
@@ -176,7 +176,7 @@ final class Main {
 		 *
 		 * @since 1.0.0
 		 */
-		do_action( $this->prefix_hook( 'init' ) );
+		do_action( 'PAYMENTS_CORE_HOOK_PREFIX_init' );
 	}
 
 
@@ -254,7 +254,7 @@ final class Main {
 		 *
 		 * @since 1.0.0
 		 */
-		return apply_filters( $this->prefix_hook( 'plugin_file' ), __FILE__ );
+		return apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_plugin_file', __FILE__ );
 	}
 
 
@@ -269,7 +269,7 @@ final class Main {
 		 *
 		 * @since 1.0.0
 		 */
-		return apply_filters( $this->prefix_hook( 'core_plugin_file' ), __DIR__ . '../payment-core.php' );
+		return apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_core_plugin_file', __DIR__ . '../payment-core.php' );
 	}
 
 
@@ -299,7 +299,7 @@ final class Main {
 		 *
 		 * @since 1.0.0
 		 */
-		return apply_filters( $this->prefix_hook( 'plugin_title' ), 'Payment Core' );
+		return apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_plugin_title', 'Payment Core' );
 	}
 
 
@@ -320,8 +320,8 @@ final class Main {
 	 * @param string $prefix    Prefix for the hook.
 	 * @param string $separator Separator for the hook.
 	 */
-	public function prefix_hook( $hook, $prefix = '', $separator = '_' ) {
-		return $prefix . $this->prefix . $separator . $hook;
+	public function prefix_hook( $hook = '', $prefix = '', $separator = '_' ) {
+		return $prefix . 'PAYMENTS_CORE_HOOK_PREFIX' . ( $hook ? $separator . $hook : '' );
 	}
 
 

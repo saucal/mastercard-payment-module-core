@@ -86,7 +86,7 @@ final class API {
 		 * @since 1.0.0
 		 */
 		return apply_filters(
-			$this->core_plugin->payment_core()->prefix_hook( 'request_headers' ),
+			'PAYMENTS_CORE_HOOK_PREFIX_request_headers',
 			array(
 				'Authorization' => 'Basic ' . $this->get_authorization(),
 				'Content-Type'  => $content_type,
@@ -134,7 +134,7 @@ final class API {
 			 *
 			 * @since 1.0.0
 			 */
-			'body'    => apply_filters( $this->core_plugin->payment_core()->prefix_hook( 'request_body' ), $this->maybe_json_encode( $payload ) ),
+			'body'    => apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_request_body', $this->maybe_json_encode( $payload ) ),
 			'timeout' => 60,
 		);
 
