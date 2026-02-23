@@ -417,36 +417,7 @@ abstract class CorePlugin {
 	 * @since  1.0.0
 	 */
 	public function load() {
-
-		add_action( 'init', array( $this, 'load_plugin_textdomain' ) );
-
 		add_filter( 'plugin_action_links_' . plugin_basename( $this->plugin_file() ), array( $this, 'plugin_action_links' ) );
-	}
-
-
-	/**
-	 * Load Localisation files.
-	 */
-	public function load_plugin_textdomain() {
-
-		/**
-		 * Filters the locale used for loading plugin translation files.
-		 *
-		 * @since 1.0.0
-		 */
-		$locale = apply_filters( 'plugin_locale', get_locale(), '__PAYMENTS_CORE_TEXT_DOMAIN__' );
-
-		load_textdomain(
-			'__PAYMENTS_CORE_TEXT_DOMAIN__',
-			sprintf(
-				'%1$s/%2$s/%2$s-%3$s.mo',
-				WP_LANG_DIR,
-				'__PAYMENTS_CORE_TEXT_DOMAIN__',
-				$locale,
-			)
-		);
-
-		load_plugin_textdomain( '__PAYMENTS_CORE_TEXT_DOMAIN__', false, plugin_basename( __DIR__ ) . '/i18n/languages' );
 	}
 
 
