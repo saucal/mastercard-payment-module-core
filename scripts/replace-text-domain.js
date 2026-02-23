@@ -1,6 +1,5 @@
 const fs = require( 'fs' );
 const path = require( 'path' );
-const { globSync } = require( 'glob' );
 
 const args = process.argv.slice( 2 );
 const baseDir = args.find( ( a ) => a.startsWith( '--base-dir=' ) );
@@ -15,7 +14,10 @@ if ( ! search || ! replace ) {
 const rootDir = baseDir
 	? path.resolve( baseDir.split( '=' )[ 1 ] )
 	: path.resolve( __dirname, '..' );
-const files = globSync( '**/*.php', { cwd: rootDir, ignore: [ 'vendor/**', 'node_modules/**' ] } );
+
+const IGNORE = [ 'vendor', 'node_modules' ];
+const files = fs.readdirSync( rootDir, { recursive: true } )
+	.filter( ( f ) => f.endsWith( '.php' ) && ! IGNORE.some( ( dir ) => f.startsWith( dir + path.sep ) ) );
 
 let totalReplacements = 0;
 let filesChanged = 0;
