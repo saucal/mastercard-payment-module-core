@@ -2590,8 +2590,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$redirect_url = $this->get_return_url( $order, false );
 
 			$this->core_plugin->logger()->log( $e->getMessage(), 'error' );
-			
-			
+
 			// Need this trick here in case of blocks, as those don't display notices the regular way.
 			if ( WC()->session->get( $this->prefix_hook( 'processing_via_api' ), false ) ) {
 				WC()->session->__unset( $this->prefix_hook( 'processing_via_api' ) );

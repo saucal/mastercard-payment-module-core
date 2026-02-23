@@ -406,8 +406,8 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	/**
 	 * Set order status and add an order notice with the error message as presented to the customer.
 	 *
-	 * @param WP_Error|Exception      $error_message Error message.
-	 * @param WC_Order|null $order         Order.
+	 * @param WP_Error|Exception $error_message Error message.
+	 * @param WC_Order|null      $order         Order.
 	 *
 	 * @return void
 	 */
