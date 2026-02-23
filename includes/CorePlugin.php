@@ -41,13 +41,6 @@ abstract class CorePlugin {
 	protected $plugin_id;
 
 
-	/**
-	 * Text domain.
-	 *
-	 * @var string
-	 */
-	protected $text_domain;
-
 
 	/**
 	 * Plugin file.
@@ -268,7 +261,7 @@ abstract class CorePlugin {
 	 * @return string
 	 */
 	public function text_domain() {
-		return $this->text_domain;
+		return '__PAYMENTS_CORE_TEXT_DOMAIN__';
 	}
 
 
@@ -308,12 +301,12 @@ abstract class CorePlugin {
 	 * @return string
 	 */
 	public function merchant_registration_message() {
-		$message = __( 'Enter your Merchant Account details.', $this->payment_core()->text_domain() );
+		$message = __( 'Enter your Merchant Account details.', '__PAYMENTS_CORE_TEXT_DOMAIN__' );
 
 		if ( ! empty( $this->merchant_registration_url ) ) {
 			$message .= ' ' . sprintf(
 				/* translators: %s: Merchant registration URL */
-				__( 'Don\'t have an account? %1$sSign up here%2$s', $this->payment_core()->text_domain() ),
+				__( 'Don\'t have an account? %1$sSign up here%2$s', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 				'<a href="' . esc_url( $this->merchant_registration_url ) . '" target="_blank">',
 				'</a>'
 			);
@@ -393,8 +386,6 @@ abstract class CorePlugin {
 		add_filter( $this->payment_core()->prefix_hook( 'plugin_file' ), array( $this, 'plugin_file' ) );
 		add_filter( $this->payment_core()->prefix_hook( 'core_plugin_file' ), array( $this, 'core_plugin_file' ) );
 		add_filter( $this->payment_core()->prefix_hook( 'plugin_title' ), array( $this, 'plugin_title' ) );
-		add_filter( $this->payment_core()->prefix_hook( 'text_domain' ), array( $this, 'text_domain' ) );
-
 		// Register the payment gateways.
 		add_filter( 'payment_core_payment_gateways', array( $this, 'add_gateways' ) );
 	}
@@ -443,19 +434,19 @@ abstract class CorePlugin {
 		 *
 		 * @since 1.0.0
 		 */
-		$locale = apply_filters( 'plugin_locale', get_locale(), $this->text_domain() );
+		$locale = apply_filters( 'plugin_locale', get_locale(), '__PAYMENTS_CORE_TEXT_DOMAIN__' );
 
 		load_textdomain(
-			$this->text_domain(),
+			'__PAYMENTS_CORE_TEXT_DOMAIN__',
 			sprintf(
 				'%1$s/%2$s/%2$s-%3$s.mo',
 				WP_LANG_DIR,
-				$this->text_domain(),
+				'__PAYMENTS_CORE_TEXT_DOMAIN__',
 				$locale,
 			)
 		);
 
-		load_plugin_textdomain( $this->text_domain(), false, plugin_basename( __DIR__ ) . '/i18n/languages' );
+		load_plugin_textdomain( '__PAYMENTS_CORE_TEXT_DOMAIN__', false, plugin_basename( __DIR__ ) . '/i18n/languages' );
 	}
 
 
@@ -469,7 +460,7 @@ abstract class CorePlugin {
 			sprintf(
 				'<a href="%s">%s</a>',
 				$this->settings_url(),
-				__( 'Settings', $this->text_domain() )
+				__( 'Settings', '__PAYMENTS_CORE_TEXT_DOMAIN__' )
 			),
 		);
 
@@ -903,7 +894,7 @@ abstract class CorePlugin {
 	public function payment_regions_available() {
 		return array(
 			'eu'  => array(
-				'name' => __( 'Europe', $this->text_domain() ),
+				'name' => __( 'Europe', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 				'code' => 'eu',
 				'urls' => array(
 					'https://eu-gateway.mastercard.com',
@@ -911,7 +902,7 @@ abstract class CorePlugin {
 				),
 			),
 			'ap'  => array(
-				'name' => __( 'Asia Pacific and Middle East', $this->text_domain() ),
+				'name' => __( 'Asia Pacific and Middle East', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 				'code' => 'ap',
 				'urls' => array(
 					'https://ap-gateway.mastercard.com',
@@ -919,7 +910,7 @@ abstract class CorePlugin {
 				),
 			),
 			'na'  => array(
-				'name' => __( 'North America', $this->text_domain() ),
+				'name' => __( 'North America', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 				'code' => 'na',
 				'urls' => array(
 					'https://na-gateway.mastercard.com',
@@ -927,7 +918,7 @@ abstract class CorePlugin {
 				),
 			),
 			'ksa' => array(
-				'name' => __( 'Kingdom of Saudi Arabia', $this->text_domain() ),
+				'name' => __( 'Kingdom of Saudi Arabia', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 				'code' => 'ksa',
 				'urls' => array(
 					'https://ksa-gateway.mastercard.com',
@@ -935,7 +926,7 @@ abstract class CorePlugin {
 				),
 			),
 			'in'  => array(
-				'name' => __( 'India', $this->text_domain() ),
+				'name' => __( 'India', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 				'code' => 'in',
 				'urls' => array(
 					'https://in-gateway.mastercard.com',
@@ -964,7 +955,7 @@ abstract class CorePlugin {
 	public function get_test_region() {
 		return array(
 			'test' => array(
-				'name' => __( 'Test Region', $this->text_domain() ),
+				'name' => __( 'Test Region', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 				'code' => 'test',
 				'urls' => array(
 					'https://test-gateway.mastercard.com',

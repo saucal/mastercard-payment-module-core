@@ -116,7 +116,7 @@ abstract class Abstract_Block_Compat extends AbstractPaymentMethodType {
 		return array(
 			'title'       => $this->settings['title'],
 			'description' => $this->settings['description'],
-			'textDomain'  => $this->core_plugin->text_domain(),
+			'textDomain'  => '__PAYMENTS_CORE_TEXT_DOMAIN__',
 			'supports'    => $this->get_supported_features(),
 		);
 	}

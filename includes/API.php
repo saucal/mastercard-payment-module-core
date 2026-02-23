@@ -207,7 +207,7 @@ final class API {
 		if ( empty( $response['response']['code'] ) ) {
 			return array(
 				'success' => false,
-				'error'   => __( 'Empty response code.', $this->core_plugin->text_domain() ),
+				'error'   => __( 'Empty response code.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 			);
 		}
 
@@ -218,7 +218,7 @@ final class API {
 				'success' => false,
 				'error'   => sprintf(
 					// Translators: %1$s: Response code, %2$s: Response message.
-					__( 'Request failed with status code %1$s and message: %2$s', $this->core_plugin->text_domain() ),
+					__( 'Request failed with status code %1$s and message: %2$s', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					$body['error']['cause'] ?? $response['response']['code'],
 					$body['error']['explanation'] ?? '',
 				),

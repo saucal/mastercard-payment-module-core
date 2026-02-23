@@ -79,14 +79,14 @@ final class Notices {
 
 		$message = sprintf(
 				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
-			__( '%1$s - The credentials are either empty or not valid.', $this->core_plugin->text_domain() ),
+			__( '%1$s - The credentials are either empty or not valid.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 			'<strong>' . $this->core_plugin->plugin_title() . '</strong>',
 		);
 
 		if ( ! $this->core_plugin->is_settings_page() ) {
 			$message .= ' ' . sprintf(
 				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
-				__( 'Verify your connection %1$shere%2$s', $this->core_plugin->text_domain() ),
+				__( 'Verify your connection %1$shere%2$s', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 				'<a href="' . $this->core_plugin->settings_url() . '">',
 				'</a>',
 			);
@@ -109,7 +109,7 @@ final class Notices {
 		$this->add_message(
 			sprintf(
 				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
-				__( '%1$s - There is no supported payment operation for your merchant account. Contact your acquirer to verify this issue.', $this->core_plugin->text_domain() ),
+				__( '%1$s - There is no supported payment operation for your merchant account. Contact your acquirer to verify this issue.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 				'<strong>' . $this->core_plugin->plugin_title() . '</strong>'
 			)
 		);
@@ -126,21 +126,21 @@ final class Notices {
 
 		$message = sprintf(
 				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
-			__( '%1$s - The Notification Secret is not set. Webhook notifications are required for stores to process asyncronous operations such as captures, refunds, and order status updates.', $this->core_plugin->text_domain() ),
+			__( '%1$s - The Notification Secret is not set. Webhook notifications are required for stores to process asyncronous operations such as captures, refunds, and order status updates.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 			'<strong>' . $this->core_plugin->plugin_title() . '</strong>'
 		);
 
 		if ( ! $this->core_plugin->is_settings_page() ) {
 			$message .= ' ' . sprintf(
 				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
-				__( 'Set the Notification Secret %1$son the settings page%2$s.', $this->core_plugin->text_domain() ),
+				__( 'Set the Notification Secret %1$son the settings page%2$s.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 				'<a href="' . $this->core_plugin->settings_url() . '#woocommerce_' . $this->core_plugin->plugin_id() . '_webhook">',
 				'</a>',
 			);
 		} else {
 			$message .= ' ' . sprintf(
 				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
-				__( 'Please add your notification secret %1$shere%2$s.', $this->core_plugin->text_domain() ),
+				__( 'Please add your notification secret %1$shere%2$s.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 				'<a href="#woocommerce_' . $this->core_plugin->plugin_id() . '_webhook">',
 				'</a>',
 			);

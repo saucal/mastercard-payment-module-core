@@ -52,7 +52,7 @@ trait Subscriptions {
 		if ( ! isset( $supported_operations['card'] ) || ! in_array( 'MERCHANT', $supported_operations['card'], true ) ) {
 			if ( $this->core_plugin->is_settings_page() && $this->core_plugin->is_merchant_connected() ) {
 				$this->core_plugin->notices()->add_message(
-					__( 'WooCommerce Subscriptions support require "Merchant Initiated Transactions" to be enabled in your account. Contact your acquirer to verify this issue.', $this->core_plugin->text_domain() ),
+					__( 'WooCommerce Subscriptions support require "Merchant Initiated Transactions" to be enabled in your account. Contact your acquirer to verify this issue.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'error'
 				);
 			}
@@ -532,7 +532,7 @@ trait Subscriptions {
 			do_action( $this->prefix_hook( 'scheduled_subscription_success' ), $total_amount, $renewal_order );
 		} catch ( Exception $e ) {
 
-			$order_note = __( 'Error processing scheduled_subscription_payment. Reason: ', $this->core_plugin->text_domain() ) . $e->getMessage();
+			$order_note = __( 'Error processing scheduled_subscription_payment. Reason: ', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) . $e->getMessage();
 
 			if ( ! $renewal_order->has_status( 'failed' ) ) {
 				$renewal_order->update_status( 'failed', $order_note );
@@ -577,17 +577,17 @@ trait Subscriptions {
 		$subscription_id = $order->get_meta( '_subscription_renewal' );
 		$subscription    = wcs_get_subscription( $subscription_id );
 		if ( ! $subscription instanceof WC_Subscription ) {
-			throw new Exception( esc_html( __( 'The subscription order was not found.', $this->core_plugin->text_domain() ) ) );
+			throw new Exception( esc_html( __( 'The subscription order was not found.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 		}
 
 		$parent_id = ! empty( $subscription_id ) ? wc_get_order( $subscription_id )->get_parent_id() : null;
 		if ( ! $parent_id ) {
-			throw new Exception( esc_html( __( 'No subscription found for this renewal order.', $this->core_plugin->text_domain() ) ) );
+			throw new Exception( esc_html( __( 'No subscription found for this renewal order.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 		}
 
 		$parent_order = wc_get_order( $parent_id );
 		if ( ! $parent_order instanceof WC_Order ) {
-			throw new Exception( esc_html( __( 'The subscription order was not found.', $this->core_plugin->text_domain() ) ) );
+			throw new Exception( esc_html( __( 'The subscription order was not found.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 		}
 
 		// This meta duplicates the gateway token ID to the meta.
@@ -597,12 +597,12 @@ trait Subscriptions {
 		if ( empty( $payment_token ) ) {
 			$payment_tokens = $parent_order->get_payment_tokens();
 			if ( empty( $payment_tokens ) || ! is_array( $payment_tokens ) ) {
-				throw new Exception( esc_html( __( 'No payment token found for the subscription order.', $this->core_plugin->text_domain() ) ) );
+				throw new Exception( esc_html( __( 'No payment token found for the subscription order.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 			}
 
 			$payment_token = new WC_Payment_Token_CC( reset( $payment_tokens ) );
 			if ( ! $payment_token instanceof WC_Payment_Token_CC ) {
-				throw new Exception( esc_html( __( 'Invalid payment token for the subscription order.', $this->core_plugin->text_domain() ) ) );
+				throw new Exception( esc_html( __( 'Invalid payment token for the subscription order.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 			}
 
 			$payment_token = $payment_token->get_token();
@@ -782,7 +782,7 @@ trait Subscriptions {
 		$order->delete_meta_data( $this->prefix_hook( 'order_id' ) );
 		$order->save_meta_data();
 
-		$notice = $subscription->has_payment_gateway() ? __( 'Payment method updated.', $this->core_plugin->text_domain() ) : __( 'Payment method added.', $this->core_plugin->text_domain() );
+		$notice = $subscription->has_payment_gateway() ? __( 'Payment method updated.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) : __( 'Payment method added.', '__PAYMENTS_CORE_TEXT_DOMAIN__' );
 		wc_add_notice( $notice );
 
 		return $subscription->get_view_order_url();
