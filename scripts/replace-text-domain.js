@@ -12,9 +12,6 @@ if ( ! search || ! replace ) {
 	process.exit( 1 );
 }
 
-const searchQuoted = `'${ search }'`;
-const replaceQuoted = `'${ replace }'`;
-
 const rootDir = baseDir
 	? path.resolve( baseDir.split( '=' )[ 1 ] )
 	: path.resolve( __dirname, '..' );
@@ -27,12 +24,12 @@ for ( const file of files ) {
 	const filePath = path.join( rootDir, file );
 	const content = fs.readFileSync( filePath, 'utf8' );
 
-	if ( ! content.includes( searchQuoted ) ) {
+	if ( ! content.includes( search ) ) {
 		continue;
 	}
 
-	const updated = content.split( searchQuoted ).join( replaceQuoted );
-	const count = ( content.split( searchQuoted ).length - 1 );
+	const count = content.split( search ).length - 1;
+	const updated = content.split( search ).join( replace );
 
 	fs.writeFileSync( filePath, updated, 'utf8' );
 	filesChanged++;
