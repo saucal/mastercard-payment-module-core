@@ -152,20 +152,6 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 
 	/**
-	 * Prefix hook.
-	 *
-	 * @param string $hook      Hook name.
-	 * @param string $prefix    Prefix.
-	 * @param string $separator Separator.
-	 *
-	 * @return string
-	 */
-	public function prefix_hook( $hook, $prefix = '', $separator = '_' ) {
-		return $this->core_plugin->payment_core()->prefix_hook( $hook, $prefix, $separator );
-	}
-
-
-	/**
 	 * Get the block compatibility class.
 	 *
 	 * @return string

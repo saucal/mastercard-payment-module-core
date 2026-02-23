@@ -314,18 +314,6 @@ final class Main {
 
 
 	/**
-	 * Get prefixed hook name.
-	 *
-	 * @param string $hook      The name of the hook.
-	 * @param string $prefix    Prefix for the hook.
-	 * @param string $separator Separator for the hook.
-	 */
-	public function prefix_hook( $hook = '', $prefix = '', $separator = '_' ) {
-		return $prefix . 'PAYMENTS_CORE_HOOK_PREFIX' . ( $hook ? $separator . $hook : '' );
-	}
-
-
-	/**
 	 * Get the template instance.
 	 *
 	 * @return Template
