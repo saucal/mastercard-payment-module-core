@@ -17,7 +17,7 @@ const rootDir = baseDir
 
 const IGNORE = [ 'vendor', 'node_modules' ];
 const files = fs.readdirSync( rootDir, { recursive: true } )
-	.filter( ( f ) => f.endsWith( '.php' ) && ! IGNORE.some( ( dir ) => f.startsWith( dir + path.sep ) ) );
+	.filter( ( f ) => ( f.endsWith( '.php' ) || f.endsWith( '.xml' ) ) && ! IGNORE.some( ( dir ) => f.startsWith( dir + path.sep ) ) );
 
 let totalReplacements = 0;
 let filesChanged = 0;

@@ -115,7 +115,7 @@ final class Utils {
 		 *
 		 * @since 1.0.0
 		 */
-		return apply_filters( $this->payment_core->prefix_hook( 'template_path' ), 'payment-core/' );
+		return apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_template_path', 'payment-core/' );
 	}
 
 
@@ -139,7 +139,7 @@ final class Utils {
 	public function get_order_by_success_indicator( $success_indicator ) {
 		global $wpdb;
 
-		$order_meta_key = $this->payment_core->prefix_hook( 'success_indicator' );
+		$order_meta_key = 'PAYMENTS_CORE_HOOK_PREFIX_success_indicator';
 
 		if ( self::is_hpos_enabled() ) {
 			$orders   = wc_get_orders(
@@ -397,7 +397,7 @@ final class Utils {
 	 * @return string
 	 */
 	public function hosted_session_id_key( $cart_hash = '' ) {
-		return $this->payment_core->prefix_hook( 'session_id_' . ( $cart_hash ? $cart_hash : $this->unique_cart_hash() ) );
+		return 'PAYMENTS_CORE_HOOK_PREFIX_session_id_' . ( $cart_hash ? $cart_hash : $this->unique_cart_hash() );
 	}
 
 
@@ -409,7 +409,7 @@ final class Utils {
 	 * @return string
 	 */
 	public function hosted_session_attempt_key( $cart_hash = '' ) {
-		return $this->payment_core->prefix_hook( 'session_attempt_' . ( $cart_hash ? $cart_hash : $this->unique_cart_hash() ) );
+		return 'PAYMENTS_CORE_HOOK_PREFIX_session_attempt_' . ( $cart_hash ? $cart_hash : $this->unique_cart_hash() );
 	}
 
 
@@ -421,7 +421,7 @@ final class Utils {
 	 * @return string
 	 */
 	public function hosted_session_config_key( $cart_hash = '' ) {
-		return $this->payment_core->prefix_hook( 'session_config_' . ( $cart_hash ? $cart_hash : $this->unique_cart_hash() ) );
+		return 'PAYMENTS_CORE_HOOK_PREFIX_session_config_' . ( $cart_hash ? $cart_hash : $this->unique_cart_hash() );
 	}
 
 
@@ -433,7 +433,7 @@ final class Utils {
 	 * @return string
 	 */
 	public function hosted_session_duration_key( $cart_hash = '' ) {
-		return $this->payment_core->prefix_hook( 'session_duration_' . ( $cart_hash ? $cart_hash : $this->unique_cart_hash() ) );
+		return 'PAYMENTS_CORE_HOOK_PREFIX_session_duration_' . ( $cart_hash ? $cart_hash : $this->unique_cart_hash() );
 	}
 
 
@@ -459,7 +459,7 @@ final class Utils {
 		 * @since 1.0.0
 		 */
 		return apply_filters(
-			$this->payment_core->prefix_hook( 'hosted_session_errors' ),
+			'PAYMENTS_CORE_HOOK_PREFIX_hosted_session_errors',
 			array(
 				'fields_in_error'       => array(
 					'cardNumber'   => __( 'Card number invalid or missing', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),

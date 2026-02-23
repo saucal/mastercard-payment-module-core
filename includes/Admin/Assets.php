@@ -44,8 +44,8 @@ final class Assets {
 	 * Init hooks.
 	 */
 	public function init_hooks() {
-		add_filter( $this->core_plugin->payment_core()->prefix_hook( 'enqueue_styles' ), array( $this, 'add_styles' ), 9 );
-		add_filter( $this->core_plugin->payment_core()->prefix_hook( 'enqueue_scripts' ), array( $this, 'add_scripts' ), 9 );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_enqueue_styles', array( $this, 'add_styles' ), 9 );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_enqueue_scripts', array( $this, 'add_scripts' ), 9 );
 		add_action( 'admin_enqueue_scripts', array( $this->core_plugin->assets_controller(), 'load_scripts' ) );
 		add_action( 'admin_print_scripts', array( $this->core_plugin->assets_controller(), 'localize_printed_scripts' ), 5 );
 		add_action( 'admin_print_footer_scripts', array( $this->core_plugin->assets_controller(), 'localize_printed_scripts' ), 5 );
@@ -60,7 +60,7 @@ final class Assets {
 	 */
 	public function add_styles( $styles ) {
 
-		$styles[ $this->core_plugin->payment_core()->prefix_hook( 'gateway-admin' ) ] = array(
+		$styles[ 'PAYMENTS_CORE_HOOK_PREFIX_gateway-admin' ] = array(
 			'src' => $this->core_plugin->assets_controller()->localize_asset( 'css/admin/payment-core.css' ),
 		);
 
@@ -76,7 +76,7 @@ final class Assets {
 	 */
 	public function add_scripts( $scripts ) {
 
-		$scripts[ $this->core_plugin->payment_core()->prefix_hook( 'gateway-admin' ) ] = array(
+		$scripts[ 'PAYMENTS_CORE_HOOK_PREFIX_gateway-admin' ] = array(
 			'src'  => $this->core_plugin->assets_controller()->localize_asset( 'js/admin/payment-core.js' ),
 			'data' => array(
 				'pluginPrefix' => $this->core_plugin->payment_core()->get_prefix(),

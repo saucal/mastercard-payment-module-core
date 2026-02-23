@@ -100,7 +100,7 @@ final class GatewaySettings {
 	 * @return void
 	 */
 	private function init_settings() {
-		$regions        = wp_list_pluck( self::payment_regions(), 'urls', 'code' );
+		$regions = wp_list_pluck( self::payment_regions(), 'urls', 'code' );
 		// TODO: Maybe better support links to the actual regions being tested? This works on initial load, but changing regions defaults to the first URL of the region.
 		foreach ( $regions as $code => $urls ) {
 			$regions[ $code ] = \array_first( $urls );
@@ -468,7 +468,7 @@ final class GatewaySettings {
 		 *
 		 * @since 1.0.0
 		 */
-		$this->settings = apply_filters( $this->core_plugin->payment_core()->prefix_hook( 'gateway_settings' ), $this->settings );
+		$this->settings = apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_gateway_settings', $this->settings );
 	}
 
 
