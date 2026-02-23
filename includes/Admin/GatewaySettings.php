@@ -108,38 +108,38 @@ final class GatewaySettings {
 		$this->settings = array_merge(
 			array(
 				'enabled'          => array(
-					'title'       => __( 'Enable/Disable', $this->core_plugin->text_domain() ),
-					'label'       => __( 'Enable', $this->core_plugin->text_domain() ),
+					'title'       => __( 'Enable/Disable', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+					'label'       => __( 'Enable', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'type'        => 'checkbox',
 					'description' => '',
 					'default'     => 'no',
 				),
 				'title'            => array(
-					'title'       => __( 'Title', $this->core_plugin->text_domain() ),
+					'title'       => __( 'Title', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'type'        => 'text',
-					'description' => __( 'The payment method title displayed during checkout.', $this->core_plugin->text_domain() ),
+					'description' => __( 'The payment method title displayed during checkout.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'default'     => $this->core_plugin->payment_core()->plugin_title(),
 					'desc_tip'    => true,
 				),
 				'description'      => array(
-					'title'       => __( 'Description', $this->core_plugin->text_domain() ),
+					'title'       => __( 'Description', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'type'        => 'text',
-					'description' => esc_html__( 'The description displayed when this payment method is selected.', $this->core_plugin->text_domain() ),
-					'default'     => esc_html__( 'Pay with your Credit/Debit Card', $this->core_plugin->text_domain() ),
+					'description' => esc_html__( 'The description displayed when this payment method is selected.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+					'default'     => esc_html__( 'Pay with your Credit/Debit Card', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'desc_tip'    => true,
 				),
 				'merchant_details' => array(
-					'title'       => __( 'Merchant Account Details', $this->core_plugin->text_domain() ),
+					'title'       => __( 'Merchant Account Details', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'description' => $this->merchant_details_message(),
 					'type'        => 'title',
 				),
 				'sandbox'          => array(
-					'title'             => __( 'Test Mode', $this->core_plugin->text_domain() ),
-					'label'             => __( 'Enable test mode', $this->core_plugin->text_domain() ),
+					'title'             => __( 'Test Mode', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+					'label'             => __( 'Enable test mode', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'type'              => 'checkbox',
 					'description'       => sprintf(
 						/* translators: %1$s: opening link tag, %2$s: closing link tag */
-						__( 'Set the payment gateway in test mode using test API credentials (real payments will not be taken). You can use %1$stest card numbers%2$s to simulate various transactions.', $this->core_plugin->text_domain() ),
+						__( 'Set the payment gateway in test mode using test API credentials (real payments will not be taken). You can use %1$stest card numbers%2$s to simulate various transactions.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 						'<a href="https://test-gateway.mastercard.com/api/documentation/integrationGuidelines/supportedFeatures/testAndGoLive.html" target="_blank">',
 						'</a>'
 					),
@@ -153,11 +153,11 @@ final class GatewaySettings {
 			$this->get_region_setting(),
 			array(
 				'merchant_id'              => array(
-					'title'             => __( 'Merchant ID', $this->core_plugin->text_domain() ),
+					'title'             => __( 'Merchant ID', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'type'              => 'text',
 					'description'       => sprintf(
 						/* translators: %1$s: opening link tag, %2$s: closing link tag */
-						__( 'This is the Merchant ID you use to log into the %1$sMerchant Portal%2$s.', $this->core_plugin->text_domain() ),
+						__( 'This is the Merchant ID you use to log into the %1$sMerchant Portal%2$s.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 						'<a href="' . esc_url(
 							untrailingslashit( $this->core_plugin->gateway_url() ) . '/ma/login.s'
 						) . '" target="_blank">',
@@ -171,11 +171,11 @@ final class GatewaySettings {
 					),
 				),
 				'password'                 => array(
-					'title'             => __( 'Integration Authentication Password', $this->core_plugin->text_domain() ),
+					'title'             => __( 'Integration Authentication Password', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'type'              => 'password',
 					'description'       => sprintf(
 						/* translators: %1$s: opening link tag, %2$s: closing link tag */
-						__( 'You can obtain your integration authentication password from the Merchant Portal (%1$sAdmin -> Integration Settings%2$s).', $this->core_plugin->text_domain() ),
+						__( 'You can obtain your integration authentication password from the Merchant Portal (%1$sAdmin -> Integration Settings%2$s).', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 						'<a href="' . esc_url(
 							add_query_arg(
 								array(
@@ -195,11 +195,11 @@ final class GatewaySettings {
 					),
 				),
 				'test_merchant_id'         => array(
-					'title'             => __( 'Test Merchant ID', $this->core_plugin->text_domain() ),
+					'title'             => __( 'Test Merchant ID', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'type'              => 'text',
 					'description'       => sprintf(
 						/* translators: %1$s: opening link tag, %2$s: closing link tag */
-						__( 'This is the Merchant ID you use to log into the %1$sMerchant Portal%2$s.', $this->core_plugin->text_domain() ),
+						__( 'This is the Merchant ID you use to log into the %1$sMerchant Portal%2$s.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 						'<a href="' . esc_url(
 							untrailingslashit( $this->core_plugin->gateway_url() ) . '/ma/login.s'
 						) . '" target="_blank">',
@@ -213,11 +213,11 @@ final class GatewaySettings {
 					),
 				),
 				'test_password'            => array(
-					'title'             => __( 'Test Integration Authentication Password', $this->core_plugin->text_domain() ),
+					'title'             => __( 'Test Integration Authentication Password', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'type'              => 'password',
 					'description'       => sprintf(
 						/* translators: %1$s: opening link tag, %2$s: closing link tag */
-						__( 'You can obtain your integration authentication password from the Merchant Portal (%1$sAdmin -> Integration Settings%2$s).', $this->core_plugin->text_domain() ),
+						__( 'You can obtain your integration authentication password from the Merchant Portal (%1$sAdmin -> Integration Settings%2$s).', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 						'<a href="' . esc_url(
 							add_query_arg(
 								array(
@@ -237,15 +237,15 @@ final class GatewaySettings {
 					),
 				),
 				'webhook'                  => array(
-					'title' => __( 'Webhook Notifications', $this->core_plugin->text_domain() ),
+					'title' => __( 'Webhook Notifications', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'type'  => 'title',
 				),
 				'notification_secret'      => array(
-					'title'             => __( 'Notification Secret', $this->core_plugin->text_domain() ),
+					'title'             => __( 'Notification Secret', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'type'              => 'text',
 					'description'       => sprintf(
 						/* translators: %1$s: opening link tag, %2$s: closing link tag */
-						__( 'You can obtain or generate your notification secret on the Merchant Portal (%1$sAdmin -> Webhook Notifications%2$s).', $this->core_plugin->text_domain() ),
+						__( 'You can obtain or generate your notification secret on the Merchant Portal (%1$sAdmin -> Webhook Notifications%2$s).', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 						'<a href="' . esc_url( $this->webhook_notification_url() ) . '" target="_blank">',
 						'</a>'
 					),
@@ -256,11 +256,11 @@ final class GatewaySettings {
 					),
 				),
 				'test_notification_secret' => array(
-					'title'             => __( 'Test Notification Secret', $this->core_plugin->text_domain() ),
+					'title'             => __( 'Test Notification Secret', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'type'              => 'text',
 					'description'       => sprintf(
 						/* translators: %1$s: opening link tag, %2$s: closing link tag */
-						__( 'You can obtain or generate your notification secret on the Merchant Portal (%1$sAdmin -> Webhook Notifications%2$s).', $this->core_plugin->text_domain() ),
+						__( 'You can obtain or generate your notification secret on the Merchant Portal (%1$sAdmin -> Webhook Notifications%2$s).', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 						'<a href="' . esc_url( $this->webhook_notification_url() ) . '" target="_blank">',
 						'</a>'
 					),
@@ -292,7 +292,7 @@ final class GatewaySettings {
 
 		return array(
 			'region' => array(
-				'title'             => __( 'Merchant Region', $this->core_plugin->text_domain() ),
+				'title'             => __( 'Merchant Region', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 				'type'              => 'select',
 				'options'           => $regions,
 				'default'           => array_key_first( $regions ),
@@ -342,7 +342,7 @@ final class GatewaySettings {
 		$supported_operations_explain = wp_list_pluck( $supported_operations, 'explain' );
 
 		// TODO: Move to the Subscription addon class.
-		$supported_operations_explain['subscriptions'] = '' . __( 'This setting does not affect subscriptions; charges for orders related to subscriptions are always captured.', $this->core_plugin->text_domain() );
+		$supported_operations_explain['subscriptions'] = '' . __( 'This setting does not affect subscriptions; charges for orders related to subscriptions are always captured.', '__PAYMENTS_CORE_TEXT_DOMAIN__' );
 
 		// Checkout modes options and explanations.
 		$checkout_modes         = self::checkout_modes();
@@ -352,12 +352,12 @@ final class GatewaySettings {
 		// Hosted Checkout Modes and explanations.
 		$hosted_checkout_modes         = array(
 			'embedded' => array(
-				'label'   => __( 'Embedded', $this->core_plugin->text_domain() ),
-				'explain' => __( '"Embedded" displays the payment form inside an iframe on your checkout page.', $this->core_plugin->text_domain() ),
+				'label'   => __( 'Embedded', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+				'explain' => __( '"Embedded" displays the payment form inside an iframe on your checkout page.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 			),
 			'redirect' => array(
-				'label'   => __( 'Redirect', $this->core_plugin->text_domain() ),
-				'explain' => __( '"Redirect" sends customers to a secure external page to complete payment, and then back to your store.', $this->core_plugin->text_domain() ),
+				'label'   => __( 'Redirect', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+				'explain' => __( '"Redirect" sends customers to a secure external page to complete payment, and then back to your store.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 			),
 		);
 		$hosted_checkout_modes_options = wp_list_pluck( $hosted_checkout_modes, 'label' );
@@ -367,19 +367,19 @@ final class GatewaySettings {
 			$this->settings,
 			array(
 				'payments'             => array(
-					'title' => __( 'Payment configurations', $this->core_plugin->text_domain() ),
+					'title' => __( 'Payment configurations', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'type'  => 'title',
 				),
 				'merchant_name'        => array(
-					'title'       => __( 'Merchant Name', $this->core_plugin->text_domain() ),
+					'title'       => __( 'Merchant Name', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'type'        => 'text',
-					'description' => __( 'The name of your business for display to the payer on the payment interaction.', $this->core_plugin->text_domain() ),
+					'description' => __( 'The name of your business for display to the payer on the payment interaction.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'desc_tip'    => true,
 					'default'     => get_bloginfo( 'name', 'display' ),
 					'placeholder' => get_bloginfo( 'name', 'display' ),
 				),
 				'transaction_mode'     => array(
-					'title'       => __( 'Payment Capture', $this->core_plugin->text_domain() ),
+					'title'       => __( 'Payment Capture', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'type'        => 'select',
 					'options'     => $supported_operations_options,
 					'default'     => \array_key_first( $supported_operations_options ),
@@ -387,7 +387,7 @@ final class GatewaySettings {
 					'desc_tip'    => true,
 				),
 				'checkout_mode'        => array(
-					'title'       => __( 'Integration Mode', $this->core_plugin->text_domain() ),
+					'title'       => __( 'Integration Mode', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'type'        => 'select',
 					'options'     => $checkout_modes_options,
 					'default'     => \array_key_first( $checkout_modes_options ),
@@ -395,7 +395,7 @@ final class GatewaySettings {
 					'desc_tip'    => true,
 				),
 				'hosted_checkout_mode' => array(
-					'title'             => __( 'Hosted Checkout Mode', $this->core_plugin->text_domain() ),
+					'title'             => __( 'Hosted Checkout Mode', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'type'              => 'select',
 					'options'           => $hosted_checkout_modes_options,
 					'default'           => \array_key_first( $hosted_checkout_modes_options ),
@@ -408,8 +408,8 @@ final class GatewaySettings {
 					),
 				),
 				'display_logo'         => array(
-					'title'             => __( 'Display Plugin\'s Logo', $this->core_plugin->text_domain() ),
-					'label'             => __( 'Check this to display the plugin\'s logo in the Hosted Checkout page.', $this->core_plugin->text_domain() ),
+					'title'             => __( 'Display Plugin\'s Logo', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+					'label'             => __( 'Check this to display the plugin\'s logo in the Hosted Checkout page.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'type'              => 'checkbox',
 					'default'           => 'yes',
 					'class'             => 'conditional-hide',
@@ -419,15 +419,15 @@ final class GatewaySettings {
 					),
 				),
 				'features'             => array(
-					'title' => __( 'Features', $this->core_plugin->text_domain() ),
+					'title' => __( 'Features', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'type'  => 'title',
 				),
 				'_3d_secure'           => array(
-					'title'             => __( '3-D Secure', $this->core_plugin->text_domain() ),
-					'label'             => __( 'Enable 3-D Secure (3DS)', $this->core_plugin->text_domain() ),
+					'title'             => __( '3-D Secure', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+					'label'             => __( 'Enable 3-D Secure (3DS)', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'type'              => 'checkbox',
 					'default'           => 'yes',
-					'description'       => __( 'If enabled, adds an additional layer of security to online purchases by requiring cardholders to authenticate themselves with the card issuer when making payments.', $this->core_plugin->text_domain() ),
+					'description'       => __( 'If enabled, adds an additional layer of security to online purchases by requiring cardholders to authenticate themselves with the card issuer when making payments.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'desc_tip'          => true,
 					'class'             => 'conditional-hide',
 					'custom_attributes' => array(
@@ -436,10 +436,10 @@ final class GatewaySettings {
 					),
 				),
 				'saved_cards'          => array(
-					'title'             => __( 'Saved Cards', $this->core_plugin->text_domain() ),
-					'label'             => __( 'Enable payment via saved tokenized cards', $this->core_plugin->text_domain() ),
+					'title'             => __( 'Saved Cards', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+					'label'             => __( 'Enable payment via saved tokenized cards', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'type'              => 'checkbox',
-					'description'       => __( 'If enabled, users will be able to pay with a saved card during checkout. Card details are saved in the payment gateway, not on your store.', $this->core_plugin->text_domain() ),
+					'description'       => __( 'If enabled, users will be able to pay with a saved card during checkout. Card details are saved in the payment gateway, not on your store.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'default'           => 'yes',
 					'desc_tip'          => true,
 					'class'             => 'conditional-hide',
@@ -449,14 +449,14 @@ final class GatewaySettings {
 					),
 				),
 				'advanced'             => array(
-					'title' => __( 'Advanced configurations', $this->core_plugin->text_domain() ),
+					'title' => __( 'Advanced configurations', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'type'  => 'title',
 				),
 				'debug'                => array(
-					'title'       => __( 'Logging', $this->core_plugin->text_domain() ),
-					'label'       => __( 'Log debug messages', $this->core_plugin->text_domain() ),
+					'title'       => __( 'Logging', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+					'label'       => __( 'Log debug messages', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'type'        => 'checkbox',
-					'description' => __( 'Save debug messages to the WooCommerce System Status log.', $this->core_plugin->text_domain() ),
+					'description' => __( 'Save debug messages to the WooCommerce System Status log.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'default'     => 'yes',
 					'desc_tip'    => true,
 				),
@@ -495,12 +495,12 @@ final class GatewaySettings {
 	public function checkout_modes() {
 		return array(
 			'hosted_session'  => array(
-				'label'   => __( 'Hosted Session', $this->core_plugin->text_domain() ),
-				'explain' => __( '"Hosted Session" allows you to manage the layout and styling of your payment page while minimizing PCI compliance costs.', $this->core_plugin->text_domain() ),
+				'label'   => __( 'Hosted Session', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+				'explain' => __( '"Hosted Session" allows you to manage the layout and styling of your payment page while minimizing PCI compliance costs.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 			),
 			'hosted_checkout' => array(
-				'label'   => __( 'Hosted Checkout', $this->core_plugin->text_domain() ),
-				'explain' => __( '"Hosted Checkout" allows you to gather payment details through a hosted interface.', $this->core_plugin->text_domain() ),
+				'label'   => __( 'Hosted Checkout', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+				'explain' => __( '"Hosted Checkout" allows you to gather payment details through a hosted interface.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 			),
 		);
 	}
@@ -526,13 +526,13 @@ final class GatewaySettings {
 		}
 
 		$supported_operations['PURCHASE'] = array(
-			'label'   => __( 'Authorize and Capture', $this->core_plugin->text_domain() ),
-			'explain' => __( '"Authorize and Capture" captures the payment immediately when the order is placed.', $this->core_plugin->text_domain() ),
+			'label'   => __( 'Authorize and Capture', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+			'explain' => __( '"Authorize and Capture" captures the payment immediately when the order is placed.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 		);
 
 		$supported_operations['AUTHORIZE'] = array(
-			'label'   => __( 'Authorize Only', $this->core_plugin->text_domain() ),
-			'explain' => __( '"Authorize Only" authorizes the payment and allows you to capture it manually later from the WC admin panel.', $this->core_plugin->text_domain() ),
+			'label'   => __( 'Authorize Only', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+			'explain' => __( '"Authorize Only" authorizes the payment and allows you to capture it manually later from the WC admin panel.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 		);
 
 		foreach ( $payment_operations as $supported_operation ) {

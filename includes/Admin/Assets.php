@@ -80,7 +80,7 @@ final class Assets {
 			'src'  => $this->core_plugin->assets_controller()->localize_asset( 'js/admin/payment-core.js' ),
 			'data' => array(
 				'pluginPrefix' => $this->core_plugin->payment_core()->get_prefix(),
-				'textDomain'   => $this->core_plugin->text_domain(),
+				'textDomain'   => '__PAYMENTS_CORE_TEXT_DOMAIN__',
 			),
 		);
 

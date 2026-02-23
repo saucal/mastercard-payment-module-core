@@ -100,7 +100,7 @@ class CapturePaymentMetaBox {
 
 		$this->gateway = $order_gateway;
 
-		add_meta_box( $this->core_plugin->payment_core()->prefix_hook( 'order-payment-actions' ), __( 'Payment Actions', $this->core_plugin->text_domain() ), array( $this, 'output' ), Utils::get_edit_order_screen_id(), 'side', 'high' );
+		add_meta_box( $this->core_plugin->payment_core()->prefix_hook( 'order-payment-actions' ), __( 'Payment Actions', '__PAYMENTS_CORE_TEXT_DOMAIN__' ), array( $this, 'output' ), Utils::get_edit_order_screen_id(), 'side', 'high' );
 	}
 
 

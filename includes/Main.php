@@ -106,7 +106,7 @@ final class Main {
 	 * @since 1.0.0
 	 */
 	public function __clone() {
-		_doing_it_wrong( __FUNCTION__, esc_html__( 'Cheatin&#8217; huh?', $this->text_domain() ), '1.0.0' );
+		_doing_it_wrong( __FUNCTION__, esc_html__( 'Cheatin&#8217; huh?', '__PAYMENTS_CORE_TEXT_DOMAIN__' ), '1.0.0' );
 	}
 
 
@@ -116,7 +116,7 @@ final class Main {
 	 * @since 1.0.0
 	 */
 	public function __wakeup() {
-		_doing_it_wrong( __FUNCTION__, esc_html__( 'Cheatin&#8217; huh?', $this->text_domain() ), '1.0.0' );
+		_doing_it_wrong( __FUNCTION__, esc_html__( 'Cheatin&#8217; huh?', '__PAYMENTS_CORE_TEXT_DOMAIN__' ), '1.0.0' );
 	}
 
 
@@ -208,17 +208,17 @@ final class Main {
 
 		if ( ! version_compare( PHP_VERSION, self::PLUGIN_REQUIREMENTS['php_version'], '>=' ) ) {
 			/* Translators: 1: The Plugin's Name 2: The minimum PHP version */
-			$errors[] = sprintf( esc_html__( '%1$s requires a minimum PHP version of %2$s.', $this->text_domain() ), $this->plugin_title(), self::PLUGIN_REQUIREMENTS['php_version'] );
+			$errors[] = sprintf( esc_html__( '%1$s requires a minimum PHP version of %2$s.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ), $this->plugin_title(), self::PLUGIN_REQUIREMENTS['php_version'] );
 		}
 
 		if ( ! version_compare( $wp_version, self::PLUGIN_REQUIREMENTS['wp_version'], '>=' ) ) {
 			/* Translators: 1: The Plugin's Name 2: The minimum WP version */
-			$errors[] = sprintf( esc_html__( '%1$s requires a minimum WordPress version of %2$s.', $this->text_domain() ), $this->plugin_title(), self::PLUGIN_REQUIREMENTS['wp_version'] );
+			$errors[] = sprintf( esc_html__( '%1$s requires a minimum WordPress version of %2$s.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ), $this->plugin_title(), self::PLUGIN_REQUIREMENTS['wp_version'] );
 		}
 
 		if ( isset( self::PLUGIN_REQUIREMENTS['wc_version'] ) && ( ! defined( 'WC_VERSION' ) || ! version_compare( WC_VERSION, self::PLUGIN_REQUIREMENTS['wc_version'], '>=' ) ) ) {
 			/* Translators: 1: The Plugin's Name 2: The minimum WC version */
-			$errors[] = sprintf( esc_html__( '%1$s requires a minimum WooCommerce version of %2$s.', $this->text_domain() ), $this->plugin_title(), self::PLUGIN_REQUIREMENTS['wc_version'] );
+			$errors[] = sprintf( esc_html__( '%1$s requires a minimum WooCommerce version of %2$s.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ), $this->plugin_title(), self::PLUGIN_REQUIREMENTS['wc_version'] );
 		}
 
 		if ( empty( $errors ) ) {
@@ -309,12 +309,7 @@ final class Main {
 	 * @return string
 	 */
 	public function text_domain() {
-		/**
-		 * Filters the plugin text domain.
-		 *
-		 * @since 1.0.0
-		 */
-		return apply_filters( $this->prefix_hook( '_text_domain' ), 'payment-core' );
+		return '__PAYMENTS_CORE_TEXT_DOMAIN__';
 	}
 
 

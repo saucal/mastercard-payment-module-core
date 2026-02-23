@@ -229,7 +229,7 @@ trait PreOrders {
 			$authorized_amount = $this->get_authorized_amount( $order );
 
 			if ( $authorized_amount <= 0 ) {
-				throw new Exception( __( 'No authorized amount found for this pre-order.', $this->core_plugin->text_domain() ) );
+				throw new Exception( __( 'No authorized amount found for this pre-order.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
 			// Capture the payment.
@@ -239,7 +239,7 @@ trait PreOrders {
 			$order->add_order_note(
 				sprintf(
 					// translators: %1$s: Gateway title, %2$s: Amount.
-					__( '%1$s pre-order payment captured: %2$s', $this->core_plugin->text_domain() ),
+					__( '%1$s pre-order payment captured: %2$s', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					$this->title,
 					wc_price( $authorized_amount, array( 'currency' => $order->get_currency() ) )
 				)
@@ -255,7 +255,7 @@ trait PreOrders {
 				'failed',
 				sprintf(
 					// translators: %s: Error message.
-					__( 'Pre-order release payment failed: %s', $this->core_plugin->text_domain() ),
+					__( 'Pre-order release payment failed: %s', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					$e->getMessage()
 				)
 			);
@@ -295,7 +295,7 @@ trait PreOrders {
 			return $notice;
 		}
 
-		return __( 'By providing your card information, you are allowing to charge your card for future payments.', $this->core_plugin->text_domain() );
+		return __( 'By providing your card information, you are allowing to charge your card for future payments.', '__PAYMENTS_CORE_TEXT_DOMAIN__' );
 	}
 
 

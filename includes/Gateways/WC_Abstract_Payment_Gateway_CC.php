@@ -304,7 +304,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			if ( $is_sandbox === $is_set_for_test ) {
 				// Validate that at least the current set of credentials is set.
 				if ( empty( $merchant_id ) || empty( $password ) ) {
-					WC_Admin_Settings::add_error( __( 'Merchant ID and API Key are required.', $this->core_plugin->text_domain() ) );
+					WC_Admin_Settings::add_error( __( 'Merchant ID and API Key are required.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 				}
 			}
 
@@ -346,7 +346,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		}
 
 		if ( ! $validated || ! isset( $response ) ) {
-			WC_Admin_Settings::add_error( __( 'Failed to validate API credentials. Please validate your credentials and save your account details again.', $this->core_plugin->text_domain() ) );
+			WC_Admin_Settings::add_error( __( 'Failed to validate API credentials. Please validate your credentials and save your account details again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			$this->core_plugin->update_validated_credentials( false );
 			$this->core_plugin->update_validated_domain( false );
 			$this->core_plugin->update_payment_operations( array() );
@@ -354,7 +354,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			return;
 		}
 
-		$this->core_plugin->logger()->log( __( 'API credentials validated successfully.', $this->core_plugin->text_domain() ) );
+		$this->core_plugin->logger()->log( __( 'API credentials validated successfully.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 
 		$this->core_plugin->update_validated_credentials( true );
 
@@ -517,7 +517,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		if ( ! $session_id ) {
 			if ( is_wc_endpoint_url( 'order-pay' ) ) {
-				wc_print_notice( __( 'There was an error creating the payment session. Please review your data and try again or try a different payment method.', $this->core_plugin->text_domain() ), 'error' );
+				wc_print_notice( __( 'There was an error creating the payment session. Please review your data and try again or try a different payment method.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ), 'error' );
 			} else {
 				echo wp_kses_post( $this->description );
 			}
@@ -548,7 +548,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		$session_id = $this->hosted_session_id();
 
 		if ( ! $session_id ) {
-			wc_add_notice( __( 'There was an error creating the payment session. Please refresh the page and try again.', $this->core_plugin->text_domain() ), 'error' );
+			wc_add_notice( __( 'There was an error creating the payment session. Please refresh the page and try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ), 'error' );
 			return;
 		}
 
@@ -633,7 +633,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$order = wc_get_order( $order_id );
 
 			if ( ! $order ) {
-				throw new Exception( __( 'Invalid order.', $this->core_plugin->text_domain() ), 'error' );
+				throw new Exception( __( 'Invalid order.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ), 'error' );
 			}
 
 			/**
@@ -713,14 +713,14 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return array
 	 */
 	protected function process_payment_hosted_checkout( $order ) {
-		$order->update_status( 'pending', __( 'Pending payment', $this->core_plugin->text_domain() ) );
+		$order->update_status( 'pending', __( 'Pending payment', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 
 		if ( 'redirect' === $this->hosted_checkout_mode ) {
 
 			$session_id = $this->checkout_session_id( $order );
 
 			if ( ! $session_id ) {
-				wc_add_notice( __( 'There was an error creating the payment session. Please try again.', $this->core_plugin->text_domain() ), 'error' );
+				wc_add_notice( __( 'There was an error creating the payment session. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ), 'error' );
 				return array(
 					'result'   => 'error',
 					'redirect' => $order->get_checkout_payment_url(),
@@ -761,7 +761,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				$session = $order->get_meta( $this->prefix_hook( 'payment_session' ) );
 			} else {
 				if ( empty( WC()->session ) ) {
-					throw new Exception( esc_html( __( 'There was an error with the payment authentication. Please try again.', $this->core_plugin->text_domain() ) ) );
+					throw new Exception( esc_html( __( 'There was an error with the payment authentication. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 				}
 				$session = WC()->session->get( $this->prefix_hook( 'payment_session' ) );
 			}
@@ -770,14 +770,14 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		}
 
 		if ( empty( $session ) ) {
-			throw new Exception( esc_html( __( 'There was an error obtaining the payment session. Please refresh the page and try again.', $this->core_plugin->text_domain() ) ) );
+			throw new Exception( esc_html( __( 'There was an error obtaining the payment session. Please refresh the page and try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 		}
 
 		// TODO: Maybe avoid fetching the session if it was fetched within get_posted_session_data (updated with token ID).
 		$session_data = $this->retrieve_payment_session( $session['id'] );
 
 		if ( empty( $session_data['sourceOfFunds'] ) ) {
-			throw new Exception( esc_html( __( 'There was an error validating the payment session. Please refresh the page and try again.', $this->core_plugin->text_domain() ) ) );
+			throw new Exception( esc_html( __( 'There was an error validating the payment session. Please refresh the page and try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 		}
 
 		// Forcefully validate CVC value.
@@ -786,7 +786,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			! empty( $session_data['sourceOfFunds']['provided']['card'] ) &&
 			empty( $session_data['sourceOfFunds']['provided']['card']['securityCode'] )
 		) {
-			throw new Exception( esc_html( __( 'Security code is missing.', $this->core_plugin->text_domain() ) ) );
+			throw new Exception( esc_html( __( 'Security code is missing.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 		}
 
 		if ( $this->is_order( $order ) ) {
@@ -936,18 +936,18 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	public function create_payment_transaction( $order, $unique_order_id, $transaction_id, $payment_data ) {
 
 		if ( empty( $unique_order_id ) || empty( $transaction_id ) || empty( $payment_data ) ) {
-			throw new Exception( esc_html( __( 'There was an error processing the payment. Please try again.', $this->core_plugin->text_domain() ) ) );
+			throw new Exception( esc_html( __( 'There was an error processing the payment. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 		}
 
 		$response = $this->api()->create_transaction( $unique_order_id, $transaction_id, $payment_data );
 
 		if ( ! $response['success'] || empty( $response['body']['result'] ) || ! empty( $response['error'] ) ) {
-			$error = __( 'There was an error processing the payment. Please try again.', $this->core_plugin->text_domain() );
+			$error = __( 'There was an error processing the payment. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' );
 			throw new Exception( esc_html( $error ) );
 		}
 
 		if ( 'SUCCESS' !== $response['body']['result'] ) {
-			$error = __( 'There was an error processing the payment. Please try again.', $this->core_plugin->text_domain() );
+			$error = __( 'There was an error processing the payment. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' );
 			if ( ! empty( $response['body']['response']['acquirerMessage'] ) ) {
 				$error = $response['body']['response']['acquirerMessage'];
 			} elseif ( ! empty( $response['body']['response']['gatewayCode'] ) ) {
@@ -957,11 +957,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		}
 
 		if ( empty( $response['body']['transaction'] ) || empty( $response['body']['transaction']['id'] ) ) {
-			throw new Exception( esc_html( __( 'There was an error obtaining the transaction. Please try again.', $this->core_plugin->text_domain() ) ) );
+			throw new Exception( esc_html( __( 'There was an error obtaining the transaction. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 		}
 
 		if ( empty( $response['body']['order'] ) ) {
-			throw new Exception( esc_html( __( 'There was an error obtaining the order data. Please try again.', $this->core_plugin->text_domain() ) ) );
+			throw new Exception( esc_html( __( 'There was an error obtaining the order data. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 		}
 
 		$order_data = $this->api()->retrieve_order( $unique_order_id );
@@ -1107,7 +1107,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$transaction_id = $this->get_authentication_transaction( $order );
 
 			if ( empty( $transaction_id ) || ! $this->validate_authentication( $unique_order_id, $transaction_id ) ) {
-				throw new Exception( esc_html( __( 'There was an error with the payment authentication. Please try again.', $this->core_plugin->text_domain() ) ) );
+				throw new Exception( esc_html( __( 'There was an error with the payment authentication. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 			}
 
 			return $transaction_id;
@@ -1315,7 +1315,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	protected function get_device_details() {
 		if ( ! isset( $_SERVER['HTTP_USER_AGENT'] ) || empty( $_POST[ $this->prefix_hook( '3ds_data' ) ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
-			throw new Exception( esc_html( __( 'There was an error with the payment authentication. Please try again.', $this->core_plugin->text_domain() ) ) );
+			throw new Exception( esc_html( __( 'There was an error with the payment authentication. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 		}
 
 		return array(
@@ -1343,7 +1343,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	public function validate_authentication_response( $response ) {
 		if ( ! $response['success'] ) {
-			throw new Exception( esc_html( __( 'There was an error with the payment authentication. Please try again.', $this->core_plugin->text_domain() ) ) );
+			throw new Exception( esc_html( __( 'There was an error with the payment authentication. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 		}
 
 		if ( ! empty( $response['body']['authentication'] ) && ! is_array( $response['body']['authentication'] ) && 'NONE' === $response['body']['authentication'] ) {
@@ -1353,14 +1353,14 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		if ( ! empty( $response['body']['response']['gatewayRecommendation'] ) && 'PROCEED' !== $response['body']['response']['gatewayRecommendation'] ) {
 
 			if ( 'RESUBMIT_WITH_ALTERNATIVE_PAYMENT_DETAILS' === $response['body']['response']['gatewayRecommendation'] ) {
-				throw new Exception( esc_html( __( 'The payment method was declined. Please try again with a different payment method.', $this->core_plugin->text_domain() ) ) );
+				throw new Exception( esc_html( __( 'The payment method was declined. Please try again with a different payment method.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 			}
 
-			throw new Exception( esc_html( __( 'The payment method was declined.', $this->core_plugin->text_domain() ) ) );
+			throw new Exception( esc_html( __( 'The payment method was declined.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 		}
 
 		if ( empty( $response['body']['result'] ) || 'SUCCESS' !== $response['body']['result'] ) {
-			throw new Exception( esc_html( __( 'There was an error with the payment authentication. Please try again.', $this->core_plugin->text_domain() ) ) );
+			throw new Exception( esc_html( __( 'There was an error with the payment authentication. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 		}
 
 		return true;
@@ -1401,20 +1401,20 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	public function process_authentication_response( $response, $order, $transaction_id, $session ) {
 		if ( ! $response['success'] ) {
-			throw new Exception( esc_html( __( 'There was an error with the payment authentication. Please try again.', $this->core_plugin->text_domain() ) ) );
+			throw new Exception( esc_html( __( 'There was an error with the payment authentication. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 		}
 
 		if ( empty( $response['body']['result'] ) || ! in_array( $response['body']['result'], array( 'SUCCESS', 'PENDING' ), true ) ) {
-			throw new Exception( esc_html( __( 'There was an error with the payment authentication. Please try again.', $this->core_plugin->text_domain() ) ) );
+			throw new Exception( esc_html( __( 'There was an error with the payment authentication. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 		}
 
 		if ( 'PROCEED' !== $response['body']['response']['gatewayRecommendation'] ) {
 
 			if ( 'RESUBMIT_WITH_ALTERNATIVE_PAYMENT_DETAILS' === $response['body']['response']['gatewayRecommendation'] ) {
-				throw new Exception( esc_html( __( 'The payment method was declined. Please try again with a different payment method.', $this->core_plugin->text_domain() ) ) );
+				throw new Exception( esc_html( __( 'The payment method was declined. Please try again with a different payment method.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 			}
 
-			throw new Exception( esc_html( __( 'The payment method was declined.', $this->core_plugin->text_domain() ) ) );
+			throw new Exception( esc_html( __( 'The payment method was declined.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 		}
 
 		$data = $this->formatted_3ds_data( $response );
@@ -1424,7 +1424,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		}
 
 		if ( 'PENDING' === $response['body']['result'] && empty( $data['action'] ) ) {
-			throw new Exception( esc_html( __( 'There was an error with the payment authentication. Please try again.', $this->core_plugin->text_domain() ) ) );
+			throw new Exception( esc_html( __( 'There was an error with the payment authentication. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 		}
 
 		if ( $this->is_order( $order ) ) {
@@ -1433,7 +1433,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$order->save();
 		} else {
 			if ( empty( WC()->session ) ) {
-				throw new Exception( esc_html( __( 'There was an error with the payment authentication. Please try again.', $this->core_plugin->text_domain() ) ) );
+				throw new Exception( esc_html( __( 'There was an error with the payment authentication. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 			}
 			WC()->session->set( $this->prefix_hook( 'payment_session' ), $session );
 		}
@@ -1565,11 +1565,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		// Validate the session values.
 		if ( empty( $session ) ) {
-			$errors->add( 'invalid_session', __( 'There was an error obtaining the payment session. Please try again.', $this->core_plugin->text_domain() ) );
+			$errors->add( 'invalid_session', __( 'There was an error obtaining the payment session. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 		} elseif ( ! $this->validate_payment_session_status( $session['id'], $session['version'] ) ) {
 			// Validate the session.
 			$this->maybe_clean_hosted_cached_session();
-			$errors->add( 'invalid_session', __( 'The Payment Session is invalid or has expired. Please try again.', $this->core_plugin->text_domain() ) );
+			$errors->add( 'invalid_session', __( 'The Payment Session is invalid or has expired. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 		}
 
 		/**
@@ -1690,7 +1690,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		$response = $this->api()->update_session( $session_id, $payload );
 
 		if ( ! $response['success'] || empty( $response['body']['session']['id'] ) || empty( $response['body']['session']['version'] ) ) {
-			$this->core_plugin->logger()->log( __( 'There was an error updating the payment session. Please try again.', $this->core_plugin->text_domain() ), 'error' );
+			$this->core_plugin->logger()->log( __( 'There was an error updating the payment session. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ), 'error' );
 			return array();
 		}
 
@@ -1727,7 +1727,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			if ( isset( $result['saved_token_id'] ) ) {
 				$token_id = $result['saved_token_id'];
 			} else {
-				throw new Exception( __( 'There was an error saving the payment method. Please try again.', $this->core_plugin->text_domain() ) );
+				throw new Exception( __( 'There was an error saving the payment method. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
 			/**
@@ -2446,33 +2446,33 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	public function process_return_callback() {
 		try {
 			if ( ! isset( $_REQUEST['nonce'] ) || ! wp_verify_nonce( wc_clean( wp_unslash( $_REQUEST['nonce'] ) ), $this->prefix_hook( 'nonce' ) ) ) {
-				throw new Exception( __( 'Nonce verification is missing or invalid.', $this->core_plugin->text_domain() ) );
+				throw new Exception( __( 'Nonce verification is missing or invalid.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
 			if ( ! isset( $_REQUEST['order-id'] ) || ! isset( $_REQUEST['resultIndicator'] ) ) {
-				throw new Exception( __( 'Missing arguments.', $this->core_plugin->text_domain() ) );
+				throw new Exception( __( 'Missing arguments.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
 			$order_id = (int) wc_clean( wp_unslash( $_REQUEST['order-id'] ) );
 
 			if ( ! $order_id ) {
-				throw new Exception( __( 'The order ID parameter is invalid.', $this->core_plugin->text_domain() ) );
+				throw new Exception( __( 'The order ID parameter is invalid.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
 			$order = wc_get_order( $order_id );
 
 			if ( ! $order ) {
-				throw new Exception( __( 'The order cannot be found.', $this->core_plugin->text_domain() ) );
+				throw new Exception( __( 'The order cannot be found.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
 			if ( $order->is_paid() ) {
-				throw new Exception( __( 'The order has already been processed.', $this->core_plugin->text_domain() ) );
+				throw new Exception( __( 'The order has already been processed.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
 			$success_indicator = wc_clean( wp_unslash( $_REQUEST['resultIndicator'] ) );
 
 			if ( ! $success_indicator || $order->get_meta( $this->prefix_hook( 'success_indicator' ) ) !== $success_indicator ) {
-				throw new Exception( __( 'The payment session is invalid.', $this->core_plugin->text_domain() ) );
+				throw new Exception( __( 'The payment session is invalid.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
 			$order_data = $this->retrieve_order( $order );
@@ -2545,38 +2545,38 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$order = null;
 
 			if ( ! isset( $_REQUEST['nonce'] ) || ! wp_verify_nonce( wc_clean( wp_unslash( $_REQUEST['nonce'] ) ), $this->prefix_hook( '3ds_nonce' ) ) ) {
-				throw new Exception( __( 'Nonce verification is missing or invalid.', $this->core_plugin->text_domain() ) );
+				throw new Exception( __( 'Nonce verification is missing or invalid.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
 			if ( ! empty( $_REQUEST['order-id'] ) ) {
 				$order_id = (int) wc_clean( wp_unslash( $_REQUEST['order-id'] ) );
 
 				if ( ! $order_id ) {
-					throw new Exception( __( 'The order ID parameter is invalid.', $this->core_plugin->text_domain() ) );
+					throw new Exception( __( 'The order ID parameter is invalid.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 				}
 
 				$order = wc_get_order( $order_id );
 
 				if ( ! $order ) {
-					throw new Exception( __( 'The order cannot be found.', $this->core_plugin->text_domain() ) );
+					throw new Exception( __( 'The order cannot be found.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 				}
 			}
 
 			$signature = isset( $_REQUEST['signature'] ) ? wc_clean( wp_unslash( $_REQUEST['signature'] ) ) : '';
 
 			if ( ! $signature || ! hash_equals( $signature, $this->hashed_signature( $order, $this->get_authentication_transaction( $order ) ) ) ) {
-				throw new Exception( __( 'There was an error validating the authentication request. Please try again.', $this->core_plugin->text_domain() ) );
+				throw new Exception( __( 'There was an error validating the authentication request. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
 			$result = $this->process_payment_hosted_session( $order, true );
 
 			if ( empty( $result['result'] ) || 'success' !== $result['result'] || empty( $result['redirect'] ) ) {
-				throw new Exception( __( 'There was an error processing the payment. Please try again.', $this->core_plugin->text_domain() ) );
+				throw new Exception( __( 'There was an error processing the payment. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
 			// TODO: Maybe do this via action instead?
 			if ( wc_get_account_endpoint_url( 'payment-methods' ) === $result['redirect'] ) {
-				wc_add_notice( __( 'Payment method successfully added.', $this->core_plugin->text_domain() ) );
+				wc_add_notice( __( 'Payment method successfully added.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
 			/**
@@ -2762,7 +2762,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		if ( empty( $updated_session ) ) {
 			wp_send_json_error(
 				array(
-					'message' => __( 'There was an error updating the payment session. Please try again.', $this->core_plugin->text_domain() ),
+					'message' => __( 'There was an error updating the payment session. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 				)
 			);
 		}
@@ -2787,19 +2787,19 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			$order = null;
 
 			if ( ! isset( $_POST['order_id'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
-				throw new Exception( __( 'Missing order ID.', $this->core_plugin->text_domain() ) );
+				throw new Exception( __( 'Missing order ID.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
 			$order_id = wc_clean( wp_unslash( $_POST['order_id'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
 			if ( 'add_payment_method' !== $order_id ) {
 				$order_id = absint( $order_id );
 				if ( ! $order_id ) {
-					throw new Exception( __( 'There was an error obtaining the order. Please refresh the page and try again.', $this->core_plugin->text_domain() ) );
+					throw new Exception( __( 'There was an error obtaining the order. Please refresh the page and try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 				}
 
 				$order = wc_get_order( $order_id );
 				if ( ! $order ) {
-					throw new Exception( __( 'There was an error obtaining the order. Please refresh the page and try again.', $this->core_plugin->text_domain() ) );
+					throw new Exception( __( 'There was an error obtaining the order. Please refresh the page and try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 				}
 			} else {
 				WC()->session->set( $this->prefix_hook( 'payment_return_url_redirect' ), wc_get_account_endpoint_url( 'payment-methods' ) );
@@ -2807,12 +2807,12 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 			$session = $this->get_posted_session_data();
 			if ( empty( $session ) ) {
-				throw new Exception( __( 'There was an error obtaining the payment session. Please refresh the page and try again.', $this->core_plugin->text_domain() ) );
+				throw new Exception( __( 'There was an error obtaining the payment session. Please refresh the page and try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
 			$session_data = $this->retrieve_payment_session( $session['id'] );
 			if ( empty( $session_data['sourceOfFunds'] ) ) {
-				throw new Exception( __( 'There was an error validating the payment session. Please refresh the page and try again.', $this->core_plugin->text_domain() ) );
+				throw new Exception( __( 'There was an error validating the payment session. Please refresh the page and try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
 			$authentication_transaction_id = $this->get_3ds_authentication( $order, $session );
@@ -2878,7 +2878,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		 */
 		return apply_filters(
 			$this->prefix_hook( 'save_card_notice' ),
-			__( 'Your payment method will be saved for future purchases.', $this->core_plugin->text_domain() )
+			__( 'Your payment method will be saved for future purchases.', '__PAYMENTS_CORE_TEXT_DOMAIN__' )
 		);
 	}
 

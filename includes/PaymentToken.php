@@ -53,7 +53,7 @@ class PaymentToken {
 		try {
 
 			if ( ! $this->gateway ) {
-				throw new Exception( 'The gateway object is invalid', $this->gateway->core_plugin()->text_domain() );
+				throw new Exception( 'The gateway object is invalid', '__PAYMENTS_CORE_TEXT_DOMAIN__' );
 			}
 
 			$response = $this->gateway->api()->create_token(

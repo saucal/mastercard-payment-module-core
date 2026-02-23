@@ -85,13 +85,13 @@ trait DynamicCurrencyConversion {
 			'advanced',
 			array(
 				'currency_conversion' => array(
-					'title'       => __( 'Dynamic Currency Conversion', $this->core_plugin->text_domain() ),
-					'label'       => __( 'Enable the Dynamic Currency Conversion (DCC) feature.', $this->core_plugin->text_domain() ),
+					'title'       => __( 'Dynamic Currency Conversion', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+					'label'       => __( 'Enable the Dynamic Currency Conversion (DCC) feature.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'type'        => 'checkbox',
 					'default'     => 'yes',
 					'description' => __(
 						'If enabled, offers real-time exchange rates and lets payers choose between paying in your preferred currency or their card\'s currency.',
-						$this->core_plugin->text_domain()
+						'__PAYMENTS_CORE_TEXT_DOMAIN__'
 					),
 					'desc_tip'    => true,
 				),
@@ -156,7 +156,7 @@ trait DynamicCurrencyConversion {
 		}
 
 		if ( ! isset( $_POST['dccOfferState'] ) && ! isset( $_POST['dccofferstate'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
-			$errors->add( 'dcc_offer_state_missing', __( 'Please select whether you want to accept or reject the currency conversion offer.', $this->core_plugin->text_domain() ) );
+			$errors->add( 'dcc_offer_state_missing', __( 'Please select whether you want to accept or reject the currency conversion offer.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 		}
 
 		return $errors;
@@ -264,10 +264,10 @@ trait DynamicCurrencyConversion {
 
 		$dcc_item = array(
 			'dcc_info' => array(
-				'label' => __( 'Paid Amount:', $this->core_plugin->text_domain() ),
+				'label' => __( 'Paid Amount:', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 				'value' => sprintf(
 					/* translators: 1: Converted amount with currency symbol, 2: Currency code */
-					__( '%1$s (%2$s)', $this->core_plugin->text_domain() ),
+					__( '%1$s (%2$s)', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					wc_price( $dcc_data['amount'], array( 'currency' => $dcc_data['currency'] ) ),
 					$dcc_data['currency'],
 				),
@@ -292,17 +292,17 @@ trait DynamicCurrencyConversion {
 		}
 
 		?>
-		<h4><?php esc_html_e( 'Dynamic Currency Conversion (DCC)', $this->core_plugin->text_domain() ); ?></h4>
+		<h4><?php esc_html_e( 'Dynamic Currency Conversion (DCC)', '__PAYMENTS_CORE_TEXT_DOMAIN__' ); ?></h4>
 		<p>
-			<strong><?php esc_html_e( 'Original Currency:', $this->core_plugin->text_domain() ); ?></strong> <?php echo esc_html( $order->get_currency() ); ?>
+			<strong><?php esc_html_e( 'Original Currency:', '__PAYMENTS_CORE_TEXT_DOMAIN__' ); ?></strong> <?php echo esc_html( $order->get_currency() ); ?>
 			<br />
-			<strong><?php esc_html_e( 'Payment Currency:', $this->core_plugin->text_domain() ); ?></strong> <?php echo esc_html( $dcc_data['currency'] ); ?>
+			<strong><?php esc_html_e( 'Payment Currency:', '__PAYMENTS_CORE_TEXT_DOMAIN__' ); ?></strong> <?php echo esc_html( $dcc_data['currency'] ); ?>
 			<br />
-			<strong><?php esc_html_e( 'Original Amount:', $this->core_plugin->text_domain() ); ?></strong> <?php echo wp_kses_post( wc_price( $order->get_total(), array( 'currency' => $order->get_currency() ) ) ); ?>
+			<strong><?php esc_html_e( 'Original Amount:', '__PAYMENTS_CORE_TEXT_DOMAIN__' ); ?></strong> <?php echo wp_kses_post( wc_price( $order->get_total(), array( 'currency' => $order->get_currency() ) ) ); ?>
 			<br />
-			<strong><?php esc_html_e( 'Paid Amount (Converted):', $this->core_plugin->text_domain() ); ?></strong> <?php echo wp_kses_post( wc_price( $dcc_data['amount'], array( 'currency' => $dcc_data['currency'] ) ) ); ?>
+			<strong><?php esc_html_e( 'Paid Amount (Converted):', '__PAYMENTS_CORE_TEXT_DOMAIN__' ); ?></strong> <?php echo wp_kses_post( wc_price( $dcc_data['amount'], array( 'currency' => $dcc_data['currency'] ) ) ); ?>
 			<br />
-			<strong><?php esc_html_e( 'Exchange Rate:', $this->core_plugin->text_domain() ); ?></strong> <?php echo esc_html( $dcc_data['exchange_rate'] ); ?>
+			<strong><?php esc_html_e( 'Exchange Rate:', '__PAYMENTS_CORE_TEXT_DOMAIN__' ); ?></strong> <?php echo esc_html( $dcc_data['exchange_rate'] ); ?>
 		</p>
 		<?php
 	}

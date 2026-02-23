@@ -462,18 +462,18 @@ final class Utils {
 			$this->payment_core->prefix_hook( 'hosted_session_errors' ),
 			array(
 				'fields_in_error'       => array(
-					'cardNumber'   => __( 'Card number invalid or missing', $this->payment_core->text_domain() ),
-					'number'       => __( 'Card number invalid or missing', $this->payment_core->text_domain() ),
-					'expiryMonth'  => __( 'Expiry month invalid or missing', $this->payment_core->text_domain() ),
-					'expiryYear'   => __( 'Expiry year invalid or missing', $this->payment_core->text_domain() ),
-					'securityCode' => __( 'Security code is invalid or missing', $this->payment_core->text_domain() ),
-					'default'      => __( 'There was an error updating the payment details. Please try again.', $this->payment_core->text_domain() ),
+					'cardNumber'   => __( 'Card number invalid or missing', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+					'number'       => __( 'Card number invalid or missing', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+					'expiryMonth'  => __( 'Expiry month invalid or missing', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+					'expiryYear'   => __( 'Expiry year invalid or missing', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+					'securityCode' => __( 'Security code is invalid or missing', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+					'default'      => __( 'There was an error updating the payment details. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 				),
-				'payment_type_required' => __( 'Payment type is required', $this->payment_core->text_domain() ),
-				'request_timeout'       => __( 'Session update failed with request timeout', $this->payment_core->text_domain() ),
-				'system_error'          => __( 'Session update failed with system error', $this->payment_core->text_domain() ),
-				'default'               => __( 'There was an error updating the payment details. Please try again.', $this->payment_core->text_domain() ),
-				'session_expired'       => __( 'The Payment Session expired. Please try again.', $this->payment_core->text_domain() ),
+				'payment_type_required' => __( 'Payment type is required', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+				'request_timeout'       => __( 'Session update failed with request timeout', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+				'system_error'          => __( 'Session update failed with system error', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+				'default'               => __( 'There was an error updating the payment details. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+				'session_expired'       => __( 'The Payment Session expired. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 			)
 		);
 	}
