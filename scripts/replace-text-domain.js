@@ -2,18 +2,23 @@ const fs = require( 'fs' );
 const path = require( 'path' );
 const { globSync } = require( 'glob' );
 
-const [ search, replace ] = process.argv.slice( 2 );
+const args = process.argv.slice( 2 );
+const baseDir = args.find( ( a ) => a.startsWith( '--base-dir=' ) );
+const positional = args.filter( ( a ) => ! a.startsWith( '--' ) );
+const [ search, replace ] = positional;
 
 if ( ! search || ! replace ) {
-	console.error( 'Usage: node replace-text-domain.js <search> <replace>' );
+	console.error( 'Usage: node replace-text-domain.js <search> <replace> [--base-dir=<path>]' );
 	process.exit( 1 );
 }
 
 const searchQuoted = `'${ search }'`;
 const replaceQuoted = `'${ replace }'`;
 
-const rootDir = path.resolve( __dirname, '..' );
-const files = globSync( '{includes,templates}/**/*.php', { cwd: rootDir } );
+const rootDir = baseDir
+	? path.resolve( baseDir.split( '=' )[ 1 ] )
+	: path.resolve( __dirname, '..' );
+const files = globSync( '**/*.php', { cwd: rootDir, ignore: [ 'vendor/**', 'node_modules/**' ] } );
 
 let totalReplacements = 0;
 let filesChanged = 0;
