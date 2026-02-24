@@ -67,7 +67,7 @@ trait DynamicCurrencyConversion {
 
 		add_action( 'PAYMENTS_CORE_HOOK_PREFIX_payment_fields_hosted_session_template_data', array( $this, 'dcc_payment_fields_hosted_session_template_data' ) );
 
-		add_action( 'wc_PAYMENTS_CORE_HOOK_PREFIX_after_payment_method_fields', array( $this, 'dcc_after_payment_method_fields' ) );
+		add_action( 'PAYMENTS_CORE_HOOK_PREFIX_after_payment_method_fields', array( $this, 'dcc_after_payment_method_fields' ) );
 
 		add_action( 'woocommerce_cart_loaded_from_session', array( $this, 'init_dcc_hooks' ), 20 );
 	}

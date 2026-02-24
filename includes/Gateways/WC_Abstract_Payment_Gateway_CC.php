@@ -1735,7 +1735,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			 *
 			 * @since 1.0.0
 			 */
-			do_action( 'wc_PAYMENTS_CORE_HOOK_PREFIX_add_payment_method_success', $token_id, $this );
+			do_action( 'PAYMENTS_CORE_HOOK_PREFIX_add_payment_method_success', $token_id, $this );
 
 			return $result;
 		} catch ( Exception $e ) {

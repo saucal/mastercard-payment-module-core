@@ -70,6 +70,6 @@ if ( empty( $session_id ) || empty( $session_attempt ) ) {
 	 *
 	 * @since 1.0.0
 	 */
-	do_action( 'wc_' . $gateway->id . '_after_payment_method_fields' );
+	do_action( 'PAYMENTS_CORE_HOOK_PREFIX_after_payment_method_fields' );
 	?>
 </fieldset>
