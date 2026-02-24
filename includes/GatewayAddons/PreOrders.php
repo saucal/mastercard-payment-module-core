@@ -57,7 +57,7 @@ trait PreOrders {
 		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_hosted_session_data', array( $this, 'maybe_add_pre_order_payment_data' ), 10, 2 );
 
 		// Hide the save payment method checkbox for subscriptions.
-		add_filter( 'wc_' . $this->id . '_display_save_payment_method_checkbox', array( $this, 'maybe_display_save_checkbox_pre_orders' ) );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_display_save_payment_method_checkbox', array( $this, 'maybe_display_save_checkbox_pre_orders' ) );
 
 		// Force save payment method for pre-orders that require tokenization.
 		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_forced_save_payment_method', array( $this, 'maybe_force_save_method_pre_order' ) );

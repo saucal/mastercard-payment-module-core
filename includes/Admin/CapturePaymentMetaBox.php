@@ -145,7 +145,7 @@ class CapturePaymentMetaBox {
 		}
 
 		// phpcs:ignore WordPress.Security.NonceVerification
-		$void_transaction = isset( $_POST[ 'PAYMENTS_CORE_HOOK_PREFIX_void_transaction' ] ) ? wc_clean( wp_unslash( $_POST[ 'PAYMENTS_CORE_HOOK_PREFIX_void_transaction' ] ) ) : 0;
+		$void_transaction = isset( $_POST['PAYMENTS_CORE_HOOK_PREFIX_void_transaction'] ) ? wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_void_transaction'] ) ) : 0;
 		if ( $void_transaction ) {
 			// Void transaction takes precedence over capture.
 			$gateway->process_void_payment( $order );
@@ -153,7 +153,7 @@ class CapturePaymentMetaBox {
 		}
 
 		// phpcs:ignore WordPress.Security.NonceVerification
-		$capture_amount = isset( $_POST[ 'PAYMENTS_CORE_HOOK_PREFIX_capture_amount' ] ) ? wc_format_decimal( wc_clean( wp_unslash( $_POST[ 'PAYMENTS_CORE_HOOK_PREFIX_capture_amount' ] ) ) ) : 0;
+		$capture_amount = isset( $_POST['PAYMENTS_CORE_HOOK_PREFIX_capture_amount'] ) ? wc_format_decimal( wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_capture_amount'] ) ) ) : 0;
 		if ( $capture_amount <= 0 ) {
 			return;
 		}

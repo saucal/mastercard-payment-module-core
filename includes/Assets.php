@@ -329,7 +329,7 @@ class Assets {
 				 *
 				 * @since 1.0.0
 				 */
-				wp_localize_script( $handle, $name, apply_filters( $name, $data ) );
+				wp_localize_script( $handle, $name, apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_script_data_' . $name, $data ) );
 			}
 		}
 	}

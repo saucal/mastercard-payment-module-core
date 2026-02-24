@@ -256,7 +256,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		}
 
 		if ( empty( $regions ) || count( $regions ) < 2 ) {
-			$_POST[ 'woocommerce_PAYMENTS_CORE_HOOK_PREFIX_region' ] = \array_key_first( $regions ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+			$_POST['woocommerce_PAYMENTS_CORE_HOOK_PREFIX_region'] = \array_key_first( $regions ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
 		}
 
 		parent::process_admin_options();
@@ -596,7 +596,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		 *
 		 * @since 1.0.0
 		 */
-		$this->display_save_checkbox = apply_filters( 'wc_' . $this->id . '_display_save_payment_method_checkbox', $display_tokenization );
+		$this->display_save_checkbox = apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_display_save_payment_method_checkbox', $display_tokenization );
 
 		$this->core_plugin->payment_core()->template()->get(
 			'payment-fields-hosted-session.php',
@@ -1314,14 +1314,14 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @throws Exception Exception.
 	 */
 	protected function get_device_details() {
-		if ( ! isset( $_SERVER['HTTP_USER_AGENT'] ) || empty( $_POST[ 'PAYMENTS_CORE_HOOK_PREFIX_3ds_data' ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		if ( ! isset( $_SERVER['HTTP_USER_AGENT'] ) || empty( $_POST['PAYMENTS_CORE_HOOK_PREFIX_3ds_data'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
 			throw new Exception( esc_html( __( 'There was an error with the payment authentication. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) ) );
 		}
 
 		return array(
 			'browser'        => wc_clean( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) ),
 			'browserDetails' => wp_parse_args(
-				json_decode( wc_clean( wp_unslash( $_POST[ 'PAYMENTS_CORE_HOOK_PREFIX_3ds_data' ] ) ), true ), // phpcs:ignore WordPress.Security.NonceVerification.Missing
+				json_decode( wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_3ds_data'] ) ), true ), // phpcs:ignore WordPress.Security.NonceVerification.Missing
 				array(
 					'3DSecureChallengeWindowSize' => 'FULL_SCREEN',
 					'acceptHeaders'               => isset( $_SERVER['HTTP_ACCEPT'] ) ? wc_clean( wp_unslash( $_SERVER['HTTP_ACCEPT'] ) ) : '',
@@ -1449,7 +1449,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			return $return;
 		}
 
-		$return[ 'PAYMENTS_CORE_HOOK_PREFIX_3ds' ] = wp_json_encode( $data );
+		$return['PAYMENTS_CORE_HOOK_PREFIX_3ds'] = wp_json_encode( $data );
 
 		return $return;
 	}
@@ -1597,12 +1597,12 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return array
 	 */
 	public function get_posted_session_data() {
-		$id = ! empty( $_POST[ 'PAYMENTS_CORE_HOOK_PREFIX_session_id' ] ) ? wc_clean( wp_unslash( $_POST[ 'PAYMENTS_CORE_HOOK_PREFIX_session_id' ] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$id = ! empty( $_POST['PAYMENTS_CORE_HOOK_PREFIX_session_id'] ) ? wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_session_id'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing
 		if ( ! $id ) {
 			return array();
 		}
 
-		$version = ! empty( $_POST[ 'PAYMENTS_CORE_HOOK_PREFIX_session_version' ] ) ? wc_clean( wp_unslash( $_POST[ 'PAYMENTS_CORE_HOOK_PREFIX_session_version' ] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$version = ! empty( $_POST['PAYMENTS_CORE_HOOK_PREFIX_session_version'] ) ? wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_session_version'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing
 		if ( ! $version ) {
 			return array();
 		}
@@ -1735,7 +1735,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			 *
 			 * @since 1.0.0
 			 */
-			do_action( 'wc_PAYMENTS_CORE_HOOK_PREFIX_add_payment_method_success', $token_id, $this );
+			do_action( 'PAYMENTS_CORE_HOOK_PREFIX_add_payment_method_success', $token_id, $this );
 
 			return $result;
 		} catch ( Exception $e ) {
@@ -1851,14 +1851,14 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 					 *
 					 * @since 1.0.0
 					 */
-					$this->display_save_checkbox = apply_filters( 'wc_' . $this->id . '_display_save_payment_method_checkbox', $this->display_saved_card_methods() );
+					$this->display_save_checkbox = apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_display_save_payment_method_checkbox', $this->display_saved_card_methods() );
 
 					$session_id                      = $this->hosted_session_id();
 					$data['sessionId']               = $session_id;
 					$data['sessionAttempt']          = uniqid( $session_id );
 					$data['displaySaveCardCheckbox'] = $this->display_save_checkbox;
 
-					// Handle notices in some cases with blocks
+					// Handle notices in some cases with blocks.
 					$maybe_display_payment_notice = WC()->session->get( 'PAYMENTS_CORE_HOOK_PREFIX_payment_error_message', false );
 					if ( $maybe_display_payment_notice ) {
 						$data['paymentErrorMessage'] = $maybe_display_payment_notice;
@@ -2414,11 +2414,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return void
 	 */
 	public function maybe_handle_return_callback() {
-		if ( ! isset( $_GET[ 'PAYMENTS_CORE_HOOK_PREFIX-callback' ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( ! isset( $_GET['PAYMENTS_CORE_HOOK_PREFIX-callback'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			return;
 		}
 
-		$callback = wc_clean( wp_unslash( $_GET[ 'PAYMENTS_CORE_HOOK_PREFIX-callback' ] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$callback = wc_clean( wp_unslash( $_GET['PAYMENTS_CORE_HOOK_PREFIX-callback'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
 		switch ( $callback ) {
 			// Handle hosted checkout.
@@ -2753,8 +2753,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return void
 	 */
 	public function ajax_update_hosted_session_from_token() {
-		$session_id = wc_clean( wp_unslash( $_POST[ 'PAYMENTS_CORE_HOOK_PREFIX_session_id' ] ?? $this->hosted_session_id() ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
-		$token_id   = wc_clean( wp_unslash( $_POST[ 'PAYMENTS_CORE_HOOK_PREFIX_token_id' ] ?? '' ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$session_id = wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_session_id'] ?? $this->hosted_session_id() ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$token_id   = wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_token_id'] ?? '' ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
 
 		$updated_session = $this->update_session_with_token( $session_id, $token_id, true );
 
