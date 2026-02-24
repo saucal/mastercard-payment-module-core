@@ -38,6 +38,7 @@ wordpress_org_assets export-ignore
 .nvmrc export-ignore
 node_modules export-ignore
 payment-core export-ignore
+scripts export-ignore
 build export-ignore
 assets/343.js export-ignore
 assets/663.js export-ignore
