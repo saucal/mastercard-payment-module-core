@@ -82,7 +82,7 @@ trait Subscriptions {
 		add_filter( 'woocommerce_get_checkout_url', array( __CLASS__, 'maybe_remove_redirect_to_checkout' ) );
 
 		// Hide the save payment method checkbox for subscriptions.
-		add_filter( 'wc_' . $this->id . '_display_save_payment_method_checkbox', array( $this, 'maybe_display_save_checkbox_subscription' ) );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_display_save_payment_method_checkbox', array( $this, 'maybe_display_save_checkbox_subscription' ) );
 		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_payment_method_data', array( $this, 'maybe_add_display_save_card_notice' ) );
 
 		// Forcefully save the payment method for subscriptions.

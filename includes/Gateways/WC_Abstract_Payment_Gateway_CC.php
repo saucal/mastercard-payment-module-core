@@ -596,7 +596,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		 *
 		 * @since 1.0.0
 		 */
-		$this->display_save_checkbox = apply_filters( 'wc_' . $this->id . '_display_save_payment_method_checkbox', $display_tokenization );
+		$this->display_save_checkbox = apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_display_save_payment_method_checkbox', $display_tokenization );
 
 		$this->core_plugin->payment_core()->template()->get(
 			'payment-fields-hosted-session.php',
@@ -1851,7 +1851,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 					 *
 					 * @since 1.0.0
 					 */
-					$this->display_save_checkbox = apply_filters( 'wc_' . $this->id . '_display_save_payment_method_checkbox', $this->display_saved_card_methods() );
+					$this->display_save_checkbox = apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_display_save_payment_method_checkbox', $this->display_saved_card_methods() );
 
 					$session_id                      = $this->hosted_session_id();
 					$data['sessionId']               = $session_id;
