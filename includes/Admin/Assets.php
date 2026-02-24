@@ -60,7 +60,7 @@ final class Assets {
 	 */
 	public function add_styles( $styles ) {
 
-		$styles[ 'PAYMENTS_CORE_HOOK_PREFIX_gateway-admin' ] = array(
+		$styles['PAYMENTS_CORE_HOOK_PREFIX_gateway-admin'] = array(
 			'src' => $this->core_plugin->assets_controller()->localize_asset( 'css/admin/payment-core.css' ),
 		);
 
@@ -76,7 +76,7 @@ final class Assets {
 	 */
 	public function add_scripts( $scripts ) {
 
-		$scripts[ 'PAYMENTS_CORE_HOOK_PREFIX_gateway-admin' ] = array(
+		$scripts['PAYMENTS_CORE_HOOK_PREFIX_gateway-admin'] = array(
 			'src'  => $this->core_plugin->assets_controller()->localize_asset( 'js/admin/payment-core.js' ),
 			'data' => array(
 				'pluginPrefix' => $this->core_plugin->payment_core()->get_prefix(),
