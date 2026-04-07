@@ -322,7 +322,7 @@ class Assets {
 
 			$data = $this->get_script_data( $handle );
 			if ( $data ) {
-				$name                        = str_replace( array( $this->core_plugin->payment_core()->get_prefix(), '-' ), array( 'core', '_' ), $handle ) . '_params';
+				$name                        = str_replace( array( 'PAYMENTS_CORE_HOOK_PREFIX', '-' ), array( 'core', '_' ), $handle ) . '_params';
 				$this->wp_localize_scripts[] = $handle;
 				/**
 				 * Filters the localized script data before it is output.
