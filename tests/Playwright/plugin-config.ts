@@ -1,18 +1,20 @@
 import type { PluginConfig } from './plugin-config.types';
 
+const slug = process.env.GATEWAY_SLUG || 'acme';
+
 const config: PluginConfig = {
-  paymentMethodSlug: 'mastercard_merchant_cloud',
-  paymentMethodSlugsAlt: ['acme'],
-  displayName: 'WooCommerce Gateway Acme Plugin',
-  settingsOptionName: 'woocommerce_mastercard_merchant_cloud_settings',
+  paymentMethodSlug: slug,
+  paymentMethodSlugsAlt: slug === 'acme' ? ['mastercard_merchant_cloud'] : ['acme'],
+  displayName: process.env.GATEWAY_DISPLAY_NAME || 'WooCommerce Gateway Acme Plugin',
+  settingsOptionName: `woocommerce_${slug}_settings`,
   mpgsIframePattern: 'iframe[src*="test-gateway.mastercard.com"]',
-  transactionIdMetaKey: 'mastercard_merchant_cloud_order_id',
-  sessionIdMetaKey: 'mastercard_merchant_cloud_session_id',
-  tokenMetaKey: 'mastercard_merchant_cloud_token',
+  transactionIdMetaKey: `${slug}_order_id`,
+  sessionIdMetaKey: `${slug}_session_id`,
+  tokenMetaKey: `${slug}_token`,
   products: {
-    physical: 1103,
-    digital: 1594,
-    subscription: 1274,
+    physical: parseInt(process.env.PRODUCT_PHYSICAL || '61', 10),
+    digital: parseInt(process.env.PRODUCT_DIGITAL || '316', 10),
+    subscription: parseInt(process.env.PRODUCT_SUBSCRIPTION || '66', 10),
   },
 };
 
