@@ -41,6 +41,8 @@ export interface PluginConfig {
   settingsOptionName: string;
   mpgsIframePattern: string;
   transactionIdMetaKey: string;
+  sessionIdMetaKey: string;
+  tokenMetaKey: string;
   products: {
     physical: number;
     digital: number;

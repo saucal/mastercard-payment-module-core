@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { switchCheckoutMode, configureGateway, verifyOrderViaAPI } from '../../helpers/api';
+import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getOrderMeta } from '../../helpers/api';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
   fillBilling,
@@ -15,7 +15,16 @@ import {
 import { verifyOrderReceived } from '../../helpers/order-received';
 import { verifyPaymentMethods, deletePaymentMethod } from '../../helpers/my-account';
 import { frontendLogin, registerUser } from '../../helpers/wp-login';
+import { adminLogin } from '../../helpers/wp-login';
 import { waitForUnblock, waitForPageLoad } from '../../helpers/block-ui';
+import { navigateToOrder, assertOrderStatus } from '../../helpers/admin-orders';
+import {
+  extractSessionGetLogs,
+  extractTokenLogs,
+  verifySessionGet,
+  verifyTokenLog,
+} from '../../helpers/log-verification';
+import { verifyOrderEmails } from '../../helpers/email-verification';
 import config from '../../plugin-config';
 import { cards, fourDigits } from '../../fixtures/cards';
 import { billing, uniqueEmail } from '../../fixtures/billing';
@@ -47,6 +56,9 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
 
   // === MC-050: Add Payment Method ===
 
+  let mc050PayDate: string;
+  let mc050Session: string;
+
   test('MC-050 - Add Payment Method', async ({ page }) => {
     await switchCheckoutMode('classic');
     await configureGateway(config, {
@@ -59,6 +71,7 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
     // Register a new user
     await registerUser(page, mc050Email, billing.password);
 
+    mc050PayDate = new Date().toISOString().slice(0, 10);
     await addPaymentMethod(page, cards.mastercard);
 
     // Click "Add payment method" button
@@ -74,9 +87,22 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
     });
   });
 
+  test('MC-050 - Add Payment Method - Admin', async () => {
+    // MC-050 is an add-payment-method flow (no order), verify token logs exist
+    const tokenLogs = await extractTokenLogs(mc050PayDate, mc050PayDate);
+    // Token log should be present (card was saved)
+    expect(tokenLogs.logs[0]?.content?.length).toBeGreaterThan(0);
+    const tokenLog = tokenLogs.logs[0].content[0];
+    verifyTokenLog(tokenLog, { session: tokenLog.request.body.session?.id || '', card: cards.mastercard });
+  });
+
   // === MC-051: Logged user pay with saved CC (from MC-050) ===
 
   let mc051OrderNumber: string;
+  let mc051PayDate: string;
+  let mc051Session: string;
+  // Token saved during MC-050 (retrieved from token log)
+  let mc050Token: string;
 
   test('MC-051 - Logged user pay with saved CC', async ({ page }) => {
     await frontendLogin(page, mc050Email, billing.password);
@@ -84,24 +110,53 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
     await selectPaymentMethod(page, config);
     await selectSavedToken(page, 1);
 
+    mc051PayDate = new Date().toISOString().slice(0, 10);
     await clickPlaceOrder(page);
     const result = await verifyOrderReceived(page, { displayName: config.displayName });
     mc051OrderNumber = result.orderNumber;
     expect(mc051OrderNumber).toBeTruthy();
   });
 
-  test('MC-051 - Logged user pay with saved CC - Admin', async () => {
+  test('MC-051 - Logged user pay with saved CC - Admin', async ({ page }) => {
     expect(mc051OrderNumber).toBeTruthy();
     const { order, transactionId } = await verifyOrderViaAPI(mc051OrderNumber, config);
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
+
+    mc051Session = getOrderMeta(order, config.sessionIdMetaKey) || '';
+    mc050Token = getOrderMeta(order, config.tokenMetaKey) || '';
+
+    // Phase 3: Verify session GET has token (using saved CC)
+    const sessionGetLogs = await extractSessionGetLogs(mc051PayDate, mc051Session, mc051PayDate);
+    if (sessionGetLogs.logs[0]?.content?.length) {
+      const sessionGetLog = sessionGetLogs.logs[0].content[0];
+      verifySessionGet(sessionGetLog, {
+        session: mc051Session,
+        card: cards.mastercard,
+        token: mc050Token,
+      });
+    }
+
+    // Phase 11: Email verification
+    await verifyOrderEmails(mc051OrderNumber, { paymentMethodTitle: config.displayName });
+
+    // Phase 12: Admin backend
+    await adminLogin(page);
+    await navigateToOrder(page, mc051OrderNumber);
+    await assertOrderStatus(page, 'Processing');
+    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
+    await expect(page.locator('li.note.system-note .note_content > p').first()).toContainText(transactionId!);
   });
 
   // === MC-052: Add second payment method ===
 
+  let mc052PayDate: string;
+
   test('MC-052 - Add second payment method', async ({ page }) => {
     await registerUser(page, mc052Email, billing.password);
+
+    mc052PayDate = new Date().toISOString().slice(0, 10);
 
     // Add first card
     await addPaymentMethod(page, cards.mastercard);
@@ -121,6 +176,12 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
       cardName: cards.mastercard.name,
       fourDigits: fourDigits(cards.mastercard),
     });
+  });
+
+  test('MC-052 - Add second payment method - Admin', async () => {
+    // Token logs should contain 2 entries (one per card added)
+    const tokenLogs = await extractTokenLogs(mc052PayDate, mc052PayDate);
+    expect(tokenLogs.logs[0]?.content?.length).toBeGreaterThanOrEqual(2);
   });
 
   // === MC-053: Session loading ===

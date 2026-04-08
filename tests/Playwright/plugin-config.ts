@@ -7,6 +7,8 @@ const config: PluginConfig = {
   settingsOptionName: 'woocommerce_mastercard_merchant_cloud_settings',
   mpgsIframePattern: 'iframe[src*="test-gateway.mastercard.com"]',
   transactionIdMetaKey: 'mastercard_merchant_cloud_order_id',
+  sessionIdMetaKey: 'mastercard_merchant_cloud_session_id',
+  tokenMetaKey: 'mastercard_merchant_cloud_token',
   products: {
     physical: 1103,
     digital: 1594,
