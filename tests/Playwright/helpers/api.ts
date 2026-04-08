@@ -77,5 +77,7 @@ export async function getLogs(date: string, urlFilter: string): Promise<any> {
     { headers: wpAuthHeaders() }
   );
   if (!res.ok) throw new Error(`getLogs failed: ${res.status}`);
-  return res.json();
+  const data = await res.json();
+  // API returns an array of {filename, content} — wrap to match LogResponse shape
+  return { logs: Array.isArray(data) ? data : [] };
 }

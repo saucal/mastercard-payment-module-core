@@ -164,6 +164,8 @@ export async function selectSavedToken(page: Page, index: number): Promise<void>
 }
 
 export async function extractOrderTotal(page: Page): Promise<string> {
+  // Wait for WC to finish recalculating after billing changes
+  await waitForUnblock(page);
   const mode = await detectCheckoutMode(page);
   if (mode === 'blocks') {
     return await page.locator('div.wc-block-components-totals-item__value > span').last().textContent() || '';
@@ -201,9 +203,10 @@ export async function clickPlaceOrder(page: Page): Promise<void> {
   );
   await btn.first().click();
 
-  // Wait for either redirect to order-received or a checkout error
+  // Wait for either redirect to order-received, a checkout error, or 3DS redirect
   await Promise.race([
     page.waitForURL(/order-received/, { timeout: 60000 }),
+    page.waitForURL(/acs|3ds|threedsecure|mastercard\.com.*prompt/i, { timeout: 60000 }),
     page.locator(sel.errorMessage).first().waitFor({ state: 'visible', timeout: 60000 }),
   ]);
 }
