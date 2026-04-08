@@ -2,6 +2,11 @@ import { expect } from '@playwright/test';
 
 const MAILPIT_URL = process.env.MAILPIT_URL || 'http://mail.saucal.lndo.site';
 
+// Allow self-signed certs for local Mailpit via Caddy
+if (MAILPIT_URL.startsWith('https')) {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+}
+
 interface MailpitMessage {
   ID: string;
   Subject: string;

@@ -65,6 +65,7 @@ export async function deletePaymentMethod(page: Page, index: number): Promise<vo
 }
 
 export async function verifyCartEmpty(page: Page): Promise<void> {
-  await page.goto('/cart-2/');
-  await expect(page.locator('body')).toContainText('Your cart is currently empty');
+  const cartUrl = process.env.CART_URL || '/cart/';
+  await page.goto(cartUrl);
+  await expect(page.locator('body')).toContainText('Your cart is currently empty', { timeout: 10000 });
 }
