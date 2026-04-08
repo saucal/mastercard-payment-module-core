@@ -18,13 +18,22 @@ export async function verifyOrderReceived(
   }
 
   await expect(page.locator('h1.entry-title')).toContainText('Order received');
-  const orderNumber = await page.locator('.order > strong').first().textContent() || '';
-  await expect(page.locator('.method > strong')).toContainText(options.displayName);
+
+  // Order number — try multiple selectors for different WC themes
+  const orderNumber = await page.locator('.order > strong, li:has-text("Order number") > strong').first().textContent() || '';
+
+  // Payment method
+  await expect(
+    page.locator('.method > strong, li:has-text("Payment method") > strong')
+  ).toContainText(options.displayName);
 
   if (options.expectedTotal) {
-    // Classic: tfoot tr.order-total td span.woocommerce-Price-amount.amount > bdi
-    // Also try: tr:nth-of-type(5) > td > .woocommerce-Price-amount, tr:nth-of-type(4) > td > .woocommerce-Price-amount
-    const totalLocator = page.locator('tfoot tr.order-total td span.woocommerce-Price-amount.amount > bdi, tr:nth-of-type(5) > td > .woocommerce-Price-amount.amount, tr:nth-of-type(4) > td > .woocommerce-Price-amount.amount').first();
+    // Try multiple selectors: tfoot total, order summary list, order details table
+    const totalLocator = page.locator(
+      'tfoot tr.order-total td span.woocommerce-Price-amount.amount > bdi, ' +
+      'li:has-text("Total") > strong, ' +
+      'tr:has(> th:has-text("Total"), > td.rowheader:has-text("Total")) td .woocommerce-Price-amount.amount'
+    ).first();
     await expect(totalLocator).toContainText(options.expectedTotal);
   }
 
