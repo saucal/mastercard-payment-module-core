@@ -5,8 +5,6 @@ import { waitForUnblock } from './block-ui';
 /**
  * Find the MPGS iframe that contains a specific field.
  * MPGS hosted session renders one iframe per field (number, expiryMonth, expiryYear, securityCode).
- * Each iframe's src contains the field role, but we walk all matching iframes and check
- * for the target element to handle any layout variation.
  */
 async function findFieldFrame(page: Page, config: PluginConfig, fieldId: string, timeout = 15000): Promise<FrameLocator> {
   const iframes = page.locator(config.mpgsIframePattern);
@@ -39,25 +37,56 @@ export async function assertSessionFieldsPresent(page: Page, config: PluginConfi
   await expect(cvcFrame.locator('#securityCode')).toBeVisible();
 }
 
+/**
+ * Fill credit card fields inside the MPGS hosted session iframes.
+ *
+ * MPGS iframes are cross-origin — Playwright's fill() sets input values but
+ * doesn't trigger MPGS's internal event listeners. Instead, we click the iframe
+ * element to focus it, then use page.keyboard.type() to send real keyboard
+ * events that MPGS captures. Tab navigates between iframe fields.
+ */
 export async function fillHostedSessionCC(page: Page, card: CardData, config: PluginConfig): Promise<void> {
   await waitForUnblock(page);
 
-  // fill() handles focus automatically — no click() needed.
-  // click() fails on cross-origin MPGS iframes due to pointer event interception.
-  const numberFrame = await findFieldFrame(page, config, 'number');
-  await numberFrame.locator('#number').fill(card.number);
+  const iframes = page.locator(config.mpgsIframePattern);
+  // Wait for iframes to load
+  await iframes.first().waitFor({ state: 'attached', timeout: 15000 });
+  const count = await iframes.count();
+  if (count < 4) throw new Error(`Expected 4 MPGS iframes, found ${count}`);
 
-  const monthFrame = await findFieldFrame(page, config, 'expiryMonth');
-  await monthFrame.locator('#expiryMonth').fill(card.month);
+  // Focus the first iframe (card number) and type
+  await iframes.nth(0).click({ force: true });
+  await page.waitForTimeout(300);
+  await page.keyboard.type(card.number, { delay: 30 });
+  await page.waitForTimeout(300);
 
-  const yearFrame = await findFieldFrame(page, config, 'expiryYear');
-  await yearFrame.locator('#expiryYear').fill(card.year);
+  // Tab to expiry month and type
+  await page.keyboard.press('Tab');
+  await page.waitForTimeout(300);
+  await page.keyboard.type(card.month, { delay: 30 });
+  await page.waitForTimeout(300);
 
-  const cvcFrame = await findFieldFrame(page, config, 'securityCode');
-  await cvcFrame.locator('#securityCode').fill(card.cvv);
-  await cvcFrame.locator('#securityCode').press('Tab');
+  // Tab to expiry year and type
+  await page.keyboard.press('Tab');
+  await page.waitForTimeout(300);
+  await page.keyboard.type(card.year, { delay: 30 });
+  await page.waitForTimeout(300);
+
+  // Tab to security code and type
+  await page.keyboard.press('Tab');
+  await page.waitForTimeout(300);
+  await page.keyboard.type(card.cvv, { delay: 30 });
+  await page.waitForTimeout(300);
+
+  // Tab out to trigger validation
+  await page.keyboard.press('Tab');
+  await page.waitForTimeout(1000);
 }
 
+/**
+ * Fill only specific CC fields (for partial-fill validation tests).
+ * Pass undefined for fields to leave empty.
+ */
 export async function fillHostedSessionCCPartial(
   page: Page,
   config: PluginConfig,
@@ -65,21 +94,44 @@ export async function fillHostedSessionCCPartial(
 ): Promise<void> {
   await waitForUnblock(page);
 
+  const iframes = page.locator(config.mpgsIframePattern);
+  await iframes.first().waitFor({ state: 'attached', timeout: 15000 });
+
+  // Focus first iframe
+  await iframes.nth(0).click({ force: true });
+  await page.waitForTimeout(300);
+
+  // Card number
   if (fields.number !== undefined) {
-    const frame = await findFieldFrame(page, config, 'number');
-    await frame.locator('#number').fill(fields.number);
+    await page.keyboard.type(fields.number, { delay: 30 });
   }
+  await page.waitForTimeout(300);
+
+  // Tab to expiry month
+  await page.keyboard.press('Tab');
+  await page.waitForTimeout(300);
   if (fields.month !== undefined) {
-    const frame = await findFieldFrame(page, config, 'expiryMonth');
-    await frame.locator('#expiryMonth').fill(fields.month);
+    await page.keyboard.type(fields.month, { delay: 30 });
   }
+  await page.waitForTimeout(300);
+
+  // Tab to expiry year
+  await page.keyboard.press('Tab');
+  await page.waitForTimeout(300);
   if (fields.year !== undefined) {
-    const frame = await findFieldFrame(page, config, 'expiryYear');
-    await frame.locator('#expiryYear').fill(fields.year);
+    await page.keyboard.type(fields.year, { delay: 30 });
   }
+  await page.waitForTimeout(300);
+
+  // Tab to CVC
+  await page.keyboard.press('Tab');
+  await page.waitForTimeout(300);
   if (fields.cvv !== undefined) {
-    const frame = await findFieldFrame(page, config, 'securityCode');
-    await frame.locator('#securityCode').fill(fields.cvv);
-    await frame.locator('#securityCode').press('Tab');
+    await page.keyboard.type(fields.cvv, { delay: 30 });
   }
+  await page.waitForTimeout(300);
+
+  // Tab out
+  await page.keyboard.press('Tab');
+  await page.waitForTimeout(500);
 }
