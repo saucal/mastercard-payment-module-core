@@ -89,7 +89,7 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
 
     // Do NOT click save card checkbox
 
-    mc011PayDate = new Date().toISOString().slice(0, 10);
+    mc011PayDate = new Date().toISOString().slice(0, 19);
     await clickPlaceOrder(page);
     await waitForUnblock(page);
     const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc011Total });
@@ -153,7 +153,7 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
     await fillHostedSessionCC(page, cards.mastercard, config);
     await clickSaveCardCheckbox(page);
 
-    mc012PayDate = new Date().toISOString().slice(0, 10);
+    mc012PayDate = new Date().toISOString().slice(0, 19);
     await clickPlaceOrder(page);
     await waitForUnblock(page);
     const result = await verifyOrderReceived(page, { displayName: config.displayName });
@@ -227,7 +227,7 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
     await selectPaymentMethod(page, config);
     await selectSavedToken(page, 1);
 
-    mc013PayDate = new Date().toISOString().slice(0, 10);
+    mc013PayDate = new Date().toISOString().slice(0, 19);
     await clickPlaceOrder(page);
     await waitForUnblock(page);
     const result = await verifyOrderReceived(page, { displayName: config.displayName });

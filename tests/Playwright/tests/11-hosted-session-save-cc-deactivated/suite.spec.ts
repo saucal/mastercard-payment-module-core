@@ -67,7 +67,7 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
     ).not.toBeVisible();
     await expect(page.locator('text=Save to account')).not.toBeVisible();
 
-    mc030PayDate = new Date().toISOString().slice(0, 10);
+    mc030PayDate = new Date().toISOString().slice(0, 19);
     await clickPlaceOrder(page);
     const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc030Total });
     mc030OrderNumber = result.orderNumber;
@@ -144,7 +144,7 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
       page.locator(`label[for="wc-${config.paymentMethodSlug}-new-payment-method"]`)
     ).not.toBeVisible();
 
-    mc031PayDate = new Date().toISOString().slice(0, 10);
+    mc031PayDate = new Date().toISOString().slice(0, 19);
     await clickPlaceOrder(page);
     const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc031Total });
     mc031OrderNumber = result.orderNumber;
@@ -196,7 +196,7 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
       page.locator(`label[for="wc-${config.paymentMethodSlug}-new-payment-method"]`)
     ).not.toBeVisible();
 
-    mc032PayDate = new Date().toISOString().slice(0, 10);
+    mc032PayDate = new Date().toISOString().slice(0, 19);
     await clickPlaceOrder(page);
     const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc032Total });
     mc032OrderNumber = result.orderNumber;
@@ -248,7 +248,7 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
       page.locator(`label[for="wc-${config.paymentMethodSlug}-new-payment-method"]`)
     ).not.toBeVisible();
 
-    mc060PayDate = new Date().toISOString().slice(0, 10);
+    mc060PayDate = new Date().toISOString().slice(0, 19);
     await clickPlaceOrder(page);
     await handle3DSChallenge(page);
     const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc060Total });

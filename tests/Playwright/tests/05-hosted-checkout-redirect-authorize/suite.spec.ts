@@ -366,7 +366,7 @@ test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
     await page.goto(`/checkout/order-pay/${orderId}/?pay_for_order=true&key=${orderKey}`);
     await page.waitForLoadState('networkidle');
 
-    payDate = new Date().toISOString().slice(0, 10);
+    payDate = new Date().toISOString().slice(0, 19);
     await selectPaymentMethod(page, config);
     total = await extractOrderTotal(page);
     await clickPlaceOrder(page);

@@ -69,7 +69,7 @@ test.describe.serial('Subscription Renewal', () => {
     mc060Session = await extractSessionId(page);
     mc060Total = await extractOrderTotal(page);
     mc060TotalRenew = await extractRecurringTotal(page);
-    mc060PayDate = new Date().toISOString().slice(0, 10);
+    mc060PayDate = new Date().toISOString().slice(0, 19);
 
     await clickPlaceOrder(page);
     await handle3DSChallenge(page);
@@ -216,7 +216,7 @@ test.describe.serial('Subscription Renewal', () => {
     expect(orderTotal).toBeCloseTo(renewalTotal, 2);
 
     // Renewal uses stored token — no new session logs expected
-    const renewDate = new Date().toISOString().slice(0, 10);
+    const renewDate = new Date().toISOString().slice(0, 19);
     const sessionPostLogs = await extractSessionPostLogs(renewDate, renewDate, '', '');
     const sessionGetLogs = await extractSessionGetLogs(renewDate, mc060Session, renewDate);
     expect(sessionPostLogs.logs[0]?.content.length ?? 0).toBe(0);
@@ -241,7 +241,7 @@ test.describe.serial('Subscription Renewal', () => {
     mc061Session = await extractSessionId(page);
     mc061Total = await extractOrderTotal(page);
     mc061TotalRenew = await extractRecurringTotal(page);
-    mc061PayDate = new Date().toISOString().slice(0, 10);
+    mc061PayDate = new Date().toISOString().slice(0, 19);
 
     await clickPlaceOrder(page);
     const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc061Total });
@@ -387,7 +387,7 @@ test.describe.serial('Subscription Renewal', () => {
     expect(orderTotal).toBeCloseTo(renewalTotal, 2);
 
     // Renewal uses stored token — no new session logs expected
-    const renewDate = new Date().toISOString().slice(0, 10);
+    const renewDate = new Date().toISOString().slice(0, 19);
     const sessionPostLogs = await extractSessionPostLogs(renewDate, renewDate, '', '');
     const sessionGetLogs = await extractSessionGetLogs(renewDate, mc061Session, renewDate);
     expect(sessionPostLogs.logs[0]?.content.length ?? 0).toBe(0);
@@ -414,7 +414,7 @@ test.describe.serial('Subscription Renewal', () => {
     mc062Session = await extractSessionId(page);
     mc062Total = await extractOrderTotal(page);
     mc062TotalRenew = await extractRecurringTotal(page);
-    mc062PayDate = new Date().toISOString().slice(0, 10);
+    mc062PayDate = new Date().toISOString().slice(0, 19);
 
     await clickPlaceOrder(page);
     await handle3DSChallenge(page);
@@ -561,7 +561,7 @@ test.describe.serial('Subscription Renewal', () => {
     mc063Session = await extractSessionId(page);
     mc063Total = await extractOrderTotal(page);
     mc063TotalRenew = await extractRecurringTotal(page);
-    mc063PayDate = new Date().toISOString().slice(0, 10);
+    mc063PayDate = new Date().toISOString().slice(0, 19);
 
     await clickPlaceOrder(page);
     const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc063Total });

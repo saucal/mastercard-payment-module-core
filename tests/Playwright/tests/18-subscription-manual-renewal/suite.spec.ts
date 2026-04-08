@@ -68,7 +68,7 @@ test.describe.serial('Subscription Manual Renewal', () => {
     session = await extractSessionId(page);
     total = await extractOrderTotal(page);
     totalRenew = await extractRecurringTotal(page);
-    payDate = new Date().toISOString().slice(0, 10);
+    payDate = new Date().toISOString().slice(0, 19);
 
     await clickPlaceOrder(page);
     await handle3DSChallenge(page);
@@ -227,7 +227,7 @@ test.describe.serial('Subscription Manual Renewal', () => {
     expect(transactionId).toBeTruthy();
 
     // Log extraction for manual renewal order
-    const manualRenewDate = new Date().toISOString().slice(0, 10);
+    const manualRenewDate = new Date().toISOString().slice(0, 19);
     const allLogs = await extractAllLogs(manualRenewDate);
     const logContent = allLogs.logs[0]?.content ?? [];
 
@@ -286,7 +286,7 @@ test.describe.serial('Subscription Manual Renewal', () => {
     expect(orderTotal).toBeCloseTo(renewalTotal, 2);
 
     // Renewal uses stored token — no new session logs expected
-    const renewDate = new Date().toISOString().slice(0, 10);
+    const renewDate = new Date().toISOString().slice(0, 19);
     const sessionPostLogs = await extractSessionPostLogs(renewDate, renewDate, '', '');
     const sessionGetLogs = await extractSessionGetLogs(renewDate, session, renewDate);
     expect(sessionPostLogs.logs[0]?.content.length ?? 0).toBe(0);

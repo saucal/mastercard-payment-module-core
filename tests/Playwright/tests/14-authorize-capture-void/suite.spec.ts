@@ -63,7 +63,7 @@ test.describe.serial('Authorize / Capture / Void', () => {
     await selectPaymentMethod(page, config);
     await fillHostedSessionCC(page, cards.visaFrictionless, config);
 
-    mc020PayDate = new Date().toISOString().slice(0, 10);
+    mc020PayDate = new Date().toISOString().slice(0, 19);
     await clickPlaceOrder(page);
     const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc020Total });
     mc020OrderNumber = result.orderNumber;
@@ -147,7 +147,7 @@ test.describe.serial('Authorize / Capture / Void', () => {
     await selectPaymentMethod(page, config);
     await fillHostedSessionCC(page, cards.visaFrictionless, config);
 
-    mc021PayDate = new Date().toISOString().slice(0, 10);
+    mc021PayDate = new Date().toISOString().slice(0, 19);
     await clickPlaceOrder(page);
     const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc021Total });
     mc021OrderNumber = result.orderNumber;
@@ -223,7 +223,7 @@ test.describe.serial('Authorize / Capture / Void', () => {
     await selectPaymentMethod(page, config);
     await fillHostedSessionCC(page, cards.visaFrictionless, config);
 
-    mc022PayDate = new Date().toISOString().slice(0, 10);
+    mc022PayDate = new Date().toISOString().slice(0, 19);
     await clickPlaceOrder(page);
     const result = await verifyOrderReceived(page, { displayName: config.displayName });
     mc022OrderNumber = result.orderNumber;
@@ -285,7 +285,7 @@ test.describe.serial('Authorize / Capture / Void', () => {
     await selectPaymentMethod(page, config);
     await fillHostedSessionCC(page, cards.visaFrictionless, config);
 
-    mc061PayDate = new Date().toISOString().slice(0, 10);
+    mc061PayDate = new Date().toISOString().slice(0, 19);
     await clickPlaceOrder(page);
     const result = await verifyOrderReceived(page, { displayName: config.displayName });
     mc061OrderNumber = result.orderNumber;
