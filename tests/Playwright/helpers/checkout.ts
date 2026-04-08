@@ -108,20 +108,39 @@ export async function selectPaymentMethod(page: Page, config: PluginConfig, useN
   const allSlugs = [config.paymentMethodSlug, ...config.paymentMethodSlugsAlt];
 
   for (const slug of allSlugs) {
-    const classicRadio = page.locator(`#payment_method_${slug}`);
-    const blocksRadio = page.locator(`#radio-control-wc-payment-method-options-${slug}`);
-    const radio = mode === 'classic' ? classicRadio : blocksRadio;
-    if (await radio.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await radio.click();
-      break;
+    if (mode === 'classic') {
+      // Classic checkout hides the radio input (1x1px, clipped) and renders
+      // a custom radio via the label's CSS. Click the label instead.
+      const label = page.locator(`label[for="payment_method_${slug}"]`);
+      if (await label.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await label.click();
+        break;
+      }
+    } else {
+      const blocksRadio = page.locator(`#radio-control-wc-payment-method-options-${slug}`);
+      if (await blocksRadio.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await blocksRadio.click();
+        break;
+      }
     }
   }
 
   if (useNewToken) {
-    const sel = getSelectors(mode);
-    const newTokenRadio = page.locator(sel.savedTokenNew);
-    if (await newTokenRadio.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await newTokenRadio.click();
+    if (mode === 'classic') {
+      // "Use a new payment method" radio — click via label
+      for (const slug of allSlugs) {
+        const label = page.locator(`label[for="wc-${slug}-payment-token-new"]`);
+        if (await label.isVisible({ timeout: 3000 }).catch(() => false)) {
+          await label.click();
+          break;
+        }
+      }
+    } else {
+      const sel = getSelectors(mode);
+      const newTokenRadio = page.locator(sel.savedTokenNew);
+      if (await newTokenRadio.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await newTokenRadio.click();
+      }
     }
   }
 
