@@ -117,7 +117,11 @@ export async function createAccountAtCheckout(page: Page, password: string): Pro
   const mode = await detectCheckoutMode(page);
   const sel = getSelectors(mode);
   await page.locator(sel.createAccount).first().click();
-  await page.locator(sel.accountPassword).first().fill(password);
+  // Password field may not appear (WC can auto-generate passwords)
+  const pwField = page.locator(sel.accountPassword).first();
+  if (await pwField.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await pwField.fill(password);
+  }
 }
 
 export async function selectPaymentMethod(page: Page, config: PluginConfig, useNewToken = false): Promise<void> {
