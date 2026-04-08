@@ -62,37 +62,55 @@ export function getSelectors(mode: CheckoutMode) {
   return mode === 'classic' ? classicSelectors : blocksSelectors;
 }
 
+async function tryFill(page: Page, selector: string, value: string): Promise<void> {
+  const el = page.locator(selector).first();
+  if (await el.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await el.fill(value);
+  }
+}
+
 export async function fillBilling(page: Page, billing: BillingData): Promise<void> {
   const mode = await detectCheckoutMode(page);
   const sel = getSelectors(mode);
 
-  await page.locator(sel.firstName).first().fill(billing.firstName);
-  await page.locator(sel.lastName).first().fill(billing.lastName);
-  await page.locator(sel.company).first().fill(billing.company);
+  // Email first (blocks shows it at top)
+  await tryFill(page, sel.email, billing.email);
 
   if (mode === 'classic') {
     await page.locator(sel.country).click();
     await page.locator(sel.countrySearch!).fill(billing.country);
     await page.locator(`//li[contains(text(), "${billing.country}")]`).first().click();
   } else {
-    await page.locator(sel.country).first().selectOption({ label: billing.country });
+    const countryEl = page.locator(sel.country).first();
+    if (await countryEl.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await countryEl.selectOption({ label: billing.country });
+      await page.waitForTimeout(500);
+    }
   }
 
-  await page.locator(sel.address1).first().fill(billing.street);
-  await page.locator(sel.address2).first().fill(billing.address2);
-  await page.locator(sel.city).first().fill(billing.city);
+  await tryFill(page, sel.firstName, billing.firstName);
+  await tryFill(page, sel.lastName, billing.lastName);
+  await tryFill(page, sel.company, billing.company);
+  await tryFill(page, sel.address1, billing.street);
+  await tryFill(page, sel.address2, billing.address2);
+  await tryFill(page, sel.city, billing.city);
 
   if (mode === 'classic') {
-    await page.locator(sel.state).click();
-    await page.locator(sel.stateSearch!).fill(billing.state);
-    await page.locator(`//li[contains(text(), "${billing.state}")]`).first().click();
+    const stateEl = page.locator(sel.state);
+    if (await stateEl.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await stateEl.click();
+      await page.locator(sel.stateSearch!).fill(billing.state);
+      await page.locator(`//li[contains(text(), "${billing.state}")]`).first().click();
+    }
   } else {
-    await page.locator(sel.state).first().selectOption({ label: billing.state });
+    const stateEl = page.locator(sel.state).first();
+    if (await stateEl.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await stateEl.selectOption({ label: billing.state });
+    }
   }
 
-  await page.locator(sel.postcode).first().fill(billing.zipCode);
-  await page.locator(sel.phone).first().fill(billing.phone);
-  await page.locator(sel.email).first().fill(billing.email);
+  await tryFill(page, sel.postcode, billing.zipCode);
+  await tryFill(page, sel.phone, billing.phone);
 }
 
 export async function createAccountAtCheckout(page: Page, password: string): Promise<void> {
