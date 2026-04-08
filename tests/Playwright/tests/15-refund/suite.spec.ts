@@ -47,7 +47,7 @@ test.describe.serial('Refund', () => {
     await selectPaymentMethod(page, config);
     await fillHostedSessionCC(page, cards.visaFrictionless, config);
 
-    mc040PayDate = new Date().toISOString().slice(0, 10);
+    mc040PayDate = new Date().toISOString().slice(0, 19);
     await clickPlaceOrder(page);
     const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc040Total });
     mc040OrderNumber = result.orderNumber;
@@ -112,7 +112,7 @@ test.describe.serial('Refund', () => {
     await selectPaymentMethod(page, config);
     await fillHostedSessionCC(page, cards.visaFrictionless, config);
 
-    mc041PayDate = new Date().toISOString().slice(0, 10);
+    mc041PayDate = new Date().toISOString().slice(0, 19);
     await clickPlaceOrder(page);
     const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc041Total });
     mc041OrderNumber = result.orderNumber;

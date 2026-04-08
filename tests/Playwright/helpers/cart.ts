@@ -11,6 +11,6 @@ export async function addToCartAndCheckout(page: Page, productId: number): Promi
   await waitForPageLoad(page);
   await page.locator('a[href*="checkout"]').first().click();
   await waitForPageLoad(page);
-  const payDate = new Date().toISOString();
+  const payDate = new Date().toISOString().slice(0, 19);
   return payDate;
 }

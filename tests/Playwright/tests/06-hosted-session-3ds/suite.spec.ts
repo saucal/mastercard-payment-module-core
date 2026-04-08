@@ -57,7 +57,7 @@ test.describe.serial('Hosted Session - 3DS', () => {
     await handle3DSChallenge(page);
     const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc050Total });
     mc050OrderNumber = result.orderNumber;
-    mc050PayDate = new Date().toISOString().slice(0, 10);
+    mc050PayDate = new Date().toISOString().slice(0, 19);
     expect(mc050OrderNumber).toBeTruthy();
   });
 
@@ -180,7 +180,7 @@ test.describe.serial('Hosted Session - 3DS', () => {
     await clickPlaceOrder(page);
     const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc051Total });
     mc051OrderNumber = result.orderNumber;
-    mc051PayDate = new Date().toISOString().slice(0, 10);
+    mc051PayDate = new Date().toISOString().slice(0, 19);
     expect(mc051OrderNumber).toBeTruthy();
   });
 
@@ -302,7 +302,7 @@ test.describe.serial('Hosted Session - 3DS', () => {
     await clickPlaceOrder(page);
     const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc052Total });
     mc052OrderNumber = result.orderNumber;
-    mc052PayDate = new Date().toISOString().slice(0, 10);
+    mc052PayDate = new Date().toISOString().slice(0, 19);
     expect(mc052OrderNumber).toBeTruthy();
   });
 

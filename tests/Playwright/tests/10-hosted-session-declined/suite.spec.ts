@@ -40,7 +40,7 @@ test.describe.serial('Hosted Session - Declined Transactions', () => {
 
     await clickPlaceOrder(page);
     await waitForUnblock(page);
-    mc014PayDate = new Date().toISOString().slice(0, 10);
+    mc014PayDate = new Date().toISOString().slice(0, 19);
     const error = await getCheckoutError(page);
     expect(error).toContain('Do not honour');
   });
@@ -87,7 +87,7 @@ test.describe.serial('Hosted Session - Declined Transactions', () => {
 
     await clickPlaceOrder(page);
     await waitForUnblock(page);
-    mc015PayDate = new Date().toISOString().slice(0, 10);
+    mc015PayDate = new Date().toISOString().slice(0, 19);
     const error = await getCheckoutError(page);
     expect(error).toContain('Expired Card');
   });
@@ -142,7 +142,7 @@ test.describe.serial('Hosted Session - Declined Transactions', () => {
 
     await clickPlaceOrder(page);
     await waitForUnblock(page);
-    mc016PayDate = new Date().toISOString().slice(0, 10);
+    mc016PayDate = new Date().toISOString().slice(0, 19);
     const error = await getCheckoutError(page);
     expect(error.length).toBeGreaterThan(0);
   });

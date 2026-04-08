@@ -76,7 +76,7 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
     // Register a new user
     await registerUser(page, mc050Email, billing.password);
 
-    mc050PayDate = new Date().toISOString().slice(0, 10);
+    mc050PayDate = new Date().toISOString().slice(0, 19);
     await addPaymentMethod(page, cards.mastercard);
 
     // Click "Add payment method" button
@@ -120,7 +120,7 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
     await selectPaymentMethod(page, config);
     await selectSavedToken(page, 1);
 
-    mc051PayDate = new Date().toISOString().slice(0, 10);
+    mc051PayDate = new Date().toISOString().slice(0, 19);
     await clickPlaceOrder(page);
     const result = await verifyOrderReceived(page, { displayName: config.displayName });
     mc051OrderNumber = result.orderNumber;
@@ -166,7 +166,7 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
   test('MC-052 - Add second payment method', async ({ page }) => {
     await registerUser(page, mc052Email, billing.password);
 
-    mc052PayDate = new Date().toISOString().slice(0, 10);
+    mc052PayDate = new Date().toISOString().slice(0, 19);
 
     // Add first card
     await addPaymentMethod(page, cards.mastercard);
