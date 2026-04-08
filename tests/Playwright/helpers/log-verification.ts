@@ -2,6 +2,22 @@ import { expect } from '@playwright/test';
 import { getLogs } from './api';
 import type { CardData } from '../plugin-config.types';
 
+/**
+ * Parse a currency string to a number, handling both US (10.00) and
+ * European (10,00) decimal formats, plus currency symbols.
+ */
+function parseAmount(value: string): number {
+  // Remove currency symbols and whitespace
+  let cleaned = value.replace(/[^0-9.,]/g, '').trim();
+  // If comma is the last separator (European), treat it as decimal
+  if (/,\d{1,2}$/.test(cleaned)) {
+    cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+  } else {
+    cleaned = cleaned.replace(/,/g, '');
+  }
+  return parseFloat(cleaned);
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface LogEntry {
@@ -61,6 +77,9 @@ export interface LogEntry {
         type: string;
         currency: string;
         amount?: number;
+      };
+      authentication?: {
+        channel: string;
       };
       agreement?: {
         type: string;
@@ -210,7 +229,7 @@ export function verifySessionPost(log: LogEntry, expected: SessionPostExpected):
   // Amount is on the request body order; compare numerically when present
   const reqOrder = log.request.body.order;
   if (reqOrder?.amount) {
-    const expectedAmount = parseFloat(expected.total.replace(/[^0-9.]/g, ''));
+    const expectedAmount = parseAmount(expected.total);
     const logAmount = parseFloat(reqOrder.amount);
     expect(logAmount).toBeCloseTo(expectedAmount, 2);
   }
@@ -388,7 +407,7 @@ export function verifyAuthorizeCaptureLog(
   expect(txn).toBeTruthy();
   expect(txn!.currency).toBe(expected.currency);
 
-  const expectedAmount = parseFloat(expected.total.replace(/[^0-9.]/g, ''));
+  const expectedAmount = parseAmount(expected.total);
   if (txn!.amount !== undefined) {
     expect(txn!.amount).toBeCloseTo(expectedAmount, 2);
   }
@@ -559,7 +578,7 @@ export function verifyRefundLog(log: LogEntry, expected: RefundExpected): void {
   const reqTransaction = log.request.body.transaction;
   if (reqTransaction) {
     if (expected.total) {
-      const amount = parseFloat(expected.total.replace(/[^0-9.]/g, ''));
+      const amount = parseAmount(expected.total);
       expect((log as any).request?.body?.transaction?.amount).toBe(amount);
     }
     expect((log as any).request?.body?.transaction?.currency).toBe(expected.currency || 'USD');
@@ -575,12 +594,12 @@ export function verifyRefundLog(log: LogEntry, expected: RefundExpected): void {
   if (expected.isPartial) {
     expect(order!.status).toBe('PARTIALLY_REFUNDED');
     if (expected.partialAmount !== undefined) {
-      const partialAmt = parseFloat(expected.partialAmount.replace(/[^0-9.]/g, ''));
+      const partialAmt = parseAmount(expected.partialAmount);
       expect(order!.totalRefundedAmount).toBeCloseTo(partialAmt, 2);
     }
   } else {
     expect(order!.status).toBe('REFUNDED');
-    const totalAmt = parseFloat(expected.total.replace(/[^0-9.]/g, ''));
+    const totalAmt = parseAmount(expected.total);
     expect(order!.totalRefundedAmount).toBeCloseTo(totalAmt, 2);
   }
 
@@ -589,8 +608,8 @@ export function verifyRefundLog(log: LogEntry, expected: RefundExpected): void {
   expect(txn!.type).toBe('REFUND');
   expect(txn!.currency).toBe(expected.currency);
 
-  const refundAmt = parseFloat(
-    (expected.isPartial ? expected.partialAmount : expected.total)?.replace(/[^0-9.]/g, '') ?? '0',
+  const refundAmt = parseAmount(
+    (expected.isPartial ? expected.partialAmount : expected.total) ?? '0',
   );
   if (txn!.amount !== undefined) {
     expect(txn!.amount).toBeCloseTo(refundAmt, 2);
