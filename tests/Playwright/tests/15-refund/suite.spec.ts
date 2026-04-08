@@ -14,6 +14,7 @@ import {
   navigateToOrder,
   assertOrderStatus,
   refundPayment,
+  assertOrderNoteContains,
 } from '../../helpers/admin-orders';
 import {
   extractTransactionPutLogs,
@@ -48,10 +49,9 @@ test.describe.serial('Refund', () => {
 
     mc040PayDate = new Date().toISOString().slice(0, 10);
     await clickPlaceOrder(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc040Total });
     mc040OrderNumber = result.orderNumber;
     expect(mc040OrderNumber).toBeTruthy();
-    expect(mc040Total).toBeTruthy();
   });
 
   test('MC-040 Step 2 - Full refund', async ({ page }) => {
@@ -75,6 +75,7 @@ test.describe.serial('Refund', () => {
 
     // After full refund, order status should change to Refunded
     await assertOrderStatus(page, 'Refunded');
+    await assertOrderNoteContains(page, `Refund of`);
   });
 
   test('MC-040 Step 3 - Verify REFUND log', async () => {
@@ -113,10 +114,9 @@ test.describe.serial('Refund', () => {
 
     mc041PayDate = new Date().toISOString().slice(0, 10);
     await clickPlaceOrder(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc041Total });
     mc041OrderNumber = result.orderNumber;
     expect(mc041OrderNumber).toBeTruthy();
-    expect(mc041Total).toBeTruthy();
   });
 
   test('MC-041 Step 2 - Partial refund', async ({ page }) => {
@@ -138,6 +138,7 @@ test.describe.serial('Refund', () => {
 
     // After partial refund, order should still be processing (not fully refunded)
     await assertOrderStatus(page, 'Processing');
+    await assertOrderNoteContains(page, `Refund of`);
   });
 
   test('MC-041 Step 3 - Verify REFUND log', async () => {

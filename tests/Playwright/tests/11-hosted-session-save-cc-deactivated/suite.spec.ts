@@ -14,7 +14,12 @@ import { handle3DSChallenge } from '../../helpers/three-ds';
 import { verifySubscription, verifyPaymentMethods } from '../../helpers/my-account';
 import { adminLogin, frontendLogin } from '../../helpers/wp-login';
 import { waitForUnblock } from '../../helpers/block-ui';
-import { navigateToOrder, assertOrderStatus } from '../../helpers/admin-orders';
+import {
+  navigateToOrder,
+  assertOrderStatus,
+  assertPaymentMethodMeta,
+  assertCapturedNote,
+} from '../../helpers/admin-orders';
 import {
   extractAllLogs,
   extractSessionPostLogs,
@@ -64,7 +69,7 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
 
     mc030PayDate = new Date().toISOString().slice(0, 10);
     await clickPlaceOrder(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc030Total });
     mc030OrderNumber = result.orderNumber;
     expect(mc030OrderNumber).toBeTruthy();
   });
@@ -112,8 +117,8 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
     await adminLogin(page);
     await navigateToOrder(page, mc030OrderNumber);
     await assertOrderStatus(page, 'Processing');
-    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
-    await expect(page.locator('li.note.system-note .note_content > p').first()).toContainText(transactionId!);
+    await assertPaymentMethodMeta(page, config, transactionId!);
+    await assertCapturedNote(page, config, transactionId!);
 
     // Phase 13: My Account – 0 saved cards (guest, save CC deactivated)
     await verifyPaymentMethods(page, { expectedCards: 0 });
@@ -141,7 +146,7 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
 
     mc031PayDate = new Date().toISOString().slice(0, 10);
     await clickPlaceOrder(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc031Total });
     mc031OrderNumber = result.orderNumber;
     expect(mc031OrderNumber).toBeTruthy();
   });
@@ -165,6 +170,8 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
     await adminLogin(page);
     await navigateToOrder(page, mc031OrderNumber);
     await assertOrderStatus(page, 'Processing');
+    await assertPaymentMethodMeta(page, config, transactionId!);
+    await assertCapturedNote(page, config, transactionId!);
 
     // Phase 13: My Account – 0 saved cards
     await frontendLogin(page, mc031Email, billing.password);
@@ -191,7 +198,7 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
 
     mc032PayDate = new Date().toISOString().slice(0, 10);
     await clickPlaceOrder(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc032Total });
     mc032OrderNumber = result.orderNumber;
     expect(mc032OrderNumber).toBeTruthy();
   });
@@ -208,6 +215,13 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
 
     // Phase 11: Email verification
     await verifyOrderEmails(mc032OrderNumber, { paymentMethodTitle: config.displayName });
+
+    // Phase 12: Admin backend
+    await adminLogin(page);
+    await navigateToOrder(page, mc032OrderNumber);
+    await assertOrderStatus(page, 'Processing');
+    await assertPaymentMethodMeta(page, config, transactionId!);
+    await assertCapturedNote(page, config, transactionId!);
 
     // Phase 13: My Account – still 0 saved cards
     await frontendLogin(page, mc031Email, billing.password);
@@ -237,7 +251,7 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
     mc060PayDate = new Date().toISOString().slice(0, 10);
     await clickPlaceOrder(page);
     await handle3DSChallenge(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc060Total });
     mc060OrderNumber = result.orderNumber;
     expect(mc060OrderNumber).toBeTruthy();
     expect(result.subscriptionId).toBeTruthy();
@@ -285,6 +299,8 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
     await adminLogin(page);
     await navigateToOrder(page, mc060OrderNumber);
     await assertOrderStatus(page, 'Processing');
+    await assertPaymentMethodMeta(page, config, transactionId!);
+    await assertCapturedNote(page, config, transactionId!);
 
     // Phase 14: Verify subscription
     expect(mc060SubscriptionId).toBeTruthy();

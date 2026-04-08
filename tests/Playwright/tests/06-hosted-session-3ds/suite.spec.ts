@@ -12,7 +12,7 @@ import { fillHostedSessionCC } from '../../helpers/hosted-session';
 import { verifyOrderReceived } from '../../helpers/order-received';
 import { handle3DSChallenge } from '../../helpers/three-ds';
 import { adminLogin } from '../../helpers/wp-login';
-import { navigateToOrder, assertOrderStatus } from '../../helpers/admin-orders';
+import { navigateToOrder, assertOrderStatus, assertPaymentMethodMeta, assertCapturedNote } from '../../helpers/admin-orders';
 import {
   extractAllLogs,
   extractSessionPostLogs,
@@ -55,7 +55,7 @@ test.describe.serial('Hosted Session - 3DS', () => {
 
     await clickPlaceOrder(page);
     await handle3DSChallenge(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc050Total });
     mc050OrderNumber = result.orderNumber;
     mc050PayDate = new Date().toISOString().slice(0, 10);
     expect(mc050OrderNumber).toBeTruthy();
@@ -158,8 +158,8 @@ test.describe.serial('Hosted Session - 3DS', () => {
     await adminLogin(page);
     await navigateToOrder(page, mc050OrderNumber);
     await assertOrderStatus(page, 'Processing');
-    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
-    await expect(page.locator('li.note.system-note .note_content > p').first()).toContainText(transactionId!);
+    await assertPaymentMethodMeta(page, config, transactionId!);
+    await assertCapturedNote(page, config, transactionId!);
   });
 
   // === MC-051: 3DS Visa Frictionless ===
@@ -178,7 +178,7 @@ test.describe.serial('Hosted Session - 3DS', () => {
     await fillHostedSessionCC(page, cards.visaFrictionless, config);
 
     await clickPlaceOrder(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc051Total });
     mc051OrderNumber = result.orderNumber;
     mc051PayDate = new Date().toISOString().slice(0, 10);
     expect(mc051OrderNumber).toBeTruthy();
@@ -280,8 +280,8 @@ test.describe.serial('Hosted Session - 3DS', () => {
     await adminLogin(page);
     await navigateToOrder(page, mc051OrderNumber);
     await assertOrderStatus(page, 'Processing');
-    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
-    await expect(page.locator('li.note.system-note .note_content > p').first()).toContainText(transactionId!);
+    await assertPaymentMethodMeta(page, config, transactionId!);
+    await assertCapturedNote(page, config, transactionId!);
   });
 
   // === MC-052: 3DS Visa Frictionless Authentication Attempted ===
@@ -300,7 +300,7 @@ test.describe.serial('Hosted Session - 3DS', () => {
     await fillHostedSessionCC(page, cards.visaFrictionlessAttempted, config);
 
     await clickPlaceOrder(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc052Total });
     mc052OrderNumber = result.orderNumber;
     mc052PayDate = new Date().toISOString().slice(0, 10);
     expect(mc052OrderNumber).toBeTruthy();
@@ -401,7 +401,7 @@ test.describe.serial('Hosted Session - 3DS', () => {
     await adminLogin(page);
     await navigateToOrder(page, mc052OrderNumber);
     await assertOrderStatus(page, 'Processing');
-    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
-    await expect(page.locator('li.note.system-note .note_content > p').first()).toContainText(transactionId!);
+    await assertPaymentMethodMeta(page, config, transactionId!);
+    await assertCapturedNote(page, config, transactionId!);
   });
 });

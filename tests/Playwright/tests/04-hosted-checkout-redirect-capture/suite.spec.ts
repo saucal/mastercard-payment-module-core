@@ -22,7 +22,7 @@ import {
 } from '../../helpers/log-verification';
 import { verifyOrderEmails } from '../../helpers/email-verification';
 import { adminLogin, frontendLogin } from '../../helpers/wp-login';
-import { navigateToOrder, assertOrderStatus } from '../../helpers/admin-orders';
+import { navigateToOrder, assertOrderStatus, assertPaymentMethodMeta, assertCapturedNote } from '../../helpers/admin-orders';
 import { verifyOrderInMyAccount, verifyCartEmpty } from '../../helpers/my-account';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
@@ -84,7 +84,7 @@ test.describe.serial('Hosted Checkout - Redirect - Capture', () => {
       await handle3DSChallenge(page);
     }
 
-    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
   });
@@ -158,8 +158,8 @@ test.describe.serial('Hosted Checkout - Redirect - Capture', () => {
     await adminLogin(page);
     await navigateToOrder(page, orderNumber);
     await assertOrderStatus(page, 'Processing');
-    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
-    await expect(page.locator('li.note.system-note .note_content > p').first()).toContainText(transactionId!);
+    await assertPaymentMethodMeta(page, config, transactionId);
+    await assertCapturedNote(page, config, transactionId!);
 
     // Phase 13: Guest — verify cart empty
     await verifyCartEmpty(page);
@@ -189,7 +189,7 @@ test.describe.serial('Hosted Checkout - Redirect - Capture', () => {
       await handle3DSChallenge(page);
     }
 
-    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
   });
@@ -251,12 +251,12 @@ test.describe.serial('Hosted Checkout - Redirect - Capture', () => {
     await adminLogin(page);
     await navigateToOrder(page, orderNumber);
     await assertOrderStatus(page, 'Processing');
-    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
-    await expect(page.locator('li.note.system-note .note_content > p').first()).toContainText(transactionId!);
+    await assertPaymentMethodMeta(page, config, transactionId);
+    await assertCapturedNote(page, config, transactionId!);
 
     // Phase 13: My Account
     await frontendLogin(page, mc005Email, billing.password);
-    await verifyOrderInMyAccount(page, orderNumber, 'Processing');
+    await verifyOrderInMyAccount(page, orderNumber, 'Processing', { expectedTotal: total, displayName: config.displayName });
     await verifyCartEmpty(page);
   });
 
@@ -283,7 +283,7 @@ test.describe.serial('Hosted Checkout - Redirect - Capture', () => {
       await handle3DSChallenge(page);
     }
 
-    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
   });
@@ -345,12 +345,12 @@ test.describe.serial('Hosted Checkout - Redirect - Capture', () => {
     await adminLogin(page);
     await navigateToOrder(page, orderNumber);
     await assertOrderStatus(page, 'Processing');
-    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
-    await expect(page.locator('li.note.system-note .note_content > p').first()).toContainText(transactionId!);
+    await assertPaymentMethodMeta(page, config, transactionId);
+    await assertCapturedNote(page, config, transactionId!);
 
     // Phase 13: My Account
     await frontendLogin(page, mc008Email, billing.password);
-    await verifyOrderInMyAccount(page, orderNumber, 'Processing');
+    await verifyOrderInMyAccount(page, orderNumber, 'Processing', { expectedTotal: total, displayName: config.displayName });
     await verifyCartEmpty(page);
   });
 
@@ -374,7 +374,7 @@ test.describe.serial('Hosted Checkout - Redirect - Capture', () => {
       await handle3DSChallenge(page);
     }
 
-    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
   });
@@ -427,8 +427,8 @@ test.describe.serial('Hosted Checkout - Redirect - Capture', () => {
     await adminLogin(page);
     await navigateToOrder(page, orderNumber);
     await assertOrderStatus(page, 'Processing');
-    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
-    await expect(page.locator('li.note.system-note .note_content > p').first()).toContainText(transactionId!);
+    await assertPaymentMethodMeta(page, config, transactionId);
+    await assertCapturedNote(page, config, transactionId!);
 
     // Phase 13: Cart empty
     await verifyCartEmpty(page);

@@ -19,6 +19,9 @@ import {
   extractRenewalOrderNumber,
   assertCaptureFormVisible,
   assertVoidFormVisible,
+  assertAuthorizedNote,
+  assertCapturedNote,
+  assertOrderNoteContains,
 } from '../../helpers/admin-orders';
 import {
   extractSessionGetLogs,
@@ -62,7 +65,7 @@ test.describe.serial('Authorize / Capture / Void', () => {
 
     mc020PayDate = new Date().toISOString().slice(0, 10);
     await clickPlaceOrder(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc020Total });
     mc020OrderNumber = result.orderNumber;
     expect(mc020OrderNumber).toBeTruthy();
   });
@@ -95,6 +98,7 @@ test.describe.serial('Authorize / Capture / Void', () => {
     await adminLogin(page);
     await navigateToOrder(page, mc020OrderNumber);
     await assertOrderStatus(page, 'On hold');
+    await assertAuthorizedNote(page, config, mc020TransactionId);
     await assertCaptureFormVisible(page, config, true);
     await assertVoidFormVisible(page, config, true);
 
@@ -103,6 +107,7 @@ test.describe.serial('Authorize / Capture / Void', () => {
 
     // After partial capture, order remains On hold
     await assertOrderStatus(page, 'On hold');
+    await assertCapturedNote(page, config, mc020TransactionId);
   });
 
   test('MC-020 Step 3 - Verify CAPTURE log', async () => {
@@ -144,7 +149,7 @@ test.describe.serial('Authorize / Capture / Void', () => {
 
     mc021PayDate = new Date().toISOString().slice(0, 10);
     await clickPlaceOrder(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc021Total });
     mc021OrderNumber = result.orderNumber;
     expect(mc021OrderNumber).toBeTruthy();
   });
@@ -171,6 +176,7 @@ test.describe.serial('Authorize / Capture / Void', () => {
     await adminLogin(page);
     await navigateToOrder(page, mc021OrderNumber);
     await assertOrderStatus(page, 'On hold');
+    await assertAuthorizedNote(page, config, mc021TransactionId);
 
     // Full capture (no amount = full)
     await capturePayment(page, config);
@@ -179,6 +185,7 @@ test.describe.serial('Authorize / Capture / Void', () => {
     const statusEl = page.locator('#select2-order_status-container');
     const status = await statusEl.textContent() || '';
     expect(['Processing', 'Completed'].some(s => status.includes(s))).toBeTruthy();
+    await assertCapturedNote(page, config, mc021TransactionId);
   });
 
   test('MC-021 Step 3 - Verify CAPTURE log', async () => {
@@ -234,12 +241,14 @@ test.describe.serial('Authorize / Capture / Void', () => {
     await adminLogin(page);
     await navigateToOrder(page, mc022OrderNumber);
     await assertOrderStatus(page, 'On hold');
+    await assertAuthorizedNote(page, config, mc022TransactionId);
 
     await voidPayment(page, config);
 
     await assertOrderStatus(page, 'Cancelled');
     await assertCaptureFormVisible(page, config, false);
     await assertVoidFormVisible(page, config, false);
+    await assertOrderNoteContains(page, 'Authorization was cancelled');
   });
 
   test('MC-022 Step 3 - Verify VOID log', async () => {
@@ -325,6 +334,7 @@ test.describe.serial('Authorize / Capture / Void', () => {
     await adminLogin(page);
     await navigateToOrder(page, mc061OrderNumber);
     await assertOrderStatus(page, 'On hold');
+    await assertAuthorizedNote(page, config, mc061TransactionId);
 
     // Phase 14: Verify subscription active
     expect(mc061SubscriptionId).toBeTruthy();
