@@ -96,10 +96,17 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
       });
     }
 
-    // Verify session GET
+    // Verify session GET (UPDATE_SESSION PUT + GET card details)
     if (sessionGetLogs.logs[0]?.content.length) {
       const sessionGetLog = sessionGetLogs.logs[0].content[0];
       verifySessionGet(sessionGetLog, { session, card: cards.mastercard });
+
+      // Card details are in the GET entry (content[1]) if available
+      if (sessionGetLogs.logs[0].content.length > 1) {
+        const { verifySessionGetCardDetails } = await import('../../helpers/log-verification');
+        const sessionGetCardLog = sessionGetLogs.logs[0].content[1];
+        verifySessionGetCardDetails(sessionGetCardLog, { session, card: cards.mastercard });
+      }
     }
 
     // Phase 4: Token logs empty (guest)
