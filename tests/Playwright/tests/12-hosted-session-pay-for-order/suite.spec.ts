@@ -13,7 +13,12 @@ import { verifyPaymentMethods } from '../../helpers/my-account';
 import { frontendLogin, registerUser } from '../../helpers/wp-login';
 import { adminLogin } from '../../helpers/wp-login';
 import { waitForUnblock } from '../../helpers/block-ui';
-import { navigateToOrder, assertOrderStatus } from '../../helpers/admin-orders';
+import {
+  navigateToOrder,
+  assertOrderStatus,
+  assertPaymentMethodMeta,
+  assertCapturedNote,
+} from '../../helpers/admin-orders';
 import {
   extractSessionPostLogs,
   extractSessionGetLogs,
@@ -87,7 +92,7 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
     mc011PayDate = new Date().toISOString().slice(0, 10);
     await clickPlaceOrder(page);
     await waitForUnblock(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc011Total });
     mc011OrderNumber = result.orderNumber;
     expect(mc011OrderNumber).toBeTruthy();
   });
@@ -121,8 +126,8 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
     await adminLogin(page);
     await navigateToOrder(page, mc011OrderNumber);
     await assertOrderStatus(page, 'Processing');
-    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
-    await expect(page.locator('li.note.system-note .note_content > p').first()).toContainText(transactionId!);
+    await assertPaymentMethodMeta(page, config, transactionId!);
+    await assertCapturedNote(page, config, transactionId!);
   });
 
   // === MC-012: Pay for order, saving CC ===
@@ -188,8 +193,8 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
     await adminLogin(page);
     await navigateToOrder(page, mc012OrderNumber);
     await assertOrderStatus(page, 'Processing');
-    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
-    await expect(page.locator('li.note.system-note .note_content > p').first()).toContainText(transactionId!);
+    await assertPaymentMethodMeta(page, config, transactionId!);
+    await assertCapturedNote(page, config, transactionId!);
 
     // Phase 13: My Account – 1 saved card
     await frontendLogin(page, mc011Email, billing.password);
@@ -197,6 +202,8 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
       expectedCards: 1,
       cardName: cards.mastercard.name,
       fourDigits: fourDigits(cards.mastercard),
+      expiryMonth: cards.mastercard.month,
+      expiryYear: cards.mastercard.year,
     });
   });
 
@@ -256,7 +263,7 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
     await adminLogin(page);
     await navigateToOrder(page, mc013OrderNumber);
     await assertOrderStatus(page, 'Processing');
-    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
-    await expect(page.locator('li.note.system-note .note_content > p').first()).toContainText(transactionId!);
+    await assertPaymentMethodMeta(page, config, transactionId!);
+    await assertCapturedNote(page, config, transactionId!);
   });
 });

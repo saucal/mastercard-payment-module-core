@@ -84,3 +84,38 @@ export async function assertVoidFormVisible(page: Page, config: PluginConfig, vi
     await expect(form.first()).not.toBeVisible();
   }
 }
+
+/**
+ * Verify that a specific text appears in the order notes.
+ */
+export async function assertOrderNoteContains(page: Page, text: string): Promise<void> {
+  const notes = page.locator('li.note .note_content p, #order_note_list li .note_content p');
+  const noteTexts = await notes.allTextContents();
+  const found = noteTexts.some(n => n.includes(text));
+  expect(found, `Expected order note containing "${text}" but found: ${noteTexts.join(' | ')}`).toBeTruthy();
+}
+
+/**
+ * Verify the order note for a captured payment.
+ */
+export async function assertCapturedNote(page: Page, config: PluginConfig, transactionId: string): Promise<void> {
+  await assertOrderNoteContains(page, `${config.displayName} payment was Captured (Order ID: ${transactionId})`);
+}
+
+/**
+ * Verify the order note for an authorized payment.
+ */
+export async function assertAuthorizedNote(page: Page, config: PluginConfig, transactionId: string): Promise<void> {
+  await assertOrderNoteContains(page, `${config.displayName} payment was Authorized (Order ID: ${transactionId})`);
+}
+
+/**
+ * Verify the "Payment via" text in order meta.
+ */
+export async function assertPaymentMethodMeta(page: Page, config: PluginConfig, transactionId?: string): Promise<void> {
+  if (transactionId) {
+    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName} (${transactionId})`);
+  } else {
+    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
+  }
+}

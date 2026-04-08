@@ -18,6 +18,8 @@ import {
   extractRenewalOrderNumber,
   navigateToOrder,
   assertOrderStatus,
+  assertPaymentMethodMeta,
+  assertCapturedNote,
 } from '../../helpers/admin-orders';
 import {
   extractAllLogs,
@@ -33,7 +35,7 @@ import {
   verifyAgreement,
 } from '../../helpers/log-verification';
 import { verifyOrderEmails } from '../../helpers/email-verification';
-import { verifySubscription } from '../../helpers/my-account';
+import { verifySubscription, verifyOrderInMyAccount } from '../../helpers/my-account';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
 import { billing } from '../../fixtures/billing';
@@ -70,7 +72,7 @@ test.describe.serial('Subscription Upgrade', () => {
 
     await clickPlaceOrder(page);
     await handle3DSChallenge(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
     expect(result.subscriptionId).toBeTruthy();
@@ -178,7 +180,9 @@ test.describe.serial('Subscription Upgrade', () => {
     await adminLogin(page);
     await navigateToOrder(page, orderNumber);
     await assertOrderStatus(page, 'Processing');
-    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
+    await assertPaymentMethodMeta(page, config, transactionId!);
+    await assertCapturedNote(page, config, transactionId!);
+    await verifyOrderInMyAccount(page, orderNumber, 'Processing', { displayName: config.displayName });
 
     // Verify subscription status
     expect(subscriptionId).toBeTruthy();
@@ -204,7 +208,7 @@ test.describe.serial('Subscription Upgrade', () => {
       // This is store-specific and depends on the upgrade product being configured
       await selectPaymentMethod(page, config);
       await clickPlaceOrder(page);
-      const result = await verifyOrderReceived(page, { displayName: config.displayName });
+      const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
       expect(result.orderNumber).toBeTruthy();
       orderNumber = result.orderNumber;
       // Update subscriptionId to the upgraded subscription if a new one was created
@@ -250,7 +254,9 @@ test.describe.serial('Subscription Upgrade', () => {
     await adminLogin(page);
     await navigateToOrder(page, orderNumber);
     await assertOrderStatus(page, 'Processing');
-    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
+    await assertPaymentMethodMeta(page, config, transactionId!);
+    await assertCapturedNote(page, config, transactionId!);
+    await verifyOrderInMyAccount(page, orderNumber, 'Processing', { displayName: config.displayName });
 
     // Verify subscription status in My Account
     expect(subscriptionId).toBeTruthy();

@@ -28,7 +28,7 @@ import {
 } from '../../helpers/log-verification';
 import { verifyOrderEmails } from '../../helpers/email-verification';
 import { adminLogin, frontendLogin } from '../../helpers/wp-login';
-import { navigateToOrder, assertOrderStatus } from '../../helpers/admin-orders';
+import { navigateToOrder, assertOrderStatus, assertPaymentMethodMeta, assertCapturedNote } from '../../helpers/admin-orders';
 import { verifyPaymentMethods, verifyOrderInMyAccount, verifyCartEmpty } from '../../helpers/my-account';
 import config from '../../plugin-config';
 import { cards, fourDigits } from '../../fixtures/cards';
@@ -68,7 +68,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     session = await extractSessionId(page);
 
     await clickPlaceOrder(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
   });
@@ -145,8 +145,8 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     await adminLogin(page);
     await navigateToOrder(page, orderNumber);
     await assertOrderStatus(page, 'Processing');
-    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
-    await expect(page.locator('li.note.system-note .note_content > p').first()).toContainText(transactionId!);
+    await assertPaymentMethodMeta(page, config, transactionId);
+    await assertCapturedNote(page, config, transactionId!);
 
     // Phase 13: Guest has no account, verify cart empty
     await verifyCartEmpty(page);
@@ -166,7 +166,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     session = await extractSessionId(page);
 
     await clickPlaceOrder(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
   });
@@ -241,13 +241,13 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     await adminLogin(page);
     await navigateToOrder(page, orderNumber);
     await assertOrderStatus(page, 'Processing');
-    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
-    await expect(page.locator('li.note.system-note .note_content > p').first()).toContainText(transactionId!);
+    await assertPaymentMethodMeta(page, config, transactionId);
+    await assertCapturedNote(page, config, transactionId!);
 
     // Phase 13: My Account — 0 saved cards
     await frontendLogin(page, mc005Email, billing.password);
     await verifyPaymentMethods(page, { expectedCards: 0 });
-    await verifyOrderInMyAccount(page, orderNumber, 'Processing');
+    await verifyOrderInMyAccount(page, orderNumber, 'Processing', { expectedTotal: total, displayName: config.displayName });
     await verifyCartEmpty(page);
   });
 
@@ -264,7 +264,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     session = await extractSessionId(page);
 
     await clickPlaceOrder(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
   });
@@ -329,13 +329,13 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     await adminLogin(page);
     await navigateToOrder(page, orderNumber);
     await assertOrderStatus(page, 'Processing');
-    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
-    await expect(page.locator('li.note.system-note .note_content > p').first()).toContainText(transactionId!);
+    await assertPaymentMethodMeta(page, config, transactionId);
+    await assertCapturedNote(page, config, transactionId!);
 
     // Phase 13: My Account — still 0 saved cards
     await frontendLogin(page, mc005Email, billing.password);
     await verifyPaymentMethods(page, { expectedCards: 0 });
-    await verifyOrderInMyAccount(page, orderNumber, 'Processing');
+    await verifyOrderInMyAccount(page, orderNumber, 'Processing', { expectedTotal: total, displayName: config.displayName });
     await verifyCartEmpty(page);
   });
 
@@ -353,7 +353,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     session = await extractSessionId(page);
 
     await clickPlaceOrder(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
   });
@@ -422,8 +422,8 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     await adminLogin(page);
     await navigateToOrder(page, orderNumber);
     await assertOrderStatus(page, 'Processing');
-    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
-    await expect(page.locator('li.note.system-note .note_content > p').first()).toContainText(transactionId!);
+    await assertPaymentMethodMeta(page, config, transactionId);
+    await assertCapturedNote(page, config, transactionId!);
 
     // Phase 13: My Account — 1 saved card
     await frontendLogin(page, mc005Email, billing.password);
@@ -431,8 +431,10 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
       expectedCards: 1,
       cardName: cards.mastercard.name,
       fourDigits: fourDigits(cards.mastercard),
+      expiryMonth: cards.mastercard.month,
+      expiryYear: cards.mastercard.year,
     });
-    await verifyOrderInMyAccount(page, orderNumber, 'Processing');
+    await verifyOrderInMyAccount(page, orderNumber, 'Processing', { expectedTotal: total, displayName: config.displayName });
     await verifyCartEmpty(page);
   });
 
@@ -449,7 +451,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     session = await extractSessionId(page);
 
     await clickPlaceOrder(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
   });
@@ -507,8 +509,8 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     await adminLogin(page);
     await navigateToOrder(page, orderNumber);
     await assertOrderStatus(page, 'Processing');
-    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
-    await expect(page.locator('li.note.system-note .note_content > p').first()).toContainText(transactionId!);
+    await assertPaymentMethodMeta(page, config, transactionId);
+    await assertCapturedNote(page, config, transactionId!);
 
     // Phase 13: My Account — still 1 card
     await frontendLogin(page, mc005Email, billing.password);
@@ -516,8 +518,10 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
       expectedCards: 1,
       cardName: cards.mastercard.name,
       fourDigits: fourDigits(cards.mastercard),
+      expiryMonth: cards.mastercard.month,
+      expiryYear: cards.mastercard.year,
     });
-    await verifyOrderInMyAccount(page, orderNumber, 'Processing');
+    await verifyOrderInMyAccount(page, orderNumber, 'Processing', { expectedTotal: total, displayName: config.displayName });
     await verifyCartEmpty(page);
   });
 });

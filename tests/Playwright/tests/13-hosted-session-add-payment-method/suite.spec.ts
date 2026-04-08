@@ -17,7 +17,12 @@ import { verifyPaymentMethods, deletePaymentMethod } from '../../helpers/my-acco
 import { frontendLogin, registerUser } from '../../helpers/wp-login';
 import { adminLogin } from '../../helpers/wp-login';
 import { waitForUnblock, waitForPageLoad } from '../../helpers/block-ui';
-import { navigateToOrder, assertOrderStatus } from '../../helpers/admin-orders';
+import {
+  navigateToOrder,
+  assertOrderStatus,
+  assertPaymentMethodMeta,
+  assertCapturedNote,
+} from '../../helpers/admin-orders';
 import {
   extractSessionGetLogs,
   extractTokenLogs,
@@ -87,6 +92,8 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
       expectedCards: 1,
       cardName: cards.mastercard.name,
       fourDigits: fourDigits(cards.mastercard),
+      expiryMonth: cards.mastercard.month,
+      expiryYear: cards.mastercard.year,
     });
   });
 
@@ -148,8 +155,8 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
     await adminLogin(page);
     await navigateToOrder(page, mc051OrderNumber);
     await assertOrderStatus(page, 'Processing');
-    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
-    await expect(page.locator('li.note.system-note .note_content > p').first()).toContainText(transactionId!);
+    await assertPaymentMethodMeta(page, config, transactionId!);
+    await assertCapturedNote(page, config, transactionId!);
   });
 
   // === MC-052: Add second payment method ===
@@ -181,6 +188,8 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
       expectedCards: 2,
       cardName: cards.mastercard.name,
       fourDigits: fourDigits(cards.mastercard),
+      expiryMonth: cards.mastercard.month,
+      expiryYear: cards.mastercard.year,
     });
   });
 

@@ -18,6 +18,8 @@ import {
   extractRenewalOrderNumber,
   navigateToOrder,
   assertOrderStatus,
+  assertPaymentMethodMeta,
+  assertCapturedNote,
 } from '../../helpers/admin-orders';
 import {
   extractAllLogs,
@@ -33,7 +35,7 @@ import {
   verifyAgreement,
 } from '../../helpers/log-verification';
 import { verifyOrderEmails } from '../../helpers/email-verification';
-import { verifySubscription } from '../../helpers/my-account';
+import { verifySubscription, verifyOrderInMyAccount } from '../../helpers/my-account';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
 import { billing } from '../../fixtures/billing';
@@ -70,7 +72,7 @@ test.describe.serial('Subscription Manual Renewal', () => {
 
     await clickPlaceOrder(page);
     await handle3DSChallenge(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
     expect(result.subscriptionId).toBeTruthy();
@@ -178,7 +180,9 @@ test.describe.serial('Subscription Manual Renewal', () => {
     await adminLogin(page);
     await navigateToOrder(page, orderNumber);
     await assertOrderStatus(page, 'Processing');
-    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
+    await assertPaymentMethodMeta(page, config, transactionId!);
+    await assertCapturedNote(page, config, transactionId!);
+    await verifyOrderInMyAccount(page, orderNumber, 'Processing', { displayName: config.displayName });
 
     // Verify subscription status
     expect(subscriptionId).toBeTruthy();
@@ -203,7 +207,7 @@ test.describe.serial('Subscription Manual Renewal', () => {
       // Goes through checkout with saved payment method
       await selectPaymentMethod(page, config);
       await clickPlaceOrder(page);
-      const result = await verifyOrderReceived(page, { displayName: config.displayName });
+      const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
       expect(result.orderNumber).toBeTruthy();
       orderNumber = result.orderNumber;
     } else {
@@ -248,7 +252,9 @@ test.describe.serial('Subscription Manual Renewal', () => {
     await adminLogin(page);
     await navigateToOrder(page, orderNumber);
     await assertOrderStatus(page, 'Processing');
-    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
+    await assertPaymentMethodMeta(page, config, transactionId!);
+    await assertCapturedNote(page, config, transactionId!);
+    await verifyOrderInMyAccount(page, orderNumber, 'Processing', { displayName: config.displayName });
 
     // Verify subscription remains active
     expect(subscriptionId).toBeTruthy();

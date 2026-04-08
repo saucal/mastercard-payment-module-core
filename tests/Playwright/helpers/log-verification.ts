@@ -18,7 +18,7 @@ export interface LogEntry {
       };
       session?: { id: string };
       sourceOfFunds?: { token?: string };
-      transaction?: { currency: string; targetTransactionId?: string };
+      transaction?: { currency: string; targetTransactionId?: string; amount?: number };
       authentication?: { channel: string };
       agreement?: {
         type: string;
@@ -534,6 +534,15 @@ export function verifyRefundLog(log: LogEntry, expected: RefundExpected): void {
   const reqOrder = log.request.body.order;
   if (reqOrder) {
     expect(reqOrder.currency).toBe(expected.currency);
+  }
+
+  const reqTransaction = log.request.body.transaction;
+  if (reqTransaction) {
+    if (expected.total) {
+      const amount = parseFloat(expected.total.replace(/[^0-9.]/g, ''));
+      expect((log as any).request?.body?.transaction?.amount).toBe(amount);
+    }
+    expect((log as any).request?.body?.transaction?.currency).toBe(expected.currency || 'USD');
   }
 
   const res = log.response.body;

@@ -2,7 +2,7 @@ import { Page, expect } from '@playwright/test';
 
 export async function verifyPaymentMethods(
   page: Page,
-  options: { expectedCards: number; cardName?: string; fourDigits?: string }
+  options: { expectedCards: number; cardName?: string; fourDigits?: string; expiryMonth?: string; expiryYear?: string }
 ): Promise<void> {
   await page.goto('/my-account/payment-methods/');
 
@@ -19,16 +19,29 @@ export async function verifyPaymentMethods(
     if (options.cardName && options.fourDigits) {
       await expect(row).toContainText(`${options.cardName} ending in ${options.fourDigits}`);
     }
+    if (options.expiryMonth && options.expiryYear) {
+      const expiryCell = page.locator(
+        `tr:nth-of-type(${i}) > td.woocommerce-PaymentMethod.woocommerce-PaymentMethod--expires`
+      );
+      await expect(expiryCell).toContainText(`${options.expiryMonth}/${options.expiryYear}`);
+    }
   }
 }
 
 export async function verifyOrderInMyAccount(
   page: Page,
   orderNumber: string,
-  expectedStatus: string
+  expectedStatus: string,
+  options?: { expectedTotal?: string; displayName?: string }
 ): Promise<void> {
   await page.goto(`/my-account/view-order/${orderNumber}/`);
   await expect(page.locator('mark.order-status')).toContainText(expectedStatus);
+  if (options?.expectedTotal) {
+    await expect(page.locator('.woocommerce-table--order-details tfoot .order-total td')).toContainText(options.expectedTotal);
+  }
+  if (options?.displayName) {
+    await expect(page.locator('body')).toContainText(options.displayName);
+  }
 }
 
 export async function verifySubscription(

@@ -10,7 +10,7 @@ import {
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
 import { waitForUnblock } from '../../helpers/block-ui';
 import { adminLogin } from '../../helpers/wp-login';
-import { navigateToOrder, assertOrderStatus } from '../../helpers/admin-orders';
+import { navigateToOrder, assertOrderStatus, assertOrderNoteContains, assertPaymentMethodMeta } from '../../helpers/admin-orders';
 import {
   extractAllLogs,
 } from '../../helpers/log-verification';
@@ -58,6 +58,8 @@ test.describe.serial('Hosted Session - Declined Transactions', () => {
     await adminLogin(page);
     await navigateToOrder(page, mc014FailedOrderId);
     await assertOrderStatus(page, 'Failed');
+    await assertPaymentMethodMeta(page, config);
+    await assertOrderNoteContains(page, 'Error processing payment.');
 
     // Phase 2: Log verification for declined — PAY log should show failed/declined result
     if (mc014PayDate) {
@@ -103,6 +105,8 @@ test.describe.serial('Hosted Session - Declined Transactions', () => {
     await adminLogin(page);
     await navigateToOrder(page, mc015FailedOrderId);
     await assertOrderStatus(page, 'Failed');
+    await assertPaymentMethodMeta(page, config);
+    await assertOrderNoteContains(page, 'Error processing payment.');
 
     // Phase 2: Log verification for expired card
     if (mc015PayDate) {
@@ -156,6 +160,8 @@ test.describe.serial('Hosted Session - Declined Transactions', () => {
     await adminLogin(page);
     await navigateToOrder(page, mc016FailedOrderId);
     await assertOrderStatus(page, 'Failed');
+    await assertPaymentMethodMeta(page, config);
+    await assertOrderNoteContains(page, 'Error processing payment.');
 
     // Phase 2: Log verification for timed out — transaction log may or may not exist
     if (mc016PayDate) {
