@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/test';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import { selectPaymentMethod, clickPlaceOrder, getCheckoutError } from '../../helpers/checkout';
 import { waitForUnblock } from '../../helpers/block-ui';
