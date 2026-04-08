@@ -200,6 +200,12 @@ export async function clickPlaceOrder(page: Page): Promise<void> {
     { timeout: 30000 }
   );
   await btn.first().click();
+
+  // Wait for either redirect to order-received or a checkout error
+  await Promise.race([
+    page.waitForURL(/order-received/, { timeout: 60000 }),
+    page.locator(sel.errorMessage).first().waitFor({ state: 'visible', timeout: 60000 }),
+  ]);
 }
 
 export async function getCheckoutError(page: Page): Promise<string> {
