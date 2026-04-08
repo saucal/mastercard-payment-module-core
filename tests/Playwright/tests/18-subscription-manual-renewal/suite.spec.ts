@@ -16,6 +16,8 @@ import { adminLogin, frontendLogin } from '../../helpers/wp-login';
 import {
   triggerSubscriptionRenewal,
   extractRenewalOrderNumber,
+  navigateToOrder,
+  assertOrderStatus,
 } from '../../helpers/admin-orders';
 import {
   extractAllLogs,
@@ -172,9 +174,14 @@ test.describe.serial('Subscription Manual Renewal', () => {
     // Email verification
     await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
 
+    // Phase 12: Admin backend — verify order status in UI
+    await adminLogin(page);
+    await navigateToOrder(page, orderNumber);
+    await assertOrderStatus(page, 'Processing');
+    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
+
     // Verify subscription status
     expect(subscriptionId).toBeTruthy();
-    await adminLogin(page);
     await verifySubscription(page, subscriptionId, {
       expectedStatus: 'Active',
       displayName: config.displayName,
@@ -237,9 +244,14 @@ test.describe.serial('Subscription Manual Renewal', () => {
     // Email verification for renewal order
     await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
 
+    // Phase 12: Admin backend — verify order status in UI
+    await adminLogin(page);
+    await navigateToOrder(page, orderNumber);
+    await assertOrderStatus(page, 'Processing');
+    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
+
     // Verify subscription remains active
     expect(subscriptionId).toBeTruthy();
-    await adminLogin(page);
     await verifySubscription(page, subscriptionId, {
       expectedStatus: 'Active',
       displayName: config.displayName,
