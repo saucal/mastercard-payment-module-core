@@ -1,7 +1,7 @@
 import { Page, expect } from '@playwright/test';
 
 const WP_USERNAME = process.env.WP_USERNAME || 'admin';
-const WP_PASSWORD = process.env.WP_PASSWORD || 'admin';
+const WP_ADMIN_PASS = process.env.WP_ADMIN_PASS || process.env.WP_PASSWORD || 'admin';
 
 /**
  * Log into WordPress admin dashboard.
@@ -9,7 +9,7 @@ const WP_PASSWORD = process.env.WP_PASSWORD || 'admin';
 export async function adminLogin(page: Page): Promise<void> {
   await page.goto('/wp-login.php');
   await page.locator('#user_login').fill(WP_USERNAME);
-  await page.locator('#user_pass').fill(WP_PASSWORD);
+  await page.locator('#user_pass').fill(WP_ADMIN_PASS);
   await page.locator('#wp-submit').click();
   await page.waitForURL(/wp-admin/);
   const confirmBtn = page.locator('#correct-admin-email');
