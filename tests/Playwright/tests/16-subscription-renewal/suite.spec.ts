@@ -17,6 +17,8 @@ import { adminLogin } from '../../helpers/wp-login';
 import {
   triggerSubscriptionRenewal,
   extractRenewalOrderNumber,
+  navigateToOrder,
+  assertOrderStatus,
 } from '../../helpers/admin-orders';
 import {
   extractAllLogs,
@@ -176,9 +178,14 @@ test.describe.serial('Subscription Renewal', () => {
     // Email verification (PURCHASE = both admin and customer emails)
     await verifyOrderEmails(mc060OrderNumber, { paymentMethodTitle: config.displayName });
 
+    // Phase 12: Admin backend — verify order status in UI
+    await adminLogin(page);
+    await navigateToOrder(page, mc060OrderNumber);
+    await assertOrderStatus(page, 'Processing');
+    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
+
     // Verify subscription status in My Account
     expect(mc060SubscriptionId).toBeTruthy();
-    await adminLogin(page);
     await verifySubscription(page, mc060SubscriptionId, {
       expectedStatus: 'Active',
       displayName: config.displayName,
@@ -340,9 +347,14 @@ test.describe.serial('Subscription Renewal', () => {
     // Email verification
     await verifyOrderEmails(mc061OrderNumber, { paymentMethodTitle: config.displayName });
 
+    // Phase 12: Admin backend — verify order status in UI
+    await adminLogin(page);
+    await navigateToOrder(page, mc061OrderNumber);
+    await assertOrderStatus(page, 'Processing');
+    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
+
     // Verify subscription status
     expect(mc061SubscriptionId).toBeTruthy();
-    await adminLogin(page);
     await verifySubscription(page, mc061SubscriptionId, {
       expectedStatus: 'Active',
       displayName: config.displayName,
@@ -507,9 +519,14 @@ test.describe.serial('Subscription Renewal', () => {
     // Email verification
     await verifyOrderEmails(mc062OrderNumber, { paymentMethodTitle: config.displayName });
 
+    // Phase 12: Admin backend — verify order status in UI
+    await adminLogin(page);
+    await navigateToOrder(page, mc062OrderNumber);
+    await assertOrderStatus(page, 'Processing');
+    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
+
     // Verify subscription status
     expect(mc062SubscriptionId).toBeTruthy();
-    await adminLogin(page);
     await verifySubscription(page, mc062SubscriptionId, {
       expectedStatus: 'Active',
       displayName: config.displayName,
@@ -646,9 +663,14 @@ test.describe.serial('Subscription Renewal', () => {
     // Email verification
     await verifyOrderEmails(mc063OrderNumber, { paymentMethodTitle: config.displayName });
 
+    // Phase 12: Admin backend — verify order status in UI
+    await adminLogin(page);
+    await navigateToOrder(page, mc063OrderNumber);
+    await assertOrderStatus(page, 'Processing');
+    await expect(page.locator('.woocommerce-order-data__meta')).toContainText(`Payment via ${config.displayName}`);
+
     // Verify subscription status
     expect(mc063SubscriptionId).toBeTruthy();
-    await adminLogin(page);
     await verifySubscription(page, mc063SubscriptionId, {
       expectedStatus: 'Active',
       displayName: config.displayName,

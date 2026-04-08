@@ -79,6 +79,9 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
     await waitForUnblock(page);
     await page.waitForLoadState('networkidle');
 
+    // Verify redirect success message
+    await expect(page.locator('.woocommerce-message')).toContainText('Payment method successfully added.');
+
     // Verify card was saved
     await verifyPaymentMethods(page, {
       expectedCards: 1,
@@ -169,6 +172,9 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
     await page.locator('button#place_order, button[type="submit"]').first().click();
     await waitForUnblock(page);
     await page.waitForLoadState('networkidle');
+
+    // Verify redirect success message after second card
+    await expect(page.locator('.woocommerce-message')).toContainText('Payment method successfully added.');
 
     // Verify 2 cards saved
     await verifyPaymentMethods(page, {
@@ -367,7 +373,8 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
     // Delete the first saved card
     await deletePaymentMethod(page, 1);
 
-    // Verify card was removed
+    // Verify deletion notice and card was removed
+    await expect(page.locator('.woocommerce-message')).toContainText('Payment method deleted.');
     await verifyPaymentMethods(page, { expectedCards: 0 });
   });
 });
