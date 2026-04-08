@@ -113,22 +113,12 @@ export async function fillHostedSessionCC(page: Page, card: CardData, config: Pl
     ];
 
     for (const field of fields) {
-      const frame = await findFieldFrame(page, config, field.id);
-      await frame.locator(`#${field.id}`).evaluate((el, value) => {
-        const input = el as HTMLInputElement;
-        input.focus();
-        input.value = '';
-        // Type character by character to trigger MPGS input handlers
-        for (const char of value) {
-          input.value += char;
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          input.dispatchEvent(new KeyboardEvent('keydown', { key: char, bubbles: true }));
-          input.dispatchEvent(new KeyboardEvent('keypress', { key: char, bubbles: true }));
-          input.dispatchEvent(new KeyboardEvent('keyup', { key: char, bubbles: true }));
-        }
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-        input.dispatchEvent(new Event('blur', { bubbles: true }));
-      }, field.value);
+      const idx = await findFieldIframeIndex(page, config, field.id);
+      const frame = iframes.nth(idx).contentFrame();
+      // Focus the input inside the iframe — Playwright handles cross-origin focus
+      await frame.locator(`#${field.id}`).focus();
+      await page.waitForTimeout(300);
+      await page.keyboard.type(field.value, { delay: 50 });
       await page.waitForTimeout(300);
     }
   }
