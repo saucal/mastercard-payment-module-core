@@ -42,21 +42,18 @@ export async function assertSessionFieldsPresent(page: Page, config: PluginConfi
 export async function fillHostedSessionCC(page: Page, card: CardData, config: PluginConfig): Promise<void> {
   await waitForUnblock(page);
 
+  // fill() handles focus automatically — no click() needed.
+  // click() fails on cross-origin MPGS iframes due to pointer event interception.
   const numberFrame = await findFieldFrame(page, config, 'number');
-  await numberFrame.locator('#number').click();
-  await waitForUnblock(page);
   await numberFrame.locator('#number').fill(card.number);
 
   const monthFrame = await findFieldFrame(page, config, 'expiryMonth');
-  await monthFrame.locator('#expiryMonth').click();
   await monthFrame.locator('#expiryMonth').fill(card.month);
 
   const yearFrame = await findFieldFrame(page, config, 'expiryYear');
-  await yearFrame.locator('#expiryYear').click();
   await yearFrame.locator('#expiryYear').fill(card.year);
 
   const cvcFrame = await findFieldFrame(page, config, 'securityCode');
-  await cvcFrame.locator('#securityCode').click();
   await cvcFrame.locator('#securityCode').fill(card.cvv);
   await cvcFrame.locator('#securityCode').press('Tab');
 }
@@ -70,22 +67,18 @@ export async function fillHostedSessionCCPartial(
 
   if (fields.number !== undefined) {
     const frame = await findFieldFrame(page, config, 'number');
-    await frame.locator('#number').click();
     await frame.locator('#number').fill(fields.number);
   }
   if (fields.month !== undefined) {
     const frame = await findFieldFrame(page, config, 'expiryMonth');
-    await frame.locator('#expiryMonth').click();
     await frame.locator('#expiryMonth').fill(fields.month);
   }
   if (fields.year !== undefined) {
     const frame = await findFieldFrame(page, config, 'expiryYear');
-    await frame.locator('#expiryYear').click();
     await frame.locator('#expiryYear').fill(fields.year);
   }
   if (fields.cvv !== undefined) {
     const frame = await findFieldFrame(page, config, 'securityCode');
-    await frame.locator('#securityCode').click();
     await frame.locator('#securityCode').fill(fields.cvv);
     await frame.locator('#securityCode').press('Tab');
   }
