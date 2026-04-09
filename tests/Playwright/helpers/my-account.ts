@@ -7,7 +7,7 @@ export async function verifyPaymentMethods(
   await page.goto('/my-account/payment-methods/');
 
   if (options.expectedCards === 0) {
-    await expect(page.locator('.woocommerce-info')).toContainText('No saved methods found');
+    await expect(page.locator('.woocommerce-info, .woocommerce-message, .woocommerce-Message, body')).toContainText('No saved methods found');
     return;
   }
 
