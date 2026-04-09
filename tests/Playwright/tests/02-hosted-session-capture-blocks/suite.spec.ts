@@ -1,4 +1,5 @@
 import { test, expect } from '../../fixtures/test';
+import { Page, Browser } from '@playwright/test';
 import { switchCheckoutMode, configureGateway, verifyOrderViaAPI } from '../../helpers/api';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
@@ -45,9 +46,23 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
   let session: string;
   let total: string;
 
+  // Shared admin browser context
+  let adminPage: Page;
+
+  test.beforeAll(async ({ browser }) => {
+    const adminContext = await browser.newContext({ ignoreHTTPSErrors: true });
+    adminPage = await adminContext.newPage();
+    await adminLogin(adminPage);
+  });
+
+  test.afterAll(async () => {
+    await adminPage.close();
+  });
+
   // === MC-004: Guest checkout ===
 
   test('MC-004 - Guest checkout', async ({ page }) => {
+    // === CHECKOUT (buyer's page) ===
     await switchCheckoutMode('blocks');
     await configureGateway(config, {
       _3d_secure: 'yes',
@@ -75,24 +90,20 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
 
     // Guest cart should be empty after successful checkout
     await verifyCartEmpty(page);
-  });
 
-  test('MC-004 - Guest checkout - Admin', async ({ page }) => {
-    expect(orderNumber).toBeTruthy();
-
-    // Phase 1: WC API verification
+    // === API VERIFICATION ===
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
 
-    // Phase 2: Log extraction
+    // === LOG VERIFICATION ===
     const allLogs = await extractAllLogs(payDate);
     const sessionPostLogs = await extractSessionPostLogs(payDate, sessionDate, '', '');
     const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate);
     const tokenLogs = await extractTokenLogs(payDate, payDate);
 
-    // Phase 3: Verify session POST (find entry matching this order's session)
+    // Verify session POST (find entry matching this order's session)
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
     const sessionPostLog = session
       ? sessionPostLogs.logs[0].content.find((l: any) => l.response?.body?.session?.id === session)
@@ -108,10 +119,10 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     expect(sessionGetLogs.logs[0].content.length, 'session GET should have card details entry').toBeGreaterThanOrEqual(2);
     verifySessionGetCardDetails(sessionGetLogs.logs[0].content[1], { session, card: cards.mastercard });
 
-    // Phase 4: Token logs empty (guest)
+    // Token logs empty (guest)
     verifyTokenLogsEmpty(tokenLogs);
 
-    // Phase 5-8: Auth + capture logs (filter by transaction ID to avoid cross-order matches)
+    // Auth + capture logs (filter by transaction ID to avoid cross-order matches)
     expect(allLogs.logs[0]?.content.length, 'all logs should not be empty').toBeGreaterThan(0);
     const logContent = allLogs.logs[0].content;
     const txFilter = (l: any) => !transactionId || l.request?.url?.includes(transactionId);
@@ -141,20 +152,20 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
       transactionId: transactionId!, orderNumber, card: cards.mastercard,
     });
 
-    // Phase 11: Email verification (admin + customer for capture)
+    // === EMAIL VERIFICATION ===
     await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
 
-    // Phase 12: Admin backend check
-    await adminLogin(page);
-    await navigateToOrder(page, orderNumber);
-    await assertOrderStatus(page, 'Processing');
-    await assertPaymentMethodMeta(page, config, transactionId);
-    await assertCapturedNote(page, config, transactionId!);
+    // === ADMIN BACKEND (admin page) ===
+    await navigateToOrder(adminPage, orderNumber);
+    await assertOrderStatus(adminPage, 'Processing');
+    await assertPaymentMethodMeta(adminPage, config, transactionId);
+    await assertCapturedNote(adminPage, config, transactionId!);
   });
 
   // === MC-005: New user, NOT saving CC ===
 
   test('MC-005 - New user not saving CC', async ({ page }) => {
+    // === CHECKOUT (buyer's page) ===
     payDate = await addToCartAndCheckout(page, config.products.digital);
     sessionDate = payDate;
     await fillBilling(page, { ...billing, email: mc005Email });
@@ -172,23 +183,19 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
 
     // Cart should be empty after successful checkout
     await verifyCartEmpty(page);
-  });
 
-  test('MC-005 - New user not saving CC - Admin', async ({ page }) => {
-    expect(orderNumber).toBeTruthy();
-
-    // Phase 1: WC API verification
+    // === API VERIFICATION ===
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(transactionId).toBeTruthy();
 
-    // Phase 2: Log extraction
+    // === LOG VERIFICATION ===
     const allLogs = await extractAllLogs(payDate);
     const sessionPostLogs = await extractSessionPostLogs(payDate, sessionDate, '', '');
     const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate);
     const tokenLogs = await extractTokenLogs(payDate, payDate);
 
-    // Phase 3: Verify session POST (find entry matching this order's session)
+    // Verify session POST (find entry matching this order's session)
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
     const sessionPostLog = session
       ? sessionPostLogs.logs[0].content.find((l: any) => l.response?.body?.session?.id === session)
@@ -203,10 +210,10 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     expect(sessionGetLogs.logs[0].content.length, 'session GET should have card details entry').toBeGreaterThanOrEqual(2);
     verifySessionGetCardDetails(sessionGetLogs.logs[0].content[1], { session, card: cards.mastercard });
 
-    // Phase 4: Token empty (not saving)
+    // Token empty (not saving)
     verifyTokenLogsEmpty(tokenLogs);
 
-    // Phase 5-8 (filter by transaction ID to avoid cross-order matches)
+    // Auth + capture logs (filter by transaction ID to avoid cross-order matches)
     expect(allLogs.logs[0]?.content.length, 'all logs should not be empty').toBeGreaterThan(0);
     const logContent = allLogs.logs[0].content;
     const txFilter = (l: any) => !transactionId || l.request?.url?.includes(transactionId);
@@ -236,17 +243,16 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
       transactionId: transactionId!, orderNumber, card: cards.mastercard,
     });
 
-    // Phase 11: Email verification
+    // === EMAIL VERIFICATION ===
     await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
 
-    // Phase 12: Admin backend check
-    await adminLogin(page);
-    await navigateToOrder(page, orderNumber);
-    await assertOrderStatus(page, 'Processing');
-    await assertPaymentMethodMeta(page, config, transactionId);
-    await assertCapturedNote(page, config, transactionId!);
+    // === ADMIN BACKEND (admin page) ===
+    await navigateToOrder(adminPage, orderNumber);
+    await assertOrderStatus(adminPage, 'Processing');
+    await assertPaymentMethodMeta(adminPage, config, transactionId);
+    await assertCapturedNote(adminPage, config, transactionId!);
 
-    // Phase 13: My Account — 0 saved cards
+    // === MY ACCOUNT (buyer's page) ===
     await frontendLogin(page, mc005Email, billing.password);
     await verifyPaymentMethods(page, { expectedCards: 0 });
     await verifyOrderInMyAccount(page, orderNumber, 'Processing', { expectedTotal: total, displayName: config.displayName });
@@ -255,6 +261,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
   // === MC-008: Logged user, pay with new CC (not saving) ===
 
   test('MC-008 - Logged user pay with new CC', async ({ page }) => {
+    // === CHECKOUT (buyer's page) ===
     await frontendLogin(page, mc005Email, billing.password);
     payDate = await addToCartAndCheckout(page, config.products.physical);
     sessionDate = payDate;
@@ -271,23 +278,19 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
 
     // Cart should be empty after successful checkout
     await verifyCartEmpty(page);
-  });
 
-  test('MC-008 - Logged user pay with new CC - Admin', async ({ page }) => {
-    expect(orderNumber).toBeTruthy();
-
-    // Phase 1: WC API verification
+    // === API VERIFICATION ===
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(transactionId).toBeTruthy();
 
-    // Phase 2: Log extraction
+    // === LOG VERIFICATION ===
     const allLogs = await extractAllLogs(payDate);
     const sessionPostLogs = await extractSessionPostLogs(payDate, sessionDate, '', '');
     const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate);
     const tokenLogs = await extractTokenLogs(payDate, payDate);
 
-    // Phase 3 (find entry matching this order's session)
+    // Verify session POST (find entry matching this order's session)
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
     const sessionPostLog = session
       ? sessionPostLogs.logs[0].content.find((l: any) => l.response?.body?.session?.id === session)
@@ -304,7 +307,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
 
     verifyTokenLogsEmpty(tokenLogs);
 
-    // Phase 5-8 (filter by transaction ID to avoid cross-order matches)
+    // Auth + capture logs (filter by transaction ID to avoid cross-order matches)
     expect(allLogs.logs[0]?.content.length, 'all logs should not be empty').toBeGreaterThan(0);
     const logContent = allLogs.logs[0].content;
     const txFilter = (l: any) => !transactionId || l.request?.url?.includes(transactionId);
@@ -334,17 +337,16 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
       transactionId: transactionId!, orderNumber, card: cards.mastercard,
     });
 
-    // Phase 11: Email verification
+    // === EMAIL VERIFICATION ===
     await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
 
-    // Phase 12: Admin backend check
-    await adminLogin(page);
-    await navigateToOrder(page, orderNumber);
-    await assertOrderStatus(page, 'Processing');
-    await assertPaymentMethodMeta(page, config, transactionId);
-    await assertCapturedNote(page, config, transactionId!);
+    // === ADMIN BACKEND (admin page) ===
+    await navigateToOrder(adminPage, orderNumber);
+    await assertOrderStatus(adminPage, 'Processing');
+    await assertPaymentMethodMeta(adminPage, config, transactionId);
+    await assertCapturedNote(adminPage, config, transactionId!);
 
-    // Phase 13: My Account — still 0 saved cards
+    // === MY ACCOUNT (buyer's page) — still 0 saved cards ===
     await frontendLogin(page, mc005Email, billing.password);
     await verifyPaymentMethods(page, { expectedCards: 0 });
     await verifyOrderInMyAccount(page, orderNumber, 'Processing', { expectedTotal: total, displayName: config.displayName });
@@ -353,6 +355,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
   // === MC-009: Logged user, pay with new CC and save it ===
 
   test('MC-009 - Logged user pay with new CC and save it', async ({ page }) => {
+    // === CHECKOUT (buyer's page) ===
     await frontendLogin(page, mc005Email, billing.password);
     payDate = await addToCartAndCheckout(page, config.products.physical);
     sessionDate = payDate;
@@ -370,23 +373,19 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
 
     // Cart should be empty after successful checkout
     await verifyCartEmpty(page);
-  });
 
-  test('MC-009 - Logged user pay with new CC and save it - Admin', async ({ page }) => {
-    expect(orderNumber).toBeTruthy();
-
-    // Phase 1: WC API verification
+    // === API VERIFICATION ===
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(transactionId).toBeTruthy();
 
-    // Phase 2: Log extraction
+    // === LOG VERIFICATION ===
     const allLogs = await extractAllLogs(payDate);
     const sessionPostLogs = await extractSessionPostLogs(payDate, sessionDate, '', '');
     const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate);
     const tokenLogs = await extractTokenLogs(payDate, payDate);
 
-    // Phase 3 (find entry matching this order's session)
+    // Verify session POST (find entry matching this order's session)
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
     const sessionPostLog = session
       ? sessionPostLogs.logs[0].content.find((l: any) => l.response?.body?.session?.id === session)
@@ -401,11 +400,11 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     expect(sessionGetLogs.logs[0].content.length, 'session GET should have card details entry').toBeGreaterThanOrEqual(2);
     verifySessionGetCardDetails(sessionGetLogs.logs[0].content[1], { session, card: cards.mastercard });
 
-    // Phase 4: Token present (saving CC)
+    // Token present (saving CC)
     expect(tokenLogs.logs[0]?.content.length, 'token logs should not be empty').toBeGreaterThan(0);
     verifyTokenLog(tokenLogs.logs[0].content[0], { session, card: cards.mastercard });
 
-    // Phase 5-8 (filter by transaction ID to avoid cross-order matches)
+    // Auth + capture logs (filter by transaction ID to avoid cross-order matches)
     expect(allLogs.logs[0]?.content.length, 'all logs should not be empty').toBeGreaterThan(0);
     const logContent = allLogs.logs[0].content;
     const txFilter = (l: any) => !transactionId || l.request?.url?.includes(transactionId);
@@ -435,17 +434,16 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
       transactionId: transactionId!, orderNumber, card: cards.mastercard,
     });
 
-    // Phase 11: Email verification
+    // === EMAIL VERIFICATION ===
     await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
 
-    // Phase 12: Admin backend check
-    await adminLogin(page);
-    await navigateToOrder(page, orderNumber);
-    await assertOrderStatus(page, 'Processing');
-    await assertPaymentMethodMeta(page, config, transactionId);
-    await assertCapturedNote(page, config, transactionId!);
+    // === ADMIN BACKEND (admin page) ===
+    await navigateToOrder(adminPage, orderNumber);
+    await assertOrderStatus(adminPage, 'Processing');
+    await assertPaymentMethodMeta(adminPage, config, transactionId);
+    await assertCapturedNote(adminPage, config, transactionId!);
 
-    // Phase 13: My Account — 1 saved card
+    // === MY ACCOUNT (buyer's page) — 1 saved card ===
     await frontendLogin(page, mc005Email, billing.password);
     await verifyPaymentMethods(page, {
       expectedCards: 1,
@@ -460,6 +458,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
   // === MC-010: Logged user, pay with saved CC (from MC-009) ===
 
   test('MC-010 - Logged user pay with saved CC', async ({ page }) => {
+    // === CHECKOUT (buyer's page) ===
     await frontendLogin(page, mc005Email, billing.password);
     payDate = await addToCartAndCheckout(page, config.products.physical);
     sessionDate = payDate;
@@ -476,17 +475,13 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
 
     // Cart should be empty after successful checkout
     await verifyCartEmpty(page);
-  });
 
-  test('MC-010 - Logged user pay with saved CC - Admin', async ({ page }) => {
-    expect(orderNumber).toBeTruthy();
-
-    // Phase 1: WC API verification
+    // === API VERIFICATION ===
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(transactionId).toBeTruthy();
 
-    // Phase 2: Log extraction
+    // === LOG VERIFICATION ===
     const allLogs = await extractAllLogs(payDate);
     const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate);
     const tokenLogs = await extractTokenLogs(payDate, payDate);
@@ -500,7 +495,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     // No new token (using saved CC)
     verifyTokenLogsEmpty(tokenLogs);
 
-    // Phase 5-8 (filter by transaction ID to avoid cross-order matches)
+    // Auth + capture logs (filter by transaction ID to avoid cross-order matches)
     expect(allLogs.logs[0]?.content.length, 'all logs should not be empty').toBeGreaterThan(0);
     const logContent = allLogs.logs[0].content;
     const txFilter = (l: any) => !transactionId || l.request?.url?.includes(transactionId);
@@ -530,17 +525,16 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
       transactionId: transactionId!, orderNumber, card: cards.mastercard,
     });
 
-    // Phase 11: Email verification
+    // === EMAIL VERIFICATION ===
     await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
 
-    // Phase 12: Admin backend check
-    await adminLogin(page);
-    await navigateToOrder(page, orderNumber);
-    await assertOrderStatus(page, 'Processing');
-    await assertPaymentMethodMeta(page, config, transactionId);
-    await assertCapturedNote(page, config, transactionId!);
+    // === ADMIN BACKEND (admin page) ===
+    await navigateToOrder(adminPage, orderNumber);
+    await assertOrderStatus(adminPage, 'Processing');
+    await assertPaymentMethodMeta(adminPage, config, transactionId);
+    await assertCapturedNote(adminPage, config, transactionId!);
 
-    // Phase 13: My Account — still 1 card
+    // === MY ACCOUNT (buyer's page) — still 1 card ===
     await frontendLogin(page, mc005Email, billing.password);
     await verifyPaymentMethods(page, {
       expectedCards: 1,
