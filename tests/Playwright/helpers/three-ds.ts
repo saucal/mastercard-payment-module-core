@@ -1,7 +1,8 @@
-import { Page } from '@playwright/test';
+import { Page, expect } from '@playwright/test';
 
 export async function handle3DSChallenge(page: Page): Promise<void> {
-  await page.waitForSelector('text=ACS Emulator for 3DS V2', { timeout: 30000 });
+  // Verify ACS Emulator page loaded with correct heading
+  await expect(page.locator('center > h1')).toContainText('ACS Emulator for 3DS V2', { timeout: 30000 });
   await page.keyboard.press('Tab');
   await page.keyboard.press('Tab');
   await page.keyboard.press('Enter');
@@ -9,5 +10,7 @@ export async function handle3DSChallenge(page: Page): Promise<void> {
 }
 
 export async function waitFor3DSFrame(page: Page): Promise<void> {
-  await page.waitForSelector('iframe#challengeFrame, .absolute', { timeout: 30000 });
+  // Verify the 3DS challenge overlay and frame structure
+  await page.waitForSelector('.absolute', { timeout: 30000 });
+  await page.waitForSelector('iframe#challengeFrame', { timeout: 10000 });
 }

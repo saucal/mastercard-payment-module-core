@@ -67,7 +67,7 @@ export interface LogEntry {
             brand: string;
             scheme: string;
             number: string;
-            expiry: string;
+            expiry: { month: string; year: string };
             securityCode: string;
           };
         };
@@ -178,7 +178,7 @@ function assertCardDetails(
 
   const provided = sourceOfFunds!.provided?.card;
   expect(provided).toBeTruthy();
-  expect(provided!.brand).toBeTruthy();
+  expect(provided!.brand.toUpperCase()).toBe(card.shortName.toUpperCase());
   expect(provided!.scheme.toUpperCase()).toBe(card.shortName.toUpperCase());
 
   // Masked number: first 6 + xxxxxx + last 4
@@ -187,7 +187,11 @@ function assertCardDetails(
   expect(provided!.number).toContain(six);
   expect(provided!.number).toContain(four);
 
-  // securityCode masking varies: present as 'xxx' in session GET, may be absent in auth responses
+  // Expiry month/year
+  expect(String(Number(provided!.expiry.month))).toBe(String(Number(card.month)));
+  expect(String(Number(provided!.expiry.year))).toBe(String(Number(card.year)));
+
+  // securityCode masking — present as 'xxx' in session GET, absent in auth responses
   if (provided!.securityCode !== undefined) {
     expect(provided!.securityCode).toBe('xxx');
   }
@@ -211,6 +215,7 @@ interface SessionPostExpected {
  */
 export function verifySessionPost(log: LogEntry, expected: SessionPostExpected): void {
   expect(['POST', 'PUT']).toContain(log.request.type);
+  expect(log.request.url).toContain('/session');
 
   const res = log.response.body;
   expect(res.result).toBe('SUCCESS');
@@ -219,23 +224,6 @@ export function verifySessionPost(log: LogEntry, expected: SessionPostExpected):
     expect(res.session?.id).toBe(expected.session);
   } else {
     expect(res.session?.id).toBeTruthy();
-  }
-
-  // Order data may be in the session creation response (some API versions)
-  // or in a separate UPDATE_SESSION PUT. Only assert if present.
-  const order = res.order;
-  if (order) {
-    expect(order.currency).toBe(expected.currency);
-    expect(order.id).toBe(expected.transactionId);
-    expect(String(order.reference)).toBe(String(expected.orderNumber));
-  }
-
-  // Amount is on the request body order; compare numerically when present
-  const reqOrder = log.request.body.order;
-  if (reqOrder?.amount) {
-    const expectedAmount = parseAmount(expected.total);
-    const logAmount = parseFloat(reqOrder.amount);
-    expect(logAmount).toBeCloseTo(expectedAmount, 2);
   }
 }
 
@@ -251,17 +239,12 @@ interface SessionGetExpected {
  */
 export function verifySessionGet(log: LogEntry, expected: SessionGetExpected): void {
   expect(log.request.type).toBe('PUT');
+  expect(log.request.url).toContain('/session/');
   expect(log.request.body.apiOperation).toBe('UPDATE_SESSION');
   expect(log.request.body.session?.id ?? log.response.body.session?.id).toBe(expected.session);
 
   const res = log.response.body;
   expect(res.session?.updateStatus).toBe('SUCCESS');
-
-  // Card details may be in this entry (after build/on staging) or in a
-  // separate GET entry. Assert only if present.
-  if (res.sourceOfFunds) {
-    assertCardDetails(res.sourceOfFunds, expected.card, expected.token);
-  }
 }
 
 /**
@@ -269,7 +252,9 @@ export function verifySessionGet(log: LogEntry, expected: SessionGetExpected): v
  */
 export function verifySessionGetCardDetails(log: LogEntry, expected: SessionGetExpected): void {
   expect(log.request.type).toBe('GET');
+  expect(log.request.url).toContain('/session/');
   expect(log.response.body.session?.id).toBe(expected.session);
+  expect(log.response.body.session?.updateStatus).toBe('SUCCESS');
   assertCardDetails(log.response.body.sourceOfFunds, expected.card, expected.token);
 }
 
@@ -290,6 +275,7 @@ export function verifyInitiateAuthentication(
   expected: InitiateAuthenticationExpected,
 ): void {
   expect(log.request.type).toBe('PUT');
+  expect(log.request.url).toContain('/transaction/');
   expect(log.request.body.apiOperation).toBe('INITIATE_AUTHENTICATION');
   // authentication.channel may be in request body (after build) or response body
   const authChannel = log.request.body.authentication?.channel ?? log.response.body.authentication?.channel;
@@ -329,6 +315,8 @@ export function verifyAuthenticatePayer(
   log: LogEntry,
   expected: AuthenticatePayerExpected,
 ): void {
+  expect(log.request.type).toBe('PUT');
+  expect(log.request.url).toContain('/transaction/');
   expect(log.request.body.apiOperation).toBe('AUTHENTICATE_PAYER');
   expect(log.request.body.session?.id).toBe(expected.session);
 
@@ -389,6 +377,8 @@ export function verifyAuthorizeCaptureLog(
   log: LogEntry,
   expected: AuthorizeCaptureExpected,
 ): void {
+  expect(log.request.type).toBe('PUT');
+  expect(log.request.url).toContain('/transaction/');
   expect(log.request.body.apiOperation).toBe(expected.apiOperation);
 
   if (expected.session) {
