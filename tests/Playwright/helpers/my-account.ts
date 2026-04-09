@@ -7,7 +7,7 @@ export async function verifyPaymentMethods(
   await page.goto('/my-account/payment-methods/');
 
   if (options.expectedCards === 0) {
-    await expect(page.locator('.woocommerce-info, .woocommerce-message, .woocommerce-Message').first()).toContainText('No saved methods found');
+    await expect(page.getByText('No saved methods found')).toBeVisible();
     return;
   }
 
@@ -37,10 +37,12 @@ export async function verifyOrderInMyAccount(
   await page.goto(`/my-account/view-order/${orderNumber}/`);
   await expect(page.locator('mark.order-status')).toContainText(expectedStatus);
   if (options?.expectedTotal) {
-    await expect(page.locator('.woocommerce-table--order-details tfoot .order-total td')).toContainText(options.expectedTotal);
+    // Find the Total row's value cell — works across themes
+    const totalCell = page.locator('tr:has(th:has-text("Total"), td:has-text("Total:")) td').last();
+    await expect(totalCell).toContainText(options.expectedTotal);
   }
   if (options?.displayName) {
-    await expect(page.locator('body')).toContainText(options.displayName);
+    await expect(page.locator('section.woocommerce-order-details')).toContainText(options.displayName);
   }
 }
 
