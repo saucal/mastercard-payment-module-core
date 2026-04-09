@@ -75,7 +75,11 @@ export async function deletePaymentMethod(page: Page, index: number): Promise<vo
 export async function verifyCartEmpty(page: Page): Promise<void> {
   const cartUrl = process.env.CART_URL || '/cart/';
   await page.goto(cartUrl);
+  await page.waitForLoadState('networkidle');
+
+
+  // Verify empty state — blocks or classic
   await expect(
-    page.locator('.woocommerce-info, .wc-block-cart__empty-cart__title, .cart-empty')
+    page.locator('.wc-block-cart__empty-cart__title, .cart-empty.woocommerce-info')
   ).toContainText('cart is currently empty', { timeout: 10000 });
 }
