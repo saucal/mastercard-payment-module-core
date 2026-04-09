@@ -20,6 +20,7 @@ import {
   extractTokenLogs,
   verifySessionPost,
   verifySessionGet,
+  verifySessionGetCardDetails,
   verifyInitiateAuthentication,
   verifyAuthenticatePayer,
   verifyAuthorizeCaptureLog,
@@ -89,66 +90,53 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     const tokenLogs = await extractTokenLogs(payDate, payDate);
 
     // Phase 3: Verify session POST (find entry matching this order's session)
-    if (sessionPostLogs.logs[0]?.content.length) {
-      const sessionPostLog = session
-        ? sessionPostLogs.logs[0].content.find((l: any) => l.response?.body?.session?.id === session)
-        : sessionPostLogs.logs[0].content[0];
-      if (sessionPostLog) {
-        verifySessionPost(sessionPostLog, {
-          session, total, currency: 'USD', transactionId: transactionId!, orderNumber,
-        });
-      }
-    }
+    expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
+    const sessionPostLog = session
+      ? sessionPostLogs.logs[0].content.find((l: any) => l.response?.body?.session?.id === session)
+      : sessionPostLogs.logs[0].content[0];
+    expect(sessionPostLog, `session POST entry not found for session ${session}`).toBeTruthy();
+    verifySessionPost(sessionPostLog!, {
+      session, total, currency: 'USD', transactionId: transactionId!, orderNumber,
+    });
 
     // Verify session GET (UPDATE_SESSION PUT + GET card details)
-    if (sessionGetLogs.logs[0]?.content.length) {
-      const sessionGetLog = sessionGetLogs.logs[0].content[0];
-      verifySessionGet(sessionGetLog, { session, card: cards.mastercard });
-
-      // Card details are in the GET entry (content[1]) if available
-      if (sessionGetLogs.logs[0].content.length > 1) {
-        const { verifySessionGetCardDetails } = await import('../../helpers/log-verification');
-        const sessionGetCardLog = sessionGetLogs.logs[0].content[1];
-        verifySessionGetCardDetails(sessionGetCardLog, { session, card: cards.mastercard });
-      }
-    }
+    expect(sessionGetLogs.logs[0]?.content.length, 'session GET logs should not be empty').toBeGreaterThan(0);
+    verifySessionGet(sessionGetLogs.logs[0].content[0], { session, card: cards.mastercard });
+    expect(sessionGetLogs.logs[0].content.length, 'session GET should have card details entry').toBeGreaterThanOrEqual(2);
+    verifySessionGetCardDetails(sessionGetLogs.logs[0].content[1], { session, card: cards.mastercard });
 
     // Phase 4: Token logs empty (guest)
     verifyTokenLogsEmpty(tokenLogs);
 
     // Phase 5-8: Auth + capture logs (filter by transaction ID to avoid cross-order matches)
-    if (allLogs.logs[0]?.content.length) {
-      const logContent = allLogs.logs[0].content;
-      const txFilter = (l: any) => !transactionId || l.request?.url?.includes(transactionId);
+    expect(allLogs.logs[0]?.content.length, 'all logs should not be empty').toBeGreaterThan(0);
+    const logContent = allLogs.logs[0].content;
+    const txFilter = (l: any) => !transactionId || l.request?.url?.includes(transactionId);
 
-      const initiateAuthLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION' && txFilter(l)
-      );
-      if (initiateAuthLog) {
-        verifyInitiateAuthentication(initiateAuthLog, {
-          session, card: cards.mastercard, transactionId: transactionId!, currency: 'USD',
-        });
-      }
+    const initiateAuthLog = logContent.find(
+      (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION' && txFilter(l)
+    );
+    expect(initiateAuthLog, 'INITIATE_AUTHENTICATION log not found').toBeTruthy();
+    verifyInitiateAuthentication(initiateAuthLog!, {
+      session, card: cards.mastercard, transactionId: transactionId!, currency: 'USD',
+    });
 
-      const authenticatePayerLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'AUTHENTICATE_PAYER' && txFilter(l)
-      );
-      if (authenticatePayerLog) {
-        verifyAuthenticatePayer(authenticatePayerLog, {
-          session, transactionId: transactionId!, currency: 'USD', card: cards.mastercard,
-        });
-      }
+    const authenticatePayerLog = logContent.find(
+      (l: any) => l.request?.body?.apiOperation === 'AUTHENTICATE_PAYER' && txFilter(l)
+    );
+    expect(authenticatePayerLog, 'AUTHENTICATE_PAYER log not found').toBeTruthy();
+    verifyAuthenticatePayer(authenticatePayerLog!, {
+      session, transactionId: transactionId!, currency: 'USD', card: cards.mastercard,
+    });
 
-      const captureLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'PAY' && txFilter(l) && txFilter(l)
-      );
-      if (captureLog) {
-        verifyAuthorizeCaptureLog(captureLog, {
-          apiOperation: 'PAY', session, total, currency: 'USD',
-          transactionId: transactionId!, orderNumber, card: cards.mastercard,
-        });
-      }
-    }
+    const captureLog = logContent.find(
+      (l: any) => l.request?.body?.apiOperation === 'PAY' && txFilter(l)
+    );
+    expect(captureLog, 'PAY log not found').toBeTruthy();
+    verifyAuthorizeCaptureLog(captureLog!, {
+      apiOperation: 'PAY', session, total, currency: 'USD',
+      transactionId: transactionId!, orderNumber, card: cards.mastercard,
+    });
 
     // Phase 11: Email verification (admin + customer for capture)
     await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
@@ -198,58 +186,52 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     const tokenLogs = await extractTokenLogs(payDate, payDate);
 
     // Phase 3: Verify session POST (find entry matching this order's session)
-    if (sessionPostLogs.logs[0]?.content.length) {
-      const sessionPostLog = session
-        ? sessionPostLogs.logs[0].content.find((l: any) => l.response?.body?.session?.id === session)
-        : sessionPostLogs.logs[0].content[0];
-      if (sessionPostLog) {
-        verifySessionPost(sessionPostLog, {
-          session, total, currency: 'USD', transactionId: transactionId!, orderNumber,
-        });
-      }
-    }
+    expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
+    const sessionPostLog = session
+      ? sessionPostLogs.logs[0].content.find((l: any) => l.response?.body?.session?.id === session)
+      : sessionPostLogs.logs[0].content[0];
+    expect(sessionPostLog, `session POST entry not found for session ${session}`).toBeTruthy();
+    verifySessionPost(sessionPostLog!, {
+      session, total, currency: 'USD', transactionId: transactionId!, orderNumber,
+    });
 
-    if (sessionGetLogs.logs[0]?.content.length) {
-      const sessionGetLog = sessionGetLogs.logs[0].content[0];
-      verifySessionGet(sessionGetLog, { session, card: cards.mastercard });
-    }
+    expect(sessionGetLogs.logs[0]?.content.length, 'session GET logs should not be empty').toBeGreaterThan(0);
+    verifySessionGet(sessionGetLogs.logs[0].content[0], { session, card: cards.mastercard });
+    expect(sessionGetLogs.logs[0].content.length, 'session GET should have card details entry').toBeGreaterThanOrEqual(2);
+    verifySessionGetCardDetails(sessionGetLogs.logs[0].content[1], { session, card: cards.mastercard });
 
     // Phase 4: Token empty (not saving)
     verifyTokenLogsEmpty(tokenLogs);
 
     // Phase 5-8 (filter by transaction ID to avoid cross-order matches)
-    if (allLogs.logs[0]?.content.length) {
-      const logContent = allLogs.logs[0].content;
-      const txFilter = (l: any) => !transactionId || l.request?.url?.includes(transactionId);
+    expect(allLogs.logs[0]?.content.length, 'all logs should not be empty').toBeGreaterThan(0);
+    const logContent = allLogs.logs[0].content;
+    const txFilter = (l: any) => !transactionId || l.request?.url?.includes(transactionId);
 
-      const initiateAuthLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION' && txFilter(l)
-      );
-      if (initiateAuthLog) {
-        verifyInitiateAuthentication(initiateAuthLog, {
-          session, card: cards.mastercard, transactionId: transactionId!, currency: 'USD',
-        });
-      }
+    const initiateAuthLog = logContent.find(
+      (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION' && txFilter(l)
+    );
+    expect(initiateAuthLog, 'INITIATE_AUTHENTICATION log not found').toBeTruthy();
+    verifyInitiateAuthentication(initiateAuthLog!, {
+      session, card: cards.mastercard, transactionId: transactionId!, currency: 'USD',
+    });
 
-      const authenticatePayerLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'AUTHENTICATE_PAYER' && txFilter(l)
-      );
-      if (authenticatePayerLog) {
-        verifyAuthenticatePayer(authenticatePayerLog, {
-          session, transactionId: transactionId!, currency: 'USD', card: cards.mastercard,
-        });
-      }
+    const authenticatePayerLog = logContent.find(
+      (l: any) => l.request?.body?.apiOperation === 'AUTHENTICATE_PAYER' && txFilter(l)
+    );
+    expect(authenticatePayerLog, 'AUTHENTICATE_PAYER log not found').toBeTruthy();
+    verifyAuthenticatePayer(authenticatePayerLog!, {
+      session, transactionId: transactionId!, currency: 'USD', card: cards.mastercard,
+    });
 
-      const captureLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'PAY' && txFilter(l) && txFilter(l)
-      );
-      if (captureLog) {
-        verifyAuthorizeCaptureLog(captureLog, {
-          apiOperation: 'PAY', session, total, currency: 'USD',
-          transactionId: transactionId!, orderNumber, card: cards.mastercard,
-        });
-      }
-    }
+    const captureLog = logContent.find(
+      (l: any) => l.request?.body?.apiOperation === 'PAY' && txFilter(l)
+    );
+    expect(captureLog, 'PAY log not found').toBeTruthy();
+    verifyAuthorizeCaptureLog(captureLog!, {
+      apiOperation: 'PAY', session, total, currency: 'USD',
+      transactionId: transactionId!, orderNumber, card: cards.mastercard,
+    });
 
     // Phase 11: Email verification
     await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
@@ -301,48 +283,51 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     const tokenLogs = await extractTokenLogs(payDate, payDate);
 
     // Phase 3 (find entry matching this order's session)
-    if (sessionPostLogs.logs[0]?.content.length) {
-      const sessionPostLog = session
-        ? sessionPostLogs.logs[0].content.find((l: any) => l.response?.body?.session?.id === session)
-        : sessionPostLogs.logs[0].content[0];
-      if (sessionPostLog) {
-        verifySessionPost(sessionPostLog, {
-          session, total, currency: 'USD', transactionId: transactionId!, orderNumber,
-        });
-      }
-    }
+    expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
+    const sessionPostLog = session
+      ? sessionPostLogs.logs[0].content.find((l: any) => l.response?.body?.session?.id === session)
+      : sessionPostLogs.logs[0].content[0];
+    expect(sessionPostLog, `session POST entry not found for session ${session}`).toBeTruthy();
+    verifySessionPost(sessionPostLog!, {
+      session, total, currency: 'USD', transactionId: transactionId!, orderNumber,
+    });
 
-    if (sessionGetLogs.logs[0]?.content.length) {
-      const sessionGetLog = sessionGetLogs.logs[0].content[0];
-      verifySessionGet(sessionGetLog, { session, card: cards.mastercard });
-    }
+    expect(sessionGetLogs.logs[0]?.content.length, 'session GET logs should not be empty').toBeGreaterThan(0);
+    verifySessionGet(sessionGetLogs.logs[0].content[0], { session, card: cards.mastercard });
+    expect(sessionGetLogs.logs[0].content.length, 'session GET should have card details entry').toBeGreaterThanOrEqual(2);
+    verifySessionGetCardDetails(sessionGetLogs.logs[0].content[1], { session, card: cards.mastercard });
 
     verifyTokenLogsEmpty(tokenLogs);
 
     // Phase 5-8 (filter by transaction ID to avoid cross-order matches)
-    if (allLogs.logs[0]?.content.length) {
-      const logContent = allLogs.logs[0].content;
-      const txFilter = (l: any) => !transactionId || l.request?.url?.includes(transactionId);
+    expect(allLogs.logs[0]?.content.length, 'all logs should not be empty').toBeGreaterThan(0);
+    const logContent = allLogs.logs[0].content;
+    const txFilter = (l: any) => !transactionId || l.request?.url?.includes(transactionId);
 
-      const initiateAuthLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION' && txFilter(l)
-      );
-      if (initiateAuthLog) {
-        verifyInitiateAuthentication(initiateAuthLog, {
-          session, card: cards.mastercard, transactionId: transactionId!, currency: 'USD',
-        });
-      }
+    const initiateAuthLog = logContent.find(
+      (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION' && txFilter(l)
+    );
+    expect(initiateAuthLog, 'INITIATE_AUTHENTICATION log not found').toBeTruthy();
+    verifyInitiateAuthentication(initiateAuthLog!, {
+      session, card: cards.mastercard, transactionId: transactionId!, currency: 'USD',
+    });
 
-      const captureLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'PAY' && txFilter(l)
-      );
-      if (captureLog) {
-        verifyAuthorizeCaptureLog(captureLog, {
-          apiOperation: 'PAY', session, total, currency: 'USD',
-          transactionId: transactionId!, orderNumber, card: cards.mastercard,
-        });
-      }
-    }
+    const authenticatePayerLog = logContent.find(
+      (l: any) => l.request?.body?.apiOperation === 'AUTHENTICATE_PAYER' && txFilter(l)
+    );
+    expect(authenticatePayerLog, 'AUTHENTICATE_PAYER log not found').toBeTruthy();
+    verifyAuthenticatePayer(authenticatePayerLog!, {
+      session, transactionId: transactionId!, currency: 'USD', card: cards.mastercard,
+    });
+
+    const captureLog = logContent.find(
+      (l: any) => l.request?.body?.apiOperation === 'PAY' && txFilter(l)
+    );
+    expect(captureLog, 'PAY log not found').toBeTruthy();
+    verifyAuthorizeCaptureLog(captureLog!, {
+      apiOperation: 'PAY', session, total, currency: 'USD',
+      transactionId: transactionId!, orderNumber, card: cards.mastercard,
+    });
 
     // Phase 11: Email verification
     await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
@@ -395,52 +380,53 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     const tokenLogs = await extractTokenLogs(payDate, payDate);
 
     // Phase 3 (find entry matching this order's session)
-    if (sessionPostLogs.logs[0]?.content.length) {
-      const sessionPostLog = session
-        ? sessionPostLogs.logs[0].content.find((l: any) => l.response?.body?.session?.id === session)
-        : sessionPostLogs.logs[0].content[0];
-      if (sessionPostLog) {
-        verifySessionPost(sessionPostLog, {
-          session, total, currency: 'USD', transactionId: transactionId!, orderNumber,
-        });
-      }
-    }
+    expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
+    const sessionPostLog = session
+      ? sessionPostLogs.logs[0].content.find((l: any) => l.response?.body?.session?.id === session)
+      : sessionPostLogs.logs[0].content[0];
+    expect(sessionPostLog, `session POST entry not found for session ${session}`).toBeTruthy();
+    verifySessionPost(sessionPostLog!, {
+      session, total, currency: 'USD', transactionId: transactionId!, orderNumber,
+    });
 
-    if (sessionGetLogs.logs[0]?.content.length) {
-      const sessionGetLog = sessionGetLogs.logs[0].content[0];
-      verifySessionGet(sessionGetLog, { session, card: cards.mastercard });
-    }
+    expect(sessionGetLogs.logs[0]?.content.length, 'session GET logs should not be empty').toBeGreaterThan(0);
+    verifySessionGet(sessionGetLogs.logs[0].content[0], { session, card: cards.mastercard });
+    expect(sessionGetLogs.logs[0].content.length, 'session GET should have card details entry').toBeGreaterThanOrEqual(2);
+    verifySessionGetCardDetails(sessionGetLogs.logs[0].content[1], { session, card: cards.mastercard });
 
     // Phase 4: Token present (saving CC)
-    if (tokenLogs.logs[0]?.content.length) {
-      const tokenLog = tokenLogs.logs[0].content[0];
-      verifyTokenLog(tokenLog, { session, card: cards.mastercard });
-    }
+    expect(tokenLogs.logs[0]?.content.length, 'token logs should not be empty').toBeGreaterThan(0);
+    verifyTokenLog(tokenLogs.logs[0].content[0], { session, card: cards.mastercard });
 
     // Phase 5-8 (filter by transaction ID to avoid cross-order matches)
-    if (allLogs.logs[0]?.content.length) {
-      const logContent = allLogs.logs[0].content;
-      const txFilter = (l: any) => !transactionId || l.request?.url?.includes(transactionId);
+    expect(allLogs.logs[0]?.content.length, 'all logs should not be empty').toBeGreaterThan(0);
+    const logContent = allLogs.logs[0].content;
+    const txFilter = (l: any) => !transactionId || l.request?.url?.includes(transactionId);
 
-      const initiateAuthLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION' && txFilter(l)
-      );
-      if (initiateAuthLog) {
-        verifyInitiateAuthentication(initiateAuthLog, {
-          session, card: cards.mastercard, transactionId: transactionId!, currency: 'USD',
-        });
-      }
+    const initiateAuthLog = logContent.find(
+      (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION' && txFilter(l)
+    );
+    expect(initiateAuthLog, 'INITIATE_AUTHENTICATION log not found').toBeTruthy();
+    verifyInitiateAuthentication(initiateAuthLog!, {
+      session, card: cards.mastercard, transactionId: transactionId!, currency: 'USD',
+    });
 
-      const captureLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'PAY' && txFilter(l)
-      );
-      if (captureLog) {
-        verifyAuthorizeCaptureLog(captureLog, {
-          apiOperation: 'PAY', session, total, currency: 'USD',
-          transactionId: transactionId!, orderNumber, card: cards.mastercard,
-        });
-      }
-    }
+    const authenticatePayerLog = logContent.find(
+      (l: any) => l.request?.body?.apiOperation === 'AUTHENTICATE_PAYER' && txFilter(l)
+    );
+    expect(authenticatePayerLog, 'AUTHENTICATE_PAYER log not found').toBeTruthy();
+    verifyAuthenticatePayer(authenticatePayerLog!, {
+      session, transactionId: transactionId!, currency: 'USD', card: cards.mastercard,
+    });
+
+    const captureLog = logContent.find(
+      (l: any) => l.request?.body?.apiOperation === 'PAY' && txFilter(l)
+    );
+    expect(captureLog, 'PAY log not found').toBeTruthy();
+    verifyAuthorizeCaptureLog(captureLog!, {
+      apiOperation: 'PAY', session, total, currency: 'USD',
+      transactionId: transactionId!, orderNumber, card: cards.mastercard,
+    });
 
     // Phase 11: Email verification
     await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
@@ -497,38 +483,43 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     const tokenLogs = await extractTokenLogs(payDate, payDate);
 
     // Verify session GET (saved card)
-    if (sessionGetLogs.logs[0]?.content.length) {
-      const sessionGetLog = sessionGetLogs.logs[0].content[0];
-      verifySessionGet(sessionGetLog, { session, card: cards.mastercard });
-    }
+    expect(sessionGetLogs.logs[0]?.content.length, 'session GET logs should not be empty').toBeGreaterThan(0);
+    verifySessionGet(sessionGetLogs.logs[0].content[0], { session, card: cards.mastercard });
+    expect(sessionGetLogs.logs[0].content.length, 'session GET should have card details entry').toBeGreaterThanOrEqual(2);
+    verifySessionGetCardDetails(sessionGetLogs.logs[0].content[1], { session, card: cards.mastercard });
 
     // No new token (using saved CC)
     verifyTokenLogsEmpty(tokenLogs);
 
     // Phase 5-8 (filter by transaction ID to avoid cross-order matches)
-    if (allLogs.logs[0]?.content.length) {
-      const logContent = allLogs.logs[0].content;
-      const txFilter = (l: any) => !transactionId || l.request?.url?.includes(transactionId);
+    expect(allLogs.logs[0]?.content.length, 'all logs should not be empty').toBeGreaterThan(0);
+    const logContent = allLogs.logs[0].content;
+    const txFilter = (l: any) => !transactionId || l.request?.url?.includes(transactionId);
 
-      const initiateAuthLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION' && txFilter(l)
-      );
-      if (initiateAuthLog) {
-        verifyInitiateAuthentication(initiateAuthLog, {
-          session, card: cards.mastercard, transactionId: transactionId!, currency: 'USD',
-        });
-      }
+    const initiateAuthLog = logContent.find(
+      (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION' && txFilter(l)
+    );
+    expect(initiateAuthLog, 'INITIATE_AUTHENTICATION log not found').toBeTruthy();
+    verifyInitiateAuthentication(initiateAuthLog!, {
+      session, card: cards.mastercard, transactionId: transactionId!, currency: 'USD',
+    });
 
-      const captureLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'PAY' && txFilter(l)
-      );
-      if (captureLog) {
-        verifyAuthorizeCaptureLog(captureLog, {
-          apiOperation: 'PAY', session, total, currency: 'USD',
-          transactionId: transactionId!, orderNumber, card: cards.mastercard,
-        });
-      }
-    }
+    const authenticatePayerLog = logContent.find(
+      (l: any) => l.request?.body?.apiOperation === 'AUTHENTICATE_PAYER' && txFilter(l)
+    );
+    expect(authenticatePayerLog, 'AUTHENTICATE_PAYER log not found').toBeTruthy();
+    verifyAuthenticatePayer(authenticatePayerLog!, {
+      session, transactionId: transactionId!, currency: 'USD', card: cards.mastercard,
+    });
+
+    const captureLog = logContent.find(
+      (l: any) => l.request?.body?.apiOperation === 'PAY' && txFilter(l)
+    );
+    expect(captureLog, 'PAY log not found').toBeTruthy();
+    verifyAuthorizeCaptureLog(captureLog!, {
+      apiOperation: 'PAY', session, total, currency: 'USD',
+      transactionId: transactionId!, orderNumber, card: cards.mastercard,
+    });
 
     // Phase 11: Email verification
     await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
