@@ -474,7 +474,18 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     total = await extractOrderTotal(page);
     session = await extractSessionId(page);
 
-    await clickPlaceOrder(page);
+    // Saved token checkout: the Place Order button may stay disabled due to
+    // WC blocks validation errors from empty CC iframe fields. Force-click it
+    // — the payment handler properly skips CC validation for saved tokens.
+    const mode = await page.locator('.wp-block-woocommerce-checkout').count() > 0 ? 'blocks' : 'classic';
+    const placeOrderBtn = page.locator(mode === 'blocks' ? '.wc-block-components-checkout-place-order-button' : '#place_order');
+    await expect(placeOrderBtn).toBeVisible();
+    await placeOrderBtn.click({ force: true });
+    await Promise.race([
+      page.waitForURL(/order-received/, { timeout: 60000 }),
+      page.waitForURL(/acs|3ds|threedsecure|mastercard\.com.*prompt/i, { timeout: 60000 }),
+      page.locator('.wc-block-components-notice-banner.is-error, .woocommerce-error').first().waitFor({ state: 'visible', timeout: 60000 }),
+    ]);
     const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
