@@ -25,7 +25,7 @@ interface MailpitSearchResponse {
  * Search Mailpit for messages matching a query.
  */
 async function searchMessages(query: string): Promise<MailpitMessage[]> {
-  const res = await fetch(`${MAILPIT_URL}/api/v1/messages?query=${encodeURIComponent(query)}`);
+  const res = await fetch(`${MAILPIT_URL}/api/v1/search?query=${encodeURIComponent(query)}`);
   if (!res.ok) throw new Error(`Mailpit search failed: ${res.status}`);
   const data: MailpitSearchResponse = await res.json();
   return data.messages || [];
