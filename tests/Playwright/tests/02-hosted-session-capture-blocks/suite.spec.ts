@@ -1,6 +1,6 @@
 import { test, expect } from '../../fixtures/test';
 import { Page, Browser } from '@playwright/test';
-import { switchCheckoutMode, configureGateway, verifyOrderViaAPI } from '../../helpers/api';
+import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getLogEntryCount } from '../../helpers/api';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
   fillBilling,
@@ -45,6 +45,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
   let sessionDate: string;
   let session: string;
   let total: string;
+  let logOffset: number;
 
   // Shared admin browser context
   let adminPage: Page;
@@ -71,6 +72,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
       checkout_mode: 'hosted_session',
     });
 
+    logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
     payDate = await addToCartAndCheckout(page, config.products.physical);
     sessionDate = payDate;
     await fillBilling(page, billing);
@@ -98,10 +100,10 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     expect(transactionId).toBeTruthy();
 
     // === LOG VERIFICATION ===
-    const allLogs = await extractAllLogs(payDate);
-    const sessionPostLogs = await extractSessionPostLogs(payDate, sessionDate, '', '');
-    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate);
-    const tokenLogs = await extractTokenLogs(payDate, payDate);
+    const allLogs = await extractAllLogs(payDate, logOffset);
+    const sessionPostLogs = await extractSessionPostLogs(payDate, sessionDate, '', '', logOffset);
+    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate, logOffset);
+    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
 
     // Verify session POST (find entry matching this order's session)
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
@@ -166,6 +168,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
 
   test('MC-005 - New user not saving CC', async ({ page }) => {
     // === CHECKOUT (buyer's page) ===
+    logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
     payDate = await addToCartAndCheckout(page, config.products.digital);
     sessionDate = payDate;
     await fillBilling(page, { ...billing, email: mc005Email });
@@ -190,10 +193,10 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     expect(transactionId).toBeTruthy();
 
     // === LOG VERIFICATION ===
-    const allLogs = await extractAllLogs(payDate);
-    const sessionPostLogs = await extractSessionPostLogs(payDate, sessionDate, '', '');
-    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate);
-    const tokenLogs = await extractTokenLogs(payDate, payDate);
+    const allLogs = await extractAllLogs(payDate, logOffset);
+    const sessionPostLogs = await extractSessionPostLogs(payDate, sessionDate, '', '', logOffset);
+    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate, logOffset);
+    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
 
     // Verify session POST (find entry matching this order's session)
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
@@ -263,6 +266,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
   test('MC-008 - Logged user pay with new CC', async ({ page }) => {
     // === CHECKOUT (buyer's page) ===
     await frontendLogin(page, mc005Email, billing.password);
+    logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
     payDate = await addToCartAndCheckout(page, config.products.physical);
     sessionDate = payDate;
     await selectPaymentMethod(page, config, true); // useNewToken = true
@@ -285,10 +289,10 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     expect(transactionId).toBeTruthy();
 
     // === LOG VERIFICATION ===
-    const allLogs = await extractAllLogs(payDate);
-    const sessionPostLogs = await extractSessionPostLogs(payDate, sessionDate, '', '');
-    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate);
-    const tokenLogs = await extractTokenLogs(payDate, payDate);
+    const allLogs = await extractAllLogs(payDate, logOffset);
+    const sessionPostLogs = await extractSessionPostLogs(payDate, sessionDate, '', '', logOffset);
+    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate, logOffset);
+    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
 
     // Verify session POST (find entry matching this order's session)
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
@@ -357,6 +361,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
   test('MC-009 - Logged user pay with new CC and save it', async ({ page }) => {
     // === CHECKOUT (buyer's page) ===
     await frontendLogin(page, mc005Email, billing.password);
+    logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
     payDate = await addToCartAndCheckout(page, config.products.physical);
     sessionDate = payDate;
     await selectPaymentMethod(page, config, true); // useNewToken = true
@@ -380,10 +385,10 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     expect(transactionId).toBeTruthy();
 
     // === LOG VERIFICATION ===
-    const allLogs = await extractAllLogs(payDate);
-    const sessionPostLogs = await extractSessionPostLogs(payDate, sessionDate, '', '');
-    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate);
-    const tokenLogs = await extractTokenLogs(payDate, payDate);
+    const allLogs = await extractAllLogs(payDate, logOffset);
+    const sessionPostLogs = await extractSessionPostLogs(payDate, sessionDate, '', '', logOffset);
+    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate, logOffset);
+    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
 
     // Verify session POST (find entry matching this order's session)
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
@@ -460,6 +465,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
   test('MC-010 - Logged user pay with saved CC', async ({ page }) => {
     // === CHECKOUT (buyer's page) ===
     await frontendLogin(page, mc005Email, billing.password);
+    logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
     payDate = await addToCartAndCheckout(page, config.products.physical);
     sessionDate = payDate;
     await selectPaymentMethod(page, config);
@@ -482,9 +488,9 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     expect(transactionId).toBeTruthy();
 
     // === LOG VERIFICATION ===
-    const allLogs = await extractAllLogs(payDate);
-    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate);
-    const tokenLogs = await extractTokenLogs(payDate, payDate);
+    const allLogs = await extractAllLogs(payDate, logOffset);
+    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate, logOffset);
+    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
 
     // Verify session GET (saved card)
     expect(sessionGetLogs.logs[0]?.content.length, 'session GET logs should not be empty').toBeGreaterThan(0);

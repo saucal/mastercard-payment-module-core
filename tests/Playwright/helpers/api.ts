@@ -71,13 +71,26 @@ export async function verifyOrderViaAPI(orderNumber: string, config: PluginConfi
   return { order, transactionId };
 }
 
-export async function getLogs(date: string, urlFilter: string): Promise<any> {
+export async function getLogs(date: string, urlFilter: string, skip = 0): Promise<any> {
+  const params = new URLSearchParams({
+    date,
+    url: urlFilter,
+    ...(skip > 0 ? { skip: String(skip) } : {}),
+  });
   const res = await fetch(
-    `${BASE_URL}/wp-json/custom/v1/get-log?date=${encodeURIComponent(date)}&url=${encodeURIComponent(urlFilter)}`,
+    `${BASE_URL}/wp-json/custom/v1/get-log?${params}`,
     { headers: wpAuthHeaders() }
   );
   if (!res.ok) throw new Error(`getLogs failed: ${res.status}`);
   const data = await res.json();
-  // API returns an array of {filename, content} — wrap to match LogResponse shape
   return { logs: Array.isArray(data) ? data : [] };
+}
+
+/**
+ * Get the current total log entry count (used as a marker before checkout).
+ * Returns the total parsed entries in the log file.
+ */
+export async function getLogEntryCount(date: string): Promise<number> {
+  const result = await getLogs(date, '');
+  return result.logs[0]?.total || result.logs[0]?.content?.length || 0;
 }
