@@ -40,7 +40,9 @@ export async function verifyOrderReceived(
   let subscriptionId: string | undefined;
   const subLink = page.locator('td.subscription-id > a');
   if (await subLink.isVisible({ timeout: 2000 }).catch(() => false)) {
-    subscriptionId = await subLink.textContent() || undefined;
+    await expect(subLink).toBeVisible();
+    subscriptionId = (await subLink.textContent() || '').trim();
+    expect(subscriptionId, 'Subscription ID should not be empty').toBeTruthy();
   }
 
   return { orderNumber: orderNumber.trim(), subscriptionId };
