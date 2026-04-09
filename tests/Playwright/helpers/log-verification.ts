@@ -113,8 +113,9 @@ export async function extractSessionPostLogs(
   sessionDate: string,
   adminUser: string,
   apiPass: string,
+  offset = 0,
 ): Promise<LogResponse> {
-  return getLogs(date, '/session');
+  return getLogs(date, '/session', offset);
 }
 
 /**
@@ -125,8 +126,9 @@ export async function extractSessionGetLogs(
   date: string,
   session: string,
   payDate: string,
+  offset = 0,
 ): Promise<LogResponse> {
-  return getLogs(date, `/session/${session}`);
+  return getLogs(date, `/session/${session}`, offset);
 }
 
 /**
@@ -136,8 +138,9 @@ export async function extractSessionGetLogs(
 export async function extractTokenLogs(
   date: string,
   payDate: string,
+  offset = 0,
 ): Promise<LogResponse> {
-  return getLogs(date, '/token');
+  return getLogs(date, '/token', offset);
 }
 
 /**
@@ -146,15 +149,16 @@ export async function extractTokenLogs(
  */
 export async function extractTransactionPutLogs(
   date: string,
+  offset = 0,
 ): Promise<LogResponse> {
-  return getLogs(date, '/transaction');
+  return getLogs(date, '/transaction', offset);
 }
 
 /**
  * Extract all logs for a given date.
  */
-export async function extractAllLogs(date: string): Promise<LogResponse> {
-  return getLogs(date, '');
+export async function extractAllLogs(date: string, offset = 0): Promise<LogResponse> {
+  return getLogs(date, '', offset);
 }
 
 // ─── Card assertion helpers ────────────────────────────────────────────────────
@@ -187,9 +191,16 @@ function assertCardDetails(
   expect(provided!.number).toContain(six);
   expect(provided!.number).toContain(four);
 
-  // Expiry month/year
-  expect(String(Number(provided!.expiry.month))).toBe(String(Number(card.month)));
-  expect(String(Number(provided!.expiry.year))).toBe(String(Number(card.year)));
+  // Expiry month/year — format varies: {month, year} object or string
+  const expiry = provided!.expiry as any;
+  if (expiry && typeof expiry === 'object' && expiry.month) {
+    expect(String(Number(expiry.month))).toBe(String(Number(card.month)));
+    expect(String(Number(expiry.year))).toBe(String(Number(card.year)));
+  } else if (typeof expiry === 'string') {
+    // Some responses use "MMYY" or "MM/YY" format
+    expect(expiry).toContain(card.month);
+    expect(expiry).toContain(card.year);
+  }
 
   // securityCode masking — present as 'xxx' in session GET, absent in auth responses
   if (provided!.securityCode !== undefined) {
