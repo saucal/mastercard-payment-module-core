@@ -37,7 +37,7 @@ export async function frontendLogin(page: Page, email: string, password: string)
   await page.locator('#username').fill(email);
   await page.locator('#password').fill(password);
   await page.locator('button[name="login"]').first().click();
-  await expect(page.locator('h1.entry-title, .woocommerce-MyAccount-content')).toBeVisible();
+  await expect(page.locator('h1.entry-title, .woocommerce-MyAccount-content').first()).toBeVisible();
 }
 
 /**
