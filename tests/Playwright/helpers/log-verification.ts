@@ -225,6 +225,21 @@ export function verifySessionPost(log: LogEntry, expected: SessionPostExpected):
   } else {
     expect(res.session?.id).toBeTruthy();
   }
+
+  // Request body order assertions (amount, currency, reference)
+  const reqOrder = log.request.body.order;
+  if (reqOrder) {
+    if (reqOrder.amount) {
+      const expectedAmount = parseAmount(expected.total);
+      expect(parseFloat(reqOrder.amount)).toBeCloseTo(expectedAmount, 2);
+    }
+    if (reqOrder.currency) {
+      expect(reqOrder.currency).toBe(expected.currency);
+    }
+    if (reqOrder.reference !== undefined) {
+      expect(String(reqOrder.reference)).toBe(String(expected.orderNumber));
+    }
+  }
 }
 
 interface SessionGetExpected {

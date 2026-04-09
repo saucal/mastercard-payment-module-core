@@ -38,6 +38,9 @@ export async function frontendLogin(page: Page, email: string, password: string)
   await page.locator('#password').fill(password);
   await page.locator('button[name="login"]').first().click();
   await expect(page.locator('.woocommerce-MyAccount-content')).toBeVisible();
+  // Verify we're logged in (not showing login form) and the dashboard greeting is visible
+  await expect(page.locator('#username')).not.toBeVisible();
+  await expect(page.locator('.woocommerce-MyAccount-content')).toContainText('Hello');
 }
 
 /**
