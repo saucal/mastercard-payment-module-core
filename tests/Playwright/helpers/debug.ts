@@ -76,6 +76,22 @@ export async function dumpFailureArtifacts(page: Page, testInfo: TestInfo, pageL
   const label = 'FAIL-' + safeLabel(testInfo);
   ensureDir(RESULTS_DIR);
 
+  // Dump the Playwright error with full stack trace
+  if (testInfo.error) {
+    const errFile = path.join(RESULTS_DIR, label + '-error.txt');
+    const errLines = [
+      `Test: ${testInfo.titlePath.join(' > ')}`,
+      `File: ${testInfo.file}:${testInfo.line}`,
+      `Duration: ${testInfo.duration}ms`,
+      '',
+      testInfo.error.message || '',
+      '',
+      testInfo.error.stack || '',
+    ];
+    fs.writeFileSync(errFile, errLines.join('\n'), 'utf-8');
+    console.log('  ❌ Error → ' + errFile);
+  }
+
   await dumpSnapshot(page, label);
 
   if (pageLog) {

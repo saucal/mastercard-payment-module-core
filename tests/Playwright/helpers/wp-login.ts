@@ -22,7 +22,18 @@ export async function adminLogin(page: Page): Promise<void> {
  * Log into WordPress frontend via My Account page.
  */
 export async function frontendLogin(page: Page, email: string, password: string): Promise<void> {
+  // Logout any existing session first (admin or other user)
   await page.goto('/my-account');
+  const loginForm = page.locator('#username');
+  if (!(await loginForm.isVisible({ timeout: 2000 }).catch(() => false))) {
+    // Already logged in — find and use logout link
+    const logoutLink = page.locator('.woocommerce-MyAccount-navigation a[href*="logout"], a[href*="customer-logout"]').first();
+    if (await logoutLink.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await logoutLink.click();
+      await page.waitForURL(/my-account/, { timeout: 10000 }).catch(() => {});
+      await page.goto('/my-account');
+    }
+  }
   await page.locator('#username').fill(email);
   await page.locator('#password').fill(password);
   await page.locator('button[name="login"]').first().click();

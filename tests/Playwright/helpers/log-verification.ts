@@ -215,7 +215,11 @@ export function verifySessionPost(log: LogEntry, expected: SessionPostExpected):
   const res = log.response.body;
   expect(res.result).toBe('SUCCESS');
 
-  expect(res.session?.id).toBeTruthy();
+  if (expected.session) {
+    expect(res.session?.id).toBe(expected.session);
+  } else {
+    expect(res.session?.id).toBeTruthy();
+  }
 
   // Order data may be in the session creation response (some API versions)
   // or in a separate UPDATE_SESSION PUT. Only assert if present.

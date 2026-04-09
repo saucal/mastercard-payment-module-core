@@ -88,12 +88,16 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate);
     const tokenLogs = await extractTokenLogs(payDate, payDate);
 
-    // Phase 3: Verify session POST
+    // Phase 3: Verify session POST (find entry matching this order's session)
     if (sessionPostLogs.logs[0]?.content.length) {
-      const sessionPostLog = sessionPostLogs.logs[0].content[0];
-      verifySessionPost(sessionPostLog, {
-        session, total, currency: 'USD', transactionId: transactionId!, orderNumber,
-      });
+      const sessionPostLog = session
+        ? sessionPostLogs.logs[0].content.find((l: any) => l.response?.body?.session?.id === session)
+        : sessionPostLogs.logs[0].content[0];
+      if (sessionPostLog) {
+        verifySessionPost(sessionPostLog, {
+          session, total, currency: 'USD', transactionId: transactionId!, orderNumber,
+        });
+      }
     }
 
     // Verify session GET (UPDATE_SESSION PUT + GET card details)
@@ -136,7 +140,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
       }
 
       const captureLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'PAY' && txFilter(l)
+        (l: any) => l.request?.body?.apiOperation === 'PAY' && txFilter(l) && txFilter(l)
       );
       if (captureLog) {
         verifyAuthorizeCaptureLog(captureLog, {
@@ -193,12 +197,16 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate);
     const tokenLogs = await extractTokenLogs(payDate, payDate);
 
-    // Phase 3: Verify session POST
+    // Phase 3: Verify session POST (find entry matching this order's session)
     if (sessionPostLogs.logs[0]?.content.length) {
-      const sessionPostLog = sessionPostLogs.logs[0].content[0];
-      verifySessionPost(sessionPostLog, {
-        session, total, currency: 'USD', transactionId: transactionId!, orderNumber,
-      });
+      const sessionPostLog = session
+        ? sessionPostLogs.logs[0].content.find((l: any) => l.response?.body?.session?.id === session)
+        : sessionPostLogs.logs[0].content[0];
+      if (sessionPostLog) {
+        verifySessionPost(sessionPostLog, {
+          session, total, currency: 'USD', transactionId: transactionId!, orderNumber,
+        });
+      }
     }
 
     if (sessionGetLogs.logs[0]?.content.length) {
@@ -209,12 +217,13 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     // Phase 4: Token empty (not saving)
     verifyTokenLogsEmpty(tokenLogs);
 
-    // Phase 5-8
+    // Phase 5-8 (filter by transaction ID to avoid cross-order matches)
     if (allLogs.logs[0]?.content.length) {
       const logContent = allLogs.logs[0].content;
+      const txFilter = (l: any) => !transactionId || l.request?.url?.includes(transactionId);
 
       const initiateAuthLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION'
+        (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION' && txFilter(l)
       );
       if (initiateAuthLog) {
         verifyInitiateAuthentication(initiateAuthLog, {
@@ -223,7 +232,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
       }
 
       const authenticatePayerLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'AUTHENTICATE_PAYER'
+        (l: any) => l.request?.body?.apiOperation === 'AUTHENTICATE_PAYER' && txFilter(l)
       );
       if (authenticatePayerLog) {
         verifyAuthenticatePayer(authenticatePayerLog, {
@@ -232,7 +241,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
       }
 
       const captureLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'PAY'
+        (l: any) => l.request?.body?.apiOperation === 'PAY' && txFilter(l) && txFilter(l)
       );
       if (captureLog) {
         verifyAuthorizeCaptureLog(captureLog, {
@@ -291,12 +300,16 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate);
     const tokenLogs = await extractTokenLogs(payDate, payDate);
 
-    // Phase 3
+    // Phase 3 (find entry matching this order's session)
     if (sessionPostLogs.logs[0]?.content.length) {
-      const sessionPostLog = sessionPostLogs.logs[0].content[0];
-      verifySessionPost(sessionPostLog, {
-        session, total, currency: 'USD', transactionId: transactionId!, orderNumber,
-      });
+      const sessionPostLog = session
+        ? sessionPostLogs.logs[0].content.find((l: any) => l.response?.body?.session?.id === session)
+        : sessionPostLogs.logs[0].content[0];
+      if (sessionPostLog) {
+        verifySessionPost(sessionPostLog, {
+          session, total, currency: 'USD', transactionId: transactionId!, orderNumber,
+        });
+      }
     }
 
     if (sessionGetLogs.logs[0]?.content.length) {
@@ -306,12 +319,13 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
 
     verifyTokenLogsEmpty(tokenLogs);
 
-    // Phase 5-8
+    // Phase 5-8 (filter by transaction ID to avoid cross-order matches)
     if (allLogs.logs[0]?.content.length) {
       const logContent = allLogs.logs[0].content;
+      const txFilter = (l: any) => !transactionId || l.request?.url?.includes(transactionId);
 
       const initiateAuthLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION'
+        (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION' && txFilter(l)
       );
       if (initiateAuthLog) {
         verifyInitiateAuthentication(initiateAuthLog, {
@@ -320,7 +334,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
       }
 
       const captureLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'PAY'
+        (l: any) => l.request?.body?.apiOperation === 'PAY' && txFilter(l)
       );
       if (captureLog) {
         verifyAuthorizeCaptureLog(captureLog, {
@@ -380,12 +394,16 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate);
     const tokenLogs = await extractTokenLogs(payDate, payDate);
 
-    // Phase 3
+    // Phase 3 (find entry matching this order's session)
     if (sessionPostLogs.logs[0]?.content.length) {
-      const sessionPostLog = sessionPostLogs.logs[0].content[0];
-      verifySessionPost(sessionPostLog, {
-        session, total, currency: 'USD', transactionId: transactionId!, orderNumber,
-      });
+      const sessionPostLog = session
+        ? sessionPostLogs.logs[0].content.find((l: any) => l.response?.body?.session?.id === session)
+        : sessionPostLogs.logs[0].content[0];
+      if (sessionPostLog) {
+        verifySessionPost(sessionPostLog, {
+          session, total, currency: 'USD', transactionId: transactionId!, orderNumber,
+        });
+      }
     }
 
     if (sessionGetLogs.logs[0]?.content.length) {
@@ -399,12 +417,13 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
       verifyTokenLog(tokenLog, { session, card: cards.mastercard });
     }
 
-    // Phase 5-8
+    // Phase 5-8 (filter by transaction ID to avoid cross-order matches)
     if (allLogs.logs[0]?.content.length) {
       const logContent = allLogs.logs[0].content;
+      const txFilter = (l: any) => !transactionId || l.request?.url?.includes(transactionId);
 
       const initiateAuthLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION'
+        (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION' && txFilter(l)
       );
       if (initiateAuthLog) {
         verifyInitiateAuthentication(initiateAuthLog, {
@@ -413,7 +432,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
       }
 
       const captureLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'PAY'
+        (l: any) => l.request?.body?.apiOperation === 'PAY' && txFilter(l)
       );
       if (captureLog) {
         verifyAuthorizeCaptureLog(captureLog, {
@@ -486,12 +505,13 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     // No new token (using saved CC)
     verifyTokenLogsEmpty(tokenLogs);
 
-    // Phase 5-8
+    // Phase 5-8 (filter by transaction ID to avoid cross-order matches)
     if (allLogs.logs[0]?.content.length) {
       const logContent = allLogs.logs[0].content;
+      const txFilter = (l: any) => !transactionId || l.request?.url?.includes(transactionId);
 
       const initiateAuthLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION'
+        (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION' && txFilter(l)
       );
       if (initiateAuthLog) {
         verifyInitiateAuthentication(initiateAuthLog, {
@@ -500,7 +520,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
       }
 
       const captureLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'PAY'
+        (l: any) => l.request?.body?.apiOperation === 'PAY' && txFilter(l)
       );
       if (captureLog) {
         verifyAuthorizeCaptureLog(captureLog, {
