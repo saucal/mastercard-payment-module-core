@@ -26,6 +26,12 @@ export async function verifyPaymentMethods(
       await expect(expiryCell).toContainText(`${options.expiryMonth}/${options.expiryYear}`);
     }
   }
+
+  // Assert no extra card rows exist beyond expected count
+  const extraRow = page.locator(
+    `tr:nth-of-type(${options.expectedCards + 1}) > td.woocommerce-PaymentMethod.woocommerce-PaymentMethod--method`
+  );
+  await expect(extraRow).not.toBeVisible();
 }
 
 export async function verifyOrderInMyAccount(
@@ -53,7 +59,7 @@ export async function verifySubscription(
 ): Promise<void> {
   await page.goto(`/my-account/view-subscription/${subscriptionId}/`);
   await expect(
-    page.locator('table.shop_table.subscription_details > tbody > tr:nth-of-type(1) > td:nth-of-type(1)')
+    page.locator('table.shop_table.subscription_details > tbody > tr:nth-of-type(1) > td:nth-of-type(2)')
   ).toContainText(options.expectedStatus);
   await expect(page.locator('.subscription-payment-method')).toContainText(`Via ${options.displayName}`);
 }
@@ -69,5 +75,7 @@ export async function deletePaymentMethod(page: Page, index: number): Promise<vo
 export async function verifyCartEmpty(page: Page): Promise<void> {
   const cartUrl = process.env.CART_URL || '/cart/';
   await page.goto(cartUrl);
-  await expect(page.locator('body')).toContainText('Your cart is currently empty', { timeout: 10000 });
+  await expect(
+    page.locator('.woocommerce-info, .wc-block-cart__empty-cart__title, .cart-empty')
+  ).toContainText('cart is currently empty', { timeout: 10000 });
 }

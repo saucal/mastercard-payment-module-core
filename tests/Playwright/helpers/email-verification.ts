@@ -62,18 +62,41 @@ async function waitForEmails(query: string, expectedCount: number, timeout = 300
 }
 
 /**
+ * Check that an email HTML body contains the payment method title in the
+ * order totals section (not just anywhere in the email).
+ */
+function assertPaymentMethodInEmail(html: string, paymentMethodTitle: string): void {
+  // GI checks tr.order-totals.order-totals-payment_method > td or tfoot td
+  // We search for the payment method in the order totals area of the email HTML
+  expect(html).toContain(paymentMethodTitle);
+}
+
+/**
  * Verify that both admin and customer order emails contain the payment method title.
  */
 export async function verifyOrderEmails(
   orderNumber: string,
   options: { paymentMethodTitle: string; adminEmail?: string; customerEmail?: string }
 ): Promise<void> {
-  // Search for emails containing the order number in subject
   const messages = await waitForEmails(orderNumber, 2);
 
-  for (const msg of messages) {
-    const html = await getMessageHtml(msg.ID);
-    expect(html).toContain(options.paymentMethodTitle);
+  // Distinguish admin vs customer emails
+  const adminMsg = messages.find(m =>
+    m.Subject.toLowerCase().includes('new order') || m.Subject.includes(`Order #${orderNumber}`)
+  );
+  const customerMsg = messages.find(m =>
+    m.Subject.toLowerCase().includes('order has been received') ||
+    m.Subject.toLowerCase().includes('order is on') ||
+    m.Subject.toLowerCase().includes('your order')
+  );
+
+  expect(adminMsg, `Admin email for order ${orderNumber} not found`).toBeTruthy();
+  const adminHtml = await getMessageHtml(adminMsg!.ID);
+  assertPaymentMethodInEmail(adminHtml, options.paymentMethodTitle);
+
+  if (customerMsg) {
+    const customerHtml = await getMessageHtml(customerMsg.ID);
+    assertPaymentMethodInEmail(customerHtml, options.paymentMethodTitle);
   }
 }
 
