@@ -72,6 +72,9 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
+
+    // Guest cart should be empty after successful checkout
+    await verifyCartEmpty(page);
   });
 
   test('MC-004 - Guest checkout - Admin', async ({ page }) => {
@@ -147,9 +150,6 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     await assertOrderStatus(page, 'Processing');
     await assertPaymentMethodMeta(page, config, transactionId);
     await assertCapturedNote(page, config, transactionId!);
-
-    // Phase 13: Guest has no account, verify cart empty
-    await verifyCartEmpty(page);
   });
 
   // === MC-005: New user, NOT saving CC ===
@@ -169,6 +169,9 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
+
+    // Cart should be empty after successful checkout
+    await verifyCartEmpty(page);
   });
 
   test('MC-005 - New user not saving CC - Admin', async ({ page }) => {
@@ -247,7 +250,6 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     await frontendLogin(page, mc005Email, billing.password);
     await verifyPaymentMethods(page, { expectedCards: 0 });
     await verifyOrderInMyAccount(page, orderNumber, 'Processing', { expectedTotal: total, displayName: config.displayName });
-    await verifyCartEmpty(page);
   });
 
   // === MC-008: Logged user, pay with new CC (not saving) ===
@@ -266,6 +268,9 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
+
+    // Cart should be empty after successful checkout
+    await verifyCartEmpty(page);
   });
 
   test('MC-008 - Logged user pay with new CC - Admin', async ({ page }) => {
@@ -343,7 +348,6 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     await frontendLogin(page, mc005Email, billing.password);
     await verifyPaymentMethods(page, { expectedCards: 0 });
     await verifyOrderInMyAccount(page, orderNumber, 'Processing', { expectedTotal: total, displayName: config.displayName });
-    await verifyCartEmpty(page);
   });
 
   // === MC-009: Logged user, pay with new CC and save it ===
@@ -363,6 +367,9 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
+
+    // Cart should be empty after successful checkout
+    await verifyCartEmpty(page);
   });
 
   test('MC-009 - Logged user pay with new CC and save it - Admin', async ({ page }) => {
@@ -448,7 +455,6 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
       expiryYear: cards.mastercard.year,
     });
     await verifyOrderInMyAccount(page, orderNumber, 'Processing', { expectedTotal: total, displayName: config.displayName });
-    await verifyCartEmpty(page);
   });
 
   // === MC-010: Logged user, pay with saved CC (from MC-009) ===
@@ -467,6 +473,9 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
+
+    // Cart should be empty after successful checkout
+    await verifyCartEmpty(page);
   });
 
   test('MC-010 - Logged user pay with saved CC - Admin', async ({ page }) => {
@@ -541,6 +550,5 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
       expiryYear: cards.mastercard.year,
     });
     await verifyOrderInMyAccount(page, orderNumber, 'Processing', { expectedTotal: total, displayName: config.displayName });
-    await verifyCartEmpty(page);
   });
 });
