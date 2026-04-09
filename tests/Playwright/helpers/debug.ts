@@ -35,6 +35,44 @@ export async function dumpSnapshot(page: Page, label: string, selector = 'body')
   } catch (e) {
     console.log('  📋 Snapshot failed: ' + (e as Error).message?.substring(0, 100));
   }
+
+  try {
+    // Dump full page HTML with iframe contents inlined.
+    // page.content() may omit dynamically-injected iframes, so we use
+    // evaluate to serialize the live DOM, then append iframe contents
+    // retrieved via Playwright's cross-origin frame API.
+    let html = await page.evaluate(() => document.documentElement.outerHTML);
+
+    // Find each <iframe> tag by index and inject its document content after it
+    const iframes = page.locator('iframe');
+    const iframeCount = await iframes.count();
+    // Process in reverse so earlier indices stay valid
+    const iframePositions: number[] = [];
+    let searchFrom = 0;
+    const iframeTagRe = /<iframe\b[^>]*>/gi;
+    let tagMatch;
+    while ((tagMatch = iframeTagRe.exec(html)) !== null) {
+      iframePositions.push(tagMatch.index + tagMatch[0].length);
+    }
+
+    for (let i = Math.min(iframeCount, iframePositions.length) - 1; i >= 0; i--) {
+      try {
+        const frameEl = await iframes.nth(i).elementHandle();
+        const frame = await frameEl?.contentFrame();
+        if (!frame) continue;
+        const frameHtml = await frame.evaluate(() => document.documentElement.outerHTML);
+        const src = await iframes.nth(i).getAttribute('src') || '';
+        const injection = `\n<!-- #document (iframe[${i}]${src ? ' src="' + src + '"' : ''}) -->\n${frameHtml}\n<!-- /#document -->\n`;
+        html = html.slice(0, iframePositions[i]) + injection + html.slice(iframePositions[i]);
+      } catch { /* cross-origin or detached */ }
+    }
+
+    const htmlFile = path.join(RESULTS_DIR, label + '.html');
+    fs.writeFileSync(htmlFile, html, 'utf-8');
+    console.log('  🔍 HTML: ' + Math.round(html.length / 1024) + 'KB → ' + htmlFile);
+  } catch (e) {
+    console.log('  🔍 HTML dump failed: ' + (e as Error).message?.substring(0, 100));
+  }
 }
 
 /**
