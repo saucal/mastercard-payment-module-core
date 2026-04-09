@@ -66,6 +66,48 @@ export async function assertSessionFieldsPresent(page: Page, config: PluginConfi
  * element to focus it, then use page.keyboard.type() to send real keyboard
  * events that MPGS captures. Tab navigates between iframe fields.
  */
+/**
+ * Type into an MPGS iframe field with retry logic.
+ * Focuses the field, types the value, reads back the input value to verify,
+ * and retries (clear + retype) if the value doesn't match.
+ */
+async function typeIntoMpgsField(
+  page: Page,
+  frame: FrameLocator,
+  fieldId: string,
+  value: string,
+  maxAttempts = 3,
+): Promise<void> {
+  const input = frame.locator(`#${fieldId}`);
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    await input.focus();
+    await page.waitForTimeout(200);
+    await page.keyboard.type(value, { delay: 80 });
+    await page.waitForTimeout(300);
+
+    // Read back the value to verify it was typed correctly
+    const actual = await input.inputValue().catch(() => '');
+    // MPGS may format the value (e.g., card number with spaces)
+    const actualDigits = actual.replace(/\D/g, '');
+    if (actualDigits === value || actual === value) return;
+
+    // Value mismatch — clear and retry
+    console.log(`  MPGS field #${fieldId}: expected "${value}", got "${actual}" (attempt ${attempt})`);
+    await input.focus();
+    await page.keyboard.press('Control+a');
+    await page.keyboard.press('Backspace');
+    await page.waitForTimeout(300);
+  }
+
+  // Final check
+  const final = await input.inputValue().catch(() => '');
+  const finalDigits = final.replace(/\D/g, '');
+  if (finalDigits !== value && final !== value) {
+    throw new Error(`MPGS field #${fieldId}: failed to type "${value}" after ${maxAttempts} attempts, got "${final}"`);
+  }
+}
+
 export async function fillHostedSessionCC(page: Page, card: CardData, config: PluginConfig): Promise<void> {
   await waitForUnblock(page);
 
@@ -75,52 +117,17 @@ export async function fillHostedSessionCC(page: Page, card: CardData, config: Pl
   const count = await iframes.count();
   if (count < 4) throw new Error(`Expected 4 MPGS iframes, found ${count}`);
 
-  // Detect checkout mode to choose the right iframe interaction strategy.
-  // Blocks checkout: Tab navigation between MPGS iframes works (no form elements in between)
-  // Classic checkout: Tab goes to other form elements, so we need per-field iframe focus
-  const isBlocks = await page.locator('.wp-block-woocommerce-checkout').count() > 0;
+  const fields: { id: string; value: string }[] = [
+    { id: 'number', value: card.number },
+    { id: 'expiryMonth', value: card.month },
+    { id: 'expiryYear', value: card.year },
+    { id: 'securityCode', value: card.cvv },
+  ];
 
-  if (isBlocks) {
-    // Blocks: click first iframe, type card number, Tab to next fields
-    await iframes.nth(0).click({ force: true });
-    await page.waitForTimeout(300);
-    await page.keyboard.type(card.number, { delay: 30 });
-    await page.waitForTimeout(300);
-
-    await page.keyboard.press('Tab');
-    await page.waitForTimeout(300);
-    await page.keyboard.type(card.month, { delay: 30 });
-    await page.waitForTimeout(300);
-
-    await page.keyboard.press('Tab');
-    await page.waitForTimeout(300);
-    await page.keyboard.type(card.year, { delay: 30 });
-    await page.waitForTimeout(300);
-
-    await page.keyboard.press('Tab');
-    await page.waitForTimeout(300);
-    await page.keyboard.type(card.cvv, { delay: 30 });
-    await page.waitForTimeout(300);
-  } else {
-    // Classic checkout: Tab navigation doesn't work (other form elements intercept).
-    // Instead, use frame.evaluate() to set values and dispatch events that MPGS
-    // hosted session JS listens to inside the cross-origin iframes.
-    const fields: { id: string; value: string }[] = [
-      { id: 'number', value: card.number },
-      { id: 'expiryMonth', value: card.month },
-      { id: 'expiryYear', value: card.year },
-      { id: 'securityCode', value: card.cvv },
-    ];
-
-    for (const field of fields) {
-      const idx = await findFieldIframeIndex(page, config, field.id);
-      const frame = iframes.nth(idx).contentFrame();
-      // Focus the input inside the iframe — Playwright handles cross-origin focus
-      await frame.locator(`#${field.id}`).focus();
-      await page.waitForTimeout(300);
-      await page.keyboard.type(field.value, { delay: 50 });
-      await page.waitForTimeout(300);
-    }
+  for (const field of fields) {
+    const idx = await findFieldIframeIndex(page, config, field.id);
+    const frame = iframes.nth(idx).contentFrame();
+    await typeIntoMpgsField(page, frame, field.id, field.value);
   }
 
   // Tab out of last field to trigger MPGS session update
@@ -142,39 +149,19 @@ export async function fillHostedSessionCCPartial(
   const iframes = page.locator(config.mpgsIframePattern);
   await iframes.first().waitFor({ state: 'attached', timeout: 15000 });
 
-  // Focus first iframe
-  await iframes.nth(0).click({ force: true });
-  await page.waitForTimeout(300);
+  const fieldMap: { id: string; value: string | undefined }[] = [
+    { id: 'number', value: fields.number },
+    { id: 'expiryMonth', value: fields.month },
+    { id: 'expiryYear', value: fields.year },
+    { id: 'securityCode', value: fields.cvv },
+  ];
 
-  // Card number
-  if (fields.number !== undefined) {
-    await page.keyboard.type(fields.number, { delay: 30 });
+  for (const field of fieldMap) {
+    if (field.value === undefined) continue;
+    const idx = await findFieldIframeIndex(page, config, field.id);
+    const frame = iframes.nth(idx).contentFrame();
+    await typeIntoMpgsField(page, frame, field.id, field.value);
   }
-  await page.waitForTimeout(300);
-
-  // Tab to expiry month
-  await page.keyboard.press('Tab');
-  await page.waitForTimeout(300);
-  if (fields.month !== undefined) {
-    await page.keyboard.type(fields.month, { delay: 30 });
-  }
-  await page.waitForTimeout(300);
-
-  // Tab to expiry year
-  await page.keyboard.press('Tab');
-  await page.waitForTimeout(300);
-  if (fields.year !== undefined) {
-    await page.keyboard.type(fields.year, { delay: 30 });
-  }
-  await page.waitForTimeout(300);
-
-  // Tab to CVC
-  await page.keyboard.press('Tab');
-  await page.waitForTimeout(300);
-  if (fields.cvv !== undefined) {
-    await page.keyboard.type(fields.cvv, { delay: 30 });
-  }
-  await page.waitForTimeout(300);
 
   // Tab out
   await page.keyboard.press('Tab');
