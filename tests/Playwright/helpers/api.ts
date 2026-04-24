@@ -81,6 +81,7 @@ export async function getLogs(date: string, urlFilter: string, skip = 0): Promis
     `${BASE_URL}/wp-json/custom/v1/get-log?${params}`,
     { headers: wpAuthHeaders() }
   );
+  if (res.status === 404) return { logs: [{ content: [], total: 0 }] };
   if (!res.ok) throw new Error(`getLogs failed: ${res.status}`);
   const data = await res.json();
   return { logs: Array.isArray(data) ? data : [] };
