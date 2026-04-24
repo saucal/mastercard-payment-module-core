@@ -491,7 +491,7 @@ const hostedSessions = {
 				.ajax( 'update_hosted_session_from_token', data )
 				.done( function ( res ) {
 					hostedSessions.$eventProxy.trigger( 'payment_response', [
-						res.data.response,
+						res.data?.response || res.data,
 					] );
 				} )
 				.fail( function ( xhr ) {
