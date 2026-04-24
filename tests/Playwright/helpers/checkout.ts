@@ -55,6 +55,10 @@ const blocksSelectors = {
 export async function detectCheckoutMode(page: Page): Promise<CheckoutMode> {
   if (await page.locator('form.woocommerce-checkout').count() > 0) return 'classic';
   if (await page.locator('.wp-block-woocommerce-checkout').count() > 0) return 'blocks';
+  // The pay-for-order flow renders a minimal form with id="order_review"
+  // instead of the full woocommerce-checkout form — treat it as classic
+  // since the payment-method + place-order selectors are the same.
+  if (await page.locator('form#order_review').count() > 0) return 'classic';
   throw new Error('Could not detect checkout mode (neither classic nor blocks found)');
 }
 
