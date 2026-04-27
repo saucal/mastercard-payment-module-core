@@ -1,14 +1,26 @@
-import { Page, expect } from '@playwright/test';
+import { Page, FrameLocator, expect } from '@playwright/test';
 import type { CardData, PluginConfig } from '../plugin-config.types';
+
+export type HostedCheckoutMode = 'embedded' | 'redirect';
+
+/**
+ * In embedded mode the merchant page hosts an MPGS iframe; in redirect mode
+ * the browser navigates to the MPGS domain itself, so the MPGS UI is at the
+ * page top level (no outer iframe), with each CC field still proxied via its
+ * own per-field iframe (gw-proxy-*). Both Page and FrameLocator expose the
+ * `locator()` and `frameLocator()` methods we need, so we resolve a single
+ * "host" and use it uniformly.
+ */
+function getHostedHost(page: Page, config: PluginConfig, mode: HostedCheckoutMode): Page | FrameLocator {
+  return mode === 'redirect' ? page : page.frameLocator(config.mpgsIframePattern);
+}
 
 /**
  * Click the classic Place Order button and wait for the MPGS hosted-checkout
- * iframe to appear. Unlike the generic clickPlaceOrder helper this does NOT
- * wait for order-received or a 3DS/ACS URL — for hosted-checkout the browser
- * either navigates to /checkout/order-pay/<id>/ (standard flow) or reloads
- * the same page (pay-for-order flow); in both cases the MPGS iframe appears.
+ * UI to appear. In embedded mode the inner iframe shows up; in redirect mode
+ * the browser navigates to test-gateway.mastercard.com.
  */
-export async function clickPlaceOrderHostedCheckout(page: Page, config: PluginConfig): Promise<void> {
+export async function clickPlaceOrderHostedCheckout(page: Page, config: PluginConfig, mode: HostedCheckoutMode = 'embedded'): Promise<void> {
   const btn = page.locator('#place_order, .wc-block-components-checkout-place-order-button').first();
   // The pay-for-order page can ship the Place Order button hidden (its
   // ancestor `#payment` section is display:none until a payment method is
@@ -28,25 +40,26 @@ export async function clickPlaceOrderHostedCheckout(page: Page, config: PluginCo
       }
     });
   }
-  await page.locator(config.mpgsIframePattern).first().waitFor({ state: 'visible', timeout: 60000 });
+  if (mode === 'redirect') {
+    await page.waitForURL(/test-gateway\.mastercard\.com/, { timeout: 60000 });
+  } else {
+    await page.locator(config.mpgsIframePattern).first().waitFor({ state: 'visible', timeout: 60000 });
+  }
 }
 
-export async function fillHostedCheckoutCC(page: Page, card: CardData, config: PluginConfig): Promise<void> {
-  // MPGS renders the hosted-checkout UI inside a top-level iframe; the CC
-  // option selector + pay button live there. Each CC input field is in its
-  // OWN nested iframe (name, number, expiry month/year, security code),
-  // each identified by a distinct class on the iframe element.
-  const hostedFrame = page.frameLocator(config.mpgsIframePattern);
+export async function fillHostedCheckoutCC(page: Page, card: CardData, config: PluginConfig, mode: HostedCheckoutMode = 'embedded'): Promise<void> {
+  // Each CC field is in its own iframe (gw-proxy-<field>). In embedded mode
+  // those iframes live inside the MPGS wrapper iframe; in redirect mode they
+  // are direct children of the top-level page (which IS the MPGS page).
+  const host = getHostedHost(page, config, mode);
 
   // Click "Credit or Debit card" option
-  await hostedFrame.locator('.payment-option__credit-debit-text').first()
+  await host.locator('.payment-option__credit-debit-text').first()
     .click()
-    .catch(() => hostedFrame.locator('text=Credit or Debit card').first().click());
+    .catch(() => host.locator('text=Credit or Debit card').first().click());
 
-  // Each field iframe has a gw-proxy-<fieldName> class; inside it the input
-  // element uses the field name as id.
   const fillField = async (fieldClass: string, inputId: string, value: string) => {
-    await hostedFrame.frameLocator(`iframe.${fieldClass}`).locator(`#${inputId}`).fill(value);
+    await host.frameLocator(`iframe.${fieldClass}`).locator(`#${inputId}`).fill(value);
   };
 
   await fillField('gw-proxy-nameOnCard',  'nameOnCard',   'QA Test');
@@ -56,14 +69,14 @@ export async function fillHostedCheckoutCC(page: Page, card: CardData, config: P
   await fillField('gw-proxy-securityCode','securityCode', card.cvv);
 }
 
-export async function clickHostedCheckoutPay(page: Page, config: PluginConfig): Promise<void> {
-  const hostedFrame = page.frameLocator(config.mpgsIframePattern);
-  await hostedFrame.locator('#label-transactional-currency').click().catch(() => {});
-  await hostedFrame.locator('#pay-label').click();
+export async function clickHostedCheckoutPay(page: Page, config: PluginConfig, mode: HostedCheckoutMode = 'embedded'): Promise<void> {
+  const host = getHostedHost(page, config, mode);
+  await host.locator('#label-transactional-currency').click().catch(() => {});
+  await host.locator('#pay-label').click();
   // After submission MPGS either: (a) redirects the top page to the 3DS
   // challenge, (b) redirects to the WC order-received page, (c) stays on
-  // the hosted-checkout iframe with an error. Race the positive outcomes
-  // and let the caller handle any 3DS challenge after.
+  // the hosted-checkout UI with an error. Race the positive outcomes and
+  // let the caller handle any 3DS challenge after.
   await Promise.race([
     page.waitForURL(/order-received/, { timeout: 60000 }),
     page.waitForURL(/acs|3ds|threedsecure|mastercard\.com.*prompt/i, { timeout: 60000 }),
