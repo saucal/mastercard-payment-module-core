@@ -1,23 +1,20 @@
 import { test, expect } from '../../fixtures/test';
-import { switchCheckoutMode, configureGateway, verifyOrderViaAPI } from '../../helpers/api';
+import { Page } from '@playwright/test';
+import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getLogEntryCount } from '../../helpers/api';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
   fillBilling,
   selectPaymentMethod,
-  clickPlaceOrder,
   extractOrderTotal,
+  createAccountAtCheckout,
 } from '../../helpers/checkout';
-import { fillHostedCheckoutCC, clickHostedCheckoutPay } from '../../helpers/hosted-checkout';
+import { fillHostedCheckoutCC, clickHostedCheckoutPay, clickPlaceOrderHostedCheckout } from '../../helpers/hosted-checkout';
 import { verifyOrderReceived } from '../../helpers/order-received';
 import { handle3DSChallenge } from '../../helpers/three-ds';
 import {
-  extractAllLogs,
   extractSessionPostLogs,
   extractTokenLogs,
   verifySessionPost,
-  verifyInitiateAuthentication,
-  verifyAuthenticatePayer,
-  verifyAuthorizeCaptureLog,
   verifyTokenLogsEmpty,
 } from '../../helpers/log-verification';
 import { verifyAdminEmail } from '../../helpers/email-verification';
@@ -32,7 +29,7 @@ const BASE_URL = process.env.WP_BASE_URL || 'https://mastercard-saucal.sa.ngrok.
 const WOO_USER = process.env.WOO_USER || '';
 const WOO_PASS = process.env.WOO_PASS || '';
 
-async function createPendingOrder(productId: number): Promise<{ orderId: string; orderKey: string }> {
+async function createPendingOrder(productId: number): Promise<{ orderId: string; orderKey: string; total: string }> {
   const res = await fetch(`${BASE_URL}/wp-json/wc/v3/orders`, {
     method: 'POST',
     headers: {
@@ -46,17 +43,34 @@ async function createPendingOrder(productId: number): Promise<{ orderId: string;
   });
   if (!res.ok) throw new Error(`createPendingOrder failed: ${res.status}`);
   const order = await res.json();
-  return { orderId: String(order.id), orderKey: order.order_key };
+  return { orderId: String(order.id), orderKey: order.order_key, total: String(order.total) };
 }
 
+// Hosted-checkout REDIRECT + AUTHORIZE — same log shape as the capture
+// variant (only INITIATE_CHECKOUT is server-side). Order ends in `on-hold`
+// instead of `processing`; only the admin "new order" email fires (the
+// customer "processing" email is gated on capture). Capture is performed
+// later from the admin meta box (covered by suite 14).
 test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
   let orderNumber: string;
   const mc005Email = uniqueEmail();
-  const mc008Email = uniqueEmail();
+  const mc008Email = mc005Email;
 
-  // Shared state per checkout test
   let payDate: string;
   let total: string;
+  let logOffset: number;
+
+  let adminPage: Page;
+
+  test.beforeAll(async ({ browser }) => {
+    const adminContext = await browser.newContext({ ignoreHTTPSErrors: true });
+    adminPage = await adminContext.newPage();
+    await adminLogin(adminPage);
+  });
+
+  test.afterAll(async () => {
+    await adminPage.close();
+  });
 
   // === MC-004: Guest checkout ===
 
@@ -69,17 +83,16 @@ test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
       hosted_checkout_mode: 'redirect',
     });
 
+    logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
     payDate = await addToCartAndCheckout(page, config.products.physical);
     await fillBilling(page, billing);
     await selectPaymentMethod(page, config);
     total = await extractOrderTotal(page);
-    await clickPlaceOrder(page);
+    await clickPlaceOrderHostedCheckout(page, config, 'redirect');
 
-    // Now redirected to hosted checkout MPGS page — fill CC and pay
-    await fillHostedCheckoutCC(page, cards.mastercard, config);
-    await clickHostedCheckoutPay(page);
+    await fillHostedCheckoutCC(page, cards.mastercard, config, 'redirect');
+    await clickHostedCheckoutPay(page, config, 'redirect');
 
-    // Handle 3DS if challenged
     if (cards.mastercard.challenge) {
       await handle3DSChallenge(page);
     }
@@ -87,105 +100,55 @@ test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
     const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
-  });
 
-  test('MC-004 - Guest checkout - Admin', async ({ page }) => {
-    expect(orderNumber).toBeTruthy();
+    await verifyCartEmpty(page);
 
-    // Phase 1: WC API verification — authorize mode: On hold
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(order.status).toBe('on-hold');
     expect(transactionId).toBeTruthy();
 
-    // Phase 2: Log extraction
-    const allLogs = await extractAllLogs(payDate);
-    const sessionPostLogs = await extractSessionPostLogs(payDate, payDate, '', '');
-    const tokenLogs = await extractTokenLogs(payDate, payDate);
+    const sessionPostLogs = await extractSessionPostLogs(payDate, payDate, '', '', logOffset);
+    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
 
-    // Phase 3: Session POST — hosted checkout uses INITIATE_CHECKOUT
-    if (sessionPostLogs.logs[0]?.content.length) {
-      const sessionPostLog = sessionPostLogs.logs[0].content[0];
-      verifySessionPost(sessionPostLog, {
-        session: sessionPostLog.response?.body?.session?.id || '',
-        total, currency: 'USD', transactionId: transactionId!, orderNumber,
-        apiOperation: 'INITIATE_CHECKOUT',
-      });
-    }
+    expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
+    const sessionPostLog = sessionPostLogs.logs[0].content.find(
+      (l: any) => l.request?.body?.apiOperation === 'INITIATE_CHECKOUT'
+        && l.response?.body?.result === 'SUCCESS'
+        && String(l.request?.body?.order?.reference) === String(orderNumber)
+    );
+    expect(sessionPostLog, `INITIATE_CHECKOUT session POST entry not found for order ${orderNumber}`).toBeTruthy();
+    const resolvedSession: string = sessionPostLog!.response.body.session?.id || '';
+    expect(resolvedSession, 'session id not returned from INITIATE_CHECKOUT').toBeTruthy();
+    verifySessionPost(sessionPostLog!, {
+      session: resolvedSession, total, currency: 'USD', transactionId: transactionId!, orderNumber,
+      apiOperation: 'INITIATE_CHECKOUT',
+    });
 
-    // Phase 4: Token empty (guest)
     verifyTokenLogsEmpty(tokenLogs);
 
-    // Phase 5-8: Auth + AUTHORIZE logs (transactionType=authorize)
-    if (allLogs.logs[0]?.content.length) {
-      const logContent = allLogs.logs[0].content;
-
-      const initiateAuthLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION'
-      );
-      if (initiateAuthLog) {
-        verifyInitiateAuthentication(initiateAuthLog, {
-          session: initiateAuthLog.request?.body?.session?.id || '',
-          card: cards.mastercard, transactionId: transactionId!, currency: 'USD',
-        });
-      }
-
-      const authenticatePayerLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'AUTHENTICATE_PAYER'
-      );
-      if (authenticatePayerLog) {
-        verifyAuthenticatePayer(authenticatePayerLog, {
-          session: authenticatePayerLog.request?.body?.session?.id || '',
-          transactionId: transactionId!, currency: 'USD', card: cards.mastercard,
-        });
-      }
-
-      // AUTHORIZE operation (not PAY)
-      const authorizeLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'AUTHORIZE'
-      );
-      if (authorizeLog) {
-        verifyAuthorizeCaptureLog(authorizeLog, {
-          apiOperation: 'AUTHORIZE', total, currency: 'USD',
-          transactionId: transactionId!, orderNumber, card: cards.mastercard,
-        });
-      }
-    }
-
-    // Phase 11: Admin email only (authorize mode)
     await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName });
 
-    // Phase 12: Admin backend check — On hold status
-    await adminLogin(page);
-    await navigateToOrder(page, orderNumber);
-    await assertOrderStatus(page, 'On hold');
-    await assertPaymentMethodMeta(page, config, transactionId);
-    await assertAuthorizedNote(page, config, transactionId!);
-
-    // Phase 13: Guest — verify cart empty
-    await verifyCartEmpty(page);
+    await navigateToOrder(adminPage, orderNumber);
+    await assertOrderStatus(adminPage, 'On hold');
+    await assertPaymentMethodMeta(adminPage, config, transactionId);
+    await assertAuthorizedNote(adminPage, config, transactionId!);
   });
 
   // === MC-005: New user ===
 
   test('MC-005 - New user', async ({ page }) => {
+    logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
     payDate = await addToCartAndCheckout(page, config.products.digital);
     await fillBilling(page, { ...billing, email: mc005Email });
-
-    // Create account at checkout
-    const createAccountLink = page.locator('//span[contains(text(), "Create an account?")]');
-    if (await createAccountLink.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await createAccountLink.click();
-      await page.locator('#account_password').fill(billing.password);
-    }
-
+    await createAccountAtCheckout(page, billing.password);
     await selectPaymentMethod(page, config);
     total = await extractOrderTotal(page);
-    await clickPlaceOrder(page);
+    await clickPlaceOrderHostedCheckout(page, config, 'redirect');
 
-    await fillHostedCheckoutCC(page, cards.mastercard, config);
-    await clickHostedCheckoutPay(page);
+    await fillHostedCheckoutCC(page, cards.mastercard, config, 'redirect');
+    await clickHostedCheckoutPay(page, config, 'redirect');
 
     if (cards.mastercard.challenge) {
       await handle3DSChallenge(page);
@@ -194,93 +157,57 @@ test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
     const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
-  });
 
-  test('MC-005 - New user - Admin', async ({ page }) => {
-    expect(orderNumber).toBeTruthy();
+    await verifyCartEmpty(page);
 
-    // Phase 1: WC API verification
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.status).toBe('on-hold');
     expect(transactionId).toBeTruthy();
 
-    // Phase 2: Log extraction
-    const allLogs = await extractAllLogs(payDate);
-    const sessionPostLogs = await extractSessionPostLogs(payDate, payDate, '', '');
-    const tokenLogs = await extractTokenLogs(payDate, payDate);
+    const sessionPostLogs = await extractSessionPostLogs(payDate, payDate, '', '', logOffset);
+    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
 
-    // Phase 3
-    if (sessionPostLogs.logs[0]?.content.length) {
-      const sessionPostLog = sessionPostLogs.logs[0].content[0];
-      verifySessionPost(sessionPostLog, {
-        session: sessionPostLog.response?.body?.session?.id || '',
-        total, currency: 'USD', transactionId: transactionId!, orderNumber,
-        apiOperation: 'INITIATE_CHECKOUT',
-      });
-    }
+    expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
+    const sessionPostLog = sessionPostLogs.logs[0].content.find(
+      (l: any) => l.request?.body?.apiOperation === 'INITIATE_CHECKOUT'
+        && l.response?.body?.result === 'SUCCESS'
+        && String(l.request?.body?.order?.reference) === String(orderNumber)
+    );
+    expect(sessionPostLog, `INITIATE_CHECKOUT session POST entry not found for order ${orderNumber}`).toBeTruthy();
+    const resolvedSession: string = sessionPostLog!.response.body.session?.id || '';
+    expect(resolvedSession, 'session id not returned from INITIATE_CHECKOUT').toBeTruthy();
+    verifySessionPost(sessionPostLog!, {
+      session: resolvedSession, total, currency: 'USD', transactionId: transactionId!, orderNumber,
+      apiOperation: 'INITIATE_CHECKOUT',
+    });
 
     verifyTokenLogsEmpty(tokenLogs);
 
-    // Phase 5-8
-    if (allLogs.logs[0]?.content.length) {
-      const logContent = allLogs.logs[0].content;
-
-      const initiateAuthLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION'
-      );
-      if (initiateAuthLog) {
-        verifyInitiateAuthentication(initiateAuthLog, {
-          session: initiateAuthLog.request?.body?.session?.id || '',
-          card: cards.mastercard, transactionId: transactionId!, currency: 'USD',
-        });
-      }
-
-      const authorizeLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'AUTHORIZE'
-      );
-      if (authorizeLog) {
-        verifyAuthorizeCaptureLog(authorizeLog, {
-          apiOperation: 'AUTHORIZE', total, currency: 'USD',
-          transactionId: transactionId!, orderNumber, card: cards.mastercard,
-        });
-      }
-    }
-
-    // Phase 11: Admin email only
     await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName });
 
-    // Phase 12: Admin backend check
-    await adminLogin(page);
-    await navigateToOrder(page, orderNumber);
-    await assertOrderStatus(page, 'On hold');
-    await assertPaymentMethodMeta(page, config, transactionId);
-    await assertAuthorizedNote(page, config, transactionId!);
+    await navigateToOrder(adminPage, orderNumber);
+    await assertOrderStatus(adminPage, 'On hold');
+    await assertPaymentMethodMeta(adminPage, config, transactionId);
+    await assertAuthorizedNote(adminPage, config, transactionId!);
 
-    // Phase 13: My Account
     await frontendLogin(page, mc005Email, billing.password);
     await verifyOrderInMyAccount(page, orderNumber, 'On hold', { expectedTotal: total, displayName: config.displayName });
-    await verifyCartEmpty(page);
   });
 
   // === MC-008: Logged user ===
 
   test('MC-008 - Logged user', async ({ page }) => {
-    await frontendLogin(page, mc008Email, billing.password).catch(async () => {
-      // User may not exist yet — register first
-      await page.goto('/my-account');
-      await page.locator('#reg_email').fill(mc008Email);
-      await page.locator('#reg_password').fill(billing.password);
-      await page.locator('button[name="register"]').first().click();
-    });
+    await frontendLogin(page, mc008Email, billing.password);
 
+    logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
     payDate = await addToCartAndCheckout(page, config.products.physical);
     await selectPaymentMethod(page, config);
     total = await extractOrderTotal(page);
-    await clickPlaceOrder(page);
+    await clickPlaceOrderHostedCheckout(page, config, 'redirect');
 
-    await fillHostedCheckoutCC(page, cards.mastercard, config);
-    await clickHostedCheckoutPay(page);
+    await fillHostedCheckoutCC(page, cards.mastercard, config, 'redirect');
+    await clickHostedCheckoutPay(page, config, 'redirect');
 
     if (cards.mastercard.challenge) {
       await handle3DSChallenge(page);
@@ -289,153 +216,103 @@ test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
     const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
-  });
 
-  test('MC-008 - Logged user - Admin', async ({ page }) => {
-    expect(orderNumber).toBeTruthy();
+    await verifyCartEmpty(page);
 
-    // Phase 1: WC API verification
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.status).toBe('on-hold');
     expect(transactionId).toBeTruthy();
 
-    // Phase 2: Log extraction
-    const allLogs = await extractAllLogs(payDate);
-    const sessionPostLogs = await extractSessionPostLogs(payDate, payDate, '', '');
-    const tokenLogs = await extractTokenLogs(payDate, payDate);
+    const sessionPostLogs = await extractSessionPostLogs(payDate, payDate, '', '', logOffset);
+    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
 
-    // Phase 3
-    if (sessionPostLogs.logs[0]?.content.length) {
-      const sessionPostLog = sessionPostLogs.logs[0].content[0];
-      verifySessionPost(sessionPostLog, {
-        session: sessionPostLog.response?.body?.session?.id || '',
-        total, currency: 'USD', transactionId: transactionId!, orderNumber,
-        apiOperation: 'INITIATE_CHECKOUT',
-      });
-    }
+    expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
+    const sessionPostLog = sessionPostLogs.logs[0].content.find(
+      (l: any) => l.request?.body?.apiOperation === 'INITIATE_CHECKOUT'
+        && l.response?.body?.result === 'SUCCESS'
+        && String(l.request?.body?.order?.reference) === String(orderNumber)
+    );
+    expect(sessionPostLog, `INITIATE_CHECKOUT session POST entry not found for order ${orderNumber}`).toBeTruthy();
+    const resolvedSession: string = sessionPostLog!.response.body.session?.id || '';
+    expect(resolvedSession, 'session id not returned from INITIATE_CHECKOUT').toBeTruthy();
+    verifySessionPost(sessionPostLog!, {
+      session: resolvedSession, total, currency: 'USD', transactionId: transactionId!, orderNumber,
+      apiOperation: 'INITIATE_CHECKOUT',
+    });
 
     verifyTokenLogsEmpty(tokenLogs);
 
-    // Phase 5-8
-    if (allLogs.logs[0]?.content.length) {
-      const logContent = allLogs.logs[0].content;
-
-      const initiateAuthLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION'
-      );
-      if (initiateAuthLog) {
-        verifyInitiateAuthentication(initiateAuthLog, {
-          session: initiateAuthLog.request?.body?.session?.id || '',
-          card: cards.mastercard, transactionId: transactionId!, currency: 'USD',
-        });
-      }
-
-      const authorizeLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'AUTHORIZE'
-      );
-      if (authorizeLog) {
-        verifyAuthorizeCaptureLog(authorizeLog, {
-          apiOperation: 'AUTHORIZE', total, currency: 'USD',
-          transactionId: transactionId!, orderNumber, card: cards.mastercard,
-        });
-      }
-    }
-
-    // Phase 11: Admin email only
     await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName });
 
-    // Phase 12: Admin backend check
-    await adminLogin(page);
-    await navigateToOrder(page, orderNumber);
-    await assertOrderStatus(page, 'On hold');
-    await assertPaymentMethodMeta(page, config, transactionId);
-    await assertAuthorizedNote(page, config, transactionId!);
+    await navigateToOrder(adminPage, orderNumber);
+    await assertOrderStatus(adminPage, 'On hold');
+    await assertPaymentMethodMeta(adminPage, config, transactionId);
+    await assertAuthorizedNote(adminPage, config, transactionId!);
 
-    // Phase 13: My Account
     await frontendLogin(page, mc008Email, billing.password);
     await verifyOrderInMyAccount(page, orderNumber, 'On hold', { expectedTotal: total, displayName: config.displayName });
-    await verifyCartEmpty(page);
   });
 
   // === MC-011: Pay for order ===
 
   test('MC-011 - Pay for order', async ({ page }) => {
-    const { orderId, orderKey } = await createPendingOrder(config.products.physical);
+    const { orderId, orderKey, total: orderTotal } = await createPendingOrder(config.products.physical);
+    total = orderTotal;
 
+    logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
     await page.goto(`/checkout/order-pay/${orderId}/?pay_for_order=true&key=${orderKey}`);
     await page.waitForLoadState('networkidle');
 
     payDate = new Date().toISOString().slice(0, 19);
     await selectPaymentMethod(page, config);
-    total = await extractOrderTotal(page);
-    await clickPlaceOrder(page);
+    await clickPlaceOrderHostedCheckout(page, config, 'redirect');
 
-    await fillHostedCheckoutCC(page, cards.mastercard, config);
-    await clickHostedCheckoutPay(page);
+    await fillHostedCheckoutCC(page, cards.mastercard, config, 'redirect');
+    await clickHostedCheckoutPay(page, config, 'redirect');
 
     if (cards.mastercard.challenge) {
       await handle3DSChallenge(page);
     }
 
-    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName });
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
-  });
 
-  test('MC-011 - Pay for order - Admin', async ({ page }) => {
-    expect(orderNumber).toBeTruthy();
+    await verifyCartEmpty(page);
 
-    // Phase 1: WC API verification
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(order.status).toBe('on-hold');
     expect(transactionId).toBeTruthy();
 
-    // Phase 2: Log extraction
-    const allLogs = await extractAllLogs(payDate);
-    const sessionPostLogs = await extractSessionPostLogs(payDate, payDate, '', '');
-    const tokenLogs = await extractTokenLogs(payDate, payDate);
+    const sessionPostLogs = await extractSessionPostLogs(payDate, payDate, '', '', logOffset);
+    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
 
-    // Phase 3
-    if (sessionPostLogs.logs[0]?.content.length) {
-      const sessionPostLog = sessionPostLogs.logs[0].content[0];
-      verifySessionPost(sessionPostLog, {
-        session: sessionPostLog.response?.body?.session?.id || '',
-        total, currency: 'USD', transactionId: transactionId!, orderNumber,
-        apiOperation: 'INITIATE_CHECKOUT',
-      });
-    }
+    expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
+    const sessionPostLog = sessionPostLogs.logs[0].content.find(
+      (l: any) => l.request?.body?.apiOperation === 'INITIATE_CHECKOUT'
+        && l.response?.body?.result === 'SUCCESS'
+        && String(l.request?.body?.order?.reference) === String(orderNumber)
+    );
+    expect(sessionPostLog, `INITIATE_CHECKOUT session POST entry not found for order ${orderNumber}`).toBeTruthy();
+    const resolvedSession: string = sessionPostLog!.response.body.session?.id || '';
+    expect(resolvedSession, 'session id not returned from INITIATE_CHECKOUT').toBeTruthy();
+    verifySessionPost(sessionPostLog!, {
+      session: resolvedSession, total, currency: 'USD', transactionId: transactionId!, orderNumber,
+      apiOperation: 'INITIATE_CHECKOUT',
+    });
 
     verifyTokenLogsEmpty(tokenLogs);
 
-    // Phase 5-8
-    if (allLogs.logs[0]?.content.length) {
-      const logContent = allLogs.logs[0].content;
+    // Skip admin email verification — REST-created pending order has no
+    // billing.email. The order-received + REST + admin assertions cover
+    // the successful authorize.
 
-      const authorizeLog = logContent.find(
-        (l: any) => l.request?.body?.apiOperation === 'AUTHORIZE'
-      );
-      if (authorizeLog) {
-        verifyAuthorizeCaptureLog(authorizeLog, {
-          apiOperation: 'AUTHORIZE', total, currency: 'USD',
-          transactionId: transactionId!, orderNumber, card: cards.mastercard,
-        });
-      }
-    }
-
-    // Phase 11: Admin email only
-    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName });
-
-    // Phase 12: Admin backend check
-    await adminLogin(page);
-    await navigateToOrder(page, orderNumber);
-    await assertOrderStatus(page, 'On hold');
-    await assertPaymentMethodMeta(page, config, transactionId);
-    await assertAuthorizedNote(page, config, transactionId!);
-
-    // Phase 13: Cart empty
-    await verifyCartEmpty(page);
+    await navigateToOrder(adminPage, orderNumber);
+    await assertOrderStatus(adminPage, 'On hold');
+    await assertPaymentMethodMeta(adminPage, config, transactionId);
+    await assertAuthorizedNote(adminPage, config, transactionId!);
   });
 });
