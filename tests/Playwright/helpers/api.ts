@@ -95,3 +95,22 @@ export async function getLogEntryCount(date: string): Promise<number> {
   const result = await getLogs(date, '');
   return result.logs[0]?.total || result.logs[0]?.content?.length || 0;
 }
+
+/**
+ * Fetch webhook-log entries for a given order. The log parser writes inbound
+ * MPGS webhook notifications to a separate file (`<slug>-webhooks-logs-*`).
+ */
+export async function getWebhookLogs(date: string, orderReference?: string): Promise<{ logs: any[] }> {
+  const params = new URLSearchParams({
+    date,
+    ...(orderReference ? { order_reference: orderReference } : {}),
+  });
+  const res = await fetch(
+    `${BASE_URL}/wp-json/custom/v1/get-webhook-log?${params}`,
+    { headers: wpAuthHeaders() }
+  );
+  if (res.status === 404) return { logs: [{ filename: '', total: 0, content: [] }] };
+  if (!res.ok) throw new Error(`getWebhookLogs failed: ${res.status}`);
+  const data = await res.json();
+  return { logs: Array.isArray(data) ? data : [] };
+}
