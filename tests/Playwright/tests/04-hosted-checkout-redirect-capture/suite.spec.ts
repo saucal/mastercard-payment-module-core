@@ -207,10 +207,10 @@ test.describe.serial('Hosted Checkout - Redirect - Capture', () => {
     total = await extractOrderTotal(page);
     await clickPlaceOrderHostedCheckout(page, config, 'redirect');
 
-    await fillHostedCheckoutCC(page, cards.mastercard, config, 'redirect');
+    await fillHostedCheckoutCC(page, cards.mastercard2, config, 'redirect');
     await clickHostedCheckoutPay(page, config, 'redirect');
 
-    if (cards.mastercard.challenge) {
+    if (cards.mastercard2.challenge) {
       await handle3DSChallenge(page);
     }
 

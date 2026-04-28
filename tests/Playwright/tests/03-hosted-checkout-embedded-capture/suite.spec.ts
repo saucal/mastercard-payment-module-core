@@ -225,10 +225,10 @@ test.describe.serial('Hosted Checkout - Embedded - Capture', () => {
     total = await extractOrderTotal(page);
     await clickPlaceOrderHostedCheckout(page, config);
 
-    await fillHostedCheckoutCC(page, cards.mastercard, config);
+    await fillHostedCheckoutCC(page, cards.mastercard2, config);
     await clickHostedCheckoutPay(page, config);
 
-    if (cards.mastercard.challenge) {
+    if (cards.mastercard2.challenge) {
       await handle3DSChallenge(page);
     }
 
