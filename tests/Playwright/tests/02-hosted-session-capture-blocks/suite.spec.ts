@@ -14,6 +14,7 @@ import {
 } from '../../helpers/checkout';
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
 import { verifyOrderReceived } from '../../helpers/order-received';
+import { handle3DSChallenge } from '../../helpers/three-ds';
 import {
   extractAllLogs,
   extractSessionPostLogs,
@@ -292,7 +293,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     payDate = await addToCartAndCheckout(page, config.products.physical);
     sessionDate = payDate;
     await selectPaymentMethod(page, config, true); // useNewToken = true
-    await fillHostedSessionCC(page, cards.mastercard, config);
+    await fillHostedSessionCC(page, cards.mastercard2, config);
 
     total = await extractOrderTotal(page);
     session = await extractSessionId(page);
@@ -333,14 +334,14 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
         && l.response?.body?.session?.updateStatus === 'SUCCESS'
     );
     expect(sessionPut, 'UPDATE_SESSION PUT log entry not found').toBeTruthy();
-    verifySessionGet(sessionPut!, { session, card: cards.mastercard });
+    verifySessionGet(sessionPut!, { session, card: cards.mastercard2 });
     const sessionGet = sessionGetLogs.logs[0].content.find(
       (l: any) => l.request?.type === 'GET'
         && l.request?.url?.includes('/session/')
         && l.response?.body?.session?.id === session
     );
     expect(sessionGet, 'session GET card details entry not found').toBeTruthy();
-    verifySessionGetCardDetails(sessionGet!, { session, card: cards.mastercard });
+    verifySessionGetCardDetails(sessionGet!, { session, card: cards.mastercard2 });
 
     verifyTokenLogsEmpty(tokenLogs);
 
@@ -354,7 +355,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     );
     expect(initiateAuthLog, 'INITIATE_AUTHENTICATION log not found').toBeTruthy();
     verifyInitiateAuthentication(initiateAuthLog!, {
-      session, card: cards.mastercard, transactionId: transactionId!, currency: 'USD',
+      session, card: cards.mastercard2, transactionId: transactionId!, currency: 'USD',
     });
 
     const authenticatePayerLog = logContent.find(
@@ -362,7 +363,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     );
     expect(authenticatePayerLog, 'AUTHENTICATE_PAYER log not found').toBeTruthy();
     verifyAuthenticatePayer(authenticatePayerLog!, {
-      session, transactionId: transactionId!, currency: 'USD', card: cards.mastercard,
+      session, transactionId: transactionId!, currency: 'USD', card: cards.mastercard2,
     });
 
     const captureLog = logContent.find(
@@ -371,7 +372,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     expect(captureLog, 'PAY log not found').toBeTruthy();
     verifyAuthorizeCaptureLog(captureLog!, {
       apiOperation: 'PAY', session, total, currency: 'USD',
-      transactionId: transactionId!, orderNumber, card: cards.mastercard,
+      transactionId: transactionId!, orderNumber, card: cards.mastercard2,
     });
 
     // === EMAIL VERIFICATION ===
@@ -398,13 +399,14 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     payDate = await addToCartAndCheckout(page, config.products.physical);
     sessionDate = payDate;
     await selectPaymentMethod(page, config, true); // useNewToken = true
-    await fillHostedSessionCC(page, cards.mastercard, config);
+    await fillHostedSessionCC(page, cards.visaChallenge, config);
     await clickSaveCardCheckbox(page);
 
     total = await extractOrderTotal(page);
     session = await extractSessionId(page);
 
     await clickPlaceOrder(page);
+    await handle3DSChallenge(page);
     const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
@@ -440,18 +442,18 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
         && l.response?.body?.session?.updateStatus === 'SUCCESS'
     );
     expect(sessionPut, 'UPDATE_SESSION PUT log entry not found').toBeTruthy();
-    verifySessionGet(sessionPut!, { session, card: cards.mastercard });
+    verifySessionGet(sessionPut!, { session, card: cards.visaChallenge });
     const sessionGet = sessionGetLogs.logs[0].content.find(
       (l: any) => l.request?.type === 'GET'
         && l.request?.url?.includes('/session/')
         && l.response?.body?.session?.id === session
     );
     expect(sessionGet, 'session GET card details entry not found').toBeTruthy();
-    verifySessionGetCardDetails(sessionGet!, { session, card: cards.mastercard });
+    verifySessionGetCardDetails(sessionGet!, { session, card: cards.visaChallenge });
 
     // Token present (saving CC)
     expect(tokenLogs.logs[0]?.content.length, 'token logs should not be empty').toBeGreaterThan(0);
-    verifyTokenLog(tokenLogs.logs[0].content[0], { session, card: cards.mastercard });
+    verifyTokenLog(tokenLogs.logs[0].content[0], { session, card: cards.visaChallenge });
 
     // Auth + capture logs (filter by transaction ID to avoid cross-order matches)
     expect(allLogs.logs[0]?.content.length, 'all logs should not be empty').toBeGreaterThan(0);
@@ -463,16 +465,29 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     );
     expect(initiateAuthLog, 'INITIATE_AUTHENTICATION log not found').toBeTruthy();
     verifyInitiateAuthentication(initiateAuthLog!, {
-      session, card: cards.mastercard, transactionId: transactionId!, currency: 'USD',
+      session, card: cards.visaChallenge, transactionId: transactionId!, currency: 'USD',
     });
 
+    const expectedAuthResult = cards.visaChallenge.challenge ? 'PENDING' : 'SUCCESS';
     const authenticatePayerLog = logContent.find(
-      (l: any) => l.request?.body?.apiOperation === 'AUTHENTICATE_PAYER' && txFilter(l) && l.response?.body?.result === 'SUCCESS'
+      (l: any) => l.request?.body?.apiOperation === 'AUTHENTICATE_PAYER' && txFilter(l)
+        && l.response?.body?.result === expectedAuthResult
     );
     expect(authenticatePayerLog, 'AUTHENTICATE_PAYER log not found').toBeTruthy();
     verifyAuthenticatePayer(authenticatePayerLog!, {
-      session, transactionId: transactionId!, currency: 'USD', card: cards.mastercard,
+      session, transactionId: transactionId!, currency: 'USD', card: cards.visaChallenge,
     });
+
+    // For challenge cards, verify final authentication status after ACS prompt.
+    if (cards.visaChallenge.challenge) {
+      const authResultLog = logContent.find(
+        (l: any) => txFilter(l) && (
+          l.response?.body?.authenticationStatus === 'AUTHENTICATION_SUCCESSFUL'
+          || l.response?.body?.order?.authenticationStatus === 'AUTHENTICATION_SUCCESSFUL'
+        )
+      );
+      expect(authResultLog, 'AUTHENTICATION_SUCCESSFUL result log not found').toBeTruthy();
+    }
 
     const captureLog = logContent.find(
       (l: any) => l.request?.body?.apiOperation === 'PAY' && txFilter(l) && l.response?.body?.result === 'SUCCESS'
@@ -480,7 +495,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     expect(captureLog, 'PAY log not found').toBeTruthy();
     verifyAuthorizeCaptureLog(captureLog!, {
       apiOperation: 'PAY', session, total, currency: 'USD',
-      transactionId: transactionId!, orderNumber, card: cards.mastercard,
+      transactionId: transactionId!, orderNumber, card: cards.visaChallenge,
     });
 
     // === EMAIL VERIFICATION ===
@@ -496,10 +511,10 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     await frontendLogin(page, mc005Email, billing.password);
     await verifyPaymentMethods(page, {
       expectedCards: 1,
-      cardName: cards.mastercard.name,
-      fourDigits: fourDigits(cards.mastercard),
-      expiryMonth: cards.mastercard.month,
-      expiryYear: cards.mastercard.year,
+      cardName: cards.visaChallenge.name,
+      fourDigits: fourDigits(cards.visaChallenge),
+      expiryMonth: cards.visaChallenge.month,
+      expiryYear: cards.visaChallenge.year,
     });
     await verifyOrderInMyAccount(page, orderNumber, 'Processing', { expectedTotal: total, displayName: config.displayName });
   });
@@ -530,6 +545,9 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
       page.waitForURL(/acs|3ds|threedsecure|mastercard\.com.*prompt/i, { timeout: 60000 }),
       page.locator('.wc-block-components-notice-banner.is-error, .woocommerce-error').first().waitFor({ state: 'visible', timeout: 60000 }),
     ]);
+    if (/acs|3ds|threedsecure|mastercard\.com.*prompt/i.test(page.url())) {
+      await handle3DSChallenge(page);
+    }
     const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
@@ -561,7 +579,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
       || sessionPut!.request.body.session?.id
       || sessionPut!.response.body.session?.id
       || '';
-    verifySessionGet(sessionPut!, { session: resolvedSession, card: cards.mastercard });
+    verifySessionGet(sessionPut!, { session: resolvedSession, card: cards.visaChallenge });
     // Saved-token path does not fetch card details from the session — the
     // card data already lives in the token. Skip verifySessionGetCardDetails.
 
@@ -578,16 +596,29 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     );
     expect(initiateAuthLog, 'INITIATE_AUTHENTICATION log not found').toBeTruthy();
     verifyInitiateAuthentication(initiateAuthLog!, {
-      session: resolvedSession, card: cards.mastercard, transactionId: transactionId!, currency: 'USD',
+      session: resolvedSession, card: cards.visaChallenge, transactionId: transactionId!, currency: 'USD',
     });
 
+    const expectedAuthResult = cards.visaChallenge.challenge ? 'PENDING' : 'SUCCESS';
     const authenticatePayerLog = logContent.find(
-      (l: any) => l.request?.body?.apiOperation === 'AUTHENTICATE_PAYER' && txFilter(l) && l.response?.body?.result === 'SUCCESS'
+      (l: any) => l.request?.body?.apiOperation === 'AUTHENTICATE_PAYER' && txFilter(l)
+        && l.response?.body?.result === expectedAuthResult
     );
     expect(authenticatePayerLog, 'AUTHENTICATE_PAYER log not found').toBeTruthy();
     verifyAuthenticatePayer(authenticatePayerLog!, {
-      session: resolvedSession, transactionId: transactionId!, currency: 'USD', card: cards.mastercard,
+      session: resolvedSession, transactionId: transactionId!, currency: 'USD', card: cards.visaChallenge,
     });
+
+    // For challenge cards, verify final authentication status after ACS prompt.
+    if (cards.visaChallenge.challenge) {
+      const authResultLog = logContent.find(
+        (l: any) => txFilter(l) && (
+          l.response?.body?.authenticationStatus === 'AUTHENTICATION_SUCCESSFUL'
+          || l.response?.body?.order?.authenticationStatus === 'AUTHENTICATION_SUCCESSFUL'
+        )
+      );
+      expect(authResultLog, 'AUTHENTICATION_SUCCESSFUL result log not found').toBeTruthy();
+    }
 
     const captureLog = logContent.find(
       (l: any) => l.request?.body?.apiOperation === 'PAY' && txFilter(l) && l.response?.body?.result === 'SUCCESS'
@@ -595,7 +626,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     expect(captureLog, 'PAY log not found').toBeTruthy();
     verifyAuthorizeCaptureLog(captureLog!, {
       apiOperation: 'PAY', session: resolvedSession, total, currency: 'USD',
-      transactionId: transactionId!, orderNumber, card: cards.mastercard,
+      transactionId: transactionId!, orderNumber, card: cards.visaChallenge,
     });
 
     // === EMAIL VERIFICATION ===
@@ -611,10 +642,10 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     await frontendLogin(page, mc005Email, billing.password);
     await verifyPaymentMethods(page, {
       expectedCards: 1,
-      cardName: cards.mastercard.name,
-      fourDigits: fourDigits(cards.mastercard),
-      expiryMonth: cards.mastercard.month,
-      expiryYear: cards.mastercard.year,
+      cardName: cards.visaChallenge.name,
+      fourDigits: fourDigits(cards.visaChallenge),
+      expiryMonth: cards.visaChallenge.month,
+      expiryYear: cards.visaChallenge.year,
     });
     await verifyOrderInMyAccount(page, orderNumber, 'Processing', { expectedTotal: total, displayName: config.displayName });
   });
