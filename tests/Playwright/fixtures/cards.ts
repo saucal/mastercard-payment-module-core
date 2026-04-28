@@ -9,6 +9,23 @@ export const cards: Record<string, CardData> = {
     year: '39',
     cvv: '100',
   },
+  mastercard2: {
+    number: '5555555555000018',
+    name: 'MasterCard',
+    shortName: 'MASTERCARD',
+    month: '01',
+    year: '39',
+    cvv: '100',
+  },
+  mastercard3: {
+    number: '5123450000000008',
+    name: 'MasterCard',
+    shortName: 'MASTERCARD',
+    month: '01',
+    year: '39',
+    cvv: '100',
+    challenge: true,
+  },
   visaChallenge: {
     number: '4440000009900010',
     name: 'Visa',
@@ -19,7 +36,7 @@ export const cards: Record<string, CardData> = {
     challenge: true,
   },
   visaFrictionless: {
-    number: '4440000009900028',
+    number: '4440000042200014',
     name: 'Visa',
     shortName: 'VISA',
     month: '01',
@@ -28,7 +45,7 @@ export const cards: Record<string, CardData> = {
     challenge: false,
   },
   visaFrictionlessAttempted: {
-    number: '4440000009900036',
+    number: '4440000042200022',
     name: 'Visa',
     shortName: 'VISA',
     month: '01',
@@ -45,11 +62,11 @@ export const cards: Record<string, CardData> = {
     cvv: '100',
   },
   expired: {
-    number: '5123456789012346',
+    number: '5555555555000018',
     name: 'MasterCard',
     shortName: 'MASTERCARD',
-    month: '01',
-    year: '20',
+    month: '04',
+    year: '27',
     cvv: '100',
   },
 };
