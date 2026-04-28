@@ -69,6 +69,14 @@ export const cards: Record<string, CardData> = {
     year: '27',
     cvv: '100',
   },
+  invalidCC: {
+    number: '7554298042803978',
+    name: 'Invalid',
+    shortName: 'UNKNOWN',
+    month: '01',
+    year: '39',
+    cvv: '100',
+  },
 };
 
 export function fourDigits(card: CardData): string {
