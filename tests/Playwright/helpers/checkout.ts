@@ -240,5 +240,6 @@ export async function clickPlaceOrder(page: Page): Promise<void> {
 export async function getCheckoutError(page: Page): Promise<string> {
   const mode = await detectCheckoutMode(page);
   const sel = getSelectors(mode);
-  return await page.locator(sel.errorMessage).first().textContent() || '';
+  const texts = await page.locator(sel.errorMessage).allTextContents();
+  return texts.join(' ');
 }
