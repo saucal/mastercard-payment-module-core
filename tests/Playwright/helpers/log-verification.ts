@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { getLogs } from './api';
+import { getLogs, getWebhookLogs, getLogEntryCount } from './api';
 import type { CardData } from '../plugin-config.types';
 
 /**
@@ -634,4 +634,82 @@ export function verifyRefundLog(log: LogEntry, expected: RefundExpected): void {
   if (txn!.amount !== undefined) {
     expect(txn!.amount).toBeCloseTo(refundAmt, 2);
   }
+}
+
+// ─── Webhook verification ────────────────────────────────────────────────────
+
+export type WebhookTxType = 'PAYMENT' | 'AUTHORIZATION' | 'AUTHENTICATION' | 'CAPTURE' | 'REFUND' | 'VOID_AUTHORIZATION';
+
+/**
+ * Poll the webhook log until ALL expected SUCCESS webhooks have arrived for
+ * the given order. Then poll the main api log until it has been quiet for
+ * `quiescenceMs` (no new entries appended). Each webhook triggers a
+ * `retrieve_order()` GET that logs to the main file; without quiescence
+ * those stragglers interleave with the next test's outbound writes and the
+ * parser mis-pairs request/response sections.
+ *
+ * Capture flow expects ['PAYMENT', 'AUTHENTICATION'].
+ * Authorize flow expects ['AUTHORIZATION', 'AUTHENTICATION'].
+ * Refund flow expects ['REFUND'].
+ *
+ * Returns the matched webhook entries.
+ */
+export async function waitForWebhooks(
+  date: string,
+  orderNumber: string,
+  expectedTxTypes: WebhookTxType[],
+  timeoutMs = 120000,
+  quiescenceMs = 5000,
+): Promise<Array<{ date: string; body: any }>> {
+  const start = Date.now();
+  const remaining = new Set<WebhookTxType>(expectedTxTypes);
+  const matched: Array<{ date: string; body: any }> = [];
+  let lastEntries: any[] = [];
+
+  console.log(`  [webhook] waiting for [${[...remaining].join(', ')}] on order ${orderNumber}...`);
+  while (Date.now() - start < timeoutMs && remaining.size > 0) {
+    const result = await getWebhookLogs(date, String(orderNumber));
+    lastEntries = result.logs[0]?.content || [];
+    for (const e of lastEntries) {
+      const tx = e.body?.transaction?.type as WebhookTxType | undefined;
+      if (tx && remaining.has(tx) && e.body?.result === 'SUCCESS') {
+        matched.push(e);
+        remaining.delete(tx);
+        const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+        console.log(`  [webhook] ${tx} arrived after ${elapsed}s (remaining: [${[...remaining].join(', ')}])`);
+      }
+    }
+    if (remaining.size === 0) break;
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+
+  if (remaining.size > 0) {
+    const seen = lastEntries.map((e: any) => `${e.date}/${e.body?.transaction?.type}/${e.body?.result}`).join(', ');
+    throw new Error(
+      `waitForWebhooks timeout: missing [${[...remaining].join(', ')}] for order ${orderNumber} within ${timeoutMs}ms. Seen: [${seen}]`,
+    );
+  }
+
+  // Quiescence: each webhook triggers a retrieve_order GET in the main log,
+  // and those writes can interleave with the next test's outbound IC writes.
+  // Poll until the main log entry count has been stable for `quiescenceMs`.
+  console.log(`  [webhook] all received, waiting ${quiescenceMs}ms main-log quiescence...`);
+  let lastCount = await getLogEntryCount(date);
+  let stableSince = Date.now();
+  const quiescenceDeadline = Date.now() + timeoutMs;
+  while (Date.now() < quiescenceDeadline) {
+    await new Promise((r) => setTimeout(r, 1000));
+    const count = await getLogEntryCount(date);
+    if (count !== lastCount) {
+      console.log(`  [webhook] main log grew ${lastCount} -> ${count}, resetting quiescence clock`);
+      lastCount = count;
+      stableSince = Date.now();
+      continue;
+    }
+    if (Date.now() - stableSince >= quiescenceMs) {
+      console.log(`  [webhook] main log quiescent for ${quiescenceMs}ms`);
+      return matched;
+    }
+  }
+  throw new Error(`waitForWebhooks: main log did not reach quiescence (${quiescenceMs}ms stable) within ${timeoutMs}ms for order ${orderNumber}`);
 }

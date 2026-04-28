@@ -27,11 +27,16 @@ export async function dumpSnapshot(page: Page, label: string, selector = 'body')
     console.log('  📸 Screenshot failed: ' + (e as Error).message?.substring(0, 100));
   }
 
+  // Aria snapshot — Locator.ariaSnapshot() exists from Playwright 1.49+;
+  // older installs throw "is not a function". Skip silently in that case.
   try {
-    const snap = await page.locator(selector).ariaSnapshot();
-    const filename = path.join(RESULTS_DIR, label + '.yml');
-    fs.writeFileSync(filename, snap, 'utf-8');
-    console.log('  📋 Snapshot: ' + snap.split('\n').length + ' lines → ' + filename);
+    const locator = page.locator(selector) as any;
+    if (typeof locator.ariaSnapshot === 'function') {
+      const snap = await locator.ariaSnapshot();
+      const filename = path.join(RESULTS_DIR, label + '.yml');
+      fs.writeFileSync(filename, snap, 'utf-8');
+      console.log('  📋 Snapshot: ' + snap.split('\n').length + ' lines → ' + filename);
+    }
   } catch (e) {
     console.log('  📋 Snapshot failed: ' + (e as Error).message?.substring(0, 100));
   }
