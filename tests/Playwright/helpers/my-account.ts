@@ -1,8 +1,22 @@
 import { Page, expect } from '@playwright/test';
 
+interface CardRow {
+  cardName: string;
+  fourDigits: string;
+  expiryMonth?: string;
+  expiryYear?: string;
+}
+
 export async function verifyPaymentMethods(
   page: Page,
-  options: { expectedCards: number; cardName?: string; fourDigits?: string; expiryMonth?: string; expiryYear?: string }
+  options: {
+    expectedCards: number;
+    cardName?: string;
+    fourDigits?: string;
+    expiryMonth?: string;
+    expiryYear?: string;
+    cards?: CardRow[];
+  }
 ): Promise<void> {
   await page.goto('/my-account/payment-methods/');
 
@@ -16,14 +30,21 @@ export async function verifyPaymentMethods(
       `tr:nth-of-type(${i}) > td.woocommerce-PaymentMethod.woocommerce-PaymentMethod--method`
     );
     await expect(row).toBeVisible();
-    if (options.cardName && options.fourDigits) {
-      await expect(row).toContainText(`${options.cardName} ending in ${options.fourDigits}`);
-    }
-    if (options.expiryMonth && options.expiryYear) {
-      const expiryCell = page.locator(
-        `tr:nth-of-type(${i}) > td.woocommerce-PaymentMethod.woocommerce-PaymentMethod--expires`
-      );
-      await expect(expiryCell).toContainText(`${options.expiryMonth}/${options.expiryYear}`);
+
+    const spec: CardRow | undefined = options.cards
+      ? options.cards[i - 1]
+      : (options.cardName && options.fourDigits
+        ? { cardName: options.cardName, fourDigits: options.fourDigits, expiryMonth: options.expiryMonth, expiryYear: options.expiryYear }
+        : undefined);
+
+    if (spec) {
+      await expect(row).toContainText(`${spec.cardName} ending in ${spec.fourDigits}`);
+      if (spec.expiryMonth && spec.expiryYear) {
+        const expiryCell = page.locator(
+          `tr:nth-of-type(${i}) > td.woocommerce-PaymentMethod.woocommerce-PaymentMethod--expires`
+        );
+        await expect(expiryCell).toContainText(`${spec.expiryMonth}/${spec.expiryYear}`);
+      }
     }
   }
 
