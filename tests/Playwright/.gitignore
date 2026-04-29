@@ -1,5 +1,6 @@
 .env
 node_modules/
 /test-results/
+/test-results-archive/
 /playwright-report/
 /playwright/.cache/

@@ -95,6 +95,18 @@ npm run replace-prefix || { echo "replace-prefix failed"; exit 1; }
 npm run build:core     || { echo "build:core failed"; exit 1; }
 
 echo ""
+echo "=== Archiving prior test-results (Playwright wipes outputDir on start) ==="
+ARCHIVE_ROOT="$TESTS_DIR/test-results-archive"
+mkdir -p "$ARCHIVE_ROOT"
+if [[ -d "$TESTS_DIR/test-results" && -n "$(ls -A "$TESTS_DIR/test-results" 2>/dev/null)" ]]; then
+  ts="$(date -u +%Y%m%dT%H%M%SZ)"
+  mv "$TESTS_DIR/test-results" "$ARCHIVE_ROOT/$ts"
+  echo "- archived → test-results-archive/$ts"
+else
+  echo "- no prior results"
+fi
+
+echo ""
 echo "=== Running Playwright ==="
 
 cd "$TESTS_DIR"
