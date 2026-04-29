@@ -498,7 +498,7 @@ const hostedSessions = {
 				} )
 				.done( function ( res ) {
 					hostedSessions.$eventProxy.trigger( 'payment_response', [
-						res.data.response,
+						res.data?.response || res.data,
 					] );
 				} )
 				.fail( function ( res ) {

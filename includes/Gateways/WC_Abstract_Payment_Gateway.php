@@ -1261,6 +1261,14 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 			return;
 		}
 
+		// Route every log call within webhook handling to the dedicated
+		// webhook log file. Without this, the retrieve_order GET that
+		// handle_webhook_request fires lands in the main api log and
+		// interleaves with concurrent buyer-flow writes, causing the
+		// log parser to mis-pair request/response sections.
+		$logger = $this->core_plugin->logger();
+		$logger->push_context( 'PAYMENTS_CORE_HOOK_PREFIX-webhooks' );
+
 		try {
 			$raw_body = file_get_contents( 'php://input' );
 			$this->debounce_webhook_request( $raw_body );
@@ -1271,17 +1279,20 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				throw new Exception( __( 'The request body is empty.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
-			$this->core_plugin->logger()->log( __( 'Webhook Notification: ', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) . $raw_body, 'info', 'PAYMENTS_CORE_HOOK_PREFIX-webhooks' );
+			$logger->log( __( 'Webhook Notification: ', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) . $raw_body, 'info' );
 
 			$this->handle_webhook_request( $body, $order );
 
 			status_header( 200 );
 			$this->webhook_cleanup();
 		} catch ( Exception $e ) {
-			$this->core_plugin->logger()->log( $e->getMessage(), 'error' );
+			$logger->log( $e->getMessage(), 'error' );
 			status_header( is_numeric( $e->getCode() ) ? $e->getCode() : 400 );
+			$logger->pop_context();
 			die();
 		}
+
+		$logger->pop_context();
 	}
 
 
