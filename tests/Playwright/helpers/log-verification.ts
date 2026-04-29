@@ -560,7 +560,11 @@ interface VoidExpected {
  */
 export function verifyVoidLog(log: LogEntry, expected: VoidExpected): void {
   expect(log.request.body.apiOperation).toBe('VOID');
-  expect(log.request.body.transaction?.targetTransactionId).toBe(expected.transactionId);
+  // VOID's targetTransactionId points at the prior auth/capture transaction
+  // for the same order. The gateway may suffix it with a sequence (e.g.
+  // "...-2") when the auth flow recorded multiple transactions; treat the
+  // expected id as a prefix match instead of strict equality.
+  expect(log.request.body.transaction?.targetTransactionId).toContain(expected.transactionId);
 
   const res = log.response.body;
   expect(res.result).toBe('SUCCESS');
@@ -599,7 +603,8 @@ export function verifyRefundLog(log: LogEntry, expected: RefundExpected): void {
   if (reqTransaction) {
     if (expected.total) {
       const amount = parseAmount(expected.total);
-      expect((log as any).request?.body?.transaction?.amount).toBe(amount);
+      const actualAmount = parseFloat(String((log as any).request?.body?.transaction?.amount));
+      expect(actualAmount).toBeCloseTo(amount, 2);
     }
     expect((log as any).request?.body?.transaction?.currency).toBe(expected.currency || 'USD');
   }

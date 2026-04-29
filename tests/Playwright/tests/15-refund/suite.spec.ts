@@ -1,5 +1,11 @@
 import { test, expect } from '../../fixtures/test';
-import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getOrderMeta } from '../../helpers/api';
+import { Page } from '@playwright/test';
+import {
+  switchCheckoutMode,
+  configureGateway,
+  verifyOrderViaAPI,
+  getLogEntryCount,
+} from '../../helpers/api';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
   fillBilling,
@@ -26,14 +32,26 @@ import { cards } from '../../fixtures/cards';
 import { billing } from '../../fixtures/billing';
 
 test.describe.serial('Refund', () => {
+  let adminPage: Page;
+  // GI source: MC-040/041 use 5123456789012346 = cards.mastercard (frictionless).
+  const card = cards.mastercard;
+  // MC-042 reuses the partially refunded order from MC-041.
+  let mc041OrderNumber: string;
+  let mc041Total: string;
+
+  test.beforeAll(async ({ browser }) => {
+    const adminContext = await browser.newContext({ ignoreHTTPSErrors: true });
+    adminPage = await adminContext.newPage();
+    await adminLogin(adminPage);
+  });
+
+  test.afterAll(async () => {
+    await adminPage.close();
+  });
+
   // === MC-040: Full refund ===
 
-  let mc040OrderNumber: string;
-  let mc040Total: string;
-  let mc040PayDate: string;
-  let mc040TransactionId: string;
-
-  test('MC-040 Step 1 - Prepare order', async ({ page }) => {
+  test('MC-040 - Full refund', async ({ page }) => {
     await switchCheckoutMode('classic');
     await configureGateway(config, {
       _3d_secure: 'yes',
@@ -41,160 +59,129 @@ test.describe.serial('Refund', () => {
       checkout_mode: 'hosted_session',
     });
 
-    await addToCartAndCheckout(page, config.products.physical);
+    const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
+    const payDate = await addToCartAndCheckout(page, config.products.physical);
+
     await fillBilling(page, billing);
-    mc040Total = await extractOrderTotal(page);
+    const total = await extractOrderTotal(page);
     await selectPaymentMethod(page, config);
-    await fillHostedSessionCC(page, cards.visaFrictionless, config);
+    await fillHostedSessionCC(page, card, config);
 
-    mc040PayDate = new Date().toISOString().slice(0, 19);
     await clickPlaceOrder(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc040Total });
-    mc040OrderNumber = result.orderNumber;
-    expect(mc040OrderNumber).toBeTruthy();
-  });
+    await page.waitForURL(/order-received/, { timeout: 60000 });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
+    const orderNumber = result.orderNumber;
+    expect(orderNumber).toBeTruthy();
 
-  test('MC-040 Step 2 - Full refund', async ({ page }) => {
-    expect(mc040OrderNumber).toBeTruthy();
-
-    const { order, transactionId } = await verifyOrderViaAPI(mc040OrderNumber, config);
+    const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
-    mc040TransactionId = transactionId!;
 
-    // Phase 11: Email verification (purchase)
-    await verifyOrderEmails(mc040OrderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
 
-    // Phase 12: Perform full refund
-    await adminLogin(page);
-    await navigateToOrder(page, mc040OrderNumber);
+    await navigateToOrder(adminPage, orderNumber);
+    const orderTotalStr = String(order.total);
+    await refundPayment(adminPage, orderTotalStr);
 
-    const refundAmount = mc040Total.replace(/[^0-9.]/g, '');
-    await refundPayment(page, refundAmount);
+    // Status select is bound at page load; reload to see the new value.
+    await navigateToOrder(adminPage, orderNumber);
+    await assertOrderStatus(adminPage, 'Refunded');
+    await assertOrderNoteContains(adminPage, 'Refund of');
 
-    // After full refund, order status should change to Refunded
-    await assertOrderStatus(page, 'Refunded');
-    await assertOrderNoteContains(page, `Refund of`);
-  });
-
-  test('MC-040 Step 3 - Verify REFUND log', async () => {
-    expect(mc040TransactionId).toBeTruthy();
-
-    // Verify REFUND log
-    const transactionLogs = await extractTransactionPutLogs(mc040PayDate);
-    const refundLogs = transactionLogs.logs[0]?.content?.filter(
-      (l: any) => l.request?.body?.apiOperation === 'REFUND'
-    ) || [];
-
-    if (refundLogs.length > 0) {
-      const refundLog = refundLogs[0];
-      verifyRefundLog(refundLog, {
-        total: mc040Total,
-        currency: 'USD',
-        isPartial: false,
-      });
-    }
+    const transactionLogs = await extractTransactionPutLogs(payDate, logOffset);
+    const refundLog = transactionLogs.logs[0]?.content.find(
+      (l: any) => l.request?.body?.apiOperation === 'REFUND' && l.request?.url?.includes(transactionId!)
+    );
+    expect(refundLog, 'REFUND log not found').toBeTruthy();
+    verifyRefundLog(refundLog!, { total: orderTotalStr, currency: 'USD', isPartial: false });
   });
 
   // === MC-041: Partial refund ===
 
-  let mc041OrderNumber: string;
-  let mc041Total: string;
-  let mc041PayDate: string;
-  let mc041TransactionId: string;
-  let mc041HalfAmount: string;
+  test('MC-041 - Partial refund', async ({ page }) => {
+    const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
+    const payDate = await addToCartAndCheckout(page, config.products.digital);
 
-  test('MC-041 Step 1 - Prepare order', async ({ page }) => {
-    await addToCartAndCheckout(page, config.products.physical);
     await fillBilling(page, billing);
-    mc041Total = await extractOrderTotal(page);
+    const total = await extractOrderTotal(page);
     await selectPaymentMethod(page, config);
-    await fillHostedSessionCC(page, cards.visaFrictionless, config);
+    await fillHostedSessionCC(page, card, config);
 
-    mc041PayDate = new Date().toISOString().slice(0, 19);
     await clickPlaceOrder(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc041Total });
-    mc041OrderNumber = result.orderNumber;
-    expect(mc041OrderNumber).toBeTruthy();
-  });
+    await page.waitForURL(/order-received/, { timeout: 60000 });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
+    const orderNumber = result.orderNumber;
+    expect(orderNumber).toBeTruthy();
 
-  test('MC-041 Step 2 - Partial refund', async ({ page }) => {
-    expect(mc041OrderNumber).toBeTruthy();
-
-    const { order, transactionId } = await verifyOrderViaAPI(mc041OrderNumber, config);
+    const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
     expect(transactionId).toBeTruthy();
-    mc041TransactionId = transactionId!;
 
-    // Phase 11: Email verification
-    await verifyOrderEmails(mc041OrderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
 
-    // Phase 12: Perform partial refund
-    await adminLogin(page);
-    await navigateToOrder(page, mc041OrderNumber);
+    await navigateToOrder(adminPage, orderNumber);
 
-    mc041HalfAmount = (parseFloat(mc041Total.replace(/[^0-9.]/g, '')) / 2).toFixed(2);
-    await refundPayment(page, mc041HalfAmount);
+    const orderTotalStr = String(order.total);
+    const halfAmount = (parseFloat(orderTotalStr) / 2).toFixed(2);
+    await refundPayment(adminPage, halfAmount);
 
-    // After partial refund, order should still be processing (not fully refunded)
-    await assertOrderStatus(page, 'Processing');
-    await assertOrderNoteContains(page, `Refund of`);
-  });
+    await navigateToOrder(adminPage, orderNumber);
+    await assertOrderStatus(adminPage, 'Processing');
+    await assertOrderNoteContains(adminPage, 'Refund of');
 
-  test('MC-041 Step 3 - Verify REFUND log', async () => {
-    expect(mc041TransactionId).toBeTruthy();
+    const transactionLogs = await extractTransactionPutLogs(payDate, logOffset);
+    const refundLog = transactionLogs.logs[0]?.content.find(
+      (l: any) => l.request?.body?.apiOperation === 'REFUND' && l.request?.url?.includes(transactionId!)
+    );
+    expect(refundLog, 'REFUND log not found').toBeTruthy();
+    // For partial refunds, request transaction.amount is the partial — pass it
+    // as `total` so verifyRefundLog asserts against the right number.
+    verifyRefundLog(refundLog!, { total: halfAmount, currency: 'USD', isPartial: true, partialAmount: halfAmount });
 
-    // Verify REFUND log with partial amount
-    const transactionLogs = await extractTransactionPutLogs(mc041PayDate);
-    const refundLogs = transactionLogs.logs[0]?.content?.filter(
-      (l: any) => l.request?.body?.apiOperation === 'REFUND'
-    ) || [];
-
-    if (refundLogs.length > 0) {
-      const refundLog = refundLogs[0];
-      verifyRefundLog(refundLog, {
-        total: mc041Total,
-        currency: 'USD',
-        isPartial: true,
-        partialAmount: mc041HalfAmount,
-      });
-    }
+    mc041OrderNumber = orderNumber;
+    mc041Total = orderTotalStr;
   });
 
   // === MC-042: Exceed total refund ===
 
-  test('MC-042 - Exceed total refund', async ({ page }) => {
-    expect(mc041OrderNumber).toBeTruthy();
-    expect(mc041Total).toBeTruthy();
+  test('MC-042 - Exceed total refund', async () => {
+    expect(mc041OrderNumber, 'MC-041 must run first to provide the partially refunded order').toBeTruthy();
 
-    await adminLogin(page);
-    await navigateToOrder(page, mc041OrderNumber);
+    await navigateToOrder(adminPage, mc041OrderNumber);
 
-    // Attempt to refund the full original amount (exceeds remaining after partial refund)
-    const exceedAmount = mc041Total.replace(/[^0-9.]/g, '');
-    await page.locator('.refund-items').click();
-    await page.locator('#refund_amount').fill(exceedAmount);
+    // Capture pre-attempt refund-note count so we can assert no NEW refund
+    // was processed.
+    const refundNotesBefore = await adminPage
+      .locator('li.note .note_content p, #order_note_list li .note_content p')
+      .filter({ hasText: 'Refund of' })
+      .count();
 
-    // The refund button should be disabled or an error should appear
-    const refundBtn = page.locator('.do-api-refund');
+    const exceedAmount = mc041Total;
+    await adminPage.locator('.refund-items').click();
+    await adminPage.locator('#refund_amount').fill(exceedAmount);
+
+    const refundBtn = adminPage.locator('.do-api-refund');
     const isDisabled = await refundBtn.isDisabled({ timeout: 3000 }).catch(() => false);
 
-    if (!isDisabled) {
-      // If button is not disabled, attempt and expect an error
-      await refundBtn.click();
-      page.once('dialog', dialog => dialog.accept());
-      // Either an error notice appears, or the order status stays the same
-      const hasError = await page.locator('.notice-error, .woocommerce-error, #message.error').isVisible({ timeout: 5000 }).catch(() => false);
-      if (!hasError) {
-        // If no error was thrown, verify the order wasn't over-refunded
-        await assertOrderStatus(page, 'Refunded');
-      } else {
-        // Error appeared as expected — order should still be at partial refund state
-        expect(hasError).toBeTruthy();
-      }
-    } else {
-      // Button correctly disabled — refund blocked
-      expect(isDisabled).toBeTruthy();
+    if (isDisabled) {
+      expect(isDisabled, 'refund button correctly disabled when exceeding remaining').toBeTruthy();
+      return;
     }
+
+    adminPage.once('dialog', dialog => dialog.accept());
+    await refundBtn.click().catch(() => undefined);
+
+    // WC blocks the over-refund either via a JS alert or a server-side
+    // notice. Either way no second "Refund of ..." order note may be
+    // written and the order must stay in Processing.
+    await adminPage.waitForTimeout(2000);
+    const refundNotesAfter = await adminPage
+      .locator('li.note .note_content p, #order_note_list li .note_content p')
+      .filter({ hasText: 'Refund of' })
+      .count();
+    expect(refundNotesAfter, 'over-refund must not produce a new refund note').toBe(refundNotesBefore);
+
+    await navigateToOrder(adminPage, mc041OrderNumber);
+    await assertOrderStatus(adminPage, 'Processing');
   });
 });
