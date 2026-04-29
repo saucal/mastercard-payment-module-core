@@ -110,7 +110,7 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     // Verify session POST (find entry matching this order's session)
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
     const sessionPostLog = session
-      ? sessionPostLogs.logs[0].content.find((l: any) => l.response?.body?.session?.id === session)
+      ? sessionPostLogs.logs[0].content.find((l: any) => l.response?.body?.session?.id === session && (l.response?.body?.result === "SUCCESS" || l.response?.body?.session?.updateStatus === "SUCCESS" || l.response?.body?.session?.version))
       : sessionPostLogs.logs[0].content[0];
     expect(sessionPostLog, `session POST entry not found for session ${session}`).toBeTruthy();
     verifySessionPost(sessionPostLog!, {
@@ -213,7 +213,7 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
 
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
     const sessionPostLog = session
-      ? sessionPostLogs.logs[0].content.find((l: any) => l.response?.body?.session?.id === session)
+      ? sessionPostLogs.logs[0].content.find((l: any) => l.response?.body?.session?.id === session && (l.response?.body?.result === "SUCCESS" || l.response?.body?.session?.updateStatus === "SUCCESS" || l.response?.body?.session?.version))
       : sessionPostLogs.logs[0].content[0];
     expect(sessionPostLog, `session POST entry not found for session ${session}`).toBeTruthy();
     verifySessionPost(sessionPostLog!, {
@@ -320,7 +320,7 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
 
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
     const sessionPostLog = session
-      ? sessionPostLogs.logs[0].content.find((l: any) => l.response?.body?.session?.id === session)
+      ? sessionPostLogs.logs[0].content.find((l: any) => l.response?.body?.session?.id === session && (l.response?.body?.result === "SUCCESS" || l.response?.body?.session?.updateStatus === "SUCCESS" || l.response?.body?.session?.version))
       : sessionPostLogs.logs[0].content[0];
     expect(sessionPostLog, `session POST entry not found for session ${session}`).toBeTruthy();
     verifySessionPost(sessionPostLog!, {
@@ -532,7 +532,7 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
 
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
     const sessionPostLog = session
-      ? sessionPostLogs.logs[0].content.find((l: any) => l.response?.body?.session?.id === session)
+      ? sessionPostLogs.logs[0].content.find((l: any) => l.response?.body?.session?.id === session && (l.response?.body?.result === "SUCCESS" || l.response?.body?.session?.updateStatus === "SUCCESS" || l.response?.body?.session?.version))
       : sessionPostLogs.logs[0].content[0];
     expect(sessionPostLog, `session POST entry not found for session ${session}`).toBeTruthy();
     verifySessionPost(sessionPostLog!, {
@@ -644,7 +644,7 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
 
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
     const sessionPostLog = session
-      ? sessionPostLogs.logs[0].content.find((l: any) => l.response?.body?.session?.id === session)
+      ? sessionPostLogs.logs[0].content.find((l: any) => l.response?.body?.session?.id === session && (l.response?.body?.result === "SUCCESS" || l.response?.body?.session?.updateStatus === "SUCCESS" || l.response?.body?.session?.version))
       : sessionPostLogs.logs[0].content[0];
     expect(sessionPostLog, `session POST entry not found for session ${session}`).toBeTruthy();
     verifySessionPost(sessionPostLog!, {
