@@ -28,13 +28,24 @@ export const hostedSessionHandler = (
 
 	const unsuscribePaymentSetup = onPaymentSetup( () => {
 		return new Promise( ( resolve ) => {
-			const { validationStore } = window.wc?.wcBlocksData ?? {};
-			if ( validationStore ) {
-				const store = select( validationStore );
-				const hasValidationErrors = store.hasValidationErrors();
-				// Return if there is a validation error on the checkout fields.
-				if ( hasValidationErrors ) {
-					return;
+			// Skip CC field validation when paying with a saved token —
+			// the CC iframes aren't visible so the validation store may
+			// report false errors for empty card fields.
+			if ( ! hostedSessions.isSavedToken() ) {
+				const { validationStore } = window.wc?.wcBlocksData ?? {};
+				if ( validationStore ) {
+					const store = select( validationStore );
+					const hasValidationErrors = store.hasValidationErrors();
+					if ( hasValidationErrors ) {
+						resolve( {
+							type: emitResponseError,
+							message: __(
+								'Please fix the validation errors before proceeding.',
+								getTextDomain()
+							),
+						} );
+						return;
+					}
 				}
 			}
 

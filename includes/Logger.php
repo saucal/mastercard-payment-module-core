@@ -47,12 +47,41 @@ final class Logger {
 
 
 	/**
+	 * Context file override. While non-null, every log() call routes its
+	 * output to this file regardless of its $file argument. Used during
+	 * webhook processing so the retrieve_order GET (and any nested API
+	 * calls) land in the webhook log instead of the main api log.
+	 *
+	 * @var string|null
+	 */
+	private $context_file = null;
+
+
+	/**
 	 * Constructor.
 	 *
 	 * @param CorePlugin $core_plugin Core Plugin instance.
 	 */
 	public function __construct( CorePlugin $core_plugin ) {
 		$this->core_plugin = $core_plugin;
+	}
+
+
+	/**
+	 * Push a context file override. Pair with pop_context().
+	 *
+	 * @param string $file File handler name (without `-logs` suffix).
+	 */
+	public function push_context( $file ) {
+		$this->context_file = $file;
+	}
+
+
+	/**
+	 * Clear the context file override.
+	 */
+	public function pop_context() {
+		$this->context_file = null;
 	}
 
 
@@ -73,7 +102,8 @@ final class Logger {
 			$this->wc_logger = wc_get_logger();
 		}
 
-		$handler = array( 'source' => ! empty( $file ) ? $file . '-logs' : $this->core_plugin->plugin_id() . '-logs' );
+		$effective_file = ! empty( $this->context_file ) ? $this->context_file : $file;
+		$handler        = array( 'source' => ! empty( $effective_file ) ? $effective_file . '-logs' : $this->core_plugin->plugin_id() . '-logs' );
 
 		$this->wc_logger->log( $level, $message, $handler );
 	}
