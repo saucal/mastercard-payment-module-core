@@ -1,18 +1,23 @@
 import { test, expect } from '../../fixtures/test';
-import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getOrderMeta } from '../../helpers/api';
+import { Page } from '@playwright/test';
+import {
+  switchCheckoutMode,
+  configureGateway,
+  verifyOrderViaAPI,
+  getLogEntryCount,
+} from '../../helpers/api';
 import {
   selectPaymentMethod,
   clickPlaceOrder,
   clickSaveCardCheckbox,
   selectSavedToken,
-  extractOrderTotal,
+  extractSessionId,
 } from '../../helpers/checkout';
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
 import { verifyOrderReceived } from '../../helpers/order-received';
+import { handle3DSChallenge } from '../../helpers/three-ds';
 import { verifyPaymentMethods } from '../../helpers/my-account';
-import { frontendLogin, registerUser } from '../../helpers/wp-login';
-import { adminLogin } from '../../helpers/wp-login';
-import { waitForUnblock } from '../../helpers/block-ui';
+import { adminLogin, frontendLogin, registerUser } from '../../helpers/wp-login';
 import {
   navigateToOrder,
   assertOrderStatus,
@@ -20,16 +25,19 @@ import {
   assertCapturedNote,
 } from '../../helpers/admin-orders';
 import {
-  extractSessionPostLogs,
+  extractAllLogs,
   extractSessionGetLogs,
   extractTokenLogs,
-  verifySessionPost,
   verifySessionGet,
+  verifySessionGetCardDetails,
+  verifyInitiateAuthentication,
+  verifyAuthenticatePayer,
+  verifyAuthenticationResult,
+  verifyAuthorizeCaptureLog,
   verifyTokenLog,
   verifyTokenLogsEmpty,
-  verifyAuthorizeCaptureLog,
 } from '../../helpers/log-verification';
-import { verifyOrderEmails } from '../../helpers/email-verification';
+import { verifyAdminEmail } from '../../helpers/email-verification';
 import config from '../../plugin-config';
 import { cards, fourDigits } from '../../fixtures/cards';
 import { billing, uniqueEmail } from '../../fixtures/billing';
@@ -38,15 +46,39 @@ const BASE_URL = process.env.WP_BASE_URL || 'https://mastercard-saucal.sa.ngrok.
 const WOO_USER = process.env.WOO_USER || '';
 const WOO_PASS = process.env.WOO_PASS || '';
 
-async function createPendingOrder(productId: number): Promise<{ orderId: string; orderKey: string }> {
+const wcAuth = 'Basic ' + Buffer.from(`${WOO_USER}:${WOO_PASS}`).toString('base64');
+
+async function getCustomerId(email: string): Promise<number> {
+  const res = await fetch(`${BASE_URL}/wp-json/wc/v3/customers?email=${encodeURIComponent(email)}`, {
+    headers: { Authorization: wcAuth },
+  });
+  if (!res.ok) throw new Error(`getCustomerId failed: ${res.status}`);
+  const customers = await res.json();
+  if (!Array.isArray(customers) || !customers.length) throw new Error(`no customer found for ${email}`);
+  return customers[0].id;
+}
+
+async function createPendingOrder(productId: number, customerId: number, email: string): Promise<{ orderId: string; orderKey: string }> {
   const res = await fetch(`${BASE_URL}/wp-json/wc/v3/orders`, {
     method: 'POST',
-    headers: {
-      'Authorization': 'Basic ' + Buffer.from(`${WOO_USER}:${WOO_PASS}`).toString('base64'),
-      'Content-Type': 'application/json',
-    },
+    headers: { Authorization: wcAuth, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       status: 'pending',
+      customer_id: customerId,
+      currency: 'USD',
+      billing: {
+        first_name: billing.firstName,
+        last_name: billing.lastName,
+        company: billing.company,
+        address_1: billing.street,
+        address_2: billing.address2,
+        city: billing.city,
+        state: billing.shortState,
+        postcode: billing.zipCode,
+        country: billing.shortCountry,
+        email,
+        phone: billing.phone,
+      },
       line_items: [{ product_id: productId, quantity: 1 }],
     }),
   });
@@ -56,14 +88,22 @@ async function createPendingOrder(productId: number): Promise<{ orderId: string;
 }
 
 test.describe.serial('Hosted Session - Pay For Order', () => {
-  const mc011Email = uniqueEmail();
+  let adminPage: Page;
+  const mcEmail = uniqueEmail();
+  let mcCustomerId: number;
+  let mc012Token: string;
+
+  test.beforeAll(async ({ browser }) => {
+    const adminContext = await browser.newContext({ ignoreHTTPSErrors: true });
+    adminPage = await adminContext.newPage();
+    await adminLogin(adminPage);
+  });
+
+  test.afterAll(async () => {
+    await adminPage.close();
+  });
 
   // === MC-011: Pay for order, not saving CC ===
-
-  let mc011OrderNumber: string;
-  let mc011PayDate: string;
-  let mc011Session: string;
-  let mc011Total: string;
 
   test('MC-011 - Pay for order not saving CC', async ({ page }) => {
     await switchCheckoutMode('classic');
@@ -74,196 +114,263 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
       checkout_mode: 'hosted_session',
     });
 
-    // Register user first
-    await registerUser(page, mc011Email, billing.password);
+    await registerUser(page, mcEmail, billing.password);
+    mcCustomerId = await getCustomerId(mcEmail);
 
-    // Create a pending order via WC REST API
-    const { orderId, orderKey } = await createPendingOrder(config.products.physical);
+    const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
+    const payDate = new Date().toISOString().slice(0, 19);
 
-    // Navigate to pay-for-order page
+    const { orderId, orderKey } = await createPendingOrder(config.products.physical, mcCustomerId, mcEmail);
     await page.goto(`/checkout/order-pay/${orderId}/?pay_for_order=true&key=${orderKey}`);
     await page.waitForLoadState('networkidle');
 
     await selectPaymentMethod(page, config);
     await fillHostedSessionCC(page, cards.mastercard, config);
+    const session = await extractSessionId(page);
 
-    // Do NOT click save card checkbox
-
-    mc011PayDate = new Date().toISOString().slice(0, 19);
     await clickPlaceOrder(page);
-    await waitForUnblock(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc011Total });
-    mc011OrderNumber = result.orderNumber;
-    expect(mc011OrderNumber).toBeTruthy();
-  });
+    await page.waitForURL(/order-received/, { timeout: 60000 });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const orderNumber = result.orderNumber;
+    expect(orderNumber).toBeTruthy();
 
-  test('MC-011 - Pay for order not saving CC - Admin', async ({ page }) => {
-    expect(mc011OrderNumber).toBeTruthy();
-    const { order, transactionId } = await verifyOrderViaAPI(mc011OrderNumber, config);
+    const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
+    const total: string = String(order.total);
 
-    mc011Session = getOrderMeta(order, config.sessionIdMetaKey) || '';
+    const allLogs = await extractAllLogs(payDate, logOffset);
+    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate, logOffset);
+    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
 
-    // Phase 2: Log extraction
-    const sessionGetLogs = await extractSessionGetLogs(mc011PayDate, mc011Session, mc011PayDate);
-    const tokenLogs = await extractTokenLogs(mc011PayDate, mc011PayDate);
+    expect(sessionGetLogs.logs[0]?.content.length, 'session GET logs should not be empty').toBeGreaterThan(0);
+    const sessionPut = sessionGetLogs.logs[0].content.find(
+      (l: any) => l.request?.type === 'PUT'
+        && l.request?.body?.apiOperation === 'UPDATE_SESSION'
+        && l.response?.body?.session?.updateStatus === 'SUCCESS'
+    );
+    expect(sessionPut, 'UPDATE_SESSION PUT log entry not found').toBeTruthy();
+    verifySessionGet(sessionPut!, { session, card: cards.mastercard });
+    const sessionGet = sessionGetLogs.logs[0].content.find(
+      (l: any) => l.request?.type === 'GET'
+        && l.request?.url?.includes('/session/')
+        && l.response?.body?.session?.id === session
+    );
+    expect(sessionGet, 'session GET card details entry not found').toBeTruthy();
+    verifySessionGetCardDetails(sessionGet!, { session, card: cards.mastercard });
 
-    // Phase 3: Verify session GET
-    if (sessionGetLogs.logs[0]?.content?.length) {
-      const sessionGetLog = sessionGetLogs.logs[0].content[0];
-      verifySessionGet(sessionGetLog, { session: mc011Session, card: cards.mastercard });
-    }
-
-    // Phase 4: Token logs empty (not saving CC)
     verifyTokenLogsEmpty(tokenLogs);
 
-    // Phase 11: Email verification
-    await verifyOrderEmails(mc011OrderNumber, { paymentMethodTitle: config.displayName });
+    expect(allLogs.logs[0]?.content.length, 'all logs should not be empty').toBeGreaterThan(0);
+    const logContent = allLogs.logs[0].content;
+    const txFilter = (l: any) => !transactionId || l.request?.url?.includes(transactionId);
 
-    // Phase 12: Admin backend
-    await adminLogin(page);
-    await navigateToOrder(page, mc011OrderNumber);
-    await assertOrderStatus(page, 'Processing');
-    await assertPaymentMethodMeta(page, config, transactionId!);
-    await assertCapturedNote(page, config, transactionId!);
+    const initiateAuthLog = logContent.find(
+      (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION' && txFilter(l) && l.response?.body?.result === 'SUCCESS'
+    );
+    expect(initiateAuthLog, 'INITIATE_AUTHENTICATION log not found').toBeTruthy();
+    verifyInitiateAuthentication(initiateAuthLog!, {
+      session, card: cards.mastercard, transactionId: transactionId!, currency: 'USD',
+    });
+
+    const authenticatePayerLog = logContent.find(
+      (l: any) => l.request?.body?.apiOperation === 'AUTHENTICATE_PAYER' && txFilter(l) && l.response?.body?.result === 'SUCCESS'
+    );
+    expect(authenticatePayerLog, 'AUTHENTICATE_PAYER log not found').toBeTruthy();
+    verifyAuthenticatePayer(authenticatePayerLog!, {
+      session, transactionId: transactionId!, currency: 'USD', card: cards.mastercard,
+    });
+
+    const authResultLog = logContent.find(
+      (l: any) => txFilter(l) && (
+        l.response?.body?.authenticationStatus === 'AUTHENTICATION_SUCCESSFUL'
+        || l.response?.body?.order?.authenticationStatus === 'AUTHENTICATION_SUCCESSFUL'
+      )
+    );
+    expect(authResultLog, 'AUTHENTICATION_SUCCESSFUL result log not found').toBeTruthy();
+    verifyAuthenticationResult(authResultLog!, {
+      transactionId: transactionId!, currency: 'USD', authStatus: 'AUTHENTICATION_SUCCESSFUL',
+    });
+
+    const captureLog = logContent.find(
+      (l: any) => l.request?.body?.apiOperation === 'PAY' && txFilter(l) && l.response?.body?.result === 'SUCCESS'
+    );
+    expect(captureLog, 'PAY log not found').toBeTruthy();
+    verifyAuthorizeCaptureLog(captureLog!, {
+      apiOperation: 'PAY', session, total, currency: 'USD',
+      transactionId: transactionId!, orderNumber, card: cards.mastercard,
+    });
+
+    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName });
+
+    await navigateToOrder(adminPage, orderNumber);
+    await assertOrderStatus(adminPage, 'Processing');
+    await assertPaymentMethodMeta(adminPage, config, transactionId);
+    await assertCapturedNote(adminPage, config, transactionId!);
   });
 
-  // === MC-012: Pay for order, saving CC ===
-
-  let mc012OrderNumber: string;
-  let mc012PayDate: string;
-  let mc012Session: string;
-  // mc012Token is captured in admin test and used by MC-013 admin test
-  let mc012Token: string;
+  // === MC-012: Pay for order, saving CC (challenge card) ===
 
   test('MC-012 - Pay for order saving CC', async ({ page }) => {
-    // Login as mc011 user
-    await frontendLogin(page, mc011Email, billing.password);
+    // Explicit login — registerUser in MC-011 does not survive across tests
+    // reliably (cookies / WP nonces differ on /checkout/order-pay/). Without
+    // a logged-in session WC's tokenization-form.js reads is_logged_in=""
+    // from wc_tokenization_form_params and force-hides the save-card row.
+    await frontendLogin(page, mcEmail, billing.password);
 
-    // Create a pending order via WC REST API
-    const { orderId, orderKey } = await createPendingOrder(config.products.physical);
+    const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
+    const payDate = new Date().toISOString().slice(0, 19);
 
-    // Navigate to pay-for-order page
+    const { orderId, orderKey } = await createPendingOrder(config.products.physical, mcCustomerId, mcEmail);
     await page.goto(`/checkout/order-pay/${orderId}/?pay_for_order=true&key=${orderKey}`);
     await page.waitForLoadState('networkidle');
 
-    await selectPaymentMethod(page, config);
-    await fillHostedSessionCC(page, cards.mastercard, config);
+    // useNewToken=true clicks the "Use new payment method" radio — required
+    // on pay-for-order, where WC tokenization-form.js keeps the .saveNew row
+    // hidden until the new-token radio fires `change` (matches GI step 31
+    // where the radio is clicked before filling the CC iframe).
+    await selectPaymentMethod(page, config, true);
+    await fillHostedSessionCC(page, cards.visaChallenge, config);
     await clickSaveCardCheckbox(page);
+    const session = await extractSessionId(page);
 
-    mc012PayDate = new Date().toISOString().slice(0, 19);
     await clickPlaceOrder(page);
-    await waitForUnblock(page);
+    await handle3DSChallenge(page);
+    await page.waitForURL(/order-received/, { timeout: 60000 });
     const result = await verifyOrderReceived(page, { displayName: config.displayName });
-    mc012OrderNumber = result.orderNumber;
-    expect(mc012OrderNumber).toBeTruthy();
-  });
+    const orderNumber = result.orderNumber;
+    expect(orderNumber).toBeTruthy();
 
-  test('MC-012 - Pay for order saving CC - Admin', async ({ page }) => {
-    expect(mc012OrderNumber).toBeTruthy();
-    const { order, transactionId } = await verifyOrderViaAPI(mc012OrderNumber, config);
+    const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(transactionId).toBeTruthy();
+    const total: string = String(order.total);
 
-    mc012Session = getOrderMeta(order, config.sessionIdMetaKey) || '';
-    mc012Token = getOrderMeta(order, config.tokenMetaKey) || '';
+    const allLogs = await extractAllLogs(payDate, logOffset);
+    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate, logOffset);
+    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
 
-    // Phase 2: Log extraction
-    const sessionGetLogs = await extractSessionGetLogs(mc012PayDate, mc012Session, mc012PayDate);
-    const tokenLogs = await extractTokenLogs(mc012PayDate, mc012PayDate);
+    expect(sessionGetLogs.logs[0]?.content.length, 'session GET logs should not be empty').toBeGreaterThan(0);
+    const sessionPut = sessionGetLogs.logs[0].content.find(
+      (l: any) => l.request?.type === 'PUT'
+        && l.request?.body?.apiOperation === 'UPDATE_SESSION'
+        && l.response?.body?.session?.updateStatus === 'SUCCESS'
+    );
+    expect(sessionPut, 'UPDATE_SESSION PUT log entry not found').toBeTruthy();
+    verifySessionGet(sessionPut!, { session, card: cards.visaChallenge });
 
-    // Phase 3: Verify session GET
-    if (sessionGetLogs.logs[0]?.content?.length) {
-      const sessionGetLog = sessionGetLogs.logs[0].content[0];
-      verifySessionGet(sessionGetLog, { session: mc012Session, card: cards.mastercard });
-    }
+    expect(tokenLogs.logs[0]?.content.length, 'token logs should not be empty (saving CC)').toBeGreaterThan(0);
+    const tokenLog = tokenLogs.logs[0].content[0];
+    verifyTokenLog(tokenLog, { session, card: cards.visaChallenge });
+    mc012Token = tokenLog.response?.body?.token || '';
+    expect(mc012Token, 'token id should be captured').toBeTruthy();
 
-    // Phase 4: Token log present (saving CC)
-    if (tokenLogs.logs[0]?.content?.length) {
-      const tokenLog = tokenLogs.logs[0].content[0];
-      verifyTokenLog(tokenLog, { session: mc012Session, card: cards.mastercard });
-    }
+    expect(allLogs.logs[0]?.content.length, 'all logs should not be empty').toBeGreaterThan(0);
+    const logContent = allLogs.logs[0].content;
+    const txFilter = (l: any) => !transactionId || l.request?.url?.includes(transactionId);
 
-    // Phase 11: Email verification
-    await verifyOrderEmails(mc012OrderNumber, { paymentMethodTitle: config.displayName });
+    const initiateAuthLog = logContent.find(
+      (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION' && txFilter(l) && l.response?.body?.result === 'SUCCESS'
+    );
+    expect(initiateAuthLog, 'INITIATE_AUTHENTICATION log not found').toBeTruthy();
 
-    // Phase 12: Admin backend
-    await adminLogin(page);
-    await navigateToOrder(page, mc012OrderNumber);
-    await assertOrderStatus(page, 'Processing');
-    await assertPaymentMethodMeta(page, config, transactionId!);
-    await assertCapturedNote(page, config, transactionId!);
+    const authenticatePayerLog = logContent.find(
+      (l: any) => l.request?.body?.apiOperation === 'AUTHENTICATE_PAYER' && txFilter(l)
+    );
+    expect(authenticatePayerLog, 'AUTHENTICATE_PAYER log not found').toBeTruthy();
 
-    // Phase 13: My Account – 1 saved card
-    await frontendLogin(page, mc011Email, billing.password);
+    const authResultLog = logContent.find(
+      (l: any) => txFilter(l) && (
+        l.response?.body?.authenticationStatus === 'AUTHENTICATION_SUCCESSFUL'
+        || l.response?.body?.order?.authenticationStatus === 'AUTHENTICATION_SUCCESSFUL'
+      )
+    );
+    expect(authResultLog, 'AUTHENTICATION_SUCCESSFUL result log not found').toBeTruthy();
+
+    const captureLog = logContent.find(
+      (l: any) => l.request?.body?.apiOperation === 'PAY' && txFilter(l) && l.response?.body?.result === 'SUCCESS'
+    );
+    expect(captureLog, 'PAY log not found').toBeTruthy();
+    verifyAuthorizeCaptureLog(captureLog!, {
+      apiOperation: 'PAY', session, total, currency: 'USD',
+      transactionId: transactionId!, orderNumber, card: cards.visaChallenge,
+    });
+
+    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName });
+
+    await navigateToOrder(adminPage, orderNumber);
+    await assertOrderStatus(adminPage, 'Processing');
+    await assertPaymentMethodMeta(adminPage, config, transactionId);
+    await assertCapturedNote(adminPage, config, transactionId!);
+
     await verifyPaymentMethods(page, {
       expectedCards: 1,
-      cardName: cards.mastercard.name,
-      fourDigits: fourDigits(cards.mastercard),
-      expiryMonth: cards.mastercard.month,
-      expiryYear: cards.mastercard.year,
+      cardName: cards.visaChallenge.name,
+      fourDigits: fourDigits(cards.visaChallenge),
+      expiryMonth: cards.visaChallenge.month,
+      expiryYear: cards.visaChallenge.year,
     });
   });
 
   // === MC-013: Pay for order with saved CC ===
 
-  let mc013OrderNumber: string;
-  let mc013PayDate: string;
-  let mc013Session: string;
-
   test('MC-013 - Pay for order with saved CC', async ({ page }) => {
-    // Login as mc011 user (has 1 saved card from MC-012)
-    await frontendLogin(page, mc011Email, billing.password);
+    await frontendLogin(page, mcEmail, billing.password);
+    const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
+    const payDate = new Date().toISOString().slice(0, 19);
 
-    // Create a pending order via WC REST API
-    const { orderId, orderKey } = await createPendingOrder(config.products.physical);
-
-    // Navigate to pay-for-order page
+    const { orderId, orderKey } = await createPendingOrder(config.products.physical, mcCustomerId, mcEmail);
     await page.goto(`/checkout/order-pay/${orderId}/?pay_for_order=true&key=${orderKey}`);
     await page.waitForLoadState('networkidle');
 
     await selectPaymentMethod(page, config);
     await selectSavedToken(page, 1);
 
-    mc013PayDate = new Date().toISOString().slice(0, 19);
     await clickPlaceOrder(page);
-    await waitForUnblock(page);
+    if (/acs|3ds|threedsecure|mastercard\.com.*prompt/i.test(page.url())) {
+      await handle3DSChallenge(page);
+    }
+    await page.waitForURL(/order-received/, { timeout: 60000 });
     const result = await verifyOrderReceived(page, { displayName: config.displayName });
-    mc013OrderNumber = result.orderNumber;
-    expect(mc013OrderNumber).toBeTruthy();
-  });
+    const orderNumber = result.orderNumber;
+    expect(orderNumber).toBeTruthy();
 
-  test('MC-013 - Pay for order with saved CC - Admin', async ({ page }) => {
-    expect(mc013OrderNumber).toBeTruthy();
-    const { order, transactionId } = await verifyOrderViaAPI(mc013OrderNumber, config);
+    const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(transactionId).toBeTruthy();
+    const total: string = String(order.total);
 
-    mc013Session = getOrderMeta(order, config.sessionIdMetaKey) || '';
+    const sessionGetLogs = await extractSessionGetLogs(payDate, '', payDate, logOffset);
+    expect(sessionGetLogs.logs[0]?.content.length, 'session GET logs should not be empty').toBeGreaterThan(0);
+    const sessionPut = sessionGetLogs.logs[0].content.find(
+      (l: any) => l.request?.type === 'PUT'
+        && l.request?.body?.apiOperation === 'UPDATE_SESSION'
+        && l.response?.body?.session?.updateStatus === 'SUCCESS'
+    );
+    expect(sessionPut, 'UPDATE_SESSION PUT log entry not found (saved-token path)').toBeTruthy();
+    const resolvedSession = sessionPut!.response?.body?.session?.id || '';
+    expect(resolvedSession, 'session id should be derivable from UPDATE_SESSION').toBeTruthy();
+    verifySessionGet(sessionPut!, { session: resolvedSession, card: cards.visaChallenge, token: mc012Token });
 
-    // Phase 2: Log extraction
-    const sessionGetLogs = await extractSessionGetLogs(mc013PayDate, mc013Session, mc013PayDate);
+    const allLogs = await extractAllLogs(payDate, logOffset);
+    const logContent = allLogs.logs[0]?.content ?? [];
+    const txFilter = (l: any) => !transactionId || l.request?.url?.includes(transactionId);
 
-    // Phase 3: Verify session GET has token (using saved CC)
-    if (sessionGetLogs.logs[0]?.content?.length) {
-      const sessionGetLog = sessionGetLogs.logs[0].content[0];
-      verifySessionGet(sessionGetLog, {
-        session: mc013Session,
-        card: cards.mastercard,
-        token: mc012Token,
-      });
-    }
+    const captureLog = logContent.find(
+      (l: any) => l.request?.body?.apiOperation === 'PAY' && txFilter(l) && l.response?.body?.result === 'SUCCESS'
+    );
+    expect(captureLog, 'PAY log not found').toBeTruthy();
+    verifyAuthorizeCaptureLog(captureLog!, {
+      apiOperation: 'PAY', session: resolvedSession, total, currency: 'USD',
+      transactionId: transactionId!, orderNumber, card: cards.visaChallenge,
+    });
 
-    // Phase 11: Email verification
-    await verifyOrderEmails(mc013OrderNumber, { paymentMethodTitle: config.displayName });
+    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName });
 
-    // Phase 12: Admin backend
-    await adminLogin(page);
-    await navigateToOrder(page, mc013OrderNumber);
-    await assertOrderStatus(page, 'Processing');
-    await assertPaymentMethodMeta(page, config, transactionId!);
-    await assertCapturedNote(page, config, transactionId!);
+    await navigateToOrder(adminPage, orderNumber);
+    await assertOrderStatus(adminPage, 'Processing');
+    await assertPaymentMethodMeta(adminPage, config, transactionId);
+    await assertCapturedNote(adminPage, config, transactionId!);
   });
 });
