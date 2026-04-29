@@ -81,9 +81,17 @@ export async function fillBilling(page: Page, billing: BillingData): Promise<voi
   await tryFill(page, sel.email, billing.email);
 
   if (mode === 'classic') {
-    await page.locator(sel.country).click();
-    await page.locator(sel.countrySearch!).fill(billing.country);
-    await page.locator(`//li[contains(text(), "${billing.country}")]`).first().click();
+    // Skip the select2 dance if WC already pre-filled the country (logged
+    // returning user). Re-clicking an already-selected option in select2
+    // races the dropdown's internal close handler — the <li> is "stable"
+    // per Playwright's actionability checks but the pointer event lands
+    // as select2 detaches the option, so the action hangs to timeout.
+    const currentCountry = await page.locator('#billing_country').inputValue().catch(() => '');
+    if (currentCountry !== billing.shortCountry) {
+      await page.locator(sel.country).click();
+      await page.locator(sel.countrySearch!).fill(billing.country);
+      await page.locator(`//li[contains(text(), "${billing.country}")]`).first().click();
+    }
   } else {
     const countryEl = page.locator(sel.country).first();
     if (await countryEl.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -102,9 +110,14 @@ export async function fillBilling(page: Page, billing: BillingData): Promise<voi
   if (mode === 'classic') {
     const stateEl = page.locator(sel.state);
     if (await stateEl.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await stateEl.click();
-      await page.locator(sel.stateSearch!).fill(billing.state);
-      await page.locator(`//li[contains(text(), "${billing.state}")]`).first().click();
+      // Same idempotency check as country (see comment above) — re-clicking
+      // a select2 option that's already selected times out under sweep load.
+      const currentState = await page.locator('#billing_state').inputValue().catch(() => '');
+      if (currentState !== billing.shortState) {
+        await stateEl.click();
+        await page.locator(sel.stateSearch!).fill(billing.state);
+        await page.locator(`//li[contains(text(), "${billing.state}")]`).first().click();
+      }
     }
   } else {
     const stateEl = page.locator(sel.state).first();
