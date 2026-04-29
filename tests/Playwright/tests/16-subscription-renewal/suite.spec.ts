@@ -1,5 +1,6 @@
 import { test, expect } from '../../fixtures/test';
-import { switchCheckoutMode, configureGateway, verifyOrderViaAPI } from '../../helpers/api';
+import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getOrderMeta } from '../../helpers/api';
+import { waitForUnblock } from '../../helpers/block-ui';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
   fillBilling,
@@ -685,5 +686,269 @@ test.describe.serial('Subscription Renewal', () => {
       expectedStatus: 'Active',
       displayName: config.displayName,
     });
+  });
+});
+
+// ============================================================================
+// MC-060 variant: 3DS Inactive (moved from suite 07-hosted-session-3ds-inactive)
+// ----------------------------------------------------------------------------
+// The subscription addon's gateway-support filter currently rejects the gateway
+// when _3d_secure: 'no'. Skipped pending addon-side investigation; sources
+// preserved verbatim from the original suite-07 port for future reactivation.
+// ============================================================================
+
+test.describe.skip('Subscription Order - Challenge with 3DS Inactive (from suite 07)', () => {
+  test.beforeAll(async () => {
+    await switchCheckoutMode('classic');
+    await configureGateway(config, {
+      _3d_secure: 'no',
+      saved_cards: 'yes',
+      transaction_mode: 'PURCHASE',
+      checkout_mode: 'hosted_session',
+    });
+  });
+
+  let orderNumber: string;
+  let subscriptionId: string;
+  let mc060Total: string;
+  let mc060Session: string;
+  let mc060PayDate: string;
+
+  test('MC-060 - Subscription order with Challenge', async ({ page }) => {
+    await addToCartAndCheckout(page, config.products.subscription);
+    await fillBilling(page, billing);
+    mc060Total = await extractOrderTotal(page);
+    await selectPaymentMethod(page, config);
+    mc060Session = await extractSessionId(page);
+    await fillHostedSessionCC(page, cards.visaChallenge, config);
+
+    await clickPlaceOrder(page);
+    await handle3DSChallenge(page);
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc060Total });
+    orderNumber = result.orderNumber;
+    mc060PayDate = new Date().toISOString().slice(0, 19);
+    expect(orderNumber).toBeTruthy();
+    expect(result.subscriptionId).toBeTruthy();
+    subscriptionId = result.subscriptionId!;
+  });
+
+  test('MC-060 - Subscription Admin', async ({ page }) => {
+    expect(orderNumber).toBeTruthy();
+    const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    expect(order.payment_method).toBe(config.paymentMethodSlug);
+    expect(order.payment_method_title).toBe(config.displayName);
+    expect(transactionId).toBeTruthy();
+
+    const allLogs = await extractAllLogs(mc060PayDate);
+    const sessionPostLogs = await extractSessionPostLogs(mc060PayDate, mc060PayDate, '', '');
+    const sessionGetLogs = await extractSessionGetLogs(mc060PayDate, mc060Session, mc060PayDate);
+
+    const sessionPostLog = sessionPostLogs.logs[0]?.content[0];
+    if (sessionPostLog) {
+      verifySessionPost(sessionPostLog, {
+        session: mc060Session,
+        total: mc060Total,
+        currency: 'USD',
+        transactionId: transactionId!,
+        orderNumber,
+        apiOperation: 'CREATE_SESSION',
+      });
+    }
+
+    const sessionGetLog = sessionGetLogs.logs[0]?.content[0];
+    if (sessionGetLog) {
+      verifySessionGet(sessionGetLog, { session: mc060Session, card: cards.visaChallenge });
+    }
+
+    const allContent = allLogs.logs[0]?.content ?? [];
+    const initiateLog = allContent.find((e: any) => e.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION');
+    const payerLog = allContent.find((e: any) => e.request?.body?.apiOperation === 'AUTHENTICATE_PAYER');
+    expect(initiateLog).toBeUndefined();
+    expect(payerLog).toBeUndefined();
+
+    const captureLog = allContent.find((e: any) => e.request?.body?.apiOperation === 'PAY');
+    if (captureLog) {
+      verifyAuthorizeCaptureLog(captureLog, {
+        apiOperation: 'PAY',
+        session: mc060Session,
+        total: mc060Total,
+        currency: 'USD',
+        transactionId: transactionId!,
+        orderNumber,
+        card: cards.visaChallenge,
+      });
+    }
+
+    const agreementLog = allContent.find(
+      (e: any) => e.request?.body?.agreement !== undefined || e.response?.body?.agreement !== undefined,
+    );
+    if (agreementLog && subscriptionId) {
+      verifyAgreement(agreementLog, {
+        subscriptionId,
+        frequency: 'MONTHLY',
+        payDate: mc060PayDate,
+      });
+    }
+
+    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
+
+    await adminLogin(page);
+    await navigateToOrder(page, orderNumber);
+    await assertOrderStatus(page, 'Processing');
+    await assertPaymentMethodMeta(page, config, transactionId!);
+    await assertCapturedNote(page, config, transactionId!);
+
+    expect(subscriptionId).toBeTruthy();
+    await verifySubscription(page, subscriptionId, {
+      expectedStatus: 'Active',
+      displayName: config.displayName,
+    });
+  });
+
+  test('MC-060 - Subscription Renewal', async ({ page }) => {
+    expect(subscriptionId).toBeTruthy();
+
+    await adminLogin(page);
+    await triggerSubscriptionRenewal(page, subscriptionId);
+
+    const renewalOrderNumber = await extractRenewalOrderNumber(page);
+    expect(renewalOrderNumber).toBeTruthy();
+
+    const { order, transactionId } = await verifyOrderViaAPI(renewalOrderNumber, config);
+    expect(order.payment_method).toBe(config.paymentMethodSlug);
+    expect(transactionId).toBeTruthy();
+  });
+});
+
+// ============================================================================
+// MC-060 variant: Save CC Deactivated (moved from suite 11-save-cc-deactivated)
+// ----------------------------------------------------------------------------
+// Subscriptions need a saved card to renew; with saved_cards: 'no' the addon's
+// gateway-support filter rejects the gateway. Skipped pending addon-side
+// investigation; sources preserved verbatim from the original suite-11 port.
+// ============================================================================
+
+test.describe.skip('Subscription Order - Challenge with Save CC Deactivated (from suite 11)', () => {
+  test.beforeAll(async () => {
+    await switchCheckoutMode('classic');
+    await configureGateway(config, {
+      _3d_secure: 'yes',
+      saved_cards: 'no',
+      transaction_mode: 'PURCHASE',
+      checkout_mode: 'hosted_session',
+    });
+  });
+
+  let mc060OrderNumber: string;
+  let mc060SubscriptionId: string;
+  let mc060PayDate: string;
+  let mc060Session: string;
+  let mc060Total: string;
+
+  test('MC-060 - Subscription with challenge', async ({ page }) => {
+    await addToCartAndCheckout(page, config.products.subscription);
+    await fillBilling(page, billing);
+    mc060Total = await extractOrderTotal(page);
+    await selectPaymentMethod(page, config);
+    await fillHostedSessionCC(page, cards.visaChallenge, config);
+
+    // Save card checkbox must NOT be visible (saved_cards: 'no')
+    await expect(
+      page.locator(`label[for="wc-${config.paymentMethodSlug}-new-payment-method"]`),
+    ).not.toBeVisible();
+
+    mc060PayDate = new Date().toISOString().slice(0, 19);
+    await clickPlaceOrder(page);
+    await handle3DSChallenge(page);
+    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc060Total });
+    mc060OrderNumber = result.orderNumber;
+    expect(mc060OrderNumber).toBeTruthy();
+    expect(result.subscriptionId).toBeTruthy();
+    mc060SubscriptionId = result.subscriptionId!;
+  });
+
+  test('MC-060 - Subscription Admin', async ({ page }) => {
+    expect(mc060OrderNumber).toBeTruthy();
+    const { order, transactionId } = await verifyOrderViaAPI(mc060OrderNumber, config);
+    expect(order.payment_method).toBe(config.paymentMethodSlug);
+    expect(order.payment_method_title).toBe(config.displayName);
+    expect(transactionId).toBeTruthy();
+
+    mc060Session = getOrderMeta(order, config.sessionIdMetaKey) || '';
+
+    const sessionGetLogs = await extractSessionGetLogs(mc060PayDate, mc060Session, mc060PayDate);
+    const allLogs = await extractAllLogs(mc060PayDate);
+
+    if (sessionGetLogs.logs[0]?.content?.length) {
+      const sessionGetLog = sessionGetLogs.logs[0].content[0];
+      verifySessionGet(sessionGetLog, { session: mc060Session, card: cards.visaChallenge });
+    }
+
+    if (allLogs.logs[0]?.content?.length) {
+      const agreementLog = allLogs.logs[0].content.find(
+        (l: any) => l.request?.body?.agreement,
+      );
+      if (agreementLog) {
+        verifyAgreement(agreementLog, {
+          subscriptionId: mc060SubscriptionId,
+          frequency: 'MONTHLY',
+          payDate: mc060PayDate,
+        });
+      }
+    }
+
+    await verifyOrderEmails(mc060OrderNumber, { paymentMethodTitle: config.displayName });
+
+    await adminLogin(page);
+    await navigateToOrder(page, mc060OrderNumber);
+    await assertOrderStatus(page, 'Processing');
+    await assertPaymentMethodMeta(page, config, transactionId!);
+    await assertCapturedNote(page, config, transactionId!);
+
+    expect(mc060SubscriptionId).toBeTruthy();
+    await verifySubscription(page, mc060SubscriptionId, {
+      expectedStatus: 'Active',
+      displayName: config.displayName,
+    });
+  });
+
+  test('MC-060 - Subscription Renewal', async ({ page }) => {
+    expect(mc060SubscriptionId).toBeTruthy();
+
+    await adminLogin(page);
+
+    const hposUrl = `/wp-admin/admin.php?page=wc-orders--shop_subscription&action=edit&id=${mc060SubscriptionId}`;
+    const classicUrl = `/wp-admin/post.php?post=${mc060SubscriptionId}&action=edit`;
+
+    const hposMenuLink = page.locator('a[href*="wc-orders--shop_subscription"]');
+    const hposEnabled = await hposMenuLink.isVisible({ timeout: 3000 }).catch(() => false);
+
+    if (hposEnabled) {
+      await page.goto(hposUrl);
+    } else {
+      await page.goto(classicUrl);
+    }
+
+    await page.waitForLoadState('networkidle');
+
+    const actionSelect = page.locator('#order_action, select[name="wc_order_action"]');
+    await actionSelect.selectOption('wcs_process_renewal');
+
+    const updateBtn = page.locator('#post-preview, button[name="save"], input[name="save"], button.components-button.is-primary').first();
+    const classicUpdateBtn = page.locator('#publish');
+    const wooUpdateBtn = page.locator('button.save_order, button[name="save_order"]');
+
+    if (await classicUpdateBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await classicUpdateBtn.click();
+    } else if (await wooUpdateBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await wooUpdateBtn.click();
+    } else {
+      await updateBtn.click();
+    }
+
+    await waitForUnblock(page);
+    await page.waitForLoadState('networkidle');
+
+    await expect(page.locator('h1, .woocommerce-page-title, #title')).toBeVisible();
   });
 });
