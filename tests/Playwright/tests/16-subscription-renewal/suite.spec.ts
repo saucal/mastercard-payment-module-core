@@ -1,5 +1,5 @@
 import { test, expect } from '../../fixtures/test';
-import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getOrderMeta } from '../../helpers/api';
+import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getOrderMeta, getLogEntryCount } from '../../helpers/api';
 import { waitForUnblock } from '../../helpers/block-ui';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
@@ -14,7 +14,7 @@ import { fillHostedSessionCC } from '../../helpers/hosted-session';
 import { verifyOrderReceived } from '../../helpers/order-received';
 import { handle3DSChallenge } from '../../helpers/three-ds';
 import { verifySubscription, verifyOrderInMyAccount } from '../../helpers/my-account';
-import { adminLogin } from '../../helpers/wp-login';
+import { adminLogin, registerUser } from '../../helpers/wp-login';
 import {
   triggerSubscriptionRenewal,
   extractRenewalOrderNumber,
@@ -22,6 +22,7 @@ import {
   assertOrderStatus,
   assertPaymentMethodMeta,
   assertCapturedNote,
+  assertAuthorizedNote,
 } from '../../helpers/admin-orders';
 import {
   extractAllLogs,
@@ -37,10 +38,10 @@ import {
   verifyAuthorizeCaptureLog,
   verifyAgreement,
 } from '../../helpers/log-verification';
-import { verifyOrderEmails } from '../../helpers/email-verification';
+import { verifyOrderEmails, verifyAdminEmail } from '../../helpers/email-verification';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
-import { billing } from '../../fixtures/billing';
+import { billing, uniqueEmail } from '../../fixtures/billing';
 
 test.describe.serial('Subscription Renewal', () => {
   // === MC-060: Subscription with Challenge (classic) ===
@@ -950,5 +951,89 @@ test.describe.skip('Subscription Order - Challenge with Save CC Deactivated (fro
     await page.waitForLoadState('networkidle');
 
     await expect(page.locator('h1, .woocommerce-page-title, #title')).toBeVisible();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Moved from suite 14 (authorize-capture-void): MC-061 — subscription order
+// charged with the gateway in transaction_mode=AUTHORIZE, then renewed.
+// Source suite 14 (canonical port commit pending): subscription products need
+// a registered customer + their own iframe-mount sequence; running it inside
+// suite 14's serial flow after MC-022 didn't reliably mount the hosted-session
+// iframe. Belongs in subscription suite 16 once 16 is canonically ported.
+// Wrapped in describe.skip per the "subscription tests move, don't delete"
+// rule; activate when suite 16 is ported.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test.describe.skip('Subscription Order with Authorize Mode (from suite 14)', () => {
+  test('MC-061 - Subscription frictionless', async ({ page }) => {
+    await switchCheckoutMode('classic');
+    await configureGateway(config, {
+      _3d_secure: 'yes',
+      transaction_mode: 'AUTHORIZE',
+      checkout_mode: 'hosted_session',
+    });
+
+    const subscriptionEmail = uniqueEmail();
+    await registerUser(page, subscriptionEmail, billing.password);
+
+    const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
+    const payDate = await addToCartAndCheckout(page, config.products.subscription);
+
+    await fillBilling(page, billing);
+    await selectPaymentMethod(page, config);
+    await fillHostedSessionCC(page, cards.mastercard, config);
+    const session = await extractSessionId(page);
+
+    await clickPlaceOrder(page);
+    await page.waitForURL(/order-received/, { timeout: 60000 });
+    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const orderNumber = result.orderNumber;
+    expect(orderNumber).toBeTruthy();
+    expect(result.subscriptionId, 'subscription id should be on the order-received page').toBeTruthy();
+    const subscriptionId = result.subscriptionId!;
+
+    const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    expect(order.payment_method).toBe(config.paymentMethodSlug);
+    expect(transactionId).toBeTruthy();
+    const orderSession = getOrderMeta(order, config.sessionIdMetaKey) || session;
+
+    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate, logOffset);
+    expect(sessionGetLogs.logs[0]?.content.length, 'session GET logs should not be empty').toBeGreaterThan(0);
+    const sessionPut = sessionGetLogs.logs[0].content.find(
+      (l: any) => l.request?.type === 'PUT'
+        && l.request?.body?.apiOperation === 'UPDATE_SESSION'
+        && l.response?.body?.session?.updateStatus === 'SUCCESS'
+    );
+    expect(sessionPut, 'UPDATE_SESSION PUT log entry not found').toBeTruthy();
+    verifySessionGet(sessionPut!, { session: orderSession, card: cards.mastercard });
+
+    const allLogs = await extractAllLogs(payDate, logOffset);
+    const agreementLog = allLogs.logs[0]?.content.find(
+      (l: any) => l.request?.body?.agreement
+    );
+    expect(agreementLog, 'agreement log not found').toBeTruthy();
+    verifyAgreement(agreementLog!, {
+      subscriptionId, frequency: 'MONTHLY', payDate,
+    });
+
+    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName });
+
+    await adminLogin(page);
+    await navigateToOrder(page, orderNumber);
+    await assertOrderStatus(page, 'On hold');
+    await assertAuthorizedNote(page, config, transactionId!);
+
+    await verifySubscription(page, subscriptionId, {
+      expectedStatus: 'Active', displayName: config.displayName,
+    });
+
+    await triggerSubscriptionRenewal(page, subscriptionId);
+    const renewalOrderNumber = await extractRenewalOrderNumber(page);
+    expect(renewalOrderNumber).toBeTruthy();
+
+    const { order: renewalOrder, transactionId: renewalTxn } = await verifyOrderViaAPI(renewalOrderNumber, config);
+    expect(renewalOrder.payment_method).toBe(config.paymentMethodSlug);
+    expect(renewalTxn).toBeTruthy();
   });
 });
