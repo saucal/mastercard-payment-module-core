@@ -22,23 +22,14 @@ export async function adminLogin(page: Page): Promise<void> {
  * Log into WordPress frontend via My Account page.
  */
 export async function frontendLogin(page: Page, email: string, password: string): Promise<void> {
-  // Logout any existing session first (admin or other user)
+  // Clear any prior session on this context so the login form renders deterministically.
+  await page.context().clearCookies();
   await page.goto('/my-account');
-  const loginForm = page.locator('#username');
-  if (!(await loginForm.isVisible({ timeout: 2000 }).catch(() => false))) {
-    // Already logged in — find and use logout link
-    const logoutLink = page.locator('.woocommerce-MyAccount-navigation a[href*="logout"], a[href*="customer-logout"]').first();
-    if (await logoutLink.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await logoutLink.click();
-      await page.waitForURL(/my-account/, { timeout: 10000 }).catch(() => {});
-      await page.goto('/my-account');
-    }
-  }
+  await page.locator('#username').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('#username').fill(email);
   await page.locator('#password').fill(password);
   await page.locator('button[name="login"]').first().click();
   await expect(page.locator('.woocommerce-MyAccount-content')).toBeVisible();
-  // Verify we're logged in (not showing login form) and the dashboard greeting is visible
   await expect(page.locator('#username')).not.toBeVisible();
   await expect(page.locator('.woocommerce-MyAccount-content')).toContainText('Hello');
 }
@@ -47,9 +38,19 @@ export async function frontendLogin(page: Page, email: string, password: string)
  * Register a new user via My Account page.
  */
 export async function registerUser(page: Page, email: string, password: string): Promise<void> {
+  await page.context().clearCookies();
   await page.goto('/my-account');
+  await page.locator('#reg_email').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('#reg_email').fill(email);
   await page.locator('#reg_password').fill(password);
+  // WC's password-strength-meter listens for `keyup change` on #reg_password
+  // and toggles the submit button's `disabled` attribute based on zxcvbn score
+  // vs `min_password_strength`. Playwright's `.fill()` doesn't dispatch keyup,
+  // so trigger one explicitly and wait for the meter to enable the button.
+  await page.locator('#reg_password').dispatchEvent('keyup');
+  await page.locator('#reg_password').dispatchEvent('change');
+  await expect(page.locator('button[name="register"]'), 'register button stayed disabled — password rated below min strength').toBeEnabled({ timeout: 5000 });
   await page.locator('button[name="register"]').first().click();
-  await expect(page.locator('h1.entry-title')).toContainText('My account');
+  await expect(page.locator('.woocommerce-MyAccount-content'), 'registerUser failed: dashboard did not render').toBeVisible({ timeout: 10000 });
+  await expect(page.locator('#reg_email'), 'registerUser failed: register form still visible').not.toBeVisible();
 }
