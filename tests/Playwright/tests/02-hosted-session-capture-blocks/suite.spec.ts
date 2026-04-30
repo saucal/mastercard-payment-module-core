@@ -391,6 +391,11 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
   });
 
   // === MC-009: Logged user, pay with new CC and save it ===
+  // AUDIT 2026-04-29 vs GI: card differs from suite-01 MC-009 BY DESIGN —
+  // GI uses `4440000009900010` (visaChallenge) here while suite-01 uses
+  // `5123450000000008` (mastercard3 challenge). PW correctly reflects
+  // this. JUSTIFIED FIX — challenge handling + AUTHENTICATION_SUCCESSFUL
+  // log probe identical to suite 01 MC-009.
 
   test('MC-009 - Logged user pay with new CC and save it', async ({ page }) => {
     // === CHECKOUT (buyer's page) ===
@@ -520,6 +525,12 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
   });
 
   // === MC-010: Logged user, pay with saved CC (from MC-009) ===
+  // AUDIT 2026-04-29 vs GI: JUSTIFIED FIX — blocks-mode disabled-button +
+  // URL-race fallback for saved-token Place Order. WC blocks renders the
+  // submit as disabled until form-state validates; saved-token path can
+  // race the validate → enabled transition, leaving the button briefly
+  // un-clickable. PW force-clicks if needed and accepts either order-received
+  // or 3DS challenge URL as the post-click destination.
 
   test('MC-010 - Logged user pay with saved CC', async ({ page }) => {
     // === CHECKOUT (buyer's page) ===

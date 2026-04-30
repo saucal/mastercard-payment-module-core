@@ -51,6 +51,16 @@ async function createPendingOrder(productId: number): Promise<{ orderId: string;
 // instead of `processing`; only the admin "new order" email fires (the
 // customer "processing" email is gated on capture). Capture is performed
 // later from the admin meta box (covered by suite 14).
+//
+// AUDIT 2026-04-29 vs GI:
+// - JUSTIFIED FIX (all tests): `verifyAdminEmail` only — customer email
+//   gated on capture in AUTHORIZE mode.
+// - JUSTIFIED FIX (MC-011): skips admin email verification entirely (REST
+//   pending order has no billing.email).
+// - MISSING (suites 04 + 05): GI buyer-side subscription assertions
+//   relocated to suite 16-subscription-renewal as `test.describe.skip(...)`
+//   per the move-not-delete rule. Activate when suite 16 is canonically
+//   ported.
 test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
   let orderNumber: string;
   const mc005Email = uniqueEmail();

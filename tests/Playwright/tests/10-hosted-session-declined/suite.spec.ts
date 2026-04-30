@@ -94,6 +94,11 @@ test.describe.serial('Hosted Session - Declined Transactions', () => {
   });
 
   // === MC-015: Expired CC ===
+  // AUDIT 2026-04-29 vs GI: JUSTIFIED FIX — GI asserts ".woocommerce-error"
+  // = "Do not honour" (one shared selector across all decline tests). PW
+  // asserts "Expired card" + gatewayCode=EXPIRED_CARD. The MPGS test env
+  // returns the more specific message for this card; tightening to it is
+  // a regression-safer assertion than GI's pooled string.
 
   test('MC-015 - Expired CC', async ({ page }) => {
     const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
@@ -133,6 +138,11 @@ test.describe.serial('Hosted Session - Declined Transactions', () => {
   // in the GI run check the order ends as Failed). The "Timed out" name reflects
   // the suite's broader theme; the actual failure mode is a non-success PAY
   // response.
+  //
+  // AUDIT 2026-04-29 vs GI: JUSTIFIED FIX (status-only) — failure mode is
+  // unspecified, so MC-014/015's PAY-log gatewayCode probe is intentionally
+  // omitted. MISSING (acknowledged) — no PAY-log assertion at all; if the
+  // gateway begins returning a stable code, add it.
 
   test('MC-016 - Timed out', async ({ page }) => {
     const since = new Date().toISOString().slice(0, 19);
