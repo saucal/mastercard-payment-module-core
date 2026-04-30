@@ -50,6 +50,13 @@ test.describe.serial('Refund', () => {
   });
 
   // === MC-040: Full refund ===
+  // AUDIT 2026-04-29 vs GI:
+  // - JUSTIFIED FIX: REFUND log assertion via `verifyRefundLog` substitutes
+  //   GI's per-field DOM assertions on the refund table — parser-stable.
+  // - MISSING: GI also asserts `tr.refund > td.line_cost` amount and
+  //   `td.total.refunded-total bdi` value, plus the system note "Order
+  //   status changed from Processing to Refunded". PW asserts only "Refund
+  //   of" substring + status. Consider adding DOM amount + transition note.
 
   test('MC-040 - Full refund', async ({ page }) => {
     await switchCheckoutMode('classic');
@@ -98,6 +105,13 @@ test.describe.serial('Refund', () => {
   });
 
   // === MC-041: Partial refund ===
+  // AUDIT 2026-04-29 vs GI:
+  // - JUSTIFIED FIX: pass partial halfAmount as `total` to verifyRefundLog
+  //   so the request transaction.amount assertion lines up (helper compares
+  //   request amount to the value passed; partial flows put the partial in
+  //   the request, not the order total).
+  // - MISSING: same DOM-amount assertions as MC-040 (refund-row line_cost,
+  //   refunded-total bdi). PW relies on the log-level partialAmount check.
 
   test('MC-041 - Partial refund', async ({ page }) => {
     const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
@@ -143,6 +157,12 @@ test.describe.serial('Refund', () => {
   });
 
   // === MC-042: Exceed total refund ===
+  // AUDIT 2026-04-29 vs GI:
+  // - JUSTIFIED FIX: dual-path WC over-refund handling — WC may either
+  //   disable the .do-api-refund button OR allow click + alert + server
+  //   reject. Both branches assert "no new refund note + status stays
+  //   Processing" (intent-equivalent to GI's "no second refund processed").
+  //   GI's flow assumed alert-only; PW handles both.
 
   test('MC-042 - Exceed total refund', async () => {
     expect(mc041OrderNumber, 'MC-041 must run first to provide the partially refunded order').toBeTruthy();

@@ -63,6 +63,12 @@ test.describe.serial('Hosted Session - Session Loading & Validation (Classic)', 
     expect(error).toMatch(/Card number (is )?invalid or missing/);
   });
 
+  // AUDIT 2026-04-29 vs GI: DRIFT — GI classic asserts "CVV invalid or
+  // missing"; PW asserts "Security code (is )?invalid or missing". WC
+  // tokenizer label may have changed across WC versions (blocks variant
+  // also says "Security code"). Confirm against current MPGS tokenizer
+  // output — if "Security code" is the live label, document and align
+  // GI; if WC still emits "CVV" classic-side, restore the original assert.
   test('MC-003 - Missing CVC', async ({ page }) => {
     await addToCartAndCheckout(page, config.products.physical);
     await fillBilling(page, billing);

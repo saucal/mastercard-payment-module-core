@@ -58,6 +58,15 @@ test.describe.serial('Authorize / Capture / Void', () => {
   });
 
   // === MC-020: Partial capture ===
+  // AUDIT 2026-04-29 vs GI:
+  // - JUSTIFIED FIX (cross-cutting in this suite): log-based CAPTURE
+  //   assertion via `extractTransactionPutLogs` + `verifyAuthorizeCaptureLog`
+  //   replaces GI's brittle positional `nth-of-type` log indexes —
+  //   parser-stability requirement of the white-label migration.
+  // - MISSING: GI also asserts the post-partial-capture rest-amount label
+  //   (`${{restTotal}}` shown in the capture form). PW only checks the
+  //   "Partially Captured" note + log amount; consider re-adding the form
+  //   label assert for UI-coverage parity.
 
   test('MC-020 - Partial capture', async ({ page }) => {
     await switchCheckoutMode('classic');
@@ -133,6 +142,13 @@ test.describe.serial('Authorize / Capture / Void', () => {
   });
 
   // === MC-021: Full capture ===
+  // AUDIT 2026-04-29 vs GI:
+  // - JUSTIFIED FIX: page reload before status assertion — select2 status
+  //   widget rebinds on load, not via WC's AJAX update notice.
+  // - MISSING: GI asserts `assertElementNotPresent .acme-capture-form` /
+  //   `.acme-void-form` after full capture. PW relies on the captured-note
+  //   substring + Processing/Completed status; consider adding form-removal
+  //   assertions for parity.
 
   test('MC-021 - Full capture', async ({ page }) => {
     const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
