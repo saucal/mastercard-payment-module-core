@@ -34,6 +34,11 @@ import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
 import { billing } from '../../fixtures/billing';
 
+// AUDIT 2026-04-29 vs GI: JUSTIFIED FIX (cross-cutting all three MCs) —
+// PW asserts the PAY log via `verifyAuthorizeCaptureLog` with full session/
+// total/currency/transactionId/orderNumber/card validation. GI runs many
+// per-field eval steps; PW consolidates into one helper that is
+// parser-stable. Treated as additive structural improvement.
 test.describe.serial('Hosted Session - 3DS', () => {
   let orderNumber: string;
 

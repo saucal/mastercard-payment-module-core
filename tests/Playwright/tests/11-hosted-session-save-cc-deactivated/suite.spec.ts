@@ -164,6 +164,9 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
   }
 
   // === MC-030: Guest checkout, save CC deactivated ===
+  // AUDIT 2026-04-29 vs GI: JUSTIFIED FIX — guest path skips the
+  // /my-account/payment-methods/ assertion (no logged-in account exists);
+  // helper `runSuccessFlow` honors `expectedSavedCards: 'skip'`.
 
   test('MC-030 - Guest checkout', async ({ page }) => {
     await switchCheckoutMode('classic');
@@ -183,6 +186,10 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
   });
 
   // === MC-031: New user, save CC deactivated ===
+  // AUDIT 2026-04-29 vs GI: DRIFT — lighter log coverage than MC-030 in
+  // the same suite (no session POST/GET log verification, only PAY log +
+  // empty token logs). No documented reason. Either align upward to match
+  // MC-030, or document why MC-031 needs less.
 
   test('MC-031 - New user', async ({ page }) => {
     const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));

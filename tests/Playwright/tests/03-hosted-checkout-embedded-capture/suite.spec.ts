@@ -214,6 +214,12 @@ test.describe.serial('Hosted Checkout - Embedded - Capture', () => {
   });
 
   // === MC-008: Logged user ===
+  // AUDIT 2026-04-29 vs GI: DRIFT — GI stores expiry 04/27 for this card
+  // (5555555555000018), PW uses cards.mastercard2 with 01/39. Number matches
+  // but expiry differs. If 04/27 is part of the source-of-truth (e.g. GI was
+  // exercising a "near-expiry valid card" semantic), switch to cards.expired
+  // or add a `mastercard2Expired` fixture. If the expiry was incidental in
+  // GI, leave as-is and document.
 
   test('MC-008 - Logged user', async ({ page }) => {
     // === CHECKOUT (buyer's page) ===
