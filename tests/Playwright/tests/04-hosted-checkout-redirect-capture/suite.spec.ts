@@ -51,6 +51,13 @@ async function createPendingOrder(productId: number): Promise<{ orderId: string;
 // AUTHENTICATE_PAYER / PAY all happen inside MPGS). The difference is that
 // redirect navigates the buyer's browser to test-gateway.mastercard.com
 // instead of embedding an iframe — helpers branch on the `redirect` mode.
+//
+// AUDIT 2026-04-29 vs GI:
+// - JUSTIFIED FIX (MC-011): skips email + expectedTotal (REST-created
+//   pending order has no billing.email).
+// - MISSING: GI buyer-side subscription assertions relocated to suite
+//   16-subscription-renewal as `test.describe.skip(...)` per the
+//   move-not-delete rule. Activate when suite 16 is canonically ported.
 test.describe.serial('Hosted Checkout - Redirect - Capture', () => {
   let orderNumber: string;
   const mc005Email = uniqueEmail();

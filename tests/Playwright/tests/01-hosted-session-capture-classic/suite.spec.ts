@@ -399,6 +399,10 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
   });
 
   // === MC-007: Logged user, pay with saved CC ===
+  // AUDIT 2026-04-29 vs GI: JUSTIFIED FIX — saved-token path skips
+  // `verifySessionGetCardDetails` (saved-token flow doesn't fetch card
+  // details from MPGS — token references the card, no GET /session/{id}
+  // for fresh card data).
 
   test('MC-007 - Logged user pay with saved CC', async ({ page }) => {
     // === CHECKOUT (buyer's page) ===
@@ -610,6 +614,9 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
 
   // === MC-009: Logged user, pay with new CC and save it ===
 
+  // AUDIT 2026-04-29 vs GI: JUSTIFIED FIX — challenge card adds
+  // `handle3DSChallenge` + `AUTHENTICATION_SUCCESSFUL` log probe (GI's
+  // shared-step library handles this conditionally; PW makes it explicit).
   test('MC-009 - Logged user pay with new CC and save it', async ({ page }) => {
     // === CHECKOUT (buyer's page) ===
     await frontendLogin(page, mc006Email, billing.password);
@@ -737,6 +744,9 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
 
   // === MC-010: Logged user, pay with second saved CC ===
 
+  // AUDIT 2026-04-29 vs GI: JUSTIFIED FIX — saved-token of a challenge card
+  // skips `verifySessionGetCardDetails` (saved-token path) and adds
+  // conditional 3DS handling (challenge token MAY re-challenge per issuer).
   test('MC-010 - Logged user pay with second saved CC', async ({ page }) => {
     // === CHECKOUT (buyer's page) ===
     await frontendLogin(page, mc006Email, billing.password);

@@ -77,6 +77,9 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
   });
 
   // === MC-050: Add Payment Method ===
+  // AUDIT 2026-04-29 vs GI: GI asserts h1 "My account" / "Payment methods"
+  // page-title gates between navigations. PW skips them (low value navigation
+  // gates — `verifyPaymentMethods` already lands on /my-account/payment-methods/).
 
   test('MC-050 - Add Payment Method', async ({ page }) => {
     await switchCheckoutMode('classic');
@@ -115,6 +118,13 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
   });
 
   // === MC-051: Logged user pay with saved CC ===
+  // AUDIT 2026-04-29 vs GI:
+  // - JUSTIFIED FIX: status check tightened from GI's loose
+  //   "Processing|Completed|On hold|Failed" OR to strict 'Processing'.
+  //   PURCHASE + frictionless saved-token guarantees Processing; the GI OR
+  //   was brittle.
+  // - JUSTIFIED FIX (cross-cutting): conditional 3DS handler — saved
+  //   visaChallenge token still re-challenges depending on issuer behavior.
 
   test('MC-051 - Logged user pay with saved CC', async ({ page }) => {
     await frontendLogin(page, mcEmail, billing.password);
@@ -212,6 +222,9 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
   });
 
   // === MC-054: Not filling CC info ===
+  // AUDIT 2026-04-29 vs GI: GI asserts the exact concatenated error text
+  // "Card number invalid or missingExpiry month invalid or missingExpiry year
+  // invalid or missing"; PW only checks any error visible. Tighten to match.
 
   test('MC-054 - Not filling CC info', async ({ page }) => {
     await frontendLogin(page, mcEmail, billing.password);
@@ -225,6 +238,8 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
   });
 
   // === MC-055: Invalid missing CC number ===
+  // AUDIT 2026-04-29 vs GI: GI asserts ".woocommerce-error contains
+  // 'Card number invalid or missing'"; PW asserts only generic error visible.
 
   test('MC-055 - Invalid missing CC number', async ({ page }) => {
     await frontendLogin(page, mcEmail, billing.password);
@@ -244,6 +259,9 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
   });
 
   // === MC-056: Invalid missing CVC ===
+  // AUDIT 2026-04-29 vs GI: GI asserts "CVV invalid or missing"; PW asserts
+  // only generic error visible. WC label may have changed to "Security code"
+  // — confirm against current MPGS tokenizer output before tightening.
 
   test('MC-056 - Invalid missing CVC', async ({ page }) => {
     await frontendLogin(page, mcEmail, billing.password);
@@ -263,6 +281,8 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
   });
 
   // === MC-057: Invalid missing expiry month ===
+  // AUDIT 2026-04-29 vs GI: GI asserts "Expiry month invalid or missing";
+  // PW asserts only generic error visible. Tighten to match.
 
   test('MC-057 - Invalid missing expiry month', async ({ page }) => {
     await frontendLogin(page, mcEmail, billing.password);
@@ -282,6 +302,8 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
   });
 
   // === MC-058: Invalid missing expiry year ===
+  // AUDIT 2026-04-29 vs GI: GI asserts "Expiry year invalid or missing";
+  // PW asserts only generic error visible. Tighten to match.
 
   test('MC-058 - Invalid missing expiry year', async ({ page }) => {
     await frontendLogin(page, mcEmail, billing.password);

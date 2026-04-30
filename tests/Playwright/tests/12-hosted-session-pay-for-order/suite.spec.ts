@@ -104,6 +104,11 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
   });
 
   // === MC-011: Pay for order, not saving CC ===
+  // AUDIT 2026-04-29 vs GI (applies to MC-011/012/013): DRIFT — GI uses
+  // `prodType=virtual`, PW uses `config.products.physical`. Functionally
+  // harmless (pay-for-order works the same with either) but violates
+  // source-of-truth fidelity. Either switch to `config.products.digital`
+  // / a `virtual` config slot, or document why physical is preferred.
 
   test('MC-011 - Pay for order not saving CC', async ({ page }) => {
     await switchCheckoutMode('classic');
@@ -211,6 +216,10 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
   });
 
   // === MC-012: Pay for order, saving CC (challenge card) ===
+  // AUDIT 2026-04-29 vs GI: JUSTIFIED FIX — `selectPaymentMethod(...,true)`
+  // (useNewToken=true) mirrors GI step 31 (clicks the new-token radio
+  // before filling CC iframe). Without it, WC tokenization-form.js keeps
+  // the .saveNew row hidden and `clickSaveCardCheckbox` would fail.
 
   test('MC-012 - Pay for order saving CC', async ({ page }) => {
     // Explicit login — registerUser in MC-011 does not survive across tests
@@ -314,6 +323,9 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
   });
 
   // === MC-013: Pay for order with saved CC ===
+  // AUDIT 2026-04-29 vs GI: JUSTIFIED FIX — conditional 3DS handler. Saved
+  // visaChallenge token MAY re-challenge depending on issuer behavior;
+  // PW gates handle3DSChallenge on URL-pattern detection.
 
   test('MC-013 - Pay for order with saved CC', async ({ page }) => {
     await frontendLogin(page, mcEmail, billing.password);
