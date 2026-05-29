@@ -23,6 +23,28 @@ const hostedCheckout = {
 
 		this.cleanSessions();
 
+		// These functions will be referenced by the hosted checkout page, and are signaled via data-attributes on the script tag that loads the hosted checkout JS.
+		window[ `${ core_gateway_params.pluginPrefix }ErrorCallback` ] =
+			function ( error ) {
+				document.dispatchEvent(
+					new CustomEvent(
+						`${ core_gateway_params.pluginPrefix }_error_callback`,
+						{
+							detail: error,
+						}
+					)
+				);
+			};
+
+		window[ `${ core_gateway_params.pluginPrefix }CancelCallback` ] =
+			function () {
+				document.dispatchEvent(
+					new CustomEvent(
+						`${ core_gateway_params.pluginPrefix }_cancel_callback`
+					)
+				);
+			};
+
 		this.isEmbedded =
 			$hostedCheckoutContainer.hasClass( 'embedded-checkout' );
 

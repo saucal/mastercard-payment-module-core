@@ -1889,10 +1889,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		if ( $this->hosted_checkout_script_handle() === $handle ) {
 			$tag = str_replace(
 				'></script>',
-				sprintf(
-					' data-error="%1$sErrorCallback"></script>',
-					$this->core_plugin->payment_core()->get_prefix(),
-				),
+				' data-error="PAYMENTS_CORE_HOOK_PREFIXErrorCallback"></script>',
 				$tag
 			);
 		}
