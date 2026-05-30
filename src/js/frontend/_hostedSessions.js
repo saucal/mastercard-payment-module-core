@@ -483,6 +483,7 @@ const hostedSessions = {
 	updateSessionFromToken( tokenId ) {
 		return new Promise( ( resolve, reject ) => {
 			const data = {};
+			data.nonce = core_gateway_params.ajaxNonce;
 			data[ `${ hostedSessions.pluginPrefix }_session_id` ] =
 				hostedSessions.getSessionId();
 			data[ `${ hostedSessions.pluginPrefix }_token_id` ] = tokenId;
@@ -847,6 +848,9 @@ const hostedSessions = {
 						hostedSessions.pluginPrefix
 					),
 					method: 'POST',
+					data: {
+						nonce: core_gateway_params.ajaxNonce,
+					},
 				} )
 				.done( function ( res ) {
 					hostedSessions.setSessionId( res );
@@ -1144,6 +1148,7 @@ const hostedSessions = {
 
 	execute3DsAuthentication( data ) {
 		return new Promise( ( resolve, reject ) => {
+			data.nonce = core_gateway_params.ajaxNonce;
 			jQuery
 				.ajax( {
 					url: getWcAjaxUrl(

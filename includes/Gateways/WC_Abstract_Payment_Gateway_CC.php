@@ -2738,6 +2738,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return void
 	 */
 	public function ajax_clean_hosted_cached_session() {
+		check_ajax_referer( 'PAYMENTS_CORE_HOOK_PREFIX_ajax_nonce', 'nonce' );
 		$this->maybe_clean_hosted_cached_session();
 		wp_send_json(
 			$this->hosted_session_id()
@@ -2750,8 +2751,9 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return void
 	 */
 	public function ajax_update_hosted_session_from_token() {
-		$session_id = wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_session_id'] ?? $this->hosted_session_id() ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
-		$token_id   = wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_token_id'] ?? '' ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		check_ajax_referer( 'PAYMENTS_CORE_HOOK_PREFIX_ajax_nonce', 'nonce' );
+		$session_id = wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_session_id'] ?? $this->hosted_session_id() ) );
+		$token_id   = wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_token_id'] ?? '' ) );
 
 		$updated_session = $this->update_session_with_token( $session_id, $token_id, true );
 
@@ -2774,6 +2776,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @throws Exception Exception.
 	 */
 	public function ajax_authenticate_payer() {
+		check_ajax_referer( 'PAYMENTS_CORE_HOOK_PREFIX_ajax_nonce', 'nonce' );
+
 		// The authentication is not required if 3DS is disabled.
 		if ( ! $this->enable_3ds ) {
 			wp_send_json_success();
@@ -2782,11 +2786,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		try {
 			$order = null;
 
-			if ( ! isset( $_POST['order_id'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+			if ( ! isset( $_POST['order_id'] ) ) {
 				throw new Exception( __( 'Missing order ID.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
-			$order_id = wc_clean( wp_unslash( $_POST['order_id'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+			$order_id = wc_clean( wp_unslash( $_POST['order_id'] ) );
 			if ( 'add_payment_method' !== $order_id ) {
 				$order_id = absint( $order_id );
 				if ( ! $order_id ) {
