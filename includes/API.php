@@ -20,6 +20,18 @@ final class API {
 
 	const API_VERSION = '100';
 
+	const PARTNER_SOLUTION_OPERATIONS = array(
+		'INITIATE_CHECKOUT',
+		'CAPTURE',
+		'REFUND',
+		'VOID',
+		'UPDATE_SESSION',
+		'PAY',
+		'AUTHORIZE',
+		'VERIFY',
+		'INITIATE_AUTHENTICATION',
+	);
+
 
 	/**
 	 * Core Plugin instance.
@@ -125,6 +137,8 @@ final class API {
 	 * @return array
 	 */
 	protected function request( $endpoint, $method = 'GET', $payload = array() ) {
+		$payload = $this->maybe_add_partner_solution_id( $payload );
+
 		$url  = $this->get_domain() . $endpoint;
 		$args = array(
 			'method'  => $method,
@@ -160,6 +174,32 @@ final class API {
 		}
 
 		return $response;
+	}
+
+
+	/**
+	 * Add the partner solution ID.
+	 *
+	 * @param mixed $payload Payload.
+	 *
+	 * @return mixed
+	 */
+	private function maybe_add_partner_solution_id( $payload ) {
+		if ( ! is_array( $payload ) || isset( $payload['partnerSolutionId'] ) ) {
+			return $payload;
+		}
+
+		if ( empty( $payload['apiOperation'] ) || ! in_array( $payload['apiOperation'], self::PARTNER_SOLUTION_OPERATIONS, true ) ) {
+			return $payload;
+		}
+
+		$partner_solution_id = $this->core_plugin->partner_solution_id();
+
+		if ( ! empty( $partner_solution_id ) ) {
+			$payload['partnerSolutionId'] = $partner_solution_id;
+		}
+
+		return $payload;
 	}
 
 

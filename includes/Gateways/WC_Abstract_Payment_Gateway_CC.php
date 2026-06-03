@@ -1970,10 +1970,9 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		}
 
 		$payload = array(
-			'apiOperation'      => 'INITIATE_CHECKOUT',
-			'partnerSolutionId' => $this->get_partner_solution_id(),
-			'order'             => $order_payload,
-			'interaction'       => $this->hosted_checkout_interaction_payload( $order ),
+			'apiOperation' => 'INITIATE_CHECKOUT',
+			'order'        => $order_payload,
+			'interaction'  => $this->hosted_checkout_interaction_payload( $order ),
 		);
 
 		if ( $this->is_hosted_checkout() && 'yes' === $this->core_plugin->get_gateway_setting( 'display_logo' ) && ! empty( $this->icon ) ) {

@@ -47,14 +47,6 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 
 	/**
-	 * Partner solution ID.
-	 *
-	 * @var string
-	 */
-	protected $partner_solution_id;
-
-
-	/**
 	 * Payment Token instance.
 	 *
 	 * @var PaymentToken
@@ -97,16 +89,6 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * Constructor.
 	 */
 	abstract public function __construct();
-
-
-	/**
-	 * Get the partner solution ID.
-	 *
-	 * @return string
-	 */
-	public function get_partner_solution_id() {
-		return $this->partner_solution_id;
-	}
 
 
 	/**

@@ -75,6 +75,14 @@ abstract class CorePlugin {
 
 
 	/**
+	 * Partner Solution ID.
+	 *
+	 * @var string
+	 */
+	protected $partner_solution_id = '';
+
+
+	/**
 	 * Registered payment gateways.
 	 *
 	 * @var array
@@ -646,6 +654,16 @@ abstract class CorePlugin {
 		}
 
 		$this->settings[ $key ] = $value;
+	}
+
+
+	/**
+	 * Get the partner solution ID.
+	 *
+	 * @return string
+	 */
+	public function partner_solution_id() {
+		return $this->partner_solution_id;
 	}
 
 
