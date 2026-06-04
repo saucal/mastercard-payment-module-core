@@ -159,7 +159,7 @@ final class GatewaySettings {
 						/* translators: %1$s: opening link tag, %2$s: closing link tag */
 						__( 'This is the Merchant ID you use to log into the %1$sMerchant Portal%2$s.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 						'<a href="' . esc_url(
-							untrailingslashit( $this->core_plugin->gateway_url() ) . '/ma/login.s'
+							untrailingslashit( $this->settings_gateway_url() ) . '/ma/login.s'
 						) . '" target="_blank">',
 						'</a>'
 					),
@@ -182,7 +182,7 @@ final class GatewaySettings {
 									'_authDomain'      => 'ma',
 									'selectedMenuItem' => 'apiConfiguration',
 								),
-								untrailingslashit( $this->core_plugin->gateway_url() ) . '/ma/apiConfiguration.s'
+								untrailingslashit( $this->settings_gateway_url() ) . '/ma/apiConfiguration.s'
 							)
 						) . '" target="_blank">',
 						'</a>'
@@ -201,7 +201,7 @@ final class GatewaySettings {
 						/* translators: %1$s: opening link tag, %2$s: closing link tag */
 						__( 'This is the Merchant ID you use to log into the %1$sMerchant Portal%2$s.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 						'<a href="' . esc_url(
-							untrailingslashit( $this->core_plugin->gateway_url() ) . '/ma/login.s'
+							untrailingslashit( $this->settings_gateway_url() ) . '/ma/login.s'
 						) . '" target="_blank">',
 						'</a>'
 					),
@@ -224,7 +224,7 @@ final class GatewaySettings {
 									'_authDomain'      => 'ma',
 									'selectedMenuItem' => 'apiConfiguration',
 								),
-								untrailingslashit( $this->core_plugin->gateway_url() ) . '/ma/apiConfiguration.s'
+								untrailingslashit( $this->settings_gateway_url() ) . '/ma/apiConfiguration.s'
 							)
 						) . '" target="_blank">',
 						'</a>'
@@ -306,6 +306,29 @@ final class GatewaySettings {
 	}
 
 	/**
+	 * Gateway URL for the settings descriptions.
+	 *
+	 * @return string
+	 */
+	private function settings_gateway_url() {
+		$gateway_url = $this->core_plugin->gateway_url();
+
+		if ( ! empty( $gateway_url ) ) {
+			return $gateway_url;
+		}
+
+		$regions  = $this->core_plugin->payment_regions_available();
+		$settings = $this->core_plugin->get_gateway_settings();
+		$region   = $settings['region'] ?? '';
+
+		if ( empty( $region ) || ! isset( $regions[ $region ] ) ) {
+			$region = array_key_first( $regions );
+		}
+
+		return \array_first( $regions[ $region ]['urls'] );
+	}
+
+	/**
 	 * Webhook notification URL.
 	 *
 	 * @return string
@@ -316,7 +339,7 @@ final class GatewaySettings {
 				'_authDomain'      => 'ma',
 				'selectedMenuItem' => 'notificationMerchantApiNotifications',
 			),
-			untrailingslashit( $this->core_plugin->gateway_url() ) . '/notification/ui/merchant/apiNotifications'
+			untrailingslashit( $this->settings_gateway_url() ) . '/notification/ui/merchant/apiNotifications'
 		);
 	}
 
