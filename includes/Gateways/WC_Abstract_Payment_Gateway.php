@@ -178,7 +178,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 		 *
 		 * @since 1.0.0
 		 */
-		return apply_filters( 'woocommerce_gateway_icon', $icon, $this->id );
+		return apply_filters( 'woocommerce_gateway_icon', $icon, $this->id ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WooCommerce core filter, re-applied for compatibility.
 	}
 
 
@@ -1337,7 +1337,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 		$notification_secret = $this->core_plugin->notification_secret();
 
-		if ( empty( $notification_secret ) || wc_clean( wp_unslash( $_SERVER['HTTP_X_NOTIFICATION_SECRET'] ) ) !== $notification_secret ) {
+		if ( empty( $notification_secret ) || wc_clean( wp_unslash( $_SERVER['HTTP_X_NOTIFICATION_SECRET'] ) ) !== $notification_secret ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 			return false;
 		}
 

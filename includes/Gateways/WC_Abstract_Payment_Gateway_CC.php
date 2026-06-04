@@ -275,7 +275,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return mixed
 	 */
 	private function get_posted_config_value( $key ) {
-		return isset( $_POST[ 'woocommerce_PAYMENTS_CORE_HOOK_PREFIX_' . $key ] ) ? wc_clean( wp_unslash( $_POST[ 'woocommerce_PAYMENTS_CORE_HOOK_PREFIX_' . $key ] ) ) : $this->get_option( $key ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		return isset( $_POST[ 'woocommerce_PAYMENTS_CORE_HOOK_PREFIX_' . $key ] ) ? wc_clean( wp_unslash( $_POST[ 'woocommerce_PAYMENTS_CORE_HOOK_PREFIX_' . $key ] ) ) : $this->get_option( $key ); // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 	}
 
 
@@ -1076,12 +1076,12 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	public function maybe_cache_location() {
 		if ( $this->saved_cards ) {
-			if ( $this->is_saving_payment_method() || \is_add_payment_method_page() || ( isset( $_REQUEST['order_id'] ) && \wc_clean( \wp_unslash( $_REQUEST['order_id'] ) ) === 'add_payment_method' ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			if ( $this->is_saving_payment_method() || \is_add_payment_method_page() || ( isset( $_REQUEST['order_id'] ) && \wc_clean( \wp_unslash( $_REQUEST['order_id'] ) ) === 'add_payment_method' ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 				WC()->session->set( 'PAYMENTS_CORE_HOOK_PREFIX_saving_payment_method', true );
 			}
 		}
 
-		if ( $this->is_pay_for_order_page() || ( isset( $_REQUEST['order_id'] ) && \wc_clean( \wp_unslash( $_REQUEST['order_id'] ) ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( $this->is_pay_for_order_page() || ( isset( $_REQUEST['order_id'] ) && \wc_clean( \wp_unslash( $_REQUEST['order_id'] ) ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 			WC()->session->set( 'PAYMENTS_CORE_HOOK_PREFIX_pay_for_order_page', true );
 		}
 
@@ -1319,12 +1319,12 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		}
 
 		return array(
-			'browser'        => wc_clean( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) ),
+			'browser'        => isset( $_SERVER['HTTP_USER_AGENT'] ) ? wc_clean( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) ) : '', // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 			'browserDetails' => wp_parse_args(
-				json_decode( wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_3ds_data'] ) ), true ), // phpcs:ignore WordPress.Security.NonceVerification.Missing
+				isset( $_POST['PAYMENTS_CORE_HOOK_PREFIX_3ds_data'] ) ? json_decode( wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_3ds_data'] ) ), true ) : array(), // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 				array(
 					'3DSecureChallengeWindowSize' => 'FULL_SCREEN',
-					'acceptHeaders'               => isset( $_SERVER['HTTP_ACCEPT'] ) ? wc_clean( wp_unslash( $_SERVER['HTTP_ACCEPT'] ) ) : '',
+					'acceptHeaders'               => isset( $_SERVER['HTTP_ACCEPT'] ) ? wc_clean( wp_unslash( $_SERVER['HTTP_ACCEPT'] ) ) : '', // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 					'javaEnabled'                 => false,
 					'javaScriptEnabled'           => false,
 				),
@@ -1597,12 +1597,12 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return array
 	 */
 	public function get_posted_session_data() {
-		$id = ! empty( $_POST['PAYMENTS_CORE_HOOK_PREFIX_session_id'] ) ? wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_session_id'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$id = ! empty( $_POST['PAYMENTS_CORE_HOOK_PREFIX_session_id'] ) ? wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_session_id'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 		if ( ! $id ) {
 			return array();
 		}
 
-		$version = ! empty( $_POST['PAYMENTS_CORE_HOOK_PREFIX_session_version'] ) ? wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_session_version'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$version = ! empty( $_POST['PAYMENTS_CORE_HOOK_PREFIX_session_version'] ) ? wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_session_version'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 		if ( ! $version ) {
 			return array();
 		}
@@ -1630,7 +1630,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return bool
 	 */
 	public function is_saved_payment_method() {
-		return isset( $_POST[ $this->payment_token_key() ] ) && 'new' !== wc_clean( wp_unslash( $_POST[ $this->payment_token_key() ] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		return isset( $_POST[ $this->payment_token_key() ] ) && 'new' !== wc_clean( wp_unslash( $_POST[ $this->payment_token_key() ] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 	}
 
 
@@ -1640,7 +1640,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return int|null
 	 */
 	public function get_current_saved_payment_method() {
-		return $this->is_saved_payment_method() && isset( $_POST[ $this->payment_token_key() ] ) ? absint( wc_clean( wp_unslash( $_POST[ $this->payment_token_key() ] ) ) ) : null; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		return $this->is_saved_payment_method() && isset( $_POST[ $this->payment_token_key() ] ) ? absint( wc_clean( wp_unslash( $_POST[ $this->payment_token_key() ] ) ) ) : null; // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 	}
 
 
@@ -1650,7 +1650,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return bool
 	 */
 	protected function is_saving_payment_method() {
-		return isset( $_POST[ 'wc-' . $this->id . '-new-payment-method' ] ) && wc_clean( wp_unslash( $_POST[ 'wc-' . $this->id . '-new-payment-method' ] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		return isset( $_POST[ 'wc-' . $this->id . '-new-payment-method' ] ) && wc_clean( wp_unslash( $_POST[ 'wc-' . $this->id . '-new-payment-method' ] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 	}
 
 
@@ -2414,7 +2414,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			return;
 		}
 
-		$callback = wc_clean( wp_unslash( $_GET['PAYMENTS_CORE_HOOK_PREFIX-callback'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$callback = wc_clean( wp_unslash( $_GET['PAYMENTS_CORE_HOOK_PREFIX-callback'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
 		switch ( $callback ) {
 			// Handle hosted checkout.
@@ -2441,7 +2441,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	public function process_return_callback() {
 		try {
-			if ( ! isset( $_REQUEST['nonce'] ) || ! wp_verify_nonce( wc_clean( wp_unslash( $_REQUEST['nonce'] ) ), 'PAYMENTS_CORE_HOOK_PREFIX_nonce' ) ) {
+			if ( ! isset( $_REQUEST['nonce'] ) || ! wp_verify_nonce( wc_clean( wp_unslash( $_REQUEST['nonce'] ) ), 'PAYMENTS_CORE_HOOK_PREFIX_nonce' ) ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 				throw new Exception( __( 'Nonce verification is missing or invalid.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
@@ -2449,7 +2449,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				throw new Exception( __( 'Missing arguments.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
-			$order_id = (int) wc_clean( wp_unslash( $_REQUEST['order-id'] ) );
+			$order_id = (int) wc_clean( wp_unslash( $_REQUEST['order-id'] ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
 			if ( ! $order_id ) {
 				throw new Exception( __( 'The order ID parameter is invalid.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
@@ -2465,7 +2465,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				throw new Exception( __( 'The order has already been processed.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
-			$success_indicator = wc_clean( wp_unslash( $_REQUEST['resultIndicator'] ) );
+			$success_indicator = wc_clean( wp_unslash( $_REQUEST['resultIndicator'] ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
 			if ( ! $success_indicator || $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_success_indicator' ) !== $success_indicator ) {
 				throw new Exception( __( 'The payment session is invalid.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
@@ -2519,9 +2519,9 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				add_query_arg(
 					array(
 						'PAYMENTS_CORE_HOOK_PREFIX-callback' => 'wc-3ds-process',
-						'order-id'  => isset( $_REQUEST['order-id'] ) ? wc_clean( wp_unslash( $_REQUEST['order-id'] ) ) : '', // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-						'signature' => isset( $_REQUEST['signature'] ) ? wc_clean( wp_unslash( $_REQUEST['signature'] ) ) : '', // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-						'nonce'     => isset( $_REQUEST['nonce'] ) ? wc_clean( wp_unslash( $_REQUEST['nonce'] ) ) : '', // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+						'order-id'  => isset( $_REQUEST['order-id'] ) ? wc_clean( wp_unslash( $_REQUEST['order-id'] ) ) : '', // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+						'signature' => isset( $_REQUEST['signature'] ) ? wc_clean( wp_unslash( $_REQUEST['signature'] ) ) : '', // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+						'nonce'     => isset( $_REQUEST['nonce'] ) ? wc_clean( wp_unslash( $_REQUEST['nonce'] ) ) : '', // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 					),
 					home_url( '/' )
 				),
@@ -2540,12 +2540,12 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		try {
 			$order = null;
 
-			if ( ! isset( $_REQUEST['nonce'] ) || ! wp_verify_nonce( wc_clean( wp_unslash( $_REQUEST['nonce'] ) ), 'PAYMENTS_CORE_HOOK_PREFIX_3ds_nonce' ) ) {
+			if ( ! isset( $_REQUEST['nonce'] ) || ! wp_verify_nonce( wc_clean( wp_unslash( $_REQUEST['nonce'] ) ), 'PAYMENTS_CORE_HOOK_PREFIX_3ds_nonce' ) ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 				throw new Exception( __( 'Nonce verification is missing or invalid.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
 			if ( ! empty( $_REQUEST['order-id'] ) ) {
-				$order_id = (int) wc_clean( wp_unslash( $_REQUEST['order-id'] ) );
+				$order_id = (int) wc_clean( wp_unslash( $_REQUEST['order-id'] ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
 				if ( ! $order_id ) {
 					throw new Exception( __( 'The order ID parameter is invalid.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
@@ -2558,7 +2558,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				}
 			}
 
-			$signature = isset( $_REQUEST['signature'] ) ? wc_clean( wp_unslash( $_REQUEST['signature'] ) ) : '';
+			$signature = isset( $_REQUEST['signature'] ) ? wc_clean( wp_unslash( $_REQUEST['signature'] ) ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
 			if ( ! $signature || ! hash_equals( $signature, $this->hashed_signature( $order, $this->get_authentication_transaction( $order ) ) ) ) {
 				throw new Exception( __( 'There was an error validating the authentication request. Please try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
@@ -2751,8 +2751,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	public function ajax_update_hosted_session_from_token() {
 		check_ajax_referer( 'PAYMENTS_CORE_HOOK_PREFIX_ajax_nonce', 'nonce' );
-		$session_id = wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_session_id'] ?? $this->hosted_session_id() ) );
-		$token_id   = wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_token_id'] ?? '' ) );
+		$session_id = wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_session_id'] ?? $this->hosted_session_id() ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		$token_id   = wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_token_id'] ?? '' ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
 		$updated_session = $this->update_session_with_token( $session_id, $token_id, true );
 
@@ -2789,7 +2789,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				throw new Exception( __( 'Missing order ID.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
-			$order_id = wc_clean( wp_unslash( $_POST['order_id'] ) );
+			$order_id = wc_clean( wp_unslash( $_POST['order_id'] ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 			if ( 'add_payment_method' !== $order_id ) {
 				$order_id = absint( $order_id );
 				if ( ! $order_id ) {

@@ -522,7 +522,7 @@ trait Subscriptions {
 			 *
 			 * @since 1.0.0
 			 */
-			do_action( 'processed_subscription_payments_for_order', $renewal_order );
+			do_action( 'processed_subscription_payments_for_order', $renewal_order ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WooCommerce Subscriptions integration hook.
 			/**
 			 * Fires after a scheduled subscription payment succeeds.
 			 *
@@ -550,7 +550,7 @@ trait Subscriptions {
 			 *
 			 * @since 1.0.0
 			 */
-			do_action( 'processed_subscription_payment_failure_for_order', $renewal_order );
+			do_action( 'processed_subscription_payment_failure_for_order', $renewal_order ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WooCommerce Subscriptions integration hook.
 			/**
 			 * Fires after a scheduled subscription payment fails.
 			 *
