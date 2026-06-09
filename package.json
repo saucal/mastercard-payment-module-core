@@ -1,6 +1,6 @@
 {
 	"name": "payment-core",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "Payment Core",
 	"scripts": {
 		"watch": "wp-scripts start",

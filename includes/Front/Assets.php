@@ -81,6 +81,7 @@ final class Assets {
 		$data = array(
 			'wcAjaxUrl'           => WC_AJAX::get_endpoint( '%%endpoint%%' ),
 			'pluginPrefix'        => $this->core_plugin->payment_core()->get_prefix(),
+			'ajaxNonce'           => wp_create_nonce( 'PAYMENTS_CORE_HOOK_PREFIX_ajax_nonce' ),
 			'textDomain'          => '__PAYMENTS_CORE_TEXT_DOMAIN__',
 			'merchantId'          => $this->core_plugin->merchant_id(),
 			'checkoutMode'        => $this->core_plugin->get_checkout_mode(),

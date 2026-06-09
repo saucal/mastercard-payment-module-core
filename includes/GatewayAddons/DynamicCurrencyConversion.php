@@ -180,7 +180,7 @@ trait DynamicCurrencyConversion {
 			return $payment_data;
 		}
 
-		$dcc_request_id = wc_clean( wp_unslash( $_POST[ $this->id . '_dcc_request_id' ] ) ); // phpcs:ignore WordPress.Security.NonceVerification
+		$dcc_request_id = wc_clean( wp_unslash( $_POST[ $this->id . '_dcc_request_id' ] ) ); // phpcs:ignore WordPress.Security.NonceVerification, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
 		$payment_data['currencyConversion'] = array(
 			'requestId' => $dcc_request_id,
@@ -190,10 +190,10 @@ trait DynamicCurrencyConversion {
 		// Assume the offer was rejected if no offer state is provided.
 		$offer_state = false;
 		if ( isset( $_POST['dccOfferState'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
-			$offer_state = wc_clean( wp_unslash( $_POST['dccOfferState'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+			$offer_state = wc_clean( wp_unslash( $_POST['dccOfferState'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 		} elseif ( isset( $_POST['dccofferstate'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
 			// Checkout Blocks lowercase the field names.
-			$offer_state = wc_clean( wp_unslash( $_POST['dccofferstate'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+			$offer_state = wc_clean( wp_unslash( $_POST['dccofferstate'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 		}
 
 		if ( (bool) $offer_state ) {
@@ -341,7 +341,7 @@ trait DynamicCurrencyConversion {
 	 * @return void
 	 */
 	public function ajax_dcc_quote() {
-		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( wc_clean( wp_unslash( $_POST['nonce'] ) ), 'PAYMENTS_CORE_HOOK_PREFIX_dcc_nonce' ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( wc_clean( wp_unslash( $_POST['nonce'] ) ), 'PAYMENTS_CORE_HOOK_PREFIX_dcc_nonce' ) ) { // phpcs:ignore WordPress.Security.NonceVerification, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 			wp_send_json_error();
 		}
 
@@ -353,10 +353,10 @@ trait DynamicCurrencyConversion {
 			wp_send_json_error();
 		}
 
-		$token_id = wc_clean( wp_unslash( $_POST['token_id'] ) );
+		$token_id = wc_clean( wp_unslash( $_POST['token_id'] ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 		$order    = null;
 		if ( isset( $_POST['order_id'] ) ) {
-			$order_id = wc_clean( wp_unslash( $_POST['order_id'] ) );
+			$order_id = wc_clean( wp_unslash( $_POST['order_id'] ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 			$order    = wc_get_order( $order_id );
 		}
 

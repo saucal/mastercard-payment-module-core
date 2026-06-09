@@ -487,23 +487,16 @@ const hostedSessions = {
 				hostedSessions.getSessionId();
 			data[ `${ hostedSessions.pluginPrefix }_token_id` ] = tokenId;
 
-			jQuery
-				.ajax( {
-					url: getWcAjaxUrl(
-						'update_hosted_session_from_token',
-						hostedSessions.pluginPrefix
-					),
-					method: 'POST',
-					data,
-				} )
+			hostedSessions
+				.ajax( 'update_hosted_session_from_token', data )
 				.done( function ( res ) {
 					hostedSessions.$eventProxy.trigger( 'payment_response', [
 						res.data.response,
 					] );
 				} )
-				.fail( function ( res ) {
+				.fail( function ( xhr ) {
 					reject(
-						res?.data?.message ||
+						xhr?.responseJSON?.data?.message ||
 							__(
 								'There was an error with the payment authentication. Please try again.',
 								core_gateway_params.textDomain
@@ -840,14 +833,8 @@ const hostedSessions = {
 				return;
 			}
 
-			jQuery
-				.ajax( {
-					url: getWcAjaxUrl(
-						'reset_hosted_session',
-						hostedSessions.pluginPrefix
-					),
-					method: 'POST',
-				} )
+			hostedSessions
+				.ajax( 'reset_hosted_session', {} )
 				.done( function ( res ) {
 					hostedSessions.setSessionId( res );
 					hostedSessions.submitError(
@@ -1144,15 +1131,8 @@ const hostedSessions = {
 
 	execute3DsAuthentication( data ) {
 		return new Promise( ( resolve, reject ) => {
-			jQuery
-				.ajax( {
-					url: getWcAjaxUrl(
-						'authenticate_payer',
-						hostedSessions.pluginPrefix
-					),
-					method: 'POST',
-					data,
-				} )
+			hostedSessions
+				.ajax( 'authenticate_payer', data )
 				.done( function ( res ) {
 					if ( ! res?.success ) {
 						reject(
@@ -1200,9 +1180,9 @@ const hostedSessions = {
 						} )
 						.catch( reject );
 				} )
-				.fail( function ( res ) {
+				.fail( function ( xhr ) {
 					reject(
-						res?.data?.message ||
+						xhr?.responseJSON?.data?.message ||
 							__(
 								'There was an error with the payment authentication. Please try again.',
 								core_gateway_params.textDomain
@@ -1210,6 +1190,59 @@ const hostedSessions = {
 					);
 				} );
 		} );
+	},
+
+	/**
+	 * Absorb a refreshed AJAX nonce from a response's X-Payment-Core-Nonce header.
+	 *
+	 * @param {Object} xhr jqXHR object.
+	 */
+	absorbNonce( xhr ) {
+		const fresh = xhr?.getResponseHeader?.( 'X-Payment-Core-Nonce' );
+		if ( fresh ) {
+			core_gateway_params.ajaxNonce = fresh;
+		}
+	},
+
+	/**
+	 * POST to a WC-AJAX endpoint with the shared nonce, absorbing the refreshed
+	 * nonce from every response and self-healing a stale-nonce 403 by retrying
+	 * once. A 403 invalid_nonce is returned BEFORE the handler runs, so the retry
+	 * cannot double-execute the action.
+	 *
+	 * @param {string} method WC-AJAX action (without prefix).
+	 * @param {Object} data   POST data.
+	 * @return {Promise} Resolves with ( res, status, xhr ); rejects with xhr.
+	 */
+	ajax( method, data = {} ) {
+		const deferred = jQuery.Deferred();
+		const attempt = ( isRetry ) => {
+			data.nonce = core_gateway_params.ajaxNonce;
+			jQuery
+				.ajax( {
+					url: getWcAjaxUrl( method, hostedSessions.pluginPrefix ),
+					method: 'POST',
+					data,
+				} )
+				.done( function ( res, status, xhr ) {
+					hostedSessions.absorbNonce( xhr );
+					deferred.resolve( res, status, xhr );
+				} )
+				.fail( function ( xhr ) {
+					hostedSessions.absorbNonce( xhr );
+					if (
+						! isRetry &&
+						xhr?.status === 403 &&
+						xhr?.responseJSON?.data?.code === 'invalid_nonce'
+					) {
+						attempt( true );
+						return;
+					}
+					deferred.reject( xhr );
+				} );
+		};
+		attempt( false );
+		return deferred.promise();
 	},
 
 	dcc: {

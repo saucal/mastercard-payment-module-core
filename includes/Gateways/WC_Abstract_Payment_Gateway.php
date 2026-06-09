@@ -47,14 +47,6 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 
 	/**
-	 * Partner solution ID.
-	 *
-	 * @var string
-	 */
-	protected $partner_solution_id;
-
-
-	/**
 	 * Payment Token instance.
 	 *
 	 * @var PaymentToken
@@ -97,16 +89,6 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	 * Constructor.
 	 */
 	abstract public function __construct();
-
-
-	/**
-	 * Get the partner solution ID.
-	 *
-	 * @return string
-	 */
-	public function get_partner_solution_id() {
-		return $this->partner_solution_id;
-	}
 
 
 	/**
@@ -196,7 +178,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 		 *
 		 * @since 1.0.0
 		 */
-		return apply_filters( 'woocommerce_gateway_icon', $icon, $this->id );
+		return apply_filters( 'woocommerce_gateway_icon', $icon, $this->id ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WooCommerce core filter, re-applied for compatibility.
 	}
 
 
@@ -1271,7 +1253,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				throw new Exception( __( 'The request body is empty.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
-			$this->core_plugin->logger()->log( __( 'Webhook Notification: ', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) . $raw_body, 'info', 'PAYMENTS_CORE_HOOK_PREFIX-webhooks' );
+			$this->core_plugin->logger()->log( __( 'Webhook Notification: ', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) . wp_json_encode( $body ), 'info', 'PAYMENTS_CORE_HOOK_PREFIX-webhooks' );
 
 			$this->handle_webhook_request( $body, $order );
 
@@ -1355,7 +1337,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 		$notification_secret = $this->core_plugin->notification_secret();
 
-		if ( empty( $notification_secret ) || wc_clean( wp_unslash( $_SERVER['HTTP_X_NOTIFICATION_SECRET'] ) ) !== $notification_secret ) {
+		if ( empty( $notification_secret ) || wc_clean( wp_unslash( $_SERVER['HTTP_X_NOTIFICATION_SECRET'] ) ) !== $notification_secret ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 			return false;
 		}
 

@@ -155,7 +155,7 @@ final class Utils {
 			);
 			$order_id = current( $orders ) ? current( $orders )->get_id() : false;
 		} else {
-			$order_id = $wpdb->get_var( $wpdb->prepare( "SELECT DISTINCT ID FROM $wpdb->posts as posts LEFT JOIN $wpdb->postmeta as meta ON posts.ID = meta.post_id WHERE meta.meta_value = %s AND meta.meta_key = %s", $success_indicator, $order_meta_key ) );
+			$order_id = $wpdb->get_var( $wpdb->prepare( "SELECT DISTINCT ID FROM $wpdb->posts as posts LEFT JOIN $wpdb->postmeta as meta ON posts.ID = meta.post_id WHERE meta.meta_value = %s AND meta.meta_key = %s", $success_indicator, $order_meta_key ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- One-shot prepared lookup by unique success indicator during payment return; caching not applicable.
 		}
 
 		if ( ! empty( $order_id ) ) {

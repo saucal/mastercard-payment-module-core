@@ -102,7 +102,6 @@ trait Subscriptions {
 		// Handle subscription change payment method.
 		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_unique_order_id', array( $this, 'maybe_bump_order_id_change_payment_method' ), 10, 2 );
 		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_addon', array( $this, 'maybe_handle_sub_change_payment_method' ), 10, 2 );
-		add_action( 'wc_ajax_PAYMENTS_CORE_HOOK_PREFIX_update_hosted_session', array( $this, 'handle_change_payment_method' ) );
 		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_hosted_session_3ds_authenticate_payer_data', array( $this, 'maybe_change_3ds_return_url' ) );
 		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_3ds_return_redirect', array( $this, 'maybe_add_change_payment_method_flag' ) );
 		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_3ds_process_redirect', array( $this, 'maybe_change_3ds_processed_redirect' ), 10, 2 );
@@ -523,7 +522,7 @@ trait Subscriptions {
 			 *
 			 * @since 1.0.0
 			 */
-			do_action( 'processed_subscription_payments_for_order', $renewal_order );
+			do_action( 'processed_subscription_payments_for_order', $renewal_order ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WooCommerce Subscriptions integration hook.
 			/**
 			 * Fires after a scheduled subscription payment succeeds.
 			 *
@@ -551,7 +550,7 @@ trait Subscriptions {
 			 *
 			 * @since 1.0.0
 			 */
-			do_action( 'processed_subscription_payment_failure_for_order', $renewal_order );
+			do_action( 'processed_subscription_payment_failure_for_order', $renewal_order ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WooCommerce Subscriptions integration hook.
 			/**
 			 * Fires after a scheduled subscription payment fails.
 			 *
