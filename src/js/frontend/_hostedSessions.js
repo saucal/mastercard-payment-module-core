@@ -154,12 +154,9 @@ const hostedSessions = {
 		const savedToken = hostedSessions.isSavedToken();
 		hostedSessions.selectedTokenId = savedToken;
 		if ( !! savedToken ) {
-			hostedSessions.dcc.maybeTriggerCurrencyConversion();
 			return;
 		}
 
-		hostedSessions.dcc.setQuoteArea( '' );
-		hostedSessions.dcc.setQuoteId( '' );
 		hostedSessions.blockFieldset();
 		try {
 			PaymentSession.configure(
@@ -228,10 +225,6 @@ const hostedSessions = {
 
 				hostedSessions.dirtyFields[ role ] = true;
 
-				if ( role === 'number' ) {
-					hostedSessions.dcc.clearCachedQuote();
-				}
-
 				hostedSessions.validateForm().then( ( fieldResults ) => {
 					clearTimeout( timeoutBlock ); // If we didn't block yet, cancel it
 					hostedSessions.validateCardFields( fieldResults );
@@ -247,9 +240,6 @@ const hostedSessions = {
 				'card.expiryYear',
 			],
 			function ( selector, result, role ) {
-				if ( role === 'number' ) {
-					hostedSessions.dcc.clearCachedQuote();
-				}
 				hostedSessions.maybeResetPaymentSession( result?.errorReason );
 				hostedSessions.processValidatedField( selector, result );
 			}
@@ -257,13 +247,11 @@ const hostedSessions = {
 
 		PaymentSession.onCardTypeChange( ( selector, result ) => {
 			hostedSessions.dirtyFields.number = true;
-			hostedSessions.dcc.clearCachedQuote();
 			hostedSessions.processCardTypeChange( selector, result );
 		} );
 
 		PaymentSession.onCardBINChange( () => {
 			hostedSessions.dirtyFields.number = true;
-			hostedSessions.dcc.clearCachedQuote();
 			hostedSessions.validateForm().then( ( fieldResults ) => {
 				hostedSessions.validateCardFields( fieldResults );
 			} );
@@ -309,7 +297,7 @@ const hostedSessions = {
 		} );
 	},
 
-	validateCardFields( fieldResults, allowEmpty = true, doDCC = true ) {
+	validateCardFields( fieldResults, allowEmpty = true ) {
 		return new Promise( ( resolve ) => {
 			const roles = [
 				'number',
@@ -346,10 +334,7 @@ const hostedSessions = {
 				}
 			}
 
-			let promise = Promise.resolve();
-			if ( doDCC && valid ) {
-				promise = hostedSessions.dcc.maybeTriggerCurrencyConversion();
-			}
+			const promise = Promise.resolve();
 
 			promise.then( () => {
 				hostedSessions.unblockFieldset();
@@ -587,12 +572,6 @@ const hostedSessions = {
 				errors.push( error );
 			}
 
-			const dccErrors =
-				hostedSessions.dcc.validateCurrencyConversionData();
-			if ( dccErrors.length ) {
-				errors.push( ...dccErrors );
-			}
-
 			if ( errors.length ) {
 				reject( errors );
 				return;
@@ -606,11 +585,6 @@ const hostedSessions = {
 			if ( core_gateway_params.threeDsEnabled ) {
 				data[ `${ hostedSessions.pluginPrefix }_3ds_data` ] =
 					hostedSessions.get3DSData();
-			}
-
-			const dccData = hostedSessions.dcc.getCurrencyConversionData();
-			for ( const key in dccData ) {
-				data[ key ] = dccData[ key ];
 			}
 
 			if (
@@ -1243,360 +1217,6 @@ const hostedSessions = {
 		};
 		attempt( false );
 		return deferred.promise();
-	},
-
-	dcc: {
-		checked: false,
-		requesting: false,
-		currentNumber: null,
-		currentQuote: false,
-		currentQuoteKey: false,
-
-		setQuoteId( requestId ) {
-			return hostedSessions.dcc.getQuoteIdField().val( requestId );
-		},
-
-		getQuoteIdField() {
-			return jQuery( `#${ hostedSessions.pluginPrefix }_dcc_request_id` );
-		},
-
-		setQuoteArea( html ) {
-			const $dccWrapper = hostedSessions.dcc.getQuoteArea();
-			if ( $dccWrapper.length ) {
-				if ( $dccWrapper.data( 'offer-text' ) !== html ) {
-					$dccWrapper.data( 'offer-text', html );
-					$dccWrapper.html( html );
-				}
-			}
-		},
-
-		getQuoteArea( clean = false ) {
-			const $dccWrapper = jQuery(
-				`#${ hostedSessions.pluginPrefix }_currency_conversion`
-			);
-
-			if ( $dccWrapper.length && clean ) {
-				hostedSessions.dcc.setQuoteArea( '' );
-			}
-			return $dccWrapper;
-		},
-
-		maybeTriggerCurrencyConversion() {
-			if ( ! core_gateway_params.dccEnabled ) {
-				return Promise.resolve();
-			}
-
-			if ( hostedSessions.isChangePayment() ) {
-				// There's no point in showing DCC offers when changing payment methods
-				return Promise.resolve();
-			}
-
-			if ( hostedSessions.dcc.requesting ) {
-				return Promise.resolve();
-			}
-
-			const $dccWrapper = hostedSessions.dcc.getQuoteArea();
-
-			if ( ! $dccWrapper.length ) {
-				return Promise.resolve();
-			}
-
-			const $dccRequestId = hostedSessions.dcc.getQuoteIdField();
-
-			if ( ! $dccRequestId.length ) {
-				return Promise.resolve();
-			}
-
-			hostedSessions.dcc.requesting = true;
-
-			// Clean any previously set quotes
-			hostedSessions.dcc.setQuoteArea( '' );
-			hostedSessions.dcc.setQuoteId( '' );
-
-			hostedSessions.blockFieldset();
-
-			let quotePromise;
-
-			if ( !! hostedSessions.selectedTokenId ) {
-				quotePromise =
-					hostedSessions.dcc.requestCurrencyConversionQuoteSavedToken(
-						hostedSessions.selectedTokenId
-					);
-			} else {
-				quotePromise =
-					hostedSessions.dcc.requestCurrencyConversionQuote();
-			}
-
-			return quotePromise
-				.then( function ( res ) {
-					// Quote handled in the promise.
-					if ( res.offerText.length === 0 ) {
-						res.offerText =
-							'<input type="hidden" name="dccOfferState" value="Unavailable" />';
-					}
-					hostedSessions.dcc.setQuoteArea( res.offerText );
-					hostedSessions.dcc.setQuoteId( res.requestId );
-				} )
-				.catch( () => {
-					hostedSessions.dcc.setQuoteArea( '' );
-					hostedSessions.dcc.setQuoteId( '' );
-				} )
-				.finally( function () {
-					hostedSessions.unblockFieldset();
-					hostedSessions.dcc.requesting = false;
-				} );
-		},
-
-		getCachedQuote( key ) {
-			if (
-				key === hostedSessions.dcc.currentQuoteKey &&
-				hostedSessions.dcc.currentQuote !== false
-			) {
-				return hostedSessions.dcc.currentQuote;
-			}
-			return false;
-		},
-
-		cacheQuote( key, quote ) {
-			if ( typeof quote === 'undefined' ) {
-				return hostedSessions.dcc.getCachedQuote( key );
-			}
-
-			hostedSessions.dcc.currentQuoteKey = key;
-			hostedSessions.dcc.currentQuote = quote;
-
-			return hostedSessions.dcc.currentQuote;
-		},
-
-		clearCachedQuote() {
-			hostedSessions.dcc.currentQuoteKey = false;
-			hostedSessions.dcc.currentQuote = false;
-		},
-
-		requestCurrencyConversionQuote() {
-			return new Promise( function ( resolve, reject ) {
-				let promise;
-				if (
-					hostedSessions.fieldIsDirty( [
-						'number',
-						'expiryMonth',
-						'expiryYear',
-					] )
-				) {
-					promise = hostedSessions.updateSession();
-				} else {
-					promise = Promise.resolve(
-						hostedSessions.lastSessionUpdateResponse
-					);
-				}
-				promise
-					.then( function ( response ) {
-						if ( ! response?.status || response.status !== 'ok' ) {
-							return reject();
-						}
-
-						if (
-							! response?.session?.id ||
-							! response?.session?.version
-						) {
-							return reject();
-						}
-
-						if (
-							! response?.sourceOfFunds?.provided?.card?.number
-						) {
-							return reject();
-						}
-
-						const currentNumber =
-							response.sourceOfFunds.provided.card.number;
-
-						const cached =
-							hostedSessions.dcc.getCachedQuote( currentNumber );
-						if ( cached ) {
-							return resolve( cached );
-						}
-
-						hostedSessions.dcc.clearCachedQuote();
-
-						jQuery
-							.ajax( {
-								url: core_gateway_params.dccRequestEndpoint,
-								method: 'POST',
-								headers: {
-									Authorization: `Basic ${ btoa(
-										`merchant.${ core_gateway_params.merchantId }:${ response.session.id }`
-									) }`,
-									'Content-Type': 'application/json',
-									Accept: 'application/json',
-								},
-								data: JSON.stringify( {
-									apiOperation: 'PAYMENT_OPTIONS_INQUIRY',
-									session: {
-										id: response.session.id,
-										version: response.session.version,
-									},
-								} ),
-							} )
-							.done( function ( res ) {
-								if (
-									! res?.paymentTypes?.card
-										?.currencyConversion?.requestId
-								) {
-									return reject();
-								}
-
-								const conversionQuote =
-									res.paymentTypes.card?.currencyConversion;
-
-								return resolve(
-									hostedSessions.dcc.cacheQuote(
-										currentNumber,
-										{
-											requestId:
-												conversionQuote.requestId,
-											offerText:
-												conversionQuote.offerText || '',
-										}
-									)
-								);
-							} );
-					} )
-					.catch( reject );
-			} );
-		},
-
-		getCurrencyConversionDataRaw() {
-			const dccData = {};
-
-			if ( ! core_gateway_params.dccEnabled ) {
-				return dccData;
-			}
-
-			const $dccRequestId = hostedSessions.dcc.getQuoteIdField();
-			if ( ! $dccRequestId.length || $dccRequestId.val().length === 0 ) {
-				return dccData;
-			}
-
-			dccData.dccRequestId = $dccRequestId.val();
-
-			const $dccOfferState = jQuery( 'input[name="dccOfferState"]' );
-			if (
-				$dccOfferState.length === 1 &&
-				$dccOfferState.is( '[type="hidden"]' )
-			) {
-				dccData.dccOfferState = $dccOfferState.val();
-			} else if ( $dccOfferState.length > 1 ) {
-				if ( $dccOfferState.filter( ':checked' ).length ) {
-					dccData.dccOfferState = $dccOfferState
-						.filter( ':checked' )
-						.val();
-				} else {
-					dccData.dccOfferState = false;
-				}
-			} else {
-				dccData.dccOfferState = false;
-			}
-
-			return dccData;
-		},
-
-		getCurrencyConversionData() {
-			const dccData = {};
-
-			if ( ! core_gateway_params.dccEnabled ) {
-				return dccData;
-			}
-
-			const rawData = hostedSessions.dcc.getCurrencyConversionDataRaw();
-			if ( ! rawData.dccRequestId ) {
-				return dccData;
-			}
-
-			dccData[ `${ hostedSessions.pluginPrefix }_dcc_request_id` ] =
-				rawData.dccRequestId;
-			if ( rawData.dccOfferState !== false ) {
-				dccData.dccOfferState = rawData.dccOfferState;
-			}
-
-			return dccData;
-		},
-
-		validateCurrencyConversionData() {
-			const errors = [];
-
-			if ( ! core_gateway_params.dccEnabled ) {
-				return errors;
-			}
-
-			const data = hostedSessions.dcc.getCurrencyConversionDataRaw();
-
-			if ( ! data?.dccRequestId ) {
-				return errors;
-			}
-
-			if ( data?.dccOfferState === false ) {
-				errors.push(
-					__(
-						'Please select whether you want to accept or reject the currency conversion offer.',
-						core_gateway_params.textDomain
-					)
-				);
-			}
-
-			return errors;
-		},
-
-		requestCurrencyConversionQuoteSavedToken( tokenId ) {
-			return new Promise( function ( resolve, reject ) {
-				if ( ! tokenId ) {
-					return;
-				}
-
-				const cached = hostedSessions.dcc.getCachedQuote( tokenId );
-				if ( cached ) {
-					return resolve( cached );
-				}
-
-				hostedSessions.dcc.clearCachedQuote();
-
-				const data = {
-					token_id: tokenId,
-					nonce: core_gateway_params.dccNonce,
-				};
-
-				const orderId = hostedSessions.getCurrentOrderId() || undefined;
-				if ( orderId ) {
-					data.order_id = orderId;
-				}
-
-				jQuery
-					.ajax( {
-						url: getWcAjaxUrl(
-							'dcc_quote',
-							hostedSessions.pluginPrefix
-						),
-						method: 'POST',
-						data,
-					} )
-					.done( function ( res ) {
-						if (
-							! res?.success ||
-							! res?.data?.requestId ||
-							! res?.data?.offerText
-						) {
-							return reject();
-						}
-
-						return resolve(
-							hostedSessions.dcc.cacheQuote( tokenId, {
-								requestId: res.data.requestId,
-								offerText: res.data.offerText,
-							} )
-						);
-					} );
-			} );
-		},
 	},
 };
 
