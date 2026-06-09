@@ -2732,12 +2732,36 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 
 	/**
+	 * Verify the shared AJAX nonce and refresh it on the response.
+	 *
+	 * Emits a fresh nonce for the CURRENT user identity in a response header on
+	 * every call (header, not body, so response payloads stay untouched). The
+	 * frontend absorbs it to stay fresh, and self-heals a stale nonce — which can
+	 * happen when checkout creates and logs in an account mid-flow — by retrying
+	 * once. Mirrors WooCommerce Store API's per-response nonce refresh.
+	 *
+	 * @return void
+	 */
+	protected function verify_ajax_nonce() {
+		$action = 'PAYMENTS_CORE_HOOK_PREFIX_ajax_nonce';
+
+		if ( ! headers_sent() ) {
+			header( 'X-Payment-Core-Nonce: ' . wp_create_nonce( $action ) );
+		}
+
+		if ( ! check_ajax_referer( $action, 'nonce', false ) ) {
+			wp_send_json_error( array( 'code' => 'invalid_nonce' ), 403 );
+		}
+	}
+
+
+	/**
 	 * Maybe clean hosted cached session.
 	 *
 	 * @return void
 	 */
 	public function ajax_clean_hosted_cached_session() {
-		check_ajax_referer( 'PAYMENTS_CORE_HOOK_PREFIX_ajax_nonce', 'nonce' );
+		$this->verify_ajax_nonce();
 		$this->maybe_clean_hosted_cached_session();
 		wp_send_json(
 			$this->hosted_session_id()
@@ -2750,9 +2774,9 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return void
 	 */
 	public function ajax_update_hosted_session_from_token() {
-		check_ajax_referer( 'PAYMENTS_CORE_HOOK_PREFIX_ajax_nonce', 'nonce' );
-		$session_id = wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_session_id'] ?? $this->hosted_session_id() ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-		$token_id   = wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_token_id'] ?? '' ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		$this->verify_ajax_nonce();
+		$session_id = wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_session_id'] ?? $this->hosted_session_id() ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in verify_ajax_nonce().
+		$token_id   = wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_token_id'] ?? '' ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in verify_ajax_nonce().
 
 		$updated_session = $this->update_session_with_token( $session_id, $token_id, true );
 
@@ -2775,7 +2799,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @throws Exception Exception.
 	 */
 	public function ajax_authenticate_payer() {
-		check_ajax_referer( 'PAYMENTS_CORE_HOOK_PREFIX_ajax_nonce', 'nonce' );
+		$this->verify_ajax_nonce();
 
 		// The authentication is not required if 3DS is disabled.
 		if ( ! $this->enable_3ds ) {
@@ -2785,11 +2809,11 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		try {
 			$order = null;
 
-			if ( ! isset( $_POST['order_id'] ) ) {
+			if ( ! isset( $_POST['order_id'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in verify_ajax_nonce().
 				throw new Exception( __( 'Missing order ID.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
-			$order_id = wc_clean( wp_unslash( $_POST['order_id'] ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+			$order_id = wc_clean( wp_unslash( $_POST['order_id'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in verify_ajax_nonce().
 			if ( 'add_payment_method' !== $order_id ) {
 				$order_id = absint( $order_id );
 				if ( ! $order_id ) {
