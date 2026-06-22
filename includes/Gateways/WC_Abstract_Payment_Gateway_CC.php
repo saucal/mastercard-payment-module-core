@@ -2734,12 +2734,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	/**
 	 * Verify the shared AJAX nonce and refresh it on the response.
 	 *
-	 * Emits a fresh nonce for the CURRENT user identity in a response header on
-	 * every call (header, not body, so response payloads stay untouched). The
-	 * frontend absorbs it to stay fresh, and self-heals a stale nonce — which can
-	 * happen when checkout creates and logs in an account mid-flow — by retrying
-	 * once. Mirrors WooCommerce Store API's per-response nonce refresh.
-	 *
 	 * @return void
 	 */
 	protected function verify_ajax_nonce() {
