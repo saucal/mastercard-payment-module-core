@@ -284,7 +284,7 @@ final class Main {
 		 *
 		 * @since 1.0.0
 		 */
-		return apply_filters( 'payment_core_version', CORE_VERSION );
+		return apply_filters( 'payment_core_version', MC_CORE_VERSION );
 	}
 
 

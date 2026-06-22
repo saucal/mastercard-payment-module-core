@@ -1035,7 +1035,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 		}
 
 		$amount = $transaction['amount'] ?? 0;
-		$reason = $transaction['reason'] ?? '';
+		$reason = sanitize_text_field( $transaction['reason'] ?? '' );
 
 		$order_note = sprintf(
 			// translators: %1$s: Refund reason, %2$s: Refund amount.
@@ -1119,7 +1119,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 		$voided_refund->delete( true );
 
 		/* translators: %s: transaction ID */
-		$order->add_order_note( sprintf( __( 'Refund was cancelled. Transaction ID: %s', '__PAYMENTS_CORE_TEXT_DOMAIN__' ), $transaction['id'] ) );
+		$order->add_order_note( sprintf( __( 'Refund was cancelled. Transaction ID: %s', '__PAYMENTS_CORE_TEXT_DOMAIN__' ), sanitize_text_field( $transaction['id'] ) ) );
 
 		$this->flag_transaction_as_processed( $order, $transaction['id'] );
 	}
@@ -1215,11 +1215,12 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 			);
 		}
 
-		if ( ! empty( $transaction['dispute']['reason'] ) ) {
+		$dispute_reason = sanitize_text_field( $transaction['dispute']['reason'] ?? '' );
+		if ( ! empty( $dispute_reason ) ) {
 			$message .= ' ' . sprintf(
 				/* translators: %s: chargeback reason */
 				__( 'Reason: %s', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
-				$transaction['dispute']['reason']
+				$dispute_reason
 			);
 		}
 
@@ -1337,7 +1338,9 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 		$notification_secret = $this->core_plugin->notification_secret();
 
-		if ( empty( $notification_secret ) || wc_clean( wp_unslash( $_SERVER['HTTP_X_NOTIFICATION_SECRET'] ) ) !== $notification_secret ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		$received_secret = wc_clean( wp_unslash( $_SERVER['HTTP_X_NOTIFICATION_SECRET'] ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+
+		if ( empty( $notification_secret ) || ! hash_equals( $notification_secret, $received_secret ) ) {
 			return false;
 		}
 
@@ -1416,8 +1419,8 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				$order_note_msg = sprintf(
 					/* translators: %1$s: original transaction ID, %2$s: void transaction ID */
 					__( 'Webhook Notification: Payment Transaction ID: %1$s was voided (Void Transaction ID: %2$s)', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
-					$transaction['targetTransactionId'] ?? '',
-					$transaction['id'] ?? '',
+					sanitize_text_field( $transaction['targetTransactionId'] ?? '' ),
+					sanitize_text_field( $transaction['id'] ?? '' ),
 				);
 				$order_status_msg = __( 'Payment was voided.', '__PAYMENTS_CORE_TEXT_DOMAIN__' );
 				break;
@@ -1425,8 +1428,8 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				$order_note_msg = sprintf(
 					/* translators: %1$s: original transaction ID, %2$s: void transaction ID */
 					__( 'Webhook Notification: Capture Transaction ID: %1$s was voided (Void Transaction ID: %2$s)', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
-					$transaction['targetTransactionId'] ?? '',
-					$transaction['id'] ?? '',
+					sanitize_text_field( $transaction['targetTransactionId'] ?? '' ),
+					sanitize_text_field( $transaction['id'] ?? '' ),
 				);
 				$order_status_msg = __( 'Capture was voided.', '__PAYMENTS_CORE_TEXT_DOMAIN__' );
 				break;
@@ -1434,8 +1437,8 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				$order_note_msg = sprintf(
 					/* translators: %1$s: original transaction ID, %2$s: void transaction ID */
 					__( 'Webhook Notification: Authorization Transaction ID: %1$s was voided (Void Transaction ID: %2$s)', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
-					$transaction['targetTransactionId'] ?? '',
-					$transaction['id'] ?? '',
+					sanitize_text_field( $transaction['targetTransactionId'] ?? '' ),
+					sanitize_text_field( $transaction['id'] ?? '' ),
 				);
 				$order_status_msg = __( 'Authorization was voided.', '__PAYMENTS_CORE_TEXT_DOMAIN__' );
 				break;

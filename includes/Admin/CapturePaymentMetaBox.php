@@ -144,7 +144,7 @@ class CapturePaymentMetaBox {
 			return;
 		}
 
-		// phpcs:ignore WordPress.Security.NonceVerification, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		// phpcs:ignore WordPress.Security.NonceVerification, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce + edit_shop_order cap verified by WooCommerce core before this hook fires.
 		$void_transaction = isset( $_POST['PAYMENTS_CORE_HOOK_PREFIX_void_transaction'] ) ? wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_void_transaction'] ) ) : 0;
 		if ( $void_transaction ) {
 			// Void transaction takes precedence over capture.
@@ -152,7 +152,7 @@ class CapturePaymentMetaBox {
 			return;
 		}
 
-		// phpcs:ignore WordPress.Security.NonceVerification, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		// phpcs:ignore WordPress.Security.NonceVerification, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce + edit_shop_order cap verified by WooCommerce core before this hook fires.
 		$capture_amount = isset( $_POST['PAYMENTS_CORE_HOOK_PREFIX_capture_amount'] ) ? wc_format_decimal( wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_capture_amount'] ) ) ) : 0;
 		if ( $capture_amount <= 0 ) {
 			return;
