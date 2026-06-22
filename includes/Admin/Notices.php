@@ -87,7 +87,7 @@ final class Notices {
 			$message .= ' ' . sprintf(
 				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
 				__( 'Verify your connection %1$shere%2$s', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
-				'<a href="' . $this->core_plugin->settings_url() . '">',
+				'<a href="' . esc_url( $this->core_plugin->settings_url() ) . '">',
 				'</a>',
 			);
 		}
@@ -134,14 +134,14 @@ final class Notices {
 			$message .= ' ' . sprintf(
 				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
 				__( 'Set the Notification Secret %1$son the settings page%2$s.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
-				'<a href="' . $this->core_plugin->settings_url() . '#woocommerce_' . $this->core_plugin->plugin_id() . '_webhook">',
+				'<a href="' . esc_url( $this->core_plugin->settings_url() . '#woocommerce_' . $this->core_plugin->plugin_id() . '_webhook' ) . '">',
 				'</a>',
 			);
 		} else {
 			$message .= ' ' . sprintf(
 				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
 				__( 'Please add your notification secret %1$shere%2$s.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
-				'<a href="#woocommerce_' . $this->core_plugin->plugin_id() . '_webhook">',
+				'<a href="' . esc_url( '#woocommerce_' . $this->core_plugin->plugin_id() . '_webhook' ) . '">',
 				'</a>',
 			);
 		}

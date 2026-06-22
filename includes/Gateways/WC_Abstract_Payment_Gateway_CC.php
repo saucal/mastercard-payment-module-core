@@ -2734,12 +2734,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	/**
 	 * Verify the shared AJAX nonce and refresh it on the response.
 	 *
-	 * Emits a fresh nonce for the CURRENT user identity in a response header on
-	 * every call (header, not body, so response payloads stay untouched). The
-	 * frontend absorbs it to stay fresh, and self-heals a stale nonce — which can
-	 * happen when checkout creates and logs in an account mid-flow — by retrying
-	 * once. Mirrors WooCommerce Store API's per-response nonce refresh.
-	 *
 	 * @return void
 	 */
 	protected function verify_ajax_nonce() {
@@ -2775,8 +2769,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	public function ajax_update_hosted_session_from_token() {
 		$this->verify_ajax_nonce();
-		$session_id = wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_session_id'] ?? $this->hosted_session_id() ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in verify_ajax_nonce().
-		$token_id   = wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_token_id'] ?? '' ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in verify_ajax_nonce().
+		$session_id = wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_session_id'] ?? $this->hosted_session_id() ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified in verify_ajax_nonce(); input sanitized via wc_clean().
+		$token_id   = wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_token_id'] ?? '' ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified in verify_ajax_nonce(); input sanitized via wc_clean().
 
 		$updated_session = $this->update_session_with_token( $session_id, $token_id, true );
 
@@ -2813,7 +2807,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				throw new Exception( __( 'Missing order ID.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
-			$order_id = wc_clean( wp_unslash( $_POST['order_id'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in verify_ajax_nonce().
+			$order_id = wc_clean( wp_unslash( $_POST['order_id'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified in verify_ajax_nonce(); input sanitized via wc_clean().
 			if ( 'add_payment_method' !== $order_id ) {
 				$order_id = absint( $order_id );
 				if ( ! $order_id ) {

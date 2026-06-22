@@ -15,6 +15,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Define constants.
-if ( ! defined( 'CORE_VERSION' ) ) {
-	define( 'CORE_VERSION', '1.0.0' );
+if ( ! defined( 'MC_CORE_VERSION' ) ) {
+	define( 'MC_CORE_VERSION', '1.0.0' ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound
 }
