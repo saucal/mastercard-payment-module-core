@@ -1254,6 +1254,8 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 				throw new Exception( __( 'The request body is empty.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
+			$body = wc_clean( $body );
+
 			$this->core_plugin->logger()->log( __( 'Webhook Notification: ', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) . wp_json_encode( $body ), 'info', 'PAYMENTS_CORE_HOOK_PREFIX-webhooks' );
 
 			$this->handle_webhook_request( $body, $order );
