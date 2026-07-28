@@ -364,9 +364,6 @@ final class GatewaySettings {
 
 		$supported_operations_explain = wp_list_pluck( $supported_operations, 'explain' );
 
-		// TODO: Move to the Subscription addon class.
-		$supported_operations_explain['subscriptions'] = '' . __( 'This setting does not affect subscriptions; charges for orders related to subscriptions are always captured.', '__PAYMENTS_CORE_TEXT_DOMAIN__' );
-
 		// Checkout modes options and explanations.
 		$checkout_modes         = self::checkout_modes();
 		$checkout_modes_options = wp_list_pluck( $checkout_modes, 'label' );

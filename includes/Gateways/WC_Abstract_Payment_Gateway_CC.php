@@ -27,12 +27,6 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gateway {
 
-	// Register the Addons trait.
-	use \GatewayPaymentCore\GatewayAddons\Subscriptions;
-	use \GatewayPaymentCore\GatewayAddons\PreOrders;
-	use \GatewayPaymentCore\GatewayAddons\DynamicCurrencyConversion;
-
-
 	/**
 	 * Hosted checkout handle.
 	 *
@@ -128,13 +122,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	protected $display_save_checkbox = true;
 
-	/**
-	 * List of disabled addons.
-	 *
-	 * @var array
-	 */
-	protected $disabled_addons = array();
-
 
 	/**
 	 * Initialize the gateway.
@@ -161,9 +148,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		// Load the gateway support features.
 		$this->init_supports();
-
-		// Initialize the Addons.
-		$this->init_addons();
 
 		// Load the form fields.
 		$this->init_form_fields();
@@ -209,26 +193,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		}
 
 		$this->supports = $supports;
-	}
-
-
-	/**
-	 * Initialize addons.
-	 *
-	 * @return void
-	 */
-	public function init_addons() {
-		$addons = array(
-			'subscriptions'               => 'init_addon_subscriptions',
-			'pre_orders'                  => 'init_addon_pre_orders',
-			'dynamic_currency_conversion' => 'init_addon_dcc',
-		);
-		foreach ( $addons as $addon => $init_method ) {
-			if ( in_array( $addon, $this->disabled_addons, true ) ) {
-				continue;
-			}
-			$this->{$init_method}();
-		}
 	}
 
 
@@ -642,16 +606,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			 * @since 1.0.0
 			 */
 			do_action( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_before', $order );
-
-			/**
-			 * Filter to allow addons to handle payment processing.
-			 *
-			 * @since 1.0.0
-			 */
-			$addon_payment = apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_addon', false, $order );
-			if ( ! empty( $addon_payment ) && is_array( $addon_payment ) ) {
-				return $addon_payment;
-			}
 
 			// Prevent double payment processing if the order is already paid. Specially relevant for hosted checkout mode.
 			if ( ! empty( $order->get_date_paid( 'edit' ) ) || $this->maybe_flag_order_as_paid( $order, false ) ) {
