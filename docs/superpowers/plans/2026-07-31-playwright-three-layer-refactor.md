@@ -27,7 +27,12 @@ next.
 - Preserve existing assertion **behavior** exactly — this is a relocation of
   code, not a rewrite of what's checked. Where a moved function drops a
   provably-dead/unused parameter (confirmed unused at every call site), that
-  is allowed (see Task 3) — it is not a behavior change.
+  is allowed (see Task 3) — it is not a behavior change. **Task 4 is the one
+  deliberate exception**: email verification's transport moves from Mailpit
+  to the `custom/v1/get-mail` DB endpoint (matching the bluesnap/payoneer
+  convergence) — what's asserted about each email is unchanged, how it's
+  fetched is not, and that task carries its own live-verification step
+  because of it.
 - Every task must leave the suite green on: `npx tsc --noEmit` (from
   `tests/Playwright/`) and `npx playwright test --list` reporting the same
   test names/count as before the task.
@@ -333,116 +338,138 @@ git commit -m "refactor(playwright): fold log-verification.ts into assertions.ts
 
 ---
 
-### Task 4: Split `email-verification.ts` — Mailpit client → `wc-api.ts`, assertions → `assertions.ts`
+### Task 4: Replace Mailpit with the `get-mail` DB endpoint; split into `wc-api.ts` + `assertions.ts`
+
+**Discovered mid-plan (2026-07-31)**: `bluesnap-automation`/`payoneer-v4-automation`
+converged on 2026-06-18 away from external mail-catchers onto querying WP
+Mail Logging's DB table via a REST route on their helper plugin
+(`docs/superpowers/specs/2026-06-18-bluesnap-email-extraction-convergence-design.md`
+in `bluesnap-automation`). The mastercard test site's helper plugin,
+`ghost-inspector-runner` (source: `/Users/christian/helper/ghost-inspector-runner-mastercard-1.4.1.zip`,
+`includes/custom-endpoints.php:190-282`), **already exposes the same
+endpoint** at `custom/v1/get-mail` — same namespace `wc-api.ts` already
+calls for `/get-log`, `/update-option`, `/to_checkout_classic`, same
+Basic-Auth `administrator`-capability permission model (`wpAuthHeaders()`
+already used for every other `custom/v1` call works unchanged). Response
+shape: `{ table, count, mails: [{ mail_id, timestamp, receiver, subject,
+headers, message }] }`, newest first, query params `to`/`subject`/
+`contains`/`since`/`limit` (all optional, AND-combined, substring `LIKE`
+except `since` which is `>=`).
+
+This task replaces Mailpit entirely (no fallback kept) with a client for
+that endpoint, while preserving the exact external signatures and
+admin-vs-customer subject-heuristic matching logic `email-verification.ts`
+already has today — only the transport changes, and the `getMessageHtml`
+round-trip disappears since `get-mail`'s `message` column already is the
+full body (one HTTP call instead of two).
+
+**Verify before starting**: confirm `custom/v1/get-mail` actually responds
+on the live test site —
+
+```bash
+curl -s -u "$WP_USERNAME:$WP_API_PASS" "$WP_BASE_URL/wp-json/custom/v1/get-mail?limit=1"
+```
+Expected: JSON with a `table`/`count`/`mails` shape (even if `mails` is
+empty). A 404 `wpml_table_missing` means WP Mail Logging isn't active/
+migrated on that site — stop and resolve that first, this task can't proceed
+without it. A 404 with no such route at all means the deployed
+`ghost-inspector-runner` plugin version predates this endpoint — stop and
+get it updated to (at least) 1.4.1 first.
 
 **Files:**
-- Modify: `tests/Playwright/helpers/wc-api.ts` (append Mailpit client)
+- Modify: `tests/Playwright/helpers/wc-api.ts` (append `get-mail` client)
 - Modify: `tests/Playwright/helpers/assertions.ts` (append email assertions)
 - Delete: `tests/Playwright/helpers/email-verification.ts`
 - Modify: every suite importing from `../../helpers/email-verification`
 
 **Interfaces:**
-- Produces: `wc-api.ts` additionally exports `searchMessages` (private today,
-  keep private — only used internally), `getMessageHtml` (private, keep
-  private), `clearMessages`, `waitForEmails` (private, keep private).
-  Public surface added to `wc-api.ts`: `clearMessages`.
+- Produces: `wc-api.ts` additionally exports the `LoggedMail` type and
+  `getLoggedMail(opts, poll?): Promise<LoggedMail[]>`.
 - `assertions.ts` additionally exports `verifyOrderEmails`,
-  `verifyAdminEmail`, `verifyCustomerEmail` — identical signatures to today.
+  `verifyAdminEmail`, `verifyCustomerEmail` — **identical signatures to
+  today** (`(orderNumber, options)`), so no caller besides the import path
+  needs to change.
 
-- [ ] **Step 1: Move the Mailpit client into `wc-api.ts`**
-
-Append to `wc-api.ts` (add `MAILPIT_URL` alongside the existing `BASE_URL`
-const block at the top of the file):
+- [ ] **Step 1: Add the `get-mail` client to `wc-api.ts`**
 
 ```ts
-const MAILPIT_URL = process.env.MAILPIT_URL || 'http://mail.saucal.lndo.site';
-if (MAILPIT_URL.startsWith('https')) {
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+export interface LoggedMail {
+  mail_id: number;
+  timestamp: string;
+  receiver: string;
+  subject: string;
+  headers: string;
+  message: string; // full HTML/text body WordPress generated
 }
 
-interface MailpitMessage {
-  ID: string;
-  Subject: string;
-  From: { Address: string; Name: string };
-  To: Array<{ Address: string; Name: string }>;
-  Date: string;
-  Snippet: string;
+interface LoggedMailResponse {
+  table: string;
+  count: number;
+  mails: LoggedMail[];
 }
 
-interface MailpitSearchResponse {
-  total: number;
-  messages: MailpitMessage[];
-}
+/**
+ * Poll custom/v1/get-mail (backed by the WP Mail Logging DB table) until at
+ * least one matching row appears, or the timeout elapses. `contains` is
+ * matched against the DB row's full message body server-side.
+ */
+export async function getLoggedMail(
+  opts: { to?: string; subject?: string; contains?: string; since?: string; limit?: number },
+  poll: { timeoutMs?: number; intervalMs?: number } = {},
+): Promise<LoggedMail[]> {
+  const timeoutMs = poll.timeoutMs ?? 60000;
+  const intervalMs = poll.intervalMs ?? 3000;
+  const deadline = Date.now() + timeoutMs;
 
-async function searchMessages(query: string): Promise<MailpitMessage[]> {
-  const res = await fetch(`${MAILPIT_URL}/api/v1/search?query=${encodeURIComponent(query)}`);
-  if (!res.ok) throw new Error(`Mailpit search failed: ${res.status}`);
-  const data: MailpitSearchResponse = await res.json();
-  return data.messages || [];
-}
-
-async function getMessageHtml(messageId: string): Promise<string> {
-  const res = await fetch(`${MAILPIT_URL}/api/v1/message/${messageId}`);
-  if (!res.ok) throw new Error(`Mailpit get message failed: ${res.status}`);
-  const data = await res.json();
-  return data.HTML || data.Text || '';
-}
-
-export async function clearMessages(): Promise<void> {
-  await fetch(`${MAILPIT_URL}/api/v1/messages`, { method: 'DELETE' });
-}
-
-async function waitForEmails(query: string, expectedCount: number, timeout = 30000): Promise<MailpitMessage[]> {
-  const start = Date.now();
-  while (Date.now() - start < timeout) {
-    const messages = await searchMessages(query);
-    if (messages.length >= expectedCount) return messages;
-    await new Promise(r => setTimeout(r, 2000));
+  for (;;) {
+    const params = new URLSearchParams({
+      ...(opts.to ? { to: opts.to } : {}),
+      ...(opts.subject ? { subject: opts.subject } : {}),
+      ...(opts.contains ? { contains: opts.contains } : {}),
+      ...(opts.since ? { since: opts.since } : {}),
+      limit: String(opts.limit ?? 100),
+    });
+    const res = await fetch(`${BASE_URL}/wp-json/custom/v1/get-mail?${params}`, { headers: wpAuthHeaders() });
+    if (!res.ok) throw new Error(`getLoggedMail failed: ${res.status}`);
+    const data: LoggedMailResponse = await res.json();
+    if (data.mails.length > 0) return data.mails;
+    if (Date.now() >= deadline) return [];
+    await new Promise(r => setTimeout(r, intervalMs));
   }
-  throw new Error(`Timed out waiting for ${expectedCount} emails matching "${query}"`);
 }
-
-export type { MailpitMessage };
-export { searchMessages, getMessageHtml, waitForEmails };
 ```
 
-(`searchMessages`/`getMessageHtml`/`waitForEmails` are exported so
-`assertions.ts` can import them, even though no suite calls them directly —
-mirrors today's module boundary where only `email-verification.ts` used
-them.)
+- [ ] **Step 2: Rewrite the assertion functions in `assertions.ts`**
 
-- [ ] **Step 2: Move the assertion functions into `assertions.ts`**
-
-Append to `assertions.ts`, importing `waitForEmails`, `getMessageHtml` from
-`./wc-api`:
+Append to `assertions.ts`, importing `getLoggedMail` from `./wc-api`. Logic
+is the original subject-heuristic matching, unchanged — only the data
+source and the dropped second fetch differ:
 
 ```ts
-function assertPaymentMethodInEmail(html: string, paymentMethodTitle: string): void {
-  expect(html).toContain(paymentMethodTitle);
+function assertPaymentMethodInEmail(mail: LoggedMail, paymentMethodTitle: string): void {
+  expect(mail.message).toContain(paymentMethodTitle);
 }
 
 export async function verifyOrderEmails(
   orderNumber: string,
   options: { paymentMethodTitle: string; adminEmail?: string; customerEmail?: string }
 ): Promise<void> {
-  const messages = await waitForEmails(orderNumber, 2);
+  const mails = await getLoggedMail({ contains: orderNumber });
 
-  const adminMsg = messages.find(m =>
-    m.Subject.toLowerCase().includes('new order') || m.Subject.includes(`Order #${orderNumber}`)
+  const adminMsg = mails.find(m =>
+    m.subject.toLowerCase().includes('new order') || m.subject.includes(`Order #${orderNumber}`)
   );
-  const customerMsg = messages.find(m =>
-    m.Subject.toLowerCase().includes('order has been received') ||
-    m.Subject.toLowerCase().includes('order is on') ||
-    m.Subject.toLowerCase().includes('your order')
+  const customerMsg = mails.find(m =>
+    m.subject.toLowerCase().includes('order has been received') ||
+    m.subject.toLowerCase().includes('order is on') ||
+    m.subject.toLowerCase().includes('your order')
   );
 
   expect(adminMsg, `Admin email for order ${orderNumber} not found`).toBeTruthy();
-  const adminHtml = await getMessageHtml(adminMsg!.ID);
-  assertPaymentMethodInEmail(adminHtml, options.paymentMethodTitle);
+  assertPaymentMethodInEmail(adminMsg!, options.paymentMethodTitle);
 
   if (customerMsg) {
-    const customerHtml = await getMessageHtml(customerMsg.ID);
-    assertPaymentMethodInEmail(customerHtml, options.paymentMethodTitle);
+    assertPaymentMethodInEmail(customerMsg, options.paymentMethodTitle);
   }
 }
 
@@ -451,34 +478,39 @@ export async function verifyAdminEmail(
   options: { paymentMethodTitle: string; adminEmail?: string }
 ): Promise<void> {
   const adminAddr = options.adminEmail || 'admin@';
-  const messages = await waitForEmails(orderNumber, 1);
+  const mails = await getLoggedMail({ contains: orderNumber });
 
-  const adminMsg = messages.find(m =>
-    m.To.some(to => to.Address.includes(adminAddr)) ||
-    m.Subject.toLowerCase().includes('new order')
+  const adminMsg = mails.find(m =>
+    m.receiver.includes(adminAddr) ||
+    m.subject.toLowerCase().includes('new order')
   );
   expect(adminMsg).toBeTruthy();
-
-  const html = await getMessageHtml(adminMsg!.ID);
-  expect(html).toContain(options.paymentMethodTitle);
+  assertPaymentMethodInEmail(adminMsg!, options.paymentMethodTitle);
 }
 
 export async function verifyCustomerEmail(
   orderNumber: string,
   options: { paymentMethodTitle: string; customerEmail: string }
 ): Promise<void> {
-  const messages = await waitForEmails(orderNumber, 1);
+  const mails = await getLoggedMail({ contains: orderNumber });
 
-  const customerMsg = messages.find(m =>
-    m.To.some(to => to.Address === options.customerEmail) ||
-    (m.Subject.toLowerCase().includes('order') && !m.Subject.toLowerCase().includes('new order'))
+  const customerMsg = mails.find(m =>
+    m.receiver === options.customerEmail ||
+    (m.subject.toLowerCase().includes('order') && !m.subject.toLowerCase().includes('new order'))
   );
   expect(customerMsg).toBeTruthy();
-
-  const html = await getMessageHtml(customerMsg!.ID);
-  expect(html).toContain(options.paymentMethodTitle);
+  assertPaymentMethodInEmail(customerMsg!, options.paymentMethodTitle);
 }
 ```
+
+Note the original Mailpit version searched by `orderNumber` as a free-text
+query (Mailpit's search matched subject/body); `get-mail`'s `contains`
+param is a body-only `LIKE`. If WooCommerce's admin/customer subject lines
+for this plugin always embed the order number in the body too (true for
+stock WooCommerce order-confirmation templates), this is a faithful
+equivalent — confirm during Step 4's live check that both `adminMsg` and
+`customerMsg` are actually found for a real order, not just that the call
+doesn't throw.
 
 - [ ] **Step 3: Delete the old file and fix every importer**
 
@@ -488,22 +520,27 @@ grep -rln "from '../../helpers/email-verification'" tests --include='*.ts'
 ```
 For each match, change the import path to `'../../helpers/assertions'`
 (the only names ever imported from this module across the codebase are
-`verifyOrderEmails`/`verifyAdminEmail`/`verifyCustomerEmail`/`clearMessages`
-— if a file imports `clearMessages`, point that one name at `'../../helpers/wc-api'`
-instead, since it lives there now).
+`verifyOrderEmails`/`verifyAdminEmail`/`verifyCustomerEmail`).
 
-- [ ] **Step 4: Verify**
+- [ ] **Step 4: Verify — static, then live**
 
 ```bash
 npx tsc --noEmit
 npx playwright test --list | tail -1
 ```
+Then, since this task changes real network behavior (not just code
+location), run at least one suite that calls `verifyOrderEmails` against
+the real site if reachable (e.g. `npx playwright test tests/01-hosted-session-capture-classic -g "MC-004"`)
+and confirm the admin+customer email assertions actually pass — this is the
+one task in the mechanical Phase A where "relocate and trust tsc" isn't
+enough, because the data source itself changed. If no site access, say so
+explicitly and flag this task's live verification as still outstanding.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add -A
-git commit -m "refactor(playwright): split email-verification.ts into wc-api.ts + assertions.ts"
+git commit -m "refactor(playwright): replace Mailpit with custom/v1/get-mail DB endpoint"
 ```
 
 ---

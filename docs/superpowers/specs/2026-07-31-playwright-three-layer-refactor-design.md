@@ -100,9 +100,33 @@ Mailpit), matching the reference projects.
   `assertPaymentMethodMeta`, `assertPaymentMethodInLineItems`,
   `assertCaptureFormVisible`, `assertVoidFormVisible`.
 
-**`email-verification.ts` → deleted, split two ways:** low-level Mailpit
-client → `wc-api.ts` (above); `verifyOrderEmails`, `verifyAdminEmail`,
-`verifyCustomerEmail`, `assertPaymentMethodInEmail` (private) → `assertions.ts`.
+**`email-verification.ts` → deleted, transport swapped, not just relocated.**
+Mid-plan discovery (2026-07-31): `bluesnap-automation`/`payoneer-v4-automation`
+converged on 2026-06-18 (`docs/superpowers/specs/2026-06-18-bluesnap-email-extraction-convergence-design.md`
+in that repo) on reading WordPress's own WP Mail Logging DB table
+(`{prefix}wpml_mails`) via a REST route on their companion helper plugin,
+instead of polling an external mail-catcher (Playgrounds there; **Mailpit**
+here — same category of dependency). The mastercard test site's own helper
+plugin (`ghost-inspector-runner`, `/Users/christian/helper/ghost-inspector-runner-mastercard-1.4.1.zip`,
+`includes/custom-endpoints.php:190-282`) **already exposes the identical
+endpoint** at `custom/v1/get-mail` — same namespace payment-module-core's
+`wc-api.ts` already calls for `/get-log`, `/update-option`,
+`/to_checkout_classic`/`/to_checkout_blocks`, same Basic-Auth
+(`administrator` capability) permission model. No server-side work needed,
+assuming the deployed plugin on `mastercard-saucal.sa.ngrok.io` matches this
+zip (verify during implementation — see Task 4 in the plan).
+
+This is a **behavior-preserving transport swap, not a coverage change**: the
+external signatures `verifyOrderEmails`/`verifyAdminEmail`/`verifyCustomerEmail`
+stay identical, and the admin-vs-customer subject-heuristic matching logic
+is preserved verbatim — only the fetch mechanism moves from
+Mailpit HTTP search+get to one `get-mail` DB query (which also removes the
+second HTTP round-trip Mailpit needed, since `get-mail`'s `message` column
+already is the full body). `MAILPIT_URL` and the Mailpit-specific fetch
+helpers are deleted entirely, not kept as a fallback. Result location is
+unchanged from the original mapping: the DB client (`getLoggedMail`, and
+the private search/fetch helpers) → `wc-api.ts`; `verifyOrderEmails`,
+`verifyAdminEmail`, `verifyCustomerEmail` → `assertions.ts`.
 
 **`order-received.ts` → deleted, split:** DOM read of order
 number/subscription id (data collection, minus its `expect()`s) becomes a
@@ -167,3 +191,6 @@ each suite (or batch of suites) is ported — this plan cannot claim a suite
   `request-tracer.ts` — untouched.
 - No change to the 18 scenario folders' test *behavior/coverage* — this is a
   structural relocation of existing logic, not a rewrite of what's asserted.
+  **Exception**: email verification's transport (Mailpit → `get-mail` DB
+  query) changes, per the `email-verification.ts` section above — what is
+  asserted about each email stays the same, only how the email is fetched.
