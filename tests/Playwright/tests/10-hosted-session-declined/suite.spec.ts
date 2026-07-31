@@ -5,7 +5,7 @@ import {
   configureGateway,
   getFailedOrders,
   getLogEntryCount,
-} from '../../helpers/api';
+} from '../../helpers/wc-api';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
   fillBilling,

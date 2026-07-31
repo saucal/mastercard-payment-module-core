@@ -1,5 +1,5 @@
 import { test, expect } from '../../fixtures/test';
-import { switchCheckoutMode, configureGateway } from '../../helpers/api';
+import { switchCheckoutMode, configureGateway } from '../../helpers/wc-api';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
   fillBilling,

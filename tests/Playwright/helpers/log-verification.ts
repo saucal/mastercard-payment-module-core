@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { getLogs, getWebhookLogs, getLogEntryCount } from './api';
+import { getLogs, getWebhookLogs, getLogEntryCount } from './wc-api';
 import type { CardData } from '../plugin-config.types';
 
 /**

@@ -1,5 +1,5 @@
 import { test, expect } from '../../fixtures/test';
-import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getOrderMeta, getLogEntryCount } from '../../helpers/api';
+import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getOrderMeta, getLogEntryCount } from '../../helpers/wc-api';
 import { waitForUnblock } from '../../helpers/block-ui';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
