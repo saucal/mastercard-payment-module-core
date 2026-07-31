@@ -1,5 +1,5 @@
 import { test, expect } from '../../fixtures/test';
-import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getOrderMeta, getLogEntryCount } from '../../helpers/wc-api';
+import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getOrderMeta, getLogEntryCount, getLogs } from '../../helpers/wc-api';
 import { waitForUnblock } from '../../helpers/block-ui';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
@@ -17,20 +17,7 @@ import { verifySubscription, verifyOrderInMyAccount } from '../../helpers/my-acc
 import { adminLogin, registerUser } from '../../helpers/wp-login';
 import { triggerSubscriptionRenewal, extractRenewalOrderNumber, navigateToOrder } from '../../helpers/admin-orders';
 import { assertOrderStatus, assertPaymentMethodMeta, assertCapturedNote, assertAuthorizedNote } from '../../helpers/assertions';
-import {
-  extractAllLogs,
-  extractSessionPostLogs,
-  extractSessionGetLogs,
-  extractTokenLogs,
-  verifySessionPost,
-  verifySessionGet,
-  verifyTokenLog,
-  verifyInitiateAuthentication,
-  verifyAuthenticatePayer,
-  verifyAuthenticationResult,
-  verifyAuthorizeCaptureLog,
-  verifyAgreement,
-} from '../../helpers/log-verification';
+import { verifySessionPost, verifySessionGet, verifyTokenLog, verifyInitiateAuthentication, verifyAuthenticatePayer, verifyAuthenticationResult, verifyAuthorizeCaptureLog, verifyAgreement } from '../../helpers/assertions';
 import { verifyOrderEmails, verifyAdminEmail } from '../../helpers/email-verification';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
@@ -83,10 +70,10 @@ test.describe.serial('Subscription Renewal', () => {
     expect(transactionId).toBeTruthy();
 
     // Log extraction
-    const allLogs = await extractAllLogs(mc060PayDate);
-    const sessionPostLogs = await extractSessionPostLogs(mc060PayDate, mc060PayDate, '', '');
-    const sessionGetLogs = await extractSessionGetLogs(mc060PayDate, mc060Session, mc060PayDate);
-    const tokenLogs = await extractTokenLogs(mc060PayDate, mc060PayDate);
+    const allLogs = await getLogs(mc060PayDate, '');
+    const sessionPostLogs = await getLogs(mc060PayDate, '/session');
+    const sessionGetLogs = await getLogs(mc060PayDate, `/session/${mc060Session}`);
+    const tokenLogs = await getLogs(mc060PayDate, '/token');
 
     // Verify session POST
     const sessionPostLog = sessionPostLogs.logs[0]?.content[0];
@@ -212,8 +199,8 @@ test.describe.serial('Subscription Renewal', () => {
 
     // Renewal uses stored token — no new session logs expected
     const renewDate = new Date().toISOString().slice(0, 19);
-    const sessionPostLogs = await extractSessionPostLogs(renewDate, renewDate, '', '');
-    const sessionGetLogs = await extractSessionGetLogs(renewDate, mc060Session, renewDate);
+    const sessionPostLogs = await getLogs(renewDate, '/session');
+    const sessionGetLogs = await getLogs(renewDate, `/session/${mc060Session}`);
     expect(sessionPostLogs.logs[0]?.content.length ?? 0).toBe(0);
     expect(sessionGetLogs.logs[0]?.content.length ?? 0).toBe(0);
   });
@@ -254,10 +241,10 @@ test.describe.serial('Subscription Renewal', () => {
     expect(transactionId).toBeTruthy();
 
     // Log extraction
-    const allLogs = await extractAllLogs(mc061PayDate);
-    const sessionPostLogs = await extractSessionPostLogs(mc061PayDate, mc061PayDate, '', '');
-    const sessionGetLogs = await extractSessionGetLogs(mc061PayDate, mc061Session, mc061PayDate);
-    const tokenLogs = await extractTokenLogs(mc061PayDate, mc061PayDate);
+    const allLogs = await getLogs(mc061PayDate, '');
+    const sessionPostLogs = await getLogs(mc061PayDate, '/session');
+    const sessionGetLogs = await getLogs(mc061PayDate, `/session/${mc061Session}`);
+    const tokenLogs = await getLogs(mc061PayDate, '/token');
 
     // Verify session POST
     const sessionPostLog = sessionPostLogs.logs[0]?.content[0];
@@ -383,8 +370,8 @@ test.describe.serial('Subscription Renewal', () => {
 
     // Renewal uses stored token — no new session logs expected
     const renewDate = new Date().toISOString().slice(0, 19);
-    const sessionPostLogs = await extractSessionPostLogs(renewDate, renewDate, '', '');
-    const sessionGetLogs = await extractSessionGetLogs(renewDate, mc061Session, renewDate);
+    const sessionPostLogs = await getLogs(renewDate, '/session');
+    const sessionGetLogs = await getLogs(renewDate, `/session/${mc061Session}`);
     expect(sessionPostLogs.logs[0]?.content.length ?? 0).toBe(0);
     expect(sessionGetLogs.logs[0]?.content.length ?? 0).toBe(0);
   });
@@ -428,10 +415,10 @@ test.describe.serial('Subscription Renewal', () => {
     expect(transactionId).toBeTruthy();
 
     // Log extraction
-    const allLogs = await extractAllLogs(mc062PayDate);
-    const sessionPostLogs = await extractSessionPostLogs(mc062PayDate, mc062PayDate, '', '');
-    const sessionGetLogs = await extractSessionGetLogs(mc062PayDate, mc062Session, mc062PayDate);
-    const tokenLogs = await extractTokenLogs(mc062PayDate, mc062PayDate);
+    const allLogs = await getLogs(mc062PayDate, '');
+    const sessionPostLogs = await getLogs(mc062PayDate, '/session');
+    const sessionGetLogs = await getLogs(mc062PayDate, `/session/${mc062Session}`);
+    const tokenLogs = await getLogs(mc062PayDate, '/token');
 
     // Verify session POST
     const sessionPostLog = sessionPostLogs.logs[0]?.content[0];
@@ -574,10 +561,10 @@ test.describe.serial('Subscription Renewal', () => {
     expect(transactionId).toBeTruthy();
 
     // Log extraction
-    const allLogs = await extractAllLogs(mc063PayDate);
-    const sessionPostLogs = await extractSessionPostLogs(mc063PayDate, mc063PayDate, '', '');
-    const sessionGetLogs = await extractSessionGetLogs(mc063PayDate, mc063Session, mc063PayDate);
-    const tokenLogs = await extractTokenLogs(mc063PayDate, mc063PayDate);
+    const allLogs = await getLogs(mc063PayDate, '');
+    const sessionPostLogs = await getLogs(mc063PayDate, '/session');
+    const sessionGetLogs = await getLogs(mc063PayDate, `/session/${mc063Session}`);
+    const tokenLogs = await getLogs(mc063PayDate, '/token');
 
     // Verify session POST
     const sessionPostLog = sessionPostLogs.logs[0]?.content[0];
@@ -733,9 +720,9 @@ test.describe.skip('Subscription Order - Challenge with 3DS Inactive (from suite
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
 
-    const allLogs = await extractAllLogs(mc060PayDate);
-    const sessionPostLogs = await extractSessionPostLogs(mc060PayDate, mc060PayDate, '', '');
-    const sessionGetLogs = await extractSessionGetLogs(mc060PayDate, mc060Session, mc060PayDate);
+    const allLogs = await getLogs(mc060PayDate, '');
+    const sessionPostLogs = await getLogs(mc060PayDate, '/session');
+    const sessionGetLogs = await getLogs(mc060PayDate, `/session/${mc060Session}`);
 
     const sessionPostLog = sessionPostLogs.logs[0]?.content[0];
     if (sessionPostLog) {
@@ -870,8 +857,8 @@ test.describe.skip('Subscription Order - Challenge with Save CC Deactivated (fro
 
     mc060Session = getOrderMeta(order, config.sessionIdMetaKey) || '';
 
-    const sessionGetLogs = await extractSessionGetLogs(mc060PayDate, mc060Session, mc060PayDate);
-    const allLogs = await extractAllLogs(mc060PayDate);
+    const sessionGetLogs = await getLogs(mc060PayDate, `/session/${mc060Session}`);
+    const allLogs = await getLogs(mc060PayDate, '');
 
     if (sessionGetLogs.logs[0]?.content?.length) {
       const sessionGetLog = sessionGetLogs.logs[0].content[0];
@@ -991,7 +978,7 @@ test.describe.skip('Subscription Order with Authorize Mode (from suite 14)', () 
     expect(transactionId).toBeTruthy();
     const orderSession = getOrderMeta(order, config.sessionIdMetaKey) || session;
 
-    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate, logOffset);
+    const sessionGetLogs = await getLogs(payDate, `/session/${session}`, logOffset);
     expect(sessionGetLogs.logs[0]?.content.length, 'session GET logs should not be empty').toBeGreaterThan(0);
     const sessionPut = sessionGetLogs.logs[0].content.find(
       (l: any) => l.request?.type === 'PUT'
@@ -1001,7 +988,7 @@ test.describe.skip('Subscription Order with Authorize Mode (from suite 14)', () 
     expect(sessionPut, 'UPDATE_SESSION PUT log entry not found').toBeTruthy();
     verifySessionGet(sessionPut!, { session: orderSession, card: cards.mastercard });
 
-    const allLogs = await extractAllLogs(payDate, logOffset);
+    const allLogs = await getLogs(payDate, '', logOffset);
     const agreementLog = allLogs.logs[0]?.content.find(
       (l: any) => l.request?.body?.agreement
     );

@@ -1,11 +1,6 @@
 import { test, expect } from '../../fixtures/test';
 import { Page } from '@playwright/test';
-import {
-  switchCheckoutMode,
-  configureGateway,
-  verifyOrderViaAPI,
-  getLogEntryCount,
-} from '../../helpers/wc-api';
+import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getLogEntryCount, getLogs } from '../../helpers/wc-api';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
   fillBilling,
@@ -21,17 +16,7 @@ import { verifyCartEmpty, verifyPaymentMethods } from '../../helpers/my-account'
 import { adminLogin, frontendLogin } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
 import { assertOrderStatus, assertPaymentMethodMeta, assertCapturedNote } from '../../helpers/assertions';
-import {
-  extractAllLogs,
-  extractSessionPostLogs,
-  extractSessionGetLogs,
-  extractTokenLogs,
-  verifySessionPost,
-  verifySessionGet,
-  verifySessionGetCardDetails,
-  verifyAuthorizeCaptureLog,
-  verifyTokenLogsEmpty,
-} from '../../helpers/log-verification';
+import { verifySessionPost, verifySessionGet, verifySessionGetCardDetails, verifyAuthorizeCaptureLog, verifyTokenLogsEmpty } from '../../helpers/assertions';
 import { verifyOrderEmails } from '../../helpers/email-verification';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
@@ -98,10 +83,10 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
 
-    const allLogs = await extractAllLogs(payDate, logOffset);
-    const sessionPostLogs = await extractSessionPostLogs(payDate, sessionDate, '', '', logOffset);
-    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate, logOffset);
-    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
+    const allLogs = await getLogs(payDate, '', logOffset);
+    const sessionPostLogs = await getLogs(payDate, '/session', logOffset);
+    const sessionGetLogs = await getLogs(payDate, `/session/${session}`, logOffset);
+    const tokenLogs = await getLogs(payDate, '/token', logOffset);
 
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
     const sessionPostLog = session
@@ -217,10 +202,10 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(transactionId).toBeTruthy();
 
-    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
+    const tokenLogs = await getLogs(payDate, '/token', logOffset);
     verifyTokenLogsEmpty(tokenLogs);
 
-    const allLogs = await extractAllLogs(payDate, logOffset);
+    const allLogs = await getLogs(payDate, '', logOffset);
     const txFilter = (l: any) => !transactionId || l.request?.url?.includes(transactionId);
     const captureLog = allLogs.logs[0]?.content.find(
       (l: any) => l.request?.body?.apiOperation === 'PAY' && txFilter(l) && l.response?.body?.result === 'SUCCESS'

@@ -1,6 +1,6 @@
 import { test, expect } from '../../fixtures/test';
 import { Page } from '@playwright/test';
-import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getLogEntryCount } from '../../helpers/wc-api';
+import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getLogEntryCount, getLogs } from '../../helpers/wc-api';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
   fillBilling,
@@ -16,20 +16,7 @@ import { adminLogin } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
 import { assertOrderStatus, assertPaymentMethodMeta, assertCapturedNote } from '../../helpers/assertions';
 import { verifyCartEmpty } from '../../helpers/my-account';
-import {
-  extractAllLogs,
-  extractSessionPostLogs,
-  extractSessionGetLogs,
-  extractTokenLogs,
-  verifySessionPost,
-  verifySessionGet,
-  verifySessionGetCardDetails,
-  verifyInitiateAuthentication,
-  verifyAuthenticatePayer,
-  verifyAuthenticationResult,
-  verifyAuthorizeCaptureLog,
-  verifyTokenLogsEmpty,
-} from '../../helpers/log-verification';
+import { verifySessionPost, verifySessionGet, verifySessionGetCardDetails, verifyInitiateAuthentication, verifyAuthenticatePayer, verifyAuthenticationResult, verifyAuthorizeCaptureLog, verifyTokenLogsEmpty } from '../../helpers/assertions';
 import { verifyOrderEmails } from '../../helpers/email-verification';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
@@ -98,10 +85,10 @@ test.describe.serial('Hosted Session - 3DS', () => {
     expect(transactionId).toBeTruthy();
 
     // === LOG VERIFICATION ===
-    const allLogs = await extractAllLogs(payDate, logOffset);
-    const sessionPostLogs = await extractSessionPostLogs(payDate, sessionDate, '', '', logOffset);
-    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate, logOffset);
-    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
+    const allLogs = await getLogs(payDate, '', logOffset);
+    const sessionPostLogs = await getLogs(payDate, '/session', logOffset);
+    const sessionGetLogs = await getLogs(payDate, `/session/${session}`, logOffset);
+    const tokenLogs = await getLogs(payDate, '/token', logOffset);
 
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
     const sessionPostLog = session
@@ -205,10 +192,10 @@ test.describe.serial('Hosted Session - 3DS', () => {
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(transactionId).toBeTruthy();
 
-    const allLogs = await extractAllLogs(payDate, logOffset);
-    const sessionPostLogs = await extractSessionPostLogs(payDate, sessionDate, '', '', logOffset);
-    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate, logOffset);
-    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
+    const allLogs = await getLogs(payDate, '', logOffset);
+    const sessionPostLogs = await getLogs(payDate, '/session', logOffset);
+    const sessionGetLogs = await getLogs(payDate, `/session/${session}`, logOffset);
+    const tokenLogs = await getLogs(payDate, '/token', logOffset);
 
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
     const sessionPostLog = session
@@ -310,10 +297,10 @@ test.describe.serial('Hosted Session - 3DS', () => {
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(transactionId).toBeTruthy();
 
-    const allLogs = await extractAllLogs(payDate, logOffset);
-    const sessionPostLogs = await extractSessionPostLogs(payDate, sessionDate, '', '', logOffset);
-    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate, logOffset);
-    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
+    const allLogs = await getLogs(payDate, '', logOffset);
+    const sessionPostLogs = await getLogs(payDate, '/session', logOffset);
+    const sessionGetLogs = await getLogs(payDate, `/session/${session}`, logOffset);
+    const tokenLogs = await getLogs(payDate, '/token', logOffset);
 
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
     const sessionPostLog = session

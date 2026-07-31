@@ -1,11 +1,6 @@
 import { test, expect } from '../../fixtures/test';
 import { Page } from '@playwright/test';
-import {
-  switchCheckoutMode,
-  configureGateway,
-  verifyOrderViaAPI,
-  getLogEntryCount,
-} from '../../helpers/wc-api';
+import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getLogEntryCount, getLogs } from '../../helpers/wc-api';
 import {
   selectPaymentMethod,
   clickPlaceOrder,
@@ -20,19 +15,7 @@ import { verifyPaymentMethods } from '../../helpers/my-account';
 import { adminLogin, frontendLogin, registerUser } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
 import { assertOrderStatus, assertPaymentMethodMeta, assertCapturedNote } from '../../helpers/assertions';
-import {
-  extractAllLogs,
-  extractSessionGetLogs,
-  extractTokenLogs,
-  verifySessionGet,
-  verifySessionGetCardDetails,
-  verifyInitiateAuthentication,
-  verifyAuthenticatePayer,
-  verifyAuthenticationResult,
-  verifyAuthorizeCaptureLog,
-  verifyTokenLog,
-  verifyTokenLogsEmpty,
-} from '../../helpers/log-verification';
+import { verifySessionGet, verifySessionGetCardDetails, verifyInitiateAuthentication, verifyAuthenticatePayer, verifyAuthenticationResult, verifyAuthorizeCaptureLog, verifyTokenLog, verifyTokenLogsEmpty } from '../../helpers/assertions';
 import { verifyAdminEmail } from '../../helpers/email-verification';
 import config from '../../plugin-config';
 import { cards, fourDigits } from '../../fixtures/cards';
@@ -141,9 +124,9 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
     expect(transactionId).toBeTruthy();
     const total: string = String(order.total);
 
-    const allLogs = await extractAllLogs(payDate, logOffset);
-    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate, logOffset);
-    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
+    const allLogs = await getLogs(payDate, '', logOffset);
+    const sessionGetLogs = await getLogs(payDate, `/session/${session}`, logOffset);
+    const tokenLogs = await getLogs(payDate, '/token', logOffset);
 
     expect(sessionGetLogs.logs[0]?.content.length, 'session GET logs should not be empty').toBeGreaterThan(0);
     const sessionPut = sessionGetLogs.logs[0].content.find(
@@ -252,9 +235,9 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
     expect(transactionId).toBeTruthy();
     const total: string = String(order.total);
 
-    const allLogs = await extractAllLogs(payDate, logOffset);
-    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate, logOffset);
-    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
+    const allLogs = await getLogs(payDate, '', logOffset);
+    const sessionGetLogs = await getLogs(payDate, `/session/${session}`, logOffset);
+    const tokenLogs = await getLogs(payDate, '/token', logOffset);
 
     expect(sessionGetLogs.logs[0]?.content.length, 'session GET logs should not be empty').toBeGreaterThan(0);
     const sessionPut = sessionGetLogs.logs[0].content.find(
@@ -349,7 +332,7 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
     expect(transactionId).toBeTruthy();
     const total: string = String(order.total);
 
-    const sessionGetLogs = await extractSessionGetLogs(payDate, '', payDate, logOffset);
+    const sessionGetLogs = await getLogs(payDate, '/session/', logOffset);
     expect(sessionGetLogs.logs[0]?.content.length, 'session GET logs should not be empty').toBeGreaterThan(0);
     const sessionPut = sessionGetLogs.logs[0].content.find(
       (l: any) => l.request?.type === 'PUT'
@@ -361,7 +344,7 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
     expect(resolvedSession, 'session id should be derivable from UPDATE_SESSION').toBeTruthy();
     verifySessionGet(sessionPut!, { session: resolvedSession, card: cards.visaChallenge, token: mc012Token });
 
-    const allLogs = await extractAllLogs(payDate, logOffset);
+    const allLogs = await getLogs(payDate, '', logOffset);
     const logContent = allLogs.logs[0]?.content ?? [];
     const txFilter = (l: any) => !transactionId || l.request?.url?.includes(transactionId);
 

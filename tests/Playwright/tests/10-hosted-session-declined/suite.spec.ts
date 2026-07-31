@@ -1,11 +1,6 @@
 import { test, expect } from '../../fixtures/test';
 import { Page } from '@playwright/test';
-import {
-  switchCheckoutMode,
-  configureGateway,
-  getFailedOrders,
-  getLogEntryCount,
-} from '../../helpers/wc-api';
+import { switchCheckoutMode, configureGateway, getFailedOrders, getLogEntryCount, getLogs } from '../../helpers/wc-api';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
   fillBilling,
@@ -18,7 +13,7 @@ import { waitForUnblock } from '../../helpers/block-ui';
 import { adminLogin } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
 import { assertOrderStatus, assertOrderNoteContains, assertPaymentMethodMeta } from '../../helpers/assertions';
-import { extractAllLogs } from '../../helpers/log-verification';
+
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
 import { billing } from '../../fixtures/billing';
@@ -74,7 +69,7 @@ test.describe.serial('Hosted Session - Declined Transactions', () => {
     const failedOrder = await pickFailedOrderSince(since);
     const orderNumber = String(failedOrder.id);
 
-    const allLogs = await extractAllLogs(payDate, logOffset);
+    const allLogs = await getLogs(payDate, '', logOffset);
     const logContent = allLogs.logs[0]?.content ?? [];
     const payLog = logContent.find(
       (l: any) => l.request?.body?.apiOperation === 'PAY'
@@ -113,7 +108,7 @@ test.describe.serial('Hosted Session - Declined Transactions', () => {
     const failedOrder = await pickFailedOrderSince(since);
     const orderNumber = String(failedOrder.id);
 
-    const allLogs = await extractAllLogs(payDate, logOffset);
+    const allLogs = await getLogs(payDate, '', logOffset);
     const logContent = allLogs.logs[0]?.content ?? [];
     const payLog = logContent.find(
       (l: any) => l.request?.body?.apiOperation === 'PAY'

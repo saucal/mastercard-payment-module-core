@@ -1,5 +1,5 @@
 import { test, expect } from '../../fixtures/test';
-import { switchCheckoutMode, configureGateway, verifyOrderViaAPI } from '../../helpers/wc-api';
+import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getLogs } from '../../helpers/wc-api';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
   fillBilling,
@@ -15,19 +15,7 @@ import { handle3DSChallenge } from '../../helpers/three-ds';
 import { adminLogin, frontendLogin } from '../../helpers/wp-login';
 import { triggerSubscriptionRenewal, extractRenewalOrderNumber, navigateToOrder } from '../../helpers/admin-orders';
 import { assertOrderStatus, assertPaymentMethodMeta, assertCapturedNote } from '../../helpers/assertions';
-import {
-  extractAllLogs,
-  extractSessionPostLogs,
-  extractSessionGetLogs,
-  extractTokenLogs,
-  verifySessionPost,
-  verifySessionGet,
-  verifyTokenLog,
-  verifyInitiateAuthentication,
-  verifyAuthenticatePayer,
-  verifyAuthorizeCaptureLog,
-  verifyAgreement,
-} from '../../helpers/log-verification';
+import { verifySessionPost, verifySessionGet, verifyTokenLog, verifyInitiateAuthentication, verifyAuthenticatePayer, verifyAuthorizeCaptureLog, verifyAgreement } from '../../helpers/assertions';
 import { verifyOrderEmails } from '../../helpers/email-verification';
 import { verifySubscription, verifyOrderInMyAccount } from '../../helpers/my-account';
 import config from '../../plugin-config';
@@ -81,10 +69,10 @@ test.describe.serial('Subscription Upgrade', () => {
     expect(transactionId).toBeTruthy();
 
     // Log extraction
-    const allLogs = await extractAllLogs(payDate);
-    const sessionPostLogs = await extractSessionPostLogs(payDate, payDate, '', '');
-    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate);
-    const tokenLogs = await extractTokenLogs(payDate, payDate);
+    const allLogs = await getLogs(payDate, '');
+    const sessionPostLogs = await getLogs(payDate, '/session');
+    const sessionGetLogs = await getLogs(payDate, `/session/${session}`);
+    const tokenLogs = await getLogs(payDate, '/token');
 
     // Verify session POST
     const sessionPostLog = sessionPostLogs.logs[0]?.content[0];
@@ -227,7 +215,7 @@ test.describe.serial('Subscription Upgrade', () => {
 
     // Log extraction for upgrade order
     const upgradePayDate = new Date().toISOString().slice(0, 19);
-    const allLogs = await extractAllLogs(upgradePayDate);
+    const allLogs = await getLogs(upgradePayDate, '');
     const logContent = allLogs.logs[0]?.content ?? [];
 
     // Verify agreement in upgrade order logs
@@ -283,8 +271,8 @@ test.describe.serial('Subscription Upgrade', () => {
 
     // Renewal uses stored token — no new session logs expected
     const renewDate = new Date().toISOString().slice(0, 19);
-    const sessionPostLogs = await extractSessionPostLogs(renewDate, renewDate, '', '');
-    const sessionGetLogs = await extractSessionGetLogs(renewDate, session, renewDate);
+    const sessionPostLogs = await getLogs(renewDate, '/session');
+    const sessionGetLogs = await getLogs(renewDate, `/session/${session}`);
     expect(sessionPostLogs.logs[0]?.content.length ?? 0).toBe(0);
     expect(sessionGetLogs.logs[0]?.content.length ?? 0).toBe(0);
   });

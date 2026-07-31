@@ -1,12 +1,6 @@
 import { test, expect } from '../../fixtures/test';
 import { Page } from '@playwright/test';
-import {
-  switchCheckoutMode,
-  configureGateway,
-  verifyOrderViaAPI,
-  getOrderMeta,
-  getLogEntryCount,
-} from '../../helpers/wc-api';
+import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getOrderMeta, getLogEntryCount, getLogs } from '../../helpers/wc-api';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
   fillBilling,
@@ -30,14 +24,7 @@ import { adminLogin, frontendLogin, registerUser } from '../../helpers/wp-login'
 import { waitForUnblock } from '../../helpers/block-ui';
 import { navigateToOrder } from '../../helpers/admin-orders';
 import { assertOrderStatus, assertPaymentMethodMeta, assertCapturedNote } from '../../helpers/assertions';
-import {
-  extractAllLogs,
-  extractSessionGetLogs,
-  extractTokenLogs,
-  verifySessionGet,
-  verifyTokenLog,
-  verifyAuthorizeCaptureLog,
-} from '../../helpers/log-verification';
+import { verifySessionGet, verifyTokenLog, verifyAuthorizeCaptureLog } from '../../helpers/assertions';
 import { verifyAdminEmail } from '../../helpers/email-verification';
 import config from '../../plugin-config';
 import { cards, fourDigits } from '../../fixtures/cards';
@@ -104,7 +91,7 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
       expiryYear: card1.year,
     });
 
-    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
+    const tokenLogs = await getLogs(payDate, '/token', logOffset);
     expect(tokenLogs.logs[0]?.content?.length, 'token logs should not be empty').toBeGreaterThan(0);
     const tokenLog = tokenLogs.logs[0].content[0];
     const session = tokenLog.request?.body?.session?.id || '';
@@ -149,7 +136,7 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
     const total: string = String(order.total);
     const session = getOrderMeta(order, config.sessionIdMetaKey) || '';
 
-    const sessionGetLogs = await extractSessionGetLogs(payDate, '', payDate, logOffset);
+    const sessionGetLogs = await getLogs(payDate, '/session/', logOffset);
     expect(sessionGetLogs.logs[0]?.content?.length, 'session GET logs should not be empty').toBeGreaterThan(0);
     const sessionPut = sessionGetLogs.logs[0].content.find(
       (l: any) => l.request?.type === 'PUT'
@@ -160,7 +147,7 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
     const resolvedSession = sessionPut!.response?.body?.session?.id || session;
     verifySessionGet(sessionPut!, { session: resolvedSession, card: card1, token: mc050Token });
 
-    const allLogs = await extractAllLogs(payDate, logOffset);
+    const allLogs = await getLogs(payDate, '', logOffset);
     const logContent = allLogs.logs[0]?.content ?? [];
     const txFilter = (l: any) => !transactionId || l.request?.url?.includes(transactionId);
 
@@ -202,7 +189,7 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
       ],
     });
 
-    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
+    const tokenLogs = await getLogs(payDate, '/token', logOffset);
     expect(tokenLogs.logs[0]?.content?.length, 'token log for second card not found').toBeGreaterThan(0);
     const tokenLog = tokenLogs.logs[0].content[0];
     const session = tokenLog.request?.body?.session?.id || '';

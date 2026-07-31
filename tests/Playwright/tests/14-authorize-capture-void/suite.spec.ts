@@ -1,12 +1,6 @@
 import { test, expect } from '../../fixtures/test';
 import { Page } from '@playwright/test';
-import {
-  switchCheckoutMode,
-  configureGateway,
-  verifyOrderViaAPI,
-  getOrderMeta,
-  getLogEntryCount,
-} from '../../helpers/wc-api';
+import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getOrderMeta, getLogEntryCount, getLogs } from '../../helpers/wc-api';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
   fillBilling,
@@ -20,15 +14,7 @@ import { verifyOrderReceived } from '../../helpers/order-received';
 import { adminLogin } from '../../helpers/wp-login';
 import { navigateToOrder, capturePayment, voidPayment } from '../../helpers/admin-orders';
 import { assertOrderStatus, assertCaptureFormVisible, assertVoidFormVisible, assertAuthorizedNote, assertOrderNoteContains } from '../../helpers/assertions';
-import {
-  extractSessionGetLogs,
-  extractTokenLogs,
-  extractTransactionPutLogs,
-  verifySessionGet,
-  verifyAuthorizeCaptureLog,
-  verifyVoidLog,
-  verifyTokenLogsEmpty,
-} from '../../helpers/log-verification';
+import { verifySessionGet, verifyAuthorizeCaptureLog, verifyVoidLog, verifyTokenLogsEmpty } from '../../helpers/assertions';
 import { verifyAdminEmail } from '../../helpers/email-verification';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
@@ -88,7 +74,7 @@ test.describe.serial('Authorize / Capture / Void', () => {
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
 
-    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate, logOffset);
+    const sessionGetLogs = await getLogs(payDate, `/session/${session}`, logOffset);
     expect(sessionGetLogs.logs[0]?.content.length, 'session GET logs should not be empty').toBeGreaterThan(0);
     const sessionPut = sessionGetLogs.logs[0].content.find(
       (l: any) => l.request?.type === 'PUT'
@@ -98,7 +84,7 @@ test.describe.serial('Authorize / Capture / Void', () => {
     expect(sessionPut, 'UPDATE_SESSION PUT log entry not found').toBeTruthy();
     verifySessionGet(sessionPut!, { session, card });
 
-    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
+    const tokenLogs = await getLogs(payDate, '/token', logOffset);
     verifyTokenLogsEmpty(tokenLogs);
 
     await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName });
@@ -121,7 +107,7 @@ test.describe.serial('Authorize / Capture / Void', () => {
       `${config.displayName} payment was Partially Captured`,
     );
 
-    const transactionLogs = await extractTransactionPutLogs(payDate, logOffset);
+    const transactionLogs = await getLogs(payDate, '/transaction', logOffset);
     expect(transactionLogs.logs[0]?.content.length, 'transaction PUT logs should not be empty').toBeGreaterThan(0);
     const captureLog = transactionLogs.logs[0].content.find(
       (l: any) => l.request?.body?.apiOperation === 'CAPTURE' && l.request?.url?.includes(transactionId!)
@@ -161,7 +147,7 @@ test.describe.serial('Authorize / Capture / Void', () => {
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
     expect(transactionId).toBeTruthy();
 
-    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate, logOffset);
+    const sessionGetLogs = await getLogs(payDate, `/session/${session}`, logOffset);
     expect(sessionGetLogs.logs[0]?.content.length, 'session GET logs should not be empty').toBeGreaterThan(0);
     const sessionPut = sessionGetLogs.logs[0].content.find(
       (l: any) => l.request?.type === 'PUT'
@@ -197,7 +183,7 @@ test.describe.serial('Authorize / Capture / Void', () => {
       `${config.displayName} payment was Captured (Order ID: ${transactionId})`,
     );
 
-    const transactionLogs = await extractTransactionPutLogs(payDate, logOffset);
+    const transactionLogs = await getLogs(payDate, '/transaction', logOffset);
     const captureLog = transactionLogs.logs[0]?.content.find(
       (l: any) => l.request?.body?.apiOperation === 'CAPTURE' && l.request?.url?.includes(transactionId!)
     );
@@ -241,7 +227,7 @@ test.describe.serial('Authorize / Capture / Void', () => {
     await assertVoidFormVisible(adminPage, config, false);
     await assertOrderNoteContains(adminPage, 'Authorization was cancelled');
 
-    const transactionLogs = await extractTransactionPutLogs(payDate, logOffset);
+    const transactionLogs = await getLogs(payDate, '/transaction', logOffset);
     const voidLog = transactionLogs.logs[0]?.content.find(
       (l: any) => l.request?.body?.apiOperation === 'VOID' && l.request?.url?.includes(transactionId!)
     );

@@ -1,6 +1,6 @@
 import { test, expect } from '../../fixtures/test';
 import { Page } from '@playwright/test';
-import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getLogEntryCount } from '../../helpers/wc-api';
+import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getLogEntryCount, getLogs } from '../../helpers/wc-api';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
   fillBilling,
@@ -11,12 +11,7 @@ import {
 import { fillHostedCheckoutCC, clickHostedCheckoutPay, clickPlaceOrderHostedCheckout } from '../../helpers/hosted-checkout';
 import { verifyOrderReceived } from '../../helpers/order-received';
 import { handle3DSChallenge } from '../../helpers/three-ds';
-import {
-  extractSessionPostLogs,
-  extractTokenLogs,
-  verifySessionPost,
-  verifyTokenLogsEmpty,
-} from '../../helpers/log-verification';
+import { verifySessionPost, verifyTokenLogsEmpty } from '../../helpers/assertions';
 import { verifyAdminEmail } from '../../helpers/email-verification';
 import { adminLogin, frontendLogin } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
@@ -120,8 +115,8 @@ test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
     expect(order.status).toBe('on-hold');
     expect(transactionId).toBeTruthy();
 
-    const sessionPostLogs = await extractSessionPostLogs(payDate, payDate, '', '', logOffset);
-    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
+    const sessionPostLogs = await getLogs(payDate, '/session', logOffset);
+    const tokenLogs = await getLogs(payDate, '/token', logOffset);
 
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
     const sessionPostLog = sessionPostLogs.logs[0].content.find(
@@ -176,8 +171,8 @@ test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
     expect(order.status).toBe('on-hold');
     expect(transactionId).toBeTruthy();
 
-    const sessionPostLogs = await extractSessionPostLogs(payDate, payDate, '', '', logOffset);
-    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
+    const sessionPostLogs = await getLogs(payDate, '/session', logOffset);
+    const tokenLogs = await getLogs(payDate, '/token', logOffset);
 
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
     const sessionPostLog = sessionPostLogs.logs[0].content.find(
@@ -235,8 +230,8 @@ test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
     expect(order.status).toBe('on-hold');
     expect(transactionId).toBeTruthy();
 
-    const sessionPostLogs = await extractSessionPostLogs(payDate, payDate, '', '', logOffset);
-    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
+    const sessionPostLogs = await getLogs(payDate, '/session', logOffset);
+    const tokenLogs = await getLogs(payDate, '/token', logOffset);
 
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
     const sessionPostLog = sessionPostLogs.logs[0].content.find(
@@ -298,8 +293,8 @@ test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
     expect(order.status).toBe('on-hold');
     expect(transactionId).toBeTruthy();
 
-    const sessionPostLogs = await extractSessionPostLogs(payDate, payDate, '', '', logOffset);
-    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
+    const sessionPostLogs = await getLogs(payDate, '/session', logOffset);
+    const tokenLogs = await getLogs(payDate, '/token', logOffset);
 
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
     const sessionPostLog = sessionPostLogs.logs[0].content.find(

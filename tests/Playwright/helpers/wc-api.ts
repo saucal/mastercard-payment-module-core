@@ -71,7 +71,94 @@ export async function verifyOrderViaAPI(orderNumber: string, config: PluginConfi
   return { order, transactionId };
 }
 
-export async function getLogs(date: string, urlFilter: string, skip = 0): Promise<any> {
+// ─── Gateway API log wire types ───────────────────────────────────────────────
+// Shape of the entries custom/v1/get-log returns. Lives here (with the fetcher)
+// rather than in assertions.ts so getLogs() can be typed — an untyped `any`
+// return silently disables type checking at every call site.
+
+export interface LogEntry {
+  request: {
+    type: 'POST' | 'PUT' | 'GET';
+    url: string;
+    body: {
+      apiOperation?: string;
+      order?: {
+        currency: string;
+        reference: number | string;
+        id: string;
+        amount: string;
+      };
+      session?: { id: string };
+      sourceOfFunds?: { token?: string };
+      transaction?: { currency: string; targetTransactionId?: string; amount?: number };
+      authentication?: { channel: string };
+      agreement?: {
+        type: string;
+        amountVariability: string;
+        id: string;
+        paymentFrequency: string;
+        startDate: string;
+        expiryDate: string;
+        numberOfPayments: string;
+      };
+    };
+  };
+  response: {
+    body: {
+      result?: string;
+      session?: { id: string; updateStatus: string };
+      order?: {
+        id: string;
+        currency: string;
+        status: string;
+        authenticationStatus?: string;
+        totalRefundedAmount?: number;
+        reference?: string;
+      };
+      sourceOfFunds?: {
+        type: string;
+        token?: string;
+        provided?: {
+          card?: {
+            brand: string;
+            scheme: string;
+            number: string;
+            expiry: { month: string; year: string };
+            securityCode: string;
+          };
+        };
+      };
+      transaction?: {
+        id: string;
+        type: string;
+        currency: string;
+        amount?: number;
+      };
+      authentication?: {
+        channel: string;
+      };
+      agreement?: {
+        type: string;
+        amountVariability: string;
+        id: string;
+        paymentFrequency: string;
+        startDate: string;
+        expiryDate: string;
+        numberOfPayments: string;
+      };
+      authenticationStatus?: string;
+      id?: string;
+      currency?: string;
+      status?: string;
+    };
+  };
+}
+
+export interface LogResponse {
+  logs: Array<{ content: LogEntry[]; total?: number }>;
+}
+
+export async function getLogs(date: string, urlFilter: string, skip = 0): Promise<LogResponse> {
   const params = new URLSearchParams({
     date,
     url: urlFilter,

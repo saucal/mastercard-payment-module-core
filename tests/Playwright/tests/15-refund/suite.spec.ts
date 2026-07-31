@@ -1,11 +1,6 @@
 import { test, expect } from '../../fixtures/test';
 import { Page } from '@playwright/test';
-import {
-  switchCheckoutMode,
-  configureGateway,
-  verifyOrderViaAPI,
-  getLogEntryCount,
-} from '../../helpers/wc-api';
+import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getLogEntryCount, getLogs } from '../../helpers/wc-api';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
   fillBilling,
@@ -18,10 +13,7 @@ import { verifyOrderReceived } from '../../helpers/order-received';
 import { adminLogin } from '../../helpers/wp-login';
 import { navigateToOrder, refundPayment } from '../../helpers/admin-orders';
 import { assertOrderStatus, assertOrderNoteContains } from '../../helpers/assertions';
-import {
-  extractTransactionPutLogs,
-  verifyRefundLog,
-} from '../../helpers/log-verification';
+import { verifyRefundLog } from '../../helpers/assertions';
 import { verifyOrderEmails } from '../../helpers/email-verification';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
@@ -92,7 +84,7 @@ test.describe.serial('Refund', () => {
     await assertOrderStatus(adminPage, 'Refunded');
     await assertOrderNoteContains(adminPage, 'Refund of');
 
-    const transactionLogs = await extractTransactionPutLogs(payDate, logOffset);
+    const transactionLogs = await getLogs(payDate, '/transaction', logOffset);
     const refundLog = transactionLogs.logs[0]?.content.find(
       (l: any) => l.request?.body?.apiOperation === 'REFUND' && l.request?.url?.includes(transactionId!)
     );
@@ -139,7 +131,7 @@ test.describe.serial('Refund', () => {
     await assertOrderStatus(adminPage, 'Processing');
     await assertOrderNoteContains(adminPage, 'Refund of');
 
-    const transactionLogs = await extractTransactionPutLogs(payDate, logOffset);
+    const transactionLogs = await getLogs(payDate, '/transaction', logOffset);
     const refundLog = transactionLogs.logs[0]?.content.find(
       (l: any) => l.request?.body?.apiOperation === 'REFUND' && l.request?.url?.includes(transactionId!)
     );

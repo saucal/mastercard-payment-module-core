@@ -1,6 +1,6 @@
 import { test, expect } from '../../fixtures/test';
 import { Page } from '@playwright/test';
-import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getLogEntryCount } from '../../helpers/wc-api';
+import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getLogEntryCount, getLogs } from '../../helpers/wc-api';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
   fillBilling,
@@ -15,20 +15,7 @@ import {
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
 import { verifyOrderReceived } from '../../helpers/order-received';
 import { handle3DSChallenge } from '../../helpers/three-ds';
-import {
-  extractAllLogs,
-  extractSessionPostLogs,
-  extractSessionGetLogs,
-  extractTokenLogs,
-  verifySessionPost,
-  verifySessionGet,
-  verifySessionGetCardDetails,
-  verifyInitiateAuthentication,
-  verifyAuthenticatePayer,
-  verifyAuthorizeCaptureLog,
-  verifyTokenLog,
-  verifyTokenLogsEmpty,
-} from '../../helpers/log-verification';
+import { verifySessionPost, verifySessionGet, verifySessionGetCardDetails, verifyInitiateAuthentication, verifyAuthenticatePayer, verifyAuthorizeCaptureLog, verifyTokenLog, verifyTokenLogsEmpty } from '../../helpers/assertions';
 import { verifyOrderEmails } from '../../helpers/email-verification';
 import { adminLogin, frontendLogin } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
@@ -103,10 +90,10 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     expect(transactionId).toBeTruthy();
 
     // === LOG VERIFICATION ===
-    const allLogs = await extractAllLogs(payDate, logOffset);
-    const sessionPostLogs = await extractSessionPostLogs(payDate, sessionDate, '', '', logOffset);
-    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate, logOffset);
-    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
+    const allLogs = await getLogs(payDate, '', logOffset);
+    const sessionPostLogs = await getLogs(payDate, '/session', logOffset);
+    const sessionGetLogs = await getLogs(payDate, `/session/${session}`, logOffset);
+    const tokenLogs = await getLogs(payDate, '/token', logOffset);
 
     // Verify session POST (find entry matching this order's session)
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
@@ -207,10 +194,10 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     expect(transactionId).toBeTruthy();
 
     // === LOG VERIFICATION ===
-    const allLogs = await extractAllLogs(payDate, logOffset);
-    const sessionPostLogs = await extractSessionPostLogs(payDate, sessionDate, '', '', logOffset);
-    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate, logOffset);
-    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
+    const allLogs = await getLogs(payDate, '', logOffset);
+    const sessionPostLogs = await getLogs(payDate, '/session', logOffset);
+    const sessionGetLogs = await getLogs(payDate, `/session/${session}`, logOffset);
+    const tokenLogs = await getLogs(payDate, '/token', logOffset);
 
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
     const sessionPostLog = session
@@ -314,10 +301,10 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     expect(transactionId).toBeTruthy();
 
     // === LOG VERIFICATION ===
-    const allLogs = await extractAllLogs(payDate, logOffset);
-    const sessionPostLogs = await extractSessionPostLogs(payDate, sessionDate, '', '', logOffset);
-    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate, logOffset);
-    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
+    const allLogs = await getLogs(payDate, '', logOffset);
+    const sessionPostLogs = await getLogs(payDate, '/session', logOffset);
+    const sessionGetLogs = await getLogs(payDate, `/session/${session}`, logOffset);
+    const tokenLogs = await getLogs(payDate, '/token', logOffset);
 
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
     const sessionPostLog = session
@@ -430,9 +417,9 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     expect(transactionId).toBeTruthy();
 
     // === LOG VERIFICATION ===
-    const allLogs = await extractAllLogs(payDate, logOffset);
-    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate, logOffset);
-    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
+    const allLogs = await getLogs(payDate, '', logOffset);
+    const sessionGetLogs = await getLogs(payDate, `/session/${session}`, logOffset);
+    const tokenLogs = await getLogs(payDate, '/token', logOffset);
 
     // Saved-token path: session may be empty in the DOM; derive from log.
     expect(sessionGetLogs.logs[0]?.content.length, 'session GET logs should not be empty').toBeGreaterThan(0);
@@ -530,10 +517,10 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     expect(transactionId).toBeTruthy();
 
     // === LOG VERIFICATION ===
-    const allLogs = await extractAllLogs(payDate, logOffset);
-    const sessionPostLogs = await extractSessionPostLogs(payDate, sessionDate, '', '', logOffset);
-    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate, logOffset);
-    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
+    const allLogs = await getLogs(payDate, '', logOffset);
+    const sessionPostLogs = await getLogs(payDate, '/session', logOffset);
+    const sessionGetLogs = await getLogs(payDate, `/session/${session}`, logOffset);
+    const tokenLogs = await getLogs(payDate, '/token', logOffset);
 
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
     const sessionPostLog = session
@@ -645,10 +632,10 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     expect(transactionId).toBeTruthy();
 
     // === LOG VERIFICATION ===
-    const allLogs = await extractAllLogs(payDate, logOffset);
-    const sessionPostLogs = await extractSessionPostLogs(payDate, sessionDate, '', '', logOffset);
-    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate, logOffset);
-    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
+    const allLogs = await getLogs(payDate, '', logOffset);
+    const sessionPostLogs = await getLogs(payDate, '/session', logOffset);
+    const sessionGetLogs = await getLogs(payDate, `/session/${session}`, logOffset);
+    const tokenLogs = await getLogs(payDate, '/token', logOffset);
 
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
     const sessionPostLog = session
@@ -776,9 +763,9 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     expect(transactionId).toBeTruthy();
 
     // === LOG VERIFICATION ===
-    const allLogs = await extractAllLogs(payDate, logOffset);
-    const sessionGetLogs = await extractSessionGetLogs(payDate, session, payDate, logOffset);
-    const tokenLogs = await extractTokenLogs(payDate, payDate, logOffset);
+    const allLogs = await getLogs(payDate, '', logOffset);
+    const sessionGetLogs = await getLogs(payDate, `/session/${session}`, logOffset);
+    const tokenLogs = await getLogs(payDate, '/token', logOffset);
 
     // Saved-token path: session may be empty in the DOM; derive from log.
     expect(sessionGetLogs.logs[0]?.content.length, 'session GET logs should not be empty').toBeGreaterThan(0);
