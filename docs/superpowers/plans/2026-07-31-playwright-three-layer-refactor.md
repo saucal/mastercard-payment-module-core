@@ -33,16 +33,34 @@ next.
   convergence) — what's asserted about each email is unchanged, how it's
   fetched is not, and that task carries its own live-verification step
   because of it.
-- Every task must leave the suite green on: `npx tsc --noEmit` (from
-  `tests/Playwright/`) and `npx playwright test --list` reporting the same
-  test names/count as before the task.
+- **`tsc` is NOT clean at baseline. Do not "fix" these.** Measured
+  2026-07-31 on `feature/v2-finalize` at commit `9e5b79e`, `npx tsc --noEmit`
+  from `tests/Playwright/` emits exactly these 5 pre-existing errors:
+
+  ```
+  helpers/log-verification.ts(238,24): error TS2339: Property 'version' does not exist on type '{ id: string; updateStatus: string; }'.
+  tests/10-hosted-session-declined/suite.spec.ts(88,36): error TS2339: Property 'response' does not exist on type ...
+  tests/10-hosted-session-declined/suite.spec.ts(127,36): error TS2339: Property 'response' does not exist on type ...
+  tests/12-hosted-session-pay-for-order/suite.spec.ts(275,43): error TS2339: Property 'token' does not exist on type ...
+  tests/13-hosted-session-add-payment-method/suite.spec.ts(116,43): error TS2339: Property 'token' does not exist on type ...
+  ```
+
+  The success criterion for every task is therefore **"no *new* `tsc`
+  errors"**, not "no errors". The `log-verification.ts(238,24)` one travels
+  into `assertions.ts` at Task 3 and will be reported at its new line number
+  from then on — that is expected, not a regression. Fixing any of these 5 is
+  out of scope (they are latent `LogEntry` type-shape gaps, unrelated to
+  layering).
+- **Baseline test count: `Total: 94 tests in 18 files`** (same measurement
+  point). Every task must leave `npx playwright test --list | tail -1`
+  reporting exactly that, with unchanged test names.
 - No live WP/MPGS-gateway access from the environment this plan may be
   executed in. Actual `npx playwright test <suite>` execution against the
   real site is a gate the user runs (or grants environment access for)
   after each task — do not claim a suite "passes" without that run having
   happened.
 - Work stays inside `/Users/christian/Automation/payment-module-core/tests/Playwright/`
-  (plus `audit-assertions.py` at repo root for Task 8). No other repo touched.
+  (plus `audit-assertions.py` at repo root for Task 9). No other repo touched.
 - One task = one commit. Commit message prefix `refactor(playwright):`.
 
 ---
@@ -86,9 +104,8 @@ Expected: no output.
 npx tsc --noEmit
 npx playwright test --list | tail -1
 ```
-Expected: `tsc` reports no errors; test count line unchanged from before Task 1
-(run `npx playwright test --list | tail -1` once before starting this task to
-capture the baseline count if you don't already know it).
+Expected: `tsc` reports **only the 5 baseline errors** listed in Global
+Constraints (no new ones); `Total: 94 tests in 18 files`.
 
 - [ ] **Step 4: Commit**
 
@@ -226,7 +243,7 @@ each file actually imports.
 npx tsc --noEmit
 npx playwright test --list | tail -1
 ```
-Expected: no `tsc` errors, same test count as Task 1's end state.
+Expected: only the 5 baseline `tsc` errors, `Total: 94 tests in 18 files`.
 
 - [ ] **Step 5: Commit**
 
@@ -297,24 +314,50 @@ For each matched file:
 1. Change the import path from `'../../helpers/log-verification'` to
    `'../../helpers/assertions'` (drop any of the 5 `extract*` names from the
    import list — they no longer exist).
-2. Replace each `extract*Logs(...)` call with a direct `getLogs(...)` call
-   per this exact mapping (confirmed against every call site in suite 01;
-   apply the same pattern wherever these appear in the other 17 suites):
+2. Replace each `extract*Logs(...)` call with a direct `getLogs(...)` call.
 
-   | Old call | New call |
-   |---|---|
-   | `extractAllLogs(payDate, logOffset)` | `getLogs(payDate, '', logOffset)` |
-   | `extractSessionPostLogs(payDate, sessionDate, '', '', logOffset)` | `getLogs(payDate, '/session', logOffset)` |
-   | `extractSessionGetLogs(payDate, session, payDate, logOffset)` | `getLogs(payDate, \`/session/${session}\`, logOffset)` |
-   | `extractTokenLogs(payDate, payDate, logOffset)` | `getLogs(payDate, '/token', logOffset)` |
-   | `extractTransactionPutLogs(date, offset)` | `getLogs(date, '/transaction', offset)` |
+   **The rule** (this, not the table, is authoritative — there are ~130 call
+   sites across all 18 suites and they do not all share one argument shape):
+   each wrapper's signature is `(date, ...dead..., offset = 0)`. Keep the
+   **first** argument (the date) and the **last** argument **only if it is
+   the offset**, drop everything in between, and inline the wrapper's
+   hardcoded `urlFilter` string:
 
-   If a call site passes different literal arguments than shown (e.g. a
-   different offset expression), keep that argument as-is — only the
-   function name/wrapper is being removed, the `date` and `offset`
-   arguments pass through unchanged; only the middle (always-dead)
-   arguments are dropped and the `urlFilter` string is inlined per the
-   table.
+   | Wrapper | urlFilter to inline | Signature (from `log-verification.ts`) |
+   |---|---|---|
+   | `extractAllLogs` | `''` | `(date, offset = 0)` |
+   | `extractSessionPostLogs` | `'/session'` | `(date, sessionDate, adminUser, apiPass, offset = 0)` |
+   | `extractSessionGetLogs` | `` `/session/${session}` `` | `(date, session, payDate, offset = 0)` |
+   | `extractTokenLogs` | `'/token'` | `(date, payDate, offset = 0)` |
+   | `extractTransactionPutLogs` | `'/transaction'` | `(date, offset = 0)` |
+
+   Note `extractSessionGetLogs` is the one wrapper whose 2nd argument is
+   **live** — it interpolates into the urlFilter. Every other wrapper's
+   middle arguments are dead at every call site.
+
+   **The 4 shapes that actually occur** (verified by grep across all 18
+   suites, 2026-07-31):
+
+   | Occurs in | Old call | New call |
+   |---|---|---|
+   | suites 01–15 (with offset) | `extractAllLogs(payDate, logOffset)` | `getLogs(payDate, '', logOffset)` |
+   | suites 01–15 | `extractSessionPostLogs(payDate, sessionDate, '', '', logOffset)` | `getLogs(payDate, '/session', logOffset)` |
+   | suites 01–15 | `extractSessionGetLogs(payDate, session, payDate, logOffset)` | `getLogs(payDate, \`/session/${session}\`, logOffset)` |
+   | suites 01–15 | `extractTokenLogs(payDate, payDate, logOffset)` | `getLogs(payDate, '/token', logOffset)` |
+   | suites 14, 15 | `extractTransactionPutLogs(payDate, logOffset)` | `getLogs(payDate, '/transaction', logOffset)` |
+   | **suites 12, 13** (empty session) | `extractSessionGetLogs(payDate, '', payDate, logOffset)` | `getLogs(payDate, '/session/', logOffset)` |
+   | **suites 16, 17, 18** (NO offset arg — defaults to 0) | `extractAllLogs(payDate)` | `getLogs(payDate, '')` |
+   | **suites 16, 17, 18** | `extractSessionPostLogs(renewDate, renewDate, '', '')` | `getLogs(renewDate, '/session')` |
+   | **suites 16, 17, 18** | `extractSessionGetLogs(renewDate, mc060Session, renewDate)` | `getLogs(renewDate, \`/session/${mc060Session}\`)` |
+   | **suites 16, 17, 18** | `extractTokenLogs(mc061PayDate, mc061PayDate)` | `getLogs(mc061PayDate, '/token')` |
+
+   The bolded rows are the ones the naive 4-shape reading misses. Suites
+   16/17/18 use per-test date variables (`mc060PayDate`, `renewDate`,
+   `upgradePayDate`, `manualRenewDate`, …) and omit the offset entirely —
+   preserve whatever date expression each call site passes, and **do not
+   invent an offset argument where none was passed** (`getLogs`'s own
+   `skip = 0` default matches the wrapper's `offset = 0` default, so
+   omitting it is exactly equivalent).
 3. Add `getLogs` (and `getWebhookLogs`/`getLogEntryCount` if that file
    didn't already import them from `wc-api`) to that file's `wc-api` import
    line.
@@ -326,8 +369,9 @@ npx tsc --noEmit
 npx playwright test --list | tail -1
 grep -rn "extractAllLogs\|extractSessionPostLogs\|extractSessionGetLogs\|extractTokenLogs\|extractTransactionPutLogs" tests helpers
 ```
-Expected: no `tsc` errors, unchanged test count, grep returns no matches
-anywhere.
+Expected: only the 5 baseline `tsc` errors (the `log-verification.ts(238,24)`
+one now reported against `assertions.ts` at its new line number),
+`Total: 94 tests in 18 files`, and grep returns no matches anywhere.
 
 - [ ] **Step 5: Commit**
 
@@ -410,16 +454,21 @@ interface LoggedMailResponse {
 
 /**
  * Poll custom/v1/get-mail (backed by the WP Mail Logging DB table) until at
- * least one matching row appears, or the timeout elapses. `contains` is
- * matched against the DB row's full message body server-side.
+ * least `minCount` matching rows appear, then return them. Throws on
+ * timeout, mirroring the semantics of the Mailpit `waitForEmails` helper
+ * this replaces — a silent empty return would let callers that expect two
+ * mails (admin + customer) skip an assertion instead of failing.
+ * `contains` is matched against the DB row's full message body server-side.
  */
 export async function getLoggedMail(
   opts: { to?: string; subject?: string; contains?: string; since?: string; limit?: number },
-  poll: { timeoutMs?: number; intervalMs?: number } = {},
+  poll: { minCount?: number; timeoutMs?: number; intervalMs?: number } = {},
 ): Promise<LoggedMail[]> {
+  const minCount = poll.minCount ?? 1;
   const timeoutMs = poll.timeoutMs ?? 60000;
   const intervalMs = poll.intervalMs ?? 3000;
   const deadline = Date.now() + timeoutMs;
+  let lastSeen: LoggedMail[] = [];
 
   for (;;) {
     const params = new URLSearchParams({
@@ -432,12 +481,27 @@ export async function getLoggedMail(
     const res = await fetch(`${BASE_URL}/wp-json/custom/v1/get-mail?${params}`, { headers: wpAuthHeaders() });
     if (!res.ok) throw new Error(`getLoggedMail failed: ${res.status}`);
     const data: LoggedMailResponse = await res.json();
-    if (data.mails.length > 0) return data.mails;
-    if (Date.now() >= deadline) return [];
+    lastSeen = data.mails || [];
+    if (lastSeen.length >= minCount) return lastSeen;
+    if (Date.now() >= deadline) {
+      const seen = lastSeen.map(m => `${m.receiver}/${m.subject}`).join(', ');
+      throw new Error(
+        `getLoggedMail timeout: wanted >=${minCount} mails matching ${JSON.stringify(opts)} `
+        + `within ${timeoutMs}ms, got ${lastSeen.length}. Seen: [${seen}]`,
+      );
+    }
     await new Promise(r => setTimeout(r, intervalMs));
   }
 }
 ```
+
+`minCount` is the load-bearing part of this port: the Mailpit original
+called `waitForEmails(orderNumber, 2)` for `verifyOrderEmails` and
+`waitForEmails(orderNumber, 1)` for the single-recipient variants. Without
+`minCount`, a poll that lands after the admin mail is written but before the
+customer mail is would return one row, and `verifyOrderEmails`'s
+`if (customerMsg)` guard would silently skip the customer-email assertion at
+all ~40 of its call sites while still reporting green.
 
 - [ ] **Step 2: Rewrite the assertion functions in `assertions.ts`**
 
@@ -454,7 +518,10 @@ export async function verifyOrderEmails(
   orderNumber: string,
   options: { paymentMethodTitle: string; adminEmail?: string; customerEmail?: string }
 ): Promise<void> {
-  const mails = await getLoggedMail({ contains: orderNumber });
+  // minCount: 2 — the original Mailpit helper waited for BOTH the admin and
+  // the customer mail before asserting; returning after only the admin row
+  // exists would silently skip the customer assertion below.
+  const mails = await getLoggedMail({ contains: orderNumber }, { minCount: 2 });
 
   const adminMsg = mails.find(m =>
     m.subject.toLowerCase().includes('new order') || m.subject.includes(`Order #${orderNumber}`)
@@ -518,9 +585,12 @@ doesn't throw.
 git rm tests/Playwright/helpers/email-verification.ts
 grep -rln "from '../../helpers/email-verification'" tests --include='*.ts'
 ```
-For each match, change the import path to `'../../helpers/assertions'`
-(the only names ever imported from this module across the codebase are
-`verifyOrderEmails`/`verifyAdminEmail`/`verifyCustomerEmail`).
+For each match, change the import path to `'../../helpers/assertions'`. The
+only names any suite imports from this module are `verifyOrderEmails`,
+`verifyAdminEmail` and `verifyCustomerEmail` (verified by grep across all 18
+suites, 2026-07-31 — `clearMessages` has **zero** call sites, which is why
+the `get-mail` port drops it entirely rather than reimplementing a
+DB-truncating equivalent).
 
 - [ ] **Step 4: Verify — static, then live**
 
@@ -555,17 +625,33 @@ git commit -m "refactor(playwright): replace Mailpit with custom/v1/get-mail DB 
 
 **Interfaces:**
 - Consumes: `waitForPageLoad` from `./block-ui`.
-- Produces: `flows.ts` exports `collectOrderReceivedData(page, options): Promise<OrderReceivedData>`
-  and the `OrderReceivedData` interface (`{ orderNumber: string; subscriptionId?: string }`,
-  unchanged shape). `assertions.ts` exports
-  `assertOrderReceived(page, options): Promise<void>` (the `expect()`-only
-  half). Suites call both — see the replacement call pattern in Step 3.
+- Produces: `flows.ts` exports `collectOrderReceivedData(page): Promise<OrderReceivedData>`
+  and `OrderReceivedData` (`{ orderNumber: string; subscriptionId?: string; declined: boolean }`).
+  `assertions.ts` exports `assertOrderReceived(page, options, data?): Promise<void>`
+  (the `expect()`-only half; `data` is the value `collectOrderReceivedData`
+  just returned, needed to assert the subscription-id invariant — see below).
+  Suites call both — see the replacement call pattern in Step 3.
 
 `verifyOrderReceived` did navigation-wait + data-read + assertions in one
 function, returning data the caller needs (`orderNumber`). Splitting it
 means the caller now makes two calls where it made one; `collectOrderReceivedData`
 runs first (it still needs to know if the flow declined, to skip the total
 read), then `assertOrderReceived` runs the checks.
+
+**Two traps in this split** — both are why the original's single-function
+shape happened to work, and both must be handled explicitly:
+
+1. The original ran `await expect(h1.entry-title).toContainText('Order received')`
+   *before* reading the order number. That `expect` auto-retries, so it
+   doubled as a **wait** for the confirmation page to render. Reading the
+   order number first, with only `waitForPageLoad` behind it, removes that
+   wait and will flake. `collectOrderReceivedData` must therefore `waitFor`
+   the order-number locator itself before reading it.
+2. The original asserted `expect(subscriptionId, 'Subscription ID should not
+   be empty').toBeTruthy()` whenever a subscription link was present. A naive
+   split drops that assertion silently (the data-collection half has no
+   `expect`, the assertion half has no `subscriptionId`) — a real loss of
+   coverage. Hence `assertOrderReceived`'s third `data` parameter.
 
 - [ ] **Step 1: Create `flows.ts`**
 
@@ -580,6 +666,10 @@ export interface OrderReceivedData {
   declined: boolean;
 }
 
+/**
+ * Read the order-received page's data (order number, subscription id) without
+ * asserting anything. Pass the result to assertions.assertOrderReceived().
+ */
 export async function collectOrderReceivedData(page: Page): Promise<OrderReceivedData> {
   await waitForPageLoad(page);
 
@@ -588,7 +678,12 @@ export async function collectOrderReceivedData(page: Page): Promise<OrderReceive
     return { orderNumber: '', declined: true };
   }
 
-  const orderNumber = (await page.locator('.order > strong, li:has-text("Order number") > strong').first().textContent() || '').trim();
+  // The original verifyOrderReceived() got its wait for free from an
+  // auto-retrying expect() on the page title. Without that, this read races
+  // the confirmation page's render — wait for the element explicitly.
+  const orderLocator = page.locator('.order > strong, li:has-text("Order number") > strong').first();
+  await orderLocator.waitFor({ state: 'visible', timeout: 30000 });
+  const orderNumber = (await orderLocator.textContent() || '').trim();
 
   let subscriptionId: string | undefined;
   const subLink = page.locator('td.subscription-id > a');
@@ -605,7 +700,8 @@ export async function collectOrderReceivedData(page: Page): Promise<OrderReceive
 ```ts
 export async function assertOrderReceived(
   page: Page,
-  options: { displayName: string; expectDeclined?: boolean; expectedTotal?: string }
+  options: { displayName: string; expectDeclined?: boolean; expectedTotal?: string },
+  data?: OrderReceivedData,
 ): Promise<void> {
   if (options.expectDeclined) {
     await expect(page.locator('.woocommerce-error')).toBeVisible();
@@ -626,11 +722,20 @@ export async function assertOrderReceived(
     ).first();
     await expect(totalLocator).toContainText(options.expectedTotal);
   }
+
+  // Preserved from the original verifyOrderReceived(): when the page rendered
+  // a subscription link, its id must not be empty. `undefined` means no link
+  // was present at all, which is the non-subscription case — not a failure.
+  if (data?.subscriptionId !== undefined) {
+    expect(data.subscriptionId, 'Subscription ID should not be empty').toBeTruthy();
+  }
 }
 ```
 
-(`Page` must already be imported in `assertions.ts` from Task 2 — no new
-import needed beyond `expect`, already present.)
+`assertions.ts` needs `import type { OrderReceivedData } from './flows';`
+added for this (`Page`/`expect` are already imported from Task 2). Note this
+makes `assertions.ts` import a type from `flows.ts` while `flows.ts` imports
+nothing from `assertions.ts` — a one-way type-only dependency, no cycle.
 
 - [ ] **Step 3: Delete the old file and fix every importer**
 
@@ -655,10 +760,14 @@ import { collectOrderReceivedData } from '../../helpers/flows';
 import { assertOrderReceived } from '../../helpers/assertions';
 ...
 const result = await collectOrderReceivedData(page);
-await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
+await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
 orderNumber = result.orderNumber;
 expect(orderNumber).toBeTruthy();
 ```
+
+**Always pass `result` as the third argument** — that is what preserves the
+subscription-id assertion. A call site that omits it silently drops that
+check.
 
 For call sites passing `expectDeclined: true`, keep that option on the
 `assertOrderReceived` call only (`collectOrderReceivedData` takes no
@@ -669,7 +778,11 @@ options — it already returns `declined` unconditionally).
 ```bash
 npx tsc --noEmit
 npx playwright test --list | tail -1
+grep -rn "assertOrderReceived(" tests --include='*.ts' | grep -v ", result)" | grep -v "expectDeclined"
 ```
+Expected: only the 5 baseline `tsc` errors, `Total: 94 tests in 18 files`,
+and the grep returns nothing (every non-declined call site passes its
+collected data through).
 
 - [ ] **Step 5: Commit**
 
@@ -680,13 +793,74 @@ git commit -m "refactor(playwright): split order-received.ts into flows.ts + ass
 
 ---
 
-### Task 6: Port suite 01 (`01-hosted-session-capture-classic`) — dedup the log-verification block
+### Task 6: Move `my-account.ts`'s business assertions into `assertions.ts`
+
+**Files:**
+- Modify: `tests/Playwright/helpers/assertions.ts` (append)
+- Delete: `tests/Playwright/helpers/my-account.ts`
+- Modify: every suite importing from `../../helpers/my-account`
+
+`my-account.ts` (142 lines) exports exactly four functions —
+`verifyPaymentMethods`, `verifyOrderInMyAccount`, `verifySubscription`,
+`verifyCartEmpty` — and all four are business assertions (11 `expect()`
+calls between them: saved-card count/brand/expiry, order row status/total/
+payment method, subscription state, empty-cart message). None is a
+navigation primitive. Leaving them outside `assertions.ts` while
+`admin-orders.ts`'s equivalents moved in (Task 2) would leave the
+"assertions.ts owns the business assertions" rule half-applied — this task
+closes that gap. Because the file has no non-assertion exports left over,
+it is deleted outright rather than split.
+
+**Interfaces:**
+- Produces: `assertions.ts` additionally exports `verifyPaymentMethods`,
+  `verifyOrderInMyAccount`, `verifySubscription`, `verifyCartEmpty` — moved
+  verbatim, **signatures unchanged**, so no call site changes except its
+  import path.
+
+- [ ] **Step 1: Move the four functions**
+
+Read `helpers/my-account.ts` in full and append all four function bodies
+(plus any private helpers/types they use, and any `Page`/`expect`/config
+imports not already present) to `assertions.ts` **verbatim** — no signature
+or logic changes. Merge its imports into `assertions.ts`'s existing import
+statements rather than adding duplicate lines.
+
+- [ ] **Step 2: Delete the old file and repoint every importer**
+
+```bash
+git rm tests/Playwright/helpers/my-account.ts
+grep -rln "from '../../helpers/my-account'" tests --include='*.ts'
+```
+For each match, change the import path to `'../../helpers/assertions'`,
+keeping the same imported names. If a file now imports from
+`'../../helpers/assertions'` twice, merge the two import statements.
+
+- [ ] **Step 3: Verify**
+
+```bash
+npx tsc --noEmit
+npx playwright test --list | tail -1
+grep -rn "helpers/my-account" tests helpers --include='*.ts'
+```
+Expected: only the 5 baseline `tsc` errors, `Total: 94 tests in 18 files`,
+grep returns nothing.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add -A
+git commit -m "refactor(playwright): move my-account assertions into assertions.ts"
+```
+
+---
+
+### Task 7: Port suite 01 (`01-hosted-session-capture-classic`) — dedup the log-verification block
 
 **Files:**
 - Modify: `tests/Playwright/helpers/assertions.ts` (append `assertCaptureLogTrail`)
 - Modify: `tests/Playwright/tests/01-hosted-session-capture-classic/suite.spec.ts`
 
-This is the template the remaining 17 suites (Task 7) repeat. Suite 01 has
+This is the template the remaining 17 suites (Task 8) repeat. Suite 01 has
 7 tests (MC-004 through MC-010); each repeats an ~60-line
 "fetch logs → find entry → verify" block that differs only in which card,
 whether a session-POST log is expected (false for the two saved-token
@@ -707,7 +881,6 @@ collapses all 7 into one composite call.
 ```ts
 export interface CaptureLogTrailExpected {
   payDate: string;
-  sessionDate: string;
   logOffset: number;
   session: string;
   total: string;
@@ -835,11 +1008,20 @@ card-details fetch):
 ```ts
 // === LOG VERIFICATION ===
 await assertCaptureLogTrail({
-  payDate, sessionDate, logOffset, session, total,
+  payDate, logOffset, session, total,
   transactionId: transactionId!, orderNumber, card: cards.mastercard,
   expectSessionPost: true, expectToken: false, expectCardDetailsFetch: true,
 });
 ```
+
+**`sessionDate` is deliberately not a parameter.** Every call site set
+`sessionDate = payDate` and the only consumer was
+`extractSessionPostLogs(payDate, sessionDate, ...)`, whose 2nd argument was
+dead (Task 3 removed it). After this task the suite's `sessionDate`
+declaration and its per-test `sessionDate = payDate` assignments are
+write-only — **delete the declaration and every assignment**. `tsc` won't
+flag them (`strict: false`, no `noUnusedLocals`), so this must be done by
+hand; grep the file for `sessionDate` afterwards and expect zero hits.
 
 Per-test parameters (derived from the current inline blocks read in this
 plan's research pass):
@@ -883,8 +1065,13 @@ already redirected this import to `assertions`), replacing with just
 npx tsc --noEmit
 npx playwright test --list
 ```
-Expected: no `tsc` errors; the 7 MC-004..MC-010 test names still appear,
-identical to before this task.
+Expected: only the 5 baseline `tsc` errors; `Total: 94 tests in 18 files`
+with the 7 MC-004..MC-010 test names identical to before this task. Also
+confirm the dead local is gone:
+```bash
+grep -n "sessionDate" tests/01-hosted-session-capture-classic/suite.spec.ts
+```
+Expected: no output.
 
 - [ ] **Step 4: Run against the real site if reachable**
 
@@ -896,7 +1083,7 @@ If the environment executing this plan has no network path to the
 the task done as "passing" without this having actually run. If you have
 site access, this is the first real regression check for the whole
 refactor; a failure here means re-reading the diff against the original
-7 blocks line-by-line before proceeding to Task 7.
+7 blocks line-by-line before proceeding to Task 8.
 
 - [ ] **Step 5: Commit**
 
@@ -907,7 +1094,7 @@ git commit -m "refactor(playwright): port suite 01 to assertCaptureLogTrail"
 
 ---
 
-### Task 7: Port suites 02–18 — repeat Task 6's procedure per suite
+### Task 8: Port suites 02–18 — repeat Task 7's procedure per suite
 
 **Files:** one suite folder under `tests/Playwright/tests/` per iteration,
 plus `helpers/assertions.ts`/`helpers/flows.ts` as new composite functions
@@ -965,7 +1152,7 @@ with its own commit:
 
 - [ ] **Step 4: Rewrite the suite's tests** to call the composite
   assertion(s) / flow(s), removing the duplicated inline code, exactly as
-  done for suite 01 in Task 6.
+  done for suite 01 in Task 7.
 
 - [ ] **Step 5: Verify**
 
@@ -973,14 +1160,17 @@ with its own commit:
 npx tsc --noEmit
 npx playwright test --list
 ```
-Expected: no `tsc` errors, this suite's test names unchanged.
+Expected: only the 5 baseline `tsc` errors, `Total: 94 tests in 18 files`,
+this suite's test names unchanged. If the suite had a write-only
+`sessionDate` local (suites 01–02, 06–07, 11 do), confirm it's removed:
+`grep -n "sessionDate" tests/<NN-suite-slug>/suite.spec.ts` → no output.
 
 - [ ] **Step 6: Run against the real site if reachable**
 
 ```bash
 npx playwright test tests/<NN-suite-slug>
 ```
-Same caveat as Task 6 Step 4 — report explicitly if this couldn't be run.
+Same caveat as Task 7 Step 4 — report explicitly if this couldn't be run.
 
 - [ ] **Step 7: Commit**
 
@@ -998,7 +1188,7 @@ historically ("Port suite N to canonical shape" commits).
 
 ---
 
-### Task 8: Fix `audit-assertions.py` portability + reconcile `PHASE_MATCHERS`, run final coverage check
+### Task 9: Fix `audit-assertions.py` portability + reconcile `PHASE_MATCHERS`, run final coverage check
 
 **Files:**
 - Modify: `audit-assertions.py` (repo root)
@@ -1013,11 +1203,20 @@ can be trusted post-refactor:
    `load_playwright_spec`, line ~208 — it globs `*.spec.ts` in the suite
    directory, it does not follow imports into `helpers/`). Every function
    this refactor relocated out of the spec file and every composite
-   function introduced in Tasks 6–7 (`assertCaptureLogTrail` and whatever
-   Task 7 added) is now invisible to this text scan unless the map is
-   updated. Additionally, the `"Verify Transaction on logs"` entry
-   references `extractAllLogs`/`extractTokenLogs`, which Task 3 deleted —
-   this entry is already broken as of Task 3, independent of Tasks 6/7.
+   function introduced in Tasks 7–8 (`assertCaptureLogTrail` and whatever
+   Task 8 added) is now invisible to this text scan unless the map is
+   updated. Three entries break **before** Tasks 7–8 even start (verified by
+   grep against the current script, 2026-07-31):
+   - line 62, `"Verify Transaction on logs"` → references `extractAllLogs`
+     and `extractTokenLogs`, both deleted by **Task 3**.
+   - lines 73–74, `"Place Order button enabled"` and `"Place Order"` → both
+     reference `verifyOrderReceived`, deleted by **Task 5** (split into
+     `collectOrderReceivedData` + `assertOrderReceived`).
+
+   `verifyPaymentMethods`/`verifyOrderInMyAccount`/`verifySubscription`/
+   `verifyCartEmpty` (lines 68–71) survive Task 6 unchanged — that task only
+   moves them between files, and this script matches identifier text in the
+   spec, not import paths. No edit needed for those.
 
 - [ ] **Step 1: Fix the paths**
 
@@ -1039,10 +1238,10 @@ different checkout layout.
 - [ ] **Step 2: Reconcile `PHASE_MATCHERS` against the post-refactor identifier names**
 
 For each `PHASE_MATCHERS` entry whose old identifiers were relocated into a
-composite function during Tasks 6–7, add that composite function's name to
+composite function during Tasks 7–8, add that composite function's name to
 the entry's identifier list (do not remove the old names — a suite not yet
 covered by a composite, if any remain, still needs the original match).
-At minimum, from Task 6:
+At minimum, from Task 7:
 
 ```python
     ("Verify Session",                              ["verifySessionPost", "verifySessionGet", "assertCaptureLogTrail"]),
@@ -1053,13 +1252,20 @@ At minimum, from Task 6:
     ("Verify Transaction on logs",                   ["verifyAuthorizeCaptureLog", "verifyRefundLog",
                                                       "verifyVoidLog", "verifyAuthenticationResult",
                                                       "verifyTokenLog", "assertCaptureLogTrail"]),
+    ("Place Order button enabled",                   ["clickPlaceOrder", "assertOrderReceived"]),
+    ("Place Order",                                  ["clickPlaceOrder", "assertOrderReceived"]),
 ```
-(Note `extractAllLogs`/`extractTokenLogs` dropped from the last entry — dead
-since Task 3.) Then add whatever composite function name(s) Task 7
+(Note `extractAllLogs`/`extractTokenLogs` dropped from the
+`"Verify Transaction on logs"` entry — dead since Task 3 — and
+`verifyOrderReceived` replaced with `assertOrderReceived` in the two
+`"Place Order"` entries, dead since Task 5. `assertOrderReceived` is the
+right identifier to match on rather than `collectOrderReceivedData`, since
+the GI phase these map to is an assertion phase.) Then add whatever
+composite function name(s) Task 8
 introduced for the refund/void/subscription suites to the corresponding
 entries (`"Refund order"` → add the refund composite's name if one was
 created, `"Capture/Void Payment by Admin"` → add the void composite's name,
-etc.) — the exact names depend on what Task 7 actually built; check
+etc.) — the exact names depend on what Task 8 actually built; check
 `git log -p audit-assertions.py` isn't skippable here, check `assertions.ts`
 and `flows.ts`'s final exports and match each new composite to the phase(s)
 its internals cover.
@@ -1075,7 +1281,7 @@ run before this refactor started (compare against the findings documented
 in the `Document audit findings (suites 01-15 vs Ghost Inspector
 source-of-truth)` commit, `710c1e6`). If new gaps appear, they're either a
 missed `PHASE_MATCHERS` entry (fix and re-run) or an actual coverage
-regression introduced somewhere in Tasks 1–7 (stop and investigate — do not
+regression introduced somewhere in Tasks 1–8 (stop and investigate — do not
 paper over by loosening the matcher).
 
 - [ ] **Step 4: Commit**
@@ -1087,41 +1293,55 @@ git commit -m "fix(audit): portable paths + reconcile PHASE_MATCHERS with three-
 
 ---
 
-### Task 9: Final cleanup — confirm no dangling references, remove dead imports
+### Task 10: Final cleanup — confirm no dangling references, remove dead imports
 
 **Files:** whole `tests/Playwright/` tree (read-only checks + trims only).
 
-- [ ] **Step 1: Confirm the 4 deleted modules have zero references left**
+- [ ] **Step 1: Confirm the 5 deleted modules have zero references left**
 
 ```bash
-grep -rn "helpers/log-verification\|helpers/email-verification\|helpers/order-received\|helpers/api'" tests/Playwright --include='*.ts'
+grep -rn "helpers/log-verification\|helpers/email-verification\|helpers/order-received\|helpers/my-account\|helpers/api'" tests/Playwright --include='*.ts'
 ```
-Expected: no output. (The old `helpers/api.ts` path check catches anything
-Task 1's sed missed.)
+Expected: no output. (`helpers/api'` catches anything Task 1's sed missed;
+`helpers/my-account` covers Task 6.) Also confirm the files themselves are
+gone:
+```bash
+ls tests/Playwright/helpers/
+```
+Expected remaining: `admin-orders.ts`, `assertions.ts`, `block-ui.ts`,
+`cart.ts`, `checkout.ts`, `debug.ts`, `flows.ts`, `hosted-checkout.ts`,
+`hosted-session.ts`, `request-tracer.ts`, `three-ds.ts`, `wc-api.ts`,
+`wp-login.ts` — 13 files, down from 15.
 
 - [ ] **Step 2: Confirm test count parity against the pre-refactor baseline**
 
 ```bash
 npx playwright test --list | tail -1
 ```
-Compare against the count recorded before Task 1 started. Must match
-exactly — this refactor adds/removes zero tests.
+Expected: `Total: 94 tests in 18 files` — this refactor adds/removes zero
+tests.
 
-- [ ] **Step 3: Full `tsc` + lint-equivalent pass**
+- [ ] **Step 3: Full `tsc` pass**
 
 ```bash
 npx tsc --noEmit
 ```
+Expected: only the 5 baseline errors from Global Constraints (with the
+former `log-verification.ts(238,24)` one now reported against
+`assertions.ts`). Any additional error is a regression introduced by this
+refactor — fix it rather than accepting it.
 
-- [ ] **Step 4: Update `ASSERTION-MAP.md` if any phase's implementation
-  location changed enough to make its existing helper-function references
-  stale** (e.g. it names `log-verification.ts` functions directly anywhere —
-  grep for `log-verification\|email-verification\|order-received` inside
-  `ASSERTION-MAP.md` and update any hits to point at `assertions.ts`/`flows.ts`).
+- [ ] **Step 4: Update `ASSERTION-MAP.md`'s stale references**
 
 ```bash
-grep -n "log-verification\|email-verification\|order-received" tests/Playwright/ASSERTION-MAP.md
+grep -n "log-verification\|email-verification\|order-received\|my-account\|helpers/api\|verifyOrderReceived\|extractAllLogs\|extractSessionPostLogs\|extractSessionGetLogs\|extractTokenLogs\|extractTransactionPutLogs\|Mailpit\|MAILPIT" tests/Playwright/ASSERTION-MAP.md
 ```
+Repoint every hit: deleted module paths → `assertions.ts`/`flows.ts`/
+`wc-api.ts`; `verifyOrderReceived` → `collectOrderReceivedData` +
+`assertOrderReceived`; `extract*Logs` → `getLogs`; any Mailpit mention →
+the `custom/v1/get-mail` endpoint. This doc is the human-facing map from GI
+phases to helper functions — leaving it pointing at deleted files makes it
+actively misleading for the next person porting a suite.
 
 - [ ] **Step 5: Commit**
 
