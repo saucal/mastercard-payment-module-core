@@ -18,16 +18,8 @@ import {
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
 import { verifyOrderReceived } from '../../helpers/order-received';
 import { adminLogin } from '../../helpers/wp-login';
-import {
-  navigateToOrder,
-  assertOrderStatus,
-  capturePayment,
-  voidPayment,
-  assertCaptureFormVisible,
-  assertVoidFormVisible,
-  assertAuthorizedNote,
-  assertOrderNoteContains,
-} from '../../helpers/admin-orders';
+import { navigateToOrder, capturePayment, voidPayment } from '../../helpers/admin-orders';
+import { assertOrderStatus, assertCaptureFormVisible, assertVoidFormVisible, assertAuthorizedNote, assertOrderNoteContains } from '../../helpers/assertions';
 import {
   extractSessionGetLogs,
   extractTokenLogs,

@@ -28,12 +28,8 @@ import {
 } from '../../helpers/my-account';
 import { adminLogin, frontendLogin, registerUser } from '../../helpers/wp-login';
 import { waitForUnblock } from '../../helpers/block-ui';
-import {
-  navigateToOrder,
-  assertOrderStatus,
-  assertPaymentMethodMeta,
-  assertCapturedNote,
-} from '../../helpers/admin-orders';
+import { navigateToOrder } from '../../helpers/admin-orders';
+import { assertOrderStatus, assertPaymentMethodMeta, assertCapturedNote } from '../../helpers/assertions';
 import {
   extractAllLogs,
   extractSessionGetLogs,

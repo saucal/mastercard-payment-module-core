@@ -16,12 +16,8 @@ import {
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
 import { verifyOrderReceived } from '../../helpers/order-received';
 import { adminLogin } from '../../helpers/wp-login';
-import {
-  navigateToOrder,
-  assertOrderStatus,
-  refundPayment,
-  assertOrderNoteContains,
-} from '../../helpers/admin-orders';
+import { navigateToOrder, refundPayment } from '../../helpers/admin-orders';
+import { assertOrderStatus, assertOrderNoteContains } from '../../helpers/assertions';
 import {
   extractTransactionPutLogs,
   verifyRefundLog,

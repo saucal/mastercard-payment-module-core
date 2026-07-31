@@ -18,12 +18,8 @@ import { verifyOrderReceived } from '../../helpers/order-received';
 import { handle3DSChallenge } from '../../helpers/three-ds';
 import { verifyPaymentMethods } from '../../helpers/my-account';
 import { adminLogin, frontendLogin, registerUser } from '../../helpers/wp-login';
-import {
-  navigateToOrder,
-  assertOrderStatus,
-  assertPaymentMethodMeta,
-  assertCapturedNote,
-} from '../../helpers/admin-orders';
+import { navigateToOrder } from '../../helpers/admin-orders';
+import { assertOrderStatus, assertPaymentMethodMeta, assertCapturedNote } from '../../helpers/assertions';
 import {
   extractAllLogs,
   extractSessionGetLogs,

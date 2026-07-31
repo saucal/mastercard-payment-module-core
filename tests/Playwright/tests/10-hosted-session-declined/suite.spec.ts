@@ -16,12 +16,8 @@ import {
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
 import { waitForUnblock } from '../../helpers/block-ui';
 import { adminLogin } from '../../helpers/wp-login';
-import {
-  navigateToOrder,
-  assertOrderStatus,
-  assertOrderNoteContains,
-  assertPaymentMethodMeta,
-} from '../../helpers/admin-orders';
+import { navigateToOrder } from '../../helpers/admin-orders';
+import { assertOrderStatus, assertOrderNoteContains, assertPaymentMethodMeta } from '../../helpers/assertions';
 import { extractAllLogs } from '../../helpers/log-verification';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';

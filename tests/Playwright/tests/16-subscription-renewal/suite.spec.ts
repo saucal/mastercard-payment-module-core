@@ -15,15 +15,8 @@ import { verifyOrderReceived } from '../../helpers/order-received';
 import { handle3DSChallenge } from '../../helpers/three-ds';
 import { verifySubscription, verifyOrderInMyAccount } from '../../helpers/my-account';
 import { adminLogin, registerUser } from '../../helpers/wp-login';
-import {
-  triggerSubscriptionRenewal,
-  extractRenewalOrderNumber,
-  navigateToOrder,
-  assertOrderStatus,
-  assertPaymentMethodMeta,
-  assertCapturedNote,
-  assertAuthorizedNote,
-} from '../../helpers/admin-orders';
+import { triggerSubscriptionRenewal, extractRenewalOrderNumber, navigateToOrder } from '../../helpers/admin-orders';
+import { assertOrderStatus, assertPaymentMethodMeta, assertCapturedNote, assertAuthorizedNote } from '../../helpers/assertions';
 import {
   extractAllLogs,
   extractSessionPostLogs,

@@ -19,12 +19,8 @@ import { fillHostedSessionCC } from '../../helpers/hosted-session';
 import { verifyOrderReceived } from '../../helpers/order-received';
 import { verifyCartEmpty, verifyPaymentMethods } from '../../helpers/my-account';
 import { adminLogin, frontendLogin } from '../../helpers/wp-login';
-import {
-  navigateToOrder,
-  assertOrderStatus,
-  assertPaymentMethodMeta,
-  assertCapturedNote,
-} from '../../helpers/admin-orders';
+import { navigateToOrder } from '../../helpers/admin-orders';
+import { assertOrderStatus, assertPaymentMethodMeta, assertCapturedNote } from '../../helpers/assertions';
 import {
   extractAllLogs,
   extractSessionPostLogs,

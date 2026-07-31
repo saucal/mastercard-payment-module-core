@@ -19,7 +19,8 @@ import {
 } from '../../helpers/log-verification';
 import { verifyAdminEmail } from '../../helpers/email-verification';
 import { adminLogin, frontendLogin } from '../../helpers/wp-login';
-import { navigateToOrder, assertOrderStatus, assertPaymentMethodMeta, assertAuthorizedNote } from '../../helpers/admin-orders';
+import { navigateToOrder } from '../../helpers/admin-orders';
+import { assertOrderStatus, assertPaymentMethodMeta, assertAuthorizedNote } from '../../helpers/assertions';
 import { verifyOrderInMyAccount, verifyCartEmpty } from '../../helpers/my-account';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';

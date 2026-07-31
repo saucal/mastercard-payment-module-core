@@ -31,7 +31,8 @@ import {
 } from '../../helpers/log-verification';
 import { verifyOrderEmails } from '../../helpers/email-verification';
 import { adminLogin, frontendLogin } from '../../helpers/wp-login';
-import { navigateToOrder, assertOrderStatus, assertPaymentMethodMeta, assertCapturedNote } from '../../helpers/admin-orders';
+import { navigateToOrder } from '../../helpers/admin-orders';
+import { assertOrderStatus, assertPaymentMethodMeta, assertCapturedNote } from '../../helpers/assertions';
 import { verifyPaymentMethods, verifyOrderInMyAccount, verifyCartEmpty } from '../../helpers/my-account';
 import config from '../../plugin-config';
 import { cards, fourDigits } from '../../fixtures/cards';

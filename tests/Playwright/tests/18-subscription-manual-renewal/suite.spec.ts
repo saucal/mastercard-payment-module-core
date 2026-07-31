@@ -13,14 +13,8 @@ import { fillHostedSessionCC } from '../../helpers/hosted-session';
 import { verifyOrderReceived } from '../../helpers/order-received';
 import { handle3DSChallenge } from '../../helpers/three-ds';
 import { adminLogin, frontendLogin } from '../../helpers/wp-login';
-import {
-  triggerSubscriptionRenewal,
-  extractRenewalOrderNumber,
-  navigateToOrder,
-  assertOrderStatus,
-  assertPaymentMethodMeta,
-  assertCapturedNote,
-} from '../../helpers/admin-orders';
+import { triggerSubscriptionRenewal, extractRenewalOrderNumber, navigateToOrder } from '../../helpers/admin-orders';
+import { assertOrderStatus, assertPaymentMethodMeta, assertCapturedNote } from '../../helpers/assertions';
 import {
   extractAllLogs,
   extractSessionPostLogs,
