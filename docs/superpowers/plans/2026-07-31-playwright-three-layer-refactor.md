@@ -62,6 +62,14 @@ next.
 - Work stays inside `/Users/christian/Automation/payment-module-core/tests/Playwright/`
   (plus `audit-assertions.py` at repo root for Task 9). No other repo touched.
 - One task = one commit. Commit message prefix `refactor(playwright):`.
+- **Never `git add -A`.** The working tree carries pre-existing unrelated WIP
+  (as of 2026-07-31: a modified `tests/Playwright/playwright.config.ts`
+  changing dotenv's path to `tests/Playwright/.env`, and a deleted
+  `tests/Playwright/.env.example`; plus untracked `ghost-inspector-export/`
+  and `test-results/`). None of it belongs to this refactor. Stage the exact
+  files each task touched — `git add <path> <path>` — and leave everything
+  else alone. The `git add -A` lines in the task steps below are shorthand;
+  substitute explicit paths.
 
 ---
 
