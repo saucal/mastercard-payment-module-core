@@ -15,11 +15,22 @@ import {
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
 import { verifyOrderReceived } from '../../helpers/order-received';
 import { handle3DSChallenge } from '../../helpers/three-ds';
-import { verifySessionPost, verifySessionGet, verifySessionGetCardDetails, verifyInitiateAuthentication, verifyAuthenticatePayer, verifyAuthorizeCaptureLog, verifyTokenLog, verifyTokenLogsEmpty } from '../../helpers/assertions';
-import { verifyOrderEmails } from '../../helpers/email-verification';
+import {
+  verifySessionPost,
+  verifySessionGet,
+  verifySessionGetCardDetails,
+  verifyInitiateAuthentication,
+  verifyAuthenticatePayer,
+  verifyAuthorizeCaptureLog,
+  verifyTokenLog,
+  verifyTokenLogsEmpty,
+  verifyOrderEmails,
+  assertOrderStatus,
+  assertPaymentMethodMeta,
+  assertCapturedNote,
+} from '../../helpers/assertions';
 import { adminLogin, frontendLogin } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
-import { assertOrderStatus, assertPaymentMethodMeta, assertCapturedNote } from '../../helpers/assertions';
 import { verifyPaymentMethods, verifyOrderInMyAccount, verifyCartEmpty } from '../../helpers/my-account';
 import config from '../../plugin-config';
 import { cards, fourDigits } from '../../fixtures/cards';

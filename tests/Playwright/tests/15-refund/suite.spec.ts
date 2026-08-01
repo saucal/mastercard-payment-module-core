@@ -12,9 +12,12 @@ import { fillHostedSessionCC } from '../../helpers/hosted-session';
 import { verifyOrderReceived } from '../../helpers/order-received';
 import { adminLogin } from '../../helpers/wp-login';
 import { navigateToOrder, refundPayment } from '../../helpers/admin-orders';
-import { assertOrderStatus, assertOrderNoteContains } from '../../helpers/assertions';
-import { verifyRefundLog } from '../../helpers/assertions';
-import { verifyOrderEmails } from '../../helpers/email-verification';
+import {
+  assertOrderStatus,
+  assertOrderNoteContains,
+  verifyRefundLog,
+  verifyOrderEmails,
+} from '../../helpers/assertions';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
 import { billing } from '../../fixtures/billing';

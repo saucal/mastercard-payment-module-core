@@ -1,7 +1,7 @@
 import { Page, expect } from '@playwright/test';
 import type { CardData, PluginConfig } from '../plugin-config.types';
-import { getLogs, getWebhookLogs, getLogEntryCount } from './wc-api';
-import type { LogEntry, LogResponse } from './wc-api';
+import { getLogs, getWebhookLogs, getLogEntryCount, getLoggedMail } from './wc-api';
+import type { LogEntry, LogResponse, LoggedMail } from './wc-api';
 
 // ─── Admin order screen ───────────────────────────────────────────────────────
 
@@ -669,4 +669,85 @@ export async function waitForWebhooks(
     }
   }
   throw new Error(`waitForWebhooks: main log did not reach quiescence (${quiescenceMs}ms stable) within ${timeoutMs}ms for order ${orderNumber}`);
+}
+
+// ─── Order email verification ─────────────────────────────────────────────────
+// Reads what WordPress actually generated, from its own mail log
+// (custom/v1/get-mail). The admin-vs-customer subject heuristics below are
+// carried over verbatim from the previous external mail-catcher client — only
+// the transport changed, and the body no longer needs a second fetch since the
+// log row already carries it.
+
+function assertPaymentMethodInEmail(mail: LoggedMail, paymentMethodTitle: string): void {
+  // GI checks tr.order-totals.order-totals-payment_method > td or tfoot td;
+  // matching anywhere in the body mirrors the previous implementation.
+  expect(
+    mail.message,
+    `email "${mail.subject}" to ${mail.receiver} should mention ${paymentMethodTitle}`,
+  ).toContain(paymentMethodTitle);
+}
+
+/**
+ * Verify that both the admin and customer order emails contain the payment
+ * method title.
+ */
+export async function verifyOrderEmails(
+  orderNumber: string,
+  options: { paymentMethodTitle: string; adminEmail?: string; customerEmail?: string }
+): Promise<void> {
+  // minCount: 2 — both the admin and the customer mail must have been written
+  // before asserting. Returning after only the admin row exists would silently
+  // skip the customer assertion below.
+  const mails = await getLoggedMail({ contains: orderNumber }, { minCount: 2 });
+
+  const adminMsg = mails.find(m =>
+    m.subject.toLowerCase().includes('new order') || m.subject.includes(`Order #${orderNumber}`)
+  );
+  const customerMsg = mails.find(m =>
+    m.subject.toLowerCase().includes('order has been received') ||
+    m.subject.toLowerCase().includes('order is on') ||
+    m.subject.toLowerCase().includes('your order')
+  );
+
+  expect(adminMsg, `Admin email for order ${orderNumber} not found`).toBeTruthy();
+  assertPaymentMethodInEmail(adminMsg!, options.paymentMethodTitle);
+
+  if (customerMsg) {
+    assertPaymentMethodInEmail(customerMsg, options.paymentMethodTitle);
+  }
+}
+
+/**
+ * Verify only the admin order email contains the payment method title.
+ */
+export async function verifyAdminEmail(
+  orderNumber: string,
+  options: { paymentMethodTitle: string; adminEmail?: string }
+): Promise<void> {
+  const adminAddr = options.adminEmail || 'admin@';
+  const mails = await getLoggedMail({ contains: orderNumber });
+
+  const adminMsg = mails.find(m =>
+    m.receiver.includes(adminAddr) ||
+    m.subject.toLowerCase().includes('new order')
+  );
+  expect(adminMsg, `Admin email for order ${orderNumber} not found`).toBeTruthy();
+  assertPaymentMethodInEmail(adminMsg!, options.paymentMethodTitle);
+}
+
+/**
+ * Verify only the customer order email contains the payment method title.
+ */
+export async function verifyCustomerEmail(
+  orderNumber: string,
+  options: { paymentMethodTitle: string; customerEmail: string }
+): Promise<void> {
+  const mails = await getLoggedMail({ contains: orderNumber });
+
+  const customerMsg = mails.find(m =>
+    m.receiver === options.customerEmail ||
+    (m.subject.toLowerCase().includes('order') && !m.subject.toLowerCase().includes('new order'))
+  );
+  expect(customerMsg, `Customer email for order ${orderNumber} not found`).toBeTruthy();
+  assertPaymentMethodInEmail(customerMsg!, options.paymentMethodTitle);
 }

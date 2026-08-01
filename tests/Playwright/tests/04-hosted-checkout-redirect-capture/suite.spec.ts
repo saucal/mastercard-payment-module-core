@@ -11,11 +11,16 @@ import {
 import { fillHostedCheckoutCC, clickHostedCheckoutPay, clickPlaceOrderHostedCheckout } from '../../helpers/hosted-checkout';
 import { verifyOrderReceived } from '../../helpers/order-received';
 import { handle3DSChallenge } from '../../helpers/three-ds';
-import { verifySessionPost, verifyTokenLogsEmpty } from '../../helpers/assertions';
-import { verifyOrderEmails } from '../../helpers/email-verification';
+import {
+  verifySessionPost,
+  verifyTokenLogsEmpty,
+  verifyOrderEmails,
+  assertOrderStatus,
+  assertPaymentMethodMeta,
+  assertCapturedNote,
+} from '../../helpers/assertions';
 import { adminLogin, frontendLogin } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
-import { assertOrderStatus, assertPaymentMethodMeta, assertCapturedNote } from '../../helpers/assertions';
 import { verifyOrderInMyAccount, verifyCartEmpty } from '../../helpers/my-account';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';

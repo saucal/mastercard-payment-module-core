@@ -14,10 +14,21 @@ import { verifyOrderReceived } from '../../helpers/order-received';
 import { handle3DSChallenge } from '../../helpers/three-ds';
 import { adminLogin } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
-import { assertOrderStatus, assertPaymentMethodMeta, assertCapturedNote } from '../../helpers/assertions';
+import {
+  assertOrderStatus,
+  assertPaymentMethodMeta,
+  assertCapturedNote,
+  verifySessionPost,
+  verifySessionGet,
+  verifySessionGetCardDetails,
+  verifyInitiateAuthentication,
+  verifyAuthenticatePayer,
+  verifyAuthenticationResult,
+  verifyAuthorizeCaptureLog,
+  verifyTokenLogsEmpty,
+  verifyOrderEmails,
+} from '../../helpers/assertions';
 import { verifyCartEmpty } from '../../helpers/my-account';
-import { verifySessionPost, verifySessionGet, verifySessionGetCardDetails, verifyInitiateAuthentication, verifyAuthenticatePayer, verifyAuthenticationResult, verifyAuthorizeCaptureLog, verifyTokenLogsEmpty } from '../../helpers/assertions';
-import { verifyOrderEmails } from '../../helpers/email-verification';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
 import { billing } from '../../fixtures/billing';

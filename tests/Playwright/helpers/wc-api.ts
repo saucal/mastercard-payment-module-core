@@ -201,3 +201,69 @@ export async function getWebhookLogs(date: string, orderReference?: string): Pro
   const data = await res.json();
   return { logs: Array.isArray(data) ? data : [] };
 }
+
+// ─── Mail log (WP Mail Logging DB table via custom/v1/get-mail) ────────────────
+// Replaces the previous external mail-catcher client. Reading what WordPress
+// actually wrote to its own mail log removes the SMTP/delivery dependency and
+// the cross-project bleed of a shared catch-all inbox. Matches the approach
+// bluesnap-automation and payoneer-v4-automation converged on 2026-06-18.
+
+export interface LoggedMail {
+  mail_id: number;
+  timestamp: string;
+  receiver: string;
+  subject: string;
+  headers: string;
+  message: string; // full HTML/text body WordPress generated
+}
+
+interface LoggedMailResponse {
+  table: string;
+  count: number;
+  mails: LoggedMail[];
+}
+
+/**
+ * Poll custom/v1/get-mail until at least `minCount` matching rows appear, then
+ * return them. Throws on timeout rather than returning an empty array: callers
+ * that expect two mails (admin + customer) would otherwise skip an assertion
+ * instead of failing when only one had been written.
+ *
+ * Query params are AND-combined server-side; `to`/`subject`/`contains` are
+ * substring matches, `since` is a `>=` on the row timestamp.
+ */
+export async function getLoggedMail(
+  opts: { to?: string; subject?: string; contains?: string; since?: string; limit?: number },
+  poll: { minCount?: number; timeoutMs?: number; intervalMs?: number } = {},
+): Promise<LoggedMail[]> {
+  const minCount = poll.minCount ?? 1;
+  const timeoutMs = poll.timeoutMs ?? 60000;
+  const intervalMs = poll.intervalMs ?? 3000;
+  const deadline = Date.now() + timeoutMs;
+  let lastSeen: LoggedMail[] = [];
+
+  for (;;) {
+    const params = new URLSearchParams({
+      ...(opts.to ? { to: opts.to } : {}),
+      ...(opts.subject ? { subject: opts.subject } : {}),
+      ...(opts.contains ? { contains: opts.contains } : {}),
+      ...(opts.since ? { since: opts.since } : {}),
+      limit: String(opts.limit ?? 100),
+    });
+    const res = await fetch(`${BASE_URL}/wp-json/custom/v1/get-mail?${params}`, {
+      headers: wpAuthHeaders(),
+    });
+    if (!res.ok) throw new Error(`getLoggedMail failed: ${res.status}`);
+    const data: LoggedMailResponse = await res.json();
+    lastSeen = data.mails || [];
+    if (lastSeen.length >= minCount) return lastSeen;
+    if (Date.now() >= deadline) {
+      const seen = lastSeen.map(m => `${m.receiver}/${m.subject}`).join(', ');
+      throw new Error(
+        `getLoggedMail timeout: wanted >=${minCount} mails matching ${JSON.stringify(opts)} `
+        + `within ${timeoutMs}ms, got ${lastSeen.length}. Seen: [${seen}]`,
+      );
+    }
+    await new Promise(r => setTimeout(r, intervalMs));
+  }
+}

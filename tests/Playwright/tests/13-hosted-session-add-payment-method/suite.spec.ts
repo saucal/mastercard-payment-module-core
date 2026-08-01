@@ -23,9 +23,15 @@ import {
 import { adminLogin, frontendLogin, registerUser } from '../../helpers/wp-login';
 import { waitForUnblock } from '../../helpers/block-ui';
 import { navigateToOrder } from '../../helpers/admin-orders';
-import { assertOrderStatus, assertPaymentMethodMeta, assertCapturedNote } from '../../helpers/assertions';
-import { verifySessionGet, verifyTokenLog, verifyAuthorizeCaptureLog } from '../../helpers/assertions';
-import { verifyAdminEmail } from '../../helpers/email-verification';
+import {
+  assertOrderStatus,
+  assertPaymentMethodMeta,
+  assertCapturedNote,
+  verifySessionGet,
+  verifyTokenLog,
+  verifyAuthorizeCaptureLog,
+  verifyAdminEmail,
+} from '../../helpers/assertions';
 import config from '../../plugin-config';
 import { cards, fourDigits } from '../../fixtures/cards';
 import { billing, uniqueEmail } from '../../fixtures/billing';

@@ -15,9 +15,17 @@ import { verifyOrderReceived } from '../../helpers/order-received';
 import { verifyCartEmpty, verifyPaymentMethods } from '../../helpers/my-account';
 import { adminLogin, frontendLogin } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
-import { assertOrderStatus, assertPaymentMethodMeta, assertCapturedNote } from '../../helpers/assertions';
-import { verifySessionPost, verifySessionGet, verifySessionGetCardDetails, verifyAuthorizeCaptureLog, verifyTokenLogsEmpty } from '../../helpers/assertions';
-import { verifyOrderEmails } from '../../helpers/email-verification';
+import {
+  assertOrderStatus,
+  assertPaymentMethodMeta,
+  assertCapturedNote,
+  verifySessionPost,
+  verifySessionGet,
+  verifySessionGetCardDetails,
+  verifyAuthorizeCaptureLog,
+  verifyTokenLogsEmpty,
+  verifyOrderEmails,
+} from '../../helpers/assertions';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
 import { billing, uniqueEmail } from '../../fixtures/billing';

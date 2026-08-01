@@ -13,9 +13,18 @@ import { fillHostedSessionCC } from '../../helpers/hosted-session';
 import { verifyOrderReceived } from '../../helpers/order-received';
 import { adminLogin } from '../../helpers/wp-login';
 import { navigateToOrder, capturePayment, voidPayment } from '../../helpers/admin-orders';
-import { assertOrderStatus, assertCaptureFormVisible, assertVoidFormVisible, assertAuthorizedNote, assertOrderNoteContains } from '../../helpers/assertions';
-import { verifySessionGet, verifyAuthorizeCaptureLog, verifyVoidLog, verifyTokenLogsEmpty } from '../../helpers/assertions';
-import { verifyAdminEmail } from '../../helpers/email-verification';
+import {
+  assertOrderStatus,
+  assertCaptureFormVisible,
+  assertVoidFormVisible,
+  assertAuthorizedNote,
+  assertOrderNoteContains,
+  verifySessionGet,
+  verifyAuthorizeCaptureLog,
+  verifyVoidLog,
+  verifyTokenLogsEmpty,
+  verifyAdminEmail,
+} from '../../helpers/assertions';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
 import { billing } from '../../fixtures/billing';

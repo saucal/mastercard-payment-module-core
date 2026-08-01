@@ -14,9 +14,20 @@ import { handle3DSChallenge } from '../../helpers/three-ds';
 import { verifyPaymentMethods } from '../../helpers/my-account';
 import { adminLogin, frontendLogin, registerUser } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
-import { assertOrderStatus, assertPaymentMethodMeta, assertCapturedNote } from '../../helpers/assertions';
-import { verifySessionGet, verifySessionGetCardDetails, verifyInitiateAuthentication, verifyAuthenticatePayer, verifyAuthenticationResult, verifyAuthorizeCaptureLog, verifyTokenLog, verifyTokenLogsEmpty } from '../../helpers/assertions';
-import { verifyAdminEmail } from '../../helpers/email-verification';
+import {
+  assertOrderStatus,
+  assertPaymentMethodMeta,
+  assertCapturedNote,
+  verifySessionGet,
+  verifySessionGetCardDetails,
+  verifyInitiateAuthentication,
+  verifyAuthenticatePayer,
+  verifyAuthenticationResult,
+  verifyAuthorizeCaptureLog,
+  verifyTokenLog,
+  verifyTokenLogsEmpty,
+  verifyAdminEmail,
+} from '../../helpers/assertions';
 import config from '../../plugin-config';
 import { cards, fourDigits } from '../../fixtures/cards';
 import { billing, uniqueEmail } from '../../fixtures/billing';

@@ -13,10 +13,18 @@ import { fillHostedSessionCC } from '../../helpers/hosted-session';
 import { verifyOrderReceived } from '../../helpers/order-received';
 import { adminLogin } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
-import { assertOrderStatus, assertPaymentMethodMeta, assertCapturedNote } from '../../helpers/assertions';
+import {
+  assertOrderStatus,
+  assertPaymentMethodMeta,
+  assertCapturedNote,
+  verifySessionPost,
+  verifySessionGet,
+  verifySessionGetCardDetails,
+  verifyAuthorizeCaptureLog,
+  verifyTokenLogsEmpty,
+  verifyOrderEmails,
+} from '../../helpers/assertions';
 import { verifyCartEmpty } from '../../helpers/my-account';
-import { verifySessionPost, verifySessionGet, verifySessionGetCardDetails, verifyAuthorizeCaptureLog, verifyTokenLogsEmpty } from '../../helpers/assertions';
-import { verifyOrderEmails } from '../../helpers/email-verification';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
 import { billing } from '../../fixtures/billing';
