@@ -1,4 +1,4 @@
-import { Page, expect } from '@playwright/test';
+import { Page } from '@playwright/test';
 import type { PluginConfig } from '../plugin-config.types';
 import { waitForUnblock, waitForPageLoad } from './block-ui';
 
@@ -36,107 +36,10 @@ export async function selectGatewayOnAddPaymentMethod(page: Page, config: Plugin
   await waitForUnblock(page);
 }
 
-interface CardRow {
-  cardName: string;
-  fourDigits: string;
-  expiryMonth?: string;
-  expiryYear?: string;
-}
-
-export async function verifyPaymentMethods(
-  page: Page,
-  options: {
-    expectedCards: number;
-    cardName?: string;
-    fourDigits?: string;
-    expiryMonth?: string;
-    expiryYear?: string;
-    cards?: CardRow[];
-  }
-): Promise<void> {
-  await page.goto('/my-account/payment-methods/');
-
-  if (options.expectedCards === 0) {
-    await expect(page.getByText('No saved methods found')).toBeVisible();
-    return;
-  }
-
-  for (let i = 1; i <= options.expectedCards; i++) {
-    const row = page.locator(
-      `tr:nth-of-type(${i}) > td.woocommerce-PaymentMethod.woocommerce-PaymentMethod--method`
-    );
-    await expect(row).toBeVisible();
-
-    const spec: CardRow | undefined = options.cards
-      ? options.cards[i - 1]
-      : (options.cardName && options.fourDigits
-        ? { cardName: options.cardName, fourDigits: options.fourDigits, expiryMonth: options.expiryMonth, expiryYear: options.expiryYear }
-        : undefined);
-
-    if (spec) {
-      await expect(row).toContainText(`${spec.cardName} ending in ${spec.fourDigits}`);
-      if (spec.expiryMonth && spec.expiryYear) {
-        const expiryCell = page.locator(
-          `tr:nth-of-type(${i}) > td.woocommerce-PaymentMethod.woocommerce-PaymentMethod--expires`
-        );
-        await expect(expiryCell).toContainText(`${spec.expiryMonth}/${spec.expiryYear}`);
-      }
-    }
-  }
-
-  // Assert no extra card rows exist beyond expected count
-  const extraRow = page.locator(
-    `tr:nth-of-type(${options.expectedCards + 1}) > td.woocommerce-PaymentMethod.woocommerce-PaymentMethod--method`
-  );
-  await expect(extraRow).not.toBeVisible();
-}
-
-export async function verifyOrderInMyAccount(
-  page: Page,
-  orderNumber: string,
-  expectedStatus: string,
-  options?: { expectedTotal?: string; displayName?: string }
-): Promise<void> {
-  await page.goto(`/my-account/view-order/${orderNumber}/`);
-  await expect(page.locator('mark.order-status')).toContainText(expectedStatus);
-  if (options?.expectedTotal) {
-    // Find the Total row's value cell — works across themes
-    const totalCell = page.locator('tr:has(th:has-text("Total"), td:has-text("Total:")) td').last();
-    await expect(totalCell).toContainText(options.expectedTotal);
-  }
-  if (options?.displayName) {
-    await expect(page.locator('section.woocommerce-order-details')).toContainText(options.displayName);
-  }
-}
-
-export async function verifySubscription(
-  page: Page,
-  subscriptionId: string,
-  options: { expectedStatus: string; displayName: string }
-): Promise<void> {
-  await page.goto(`/my-account/view-subscription/${subscriptionId}/`);
-  await expect(
-    page.locator('table.shop_table.subscription_details > tbody > tr:nth-of-type(1) > td:nth-of-type(2)')
-  ).toContainText(options.expectedStatus);
-  await expect(page.locator('.subscription-payment-method')).toContainText(`Via ${options.displayName}`);
-}
-
 export async function deletePaymentMethod(page: Page, index: number): Promise<void> {
   await page.goto('/my-account/payment-methods/');
   await page.locator(
     `tr:nth-of-type(${index}) > td.woocommerce-PaymentMethod--actions > a.delete`
   ).click();
   await page.waitForLoadState('networkidle');
-}
-
-export async function verifyCartEmpty(page: Page): Promise<void> {
-  const cartUrl = process.env.CART_URL || '/cart/';
-  await page.goto(cartUrl);
-  await page.waitForLoadState('networkidle');
-
-
-  // Verify empty state — blocks or classic
-  await expect(
-    page.locator('.wc-block-cart__empty-cart__title, .cart-empty.woocommerce-info')
-  ).toContainText('cart is currently empty', { timeout: 10000 });
 }

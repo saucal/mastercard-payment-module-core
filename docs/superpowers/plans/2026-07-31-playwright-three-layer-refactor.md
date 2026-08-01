@@ -801,47 +801,63 @@ git commit -m "refactor(playwright): split order-received.ts into flows.ts + ass
 
 ---
 
-### Task 6: Move `my-account.ts`'s business assertions into `assertions.ts`
+### Task 6: Split `my-account.ts` — assertions move to `assertions.ts`
 
 **Files:**
 - Modify: `tests/Playwright/helpers/assertions.ts` (append)
-- Delete: `tests/Playwright/helpers/my-account.ts`
-- Modify: every suite importing from `../../helpers/my-account`
+- Modify: `tests/Playwright/helpers/my-account.ts` (remove the 4 moved functions)
+- Modify: every suite importing the moved functions from `../../helpers/my-account`
 
-`my-account.ts` (142 lines) exports exactly four functions —
-`verifyPaymentMethods`, `verifyOrderInMyAccount`, `verifySubscription`,
-`verifyCartEmpty` — and all four are business assertions (11 `expect()`
-calls between them: saved-card count/brand/expiry, order row status/total/
-payment method, subscription state, empty-cart message). None is a
-navigation primitive. Leaving them outside `assertions.ts` while
-`admin-orders.ts`'s equivalents moved in (Task 2) would leave the
-"assertions.ts owns the business assertions" rule half-applied — this task
-closes that gap. Because the file has no non-assertion exports left over,
-it is deleted outright rather than split.
+`my-account.ts` (142 lines) has **6** exports, split 4/2:
+
+| Export | Kind | Destination |
+|---|---|---|
+| `verifyPaymentMethods` | assertion (saved-card count/brand/expiry) | `assertions.ts` |
+| `verifyOrderInMyAccount` | assertion (order status/total/method) | `assertions.ts` |
+| `verifySubscription` | assertion (subscription status/method) | `assertions.ts` |
+| `verifyCartEmpty` | assertion (empty-cart message) | `assertions.ts` |
+| `selectGatewayOnAddPaymentMethod` | primitive (navigate + click, no `expect`) | stays |
+| `deletePaymentMethod` | primitive (navigate + click, no `expect`) | stays |
+
+Leaving the four assertions outside `assertions.ts` while `admin-orders.ts`'s
+equivalents moved in (Task 2) would leave the "assertions.ts owns the
+business assertions" rule half-applied — this task closes that gap. The file
+survives, trimmed to its 2 primitives, exactly as `admin-orders.ts` did.
+
+Note the four moved functions each begin with a `page.goto(...)` — navigation
+inside an assertion, which strictly belongs in `flows.ts`. Hoisting it would
+change all ~40 call sites' shape, so it is **left as-is** under the
+behavior-preservation constraint. Flagged here as known debt, not fixed.
 
 **Interfaces:**
 - Produces: `assertions.ts` additionally exports `verifyPaymentMethods`,
   `verifyOrderInMyAccount`, `verifySubscription`, `verifyCartEmpty` — moved
   verbatim, **signatures unchanged**, so no call site changes except its
   import path.
+- `my-account.ts` keeps `selectGatewayOnAddPaymentMethod` and
+  `deletePaymentMethod`, plus whatever imports they still need.
 
 - [ ] **Step 1: Move the four functions**
 
-Read `helpers/my-account.ts` in full and append all four function bodies
-(plus any private helpers/types they use, and any `Page`/`expect`/config
-imports not already present) to `assertions.ts` **verbatim** — no signature
-or logic changes. Merge its imports into `assertions.ts`'s existing import
-statements rather than adding duplicate lines.
+Append the four function bodies (plus the private `CardRow` interface, which
+only `verifyPaymentMethods` uses) to `assertions.ts` **verbatim** — no
+signature or logic changes. Merge any needed imports into `assertions.ts`'s
+existing import statements rather than adding duplicate lines.
 
-- [ ] **Step 2: Delete the old file and repoint every importer**
+- [ ] **Step 2: Trim `my-account.ts` and repoint every importer**
+
+Delete the four moved functions and the `CardRow` interface from
+`my-account.ts`. Drop `expect` from its `@playwright/test` import if nothing
+left uses it (the two surviving primitives don't), and drop any other import
+that became unused (`PluginConfig` is still used by
+`selectGatewayOnAddPaymentMethod`; `waitForPageLoad`/`waitForUnblock` too).
 
 ```bash
-git rm tests/Playwright/helpers/my-account.ts
 grep -rln "from '../../helpers/my-account'" tests --include='*.ts'
 ```
-For each match, change the import path to `'../../helpers/assertions'`,
-keeping the same imported names. If a file now imports from
-`'../../helpers/assertions'` twice, merge the two import statements.
+For each match, split the import: primitives stay on `'../../helpers/my-account'`,
+the four assertions move to `'../../helpers/assertions'`. Merge with that
+file's existing `assertions` import rather than adding a second statement.
 
 - [ ] **Step 3: Verify**
 

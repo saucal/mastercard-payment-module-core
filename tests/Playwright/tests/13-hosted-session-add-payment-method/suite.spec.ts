@@ -15,11 +15,7 @@ import {
 } from '../../helpers/hosted-session';
 import { handle3DSChallenge } from '../../helpers/three-ds';
 import { collectOrderReceivedData } from '../../helpers/flows';
-import {
-  selectGatewayOnAddPaymentMethod,
-  verifyPaymentMethods,
-  deletePaymentMethod,
-} from '../../helpers/my-account';
+import { selectGatewayOnAddPaymentMethod, deletePaymentMethod } from '../../helpers/my-account';
 import { adminLogin, frontendLogin, registerUser } from '../../helpers/wp-login';
 import { waitForUnblock } from '../../helpers/block-ui';
 import { navigateToOrder } from '../../helpers/admin-orders';
@@ -32,6 +28,7 @@ import {
   verifyAuthorizeCaptureLog,
   verifyAdminEmail,
   assertOrderReceived,
+  verifyPaymentMethods,
 } from '../../helpers/assertions';
 import config from '../../plugin-config';
 import { cards, fourDigits } from '../../fixtures/cards';

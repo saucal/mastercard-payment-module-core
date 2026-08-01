@@ -12,7 +12,6 @@ import {
 } from '../../helpers/checkout';
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
 import { collectOrderReceivedData } from '../../helpers/flows';
-import { verifyCartEmpty, verifyPaymentMethods } from '../../helpers/my-account';
 import { adminLogin, frontendLogin } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
 import {
@@ -26,6 +25,8 @@ import {
   verifyTokenLogsEmpty,
   verifyOrderEmails,
   assertOrderReceived,
+  verifyCartEmpty,
+  verifyPaymentMethods,
 } from '../../helpers/assertions';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';

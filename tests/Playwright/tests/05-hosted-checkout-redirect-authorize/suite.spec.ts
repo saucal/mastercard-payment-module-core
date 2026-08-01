@@ -19,10 +19,11 @@ import {
   assertPaymentMethodMeta,
   assertAuthorizedNote,
   assertOrderReceived,
+  verifyOrderInMyAccount,
+  verifyCartEmpty,
 } from '../../helpers/assertions';
 import { adminLogin, frontendLogin } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
-import { verifyOrderInMyAccount, verifyCartEmpty } from '../../helpers/my-account';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
 import { billing, uniqueEmail } from '../../fixtures/billing';

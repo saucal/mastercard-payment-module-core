@@ -29,10 +29,12 @@ import {
   assertPaymentMethodMeta,
   assertCapturedNote,
   assertOrderReceived,
+  verifyPaymentMethods,
+  verifyOrderInMyAccount,
+  verifyCartEmpty,
 } from '../../helpers/assertions';
 import { adminLogin, frontendLogin } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
-import { verifyPaymentMethods, verifyOrderInMyAccount, verifyCartEmpty } from '../../helpers/my-account';
 import config from '../../plugin-config';
 import { cards, fourDigits } from '../../fixtures/cards';
 import { billing, uniqueEmail } from '../../fixtures/billing';

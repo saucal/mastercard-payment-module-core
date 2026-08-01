@@ -27,8 +27,9 @@ import {
   verifyAgreement,
   verifyOrderEmails,
   assertOrderReceived,
+  verifySubscription,
+  verifyOrderInMyAccount,
 } from '../../helpers/assertions';
-import { verifySubscription, verifyOrderInMyAccount } from '../../helpers/my-account';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
 import { billing } from '../../fixtures/billing';

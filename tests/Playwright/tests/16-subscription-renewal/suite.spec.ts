@@ -13,7 +13,6 @@ import {
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
 import { collectOrderReceivedData } from '../../helpers/flows';
 import { handle3DSChallenge } from '../../helpers/three-ds';
-import { verifySubscription, verifyOrderInMyAccount } from '../../helpers/my-account';
 import { adminLogin, registerUser } from '../../helpers/wp-login';
 import { triggerSubscriptionRenewal, extractRenewalOrderNumber, navigateToOrder } from '../../helpers/admin-orders';
 import {
@@ -32,6 +31,8 @@ import {
   verifyOrderEmails,
   verifyAdminEmail,
   assertOrderReceived,
+  verifySubscription,
+  verifyOrderInMyAccount,
 } from '../../helpers/assertions';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';

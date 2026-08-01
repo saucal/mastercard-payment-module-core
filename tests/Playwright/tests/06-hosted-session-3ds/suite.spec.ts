@@ -28,8 +28,8 @@ import {
   verifyTokenLogsEmpty,
   verifyOrderEmails,
   assertOrderReceived,
+  verifyCartEmpty,
 } from '../../helpers/assertions';
-import { verifyCartEmpty } from '../../helpers/my-account';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
 import { billing } from '../../fixtures/billing';
