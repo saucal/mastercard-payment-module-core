@@ -429,6 +429,13 @@ interface AgreementExpected {
   subscriptionId: string;
   frequency: PaymentFrequency;
   payDate: string; // ISO date string, e.g. '2026-04-07'
+  /**
+   * Gateway slug the agreement id is prefixed with — pass
+   * `config.paymentMethodSlug`. Required rather than defaulted: this used to be
+   * hardcoded to 'acme', which silently failed on any site whose gateway slug
+   * differs (e.g. mastercard_merchant_cloud).
+   */
+  slug: string;
 }
 
 function calculateAgreementDates(
@@ -485,7 +492,7 @@ export function verifyAgreement(log: LogEntry, expected: AgreementExpected): voi
 
   expect(agreement!.type).toBe(expected.type ?? 'RECURRING');
   expect(agreement!.amountVariability).toBe(expected.amountVariability ?? 'FIXED');
-  expect(agreement!.id).toContain(`acme_subscription-order-${expected.subscriptionId}`);
+  expect(agreement!.id).toContain(`${expected.slug}_subscription-order-${expected.subscriptionId}`);
   expect(agreement!.paymentFrequency).toBe(expected.frequency.toUpperCase());
 
   const { startDate, expiryDate, numberOfPayments } = calculateAgreementDates(

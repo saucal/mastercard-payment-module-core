@@ -165,6 +165,7 @@ test.describe.serial('Subscription Upgrade', () => {
         subscriptionId,
         frequency: 'MONTHLY',
         payDate,
+        slug: config.paymentMethodSlug,
       });
     }
 
@@ -243,6 +244,7 @@ test.describe.serial('Subscription Upgrade', () => {
         subscriptionId,
         frequency: 'MONTHLY',
         payDate: upgradePayDate,
+        slug: config.paymentMethodSlug,
       });
     }
 

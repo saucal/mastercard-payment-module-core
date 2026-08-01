@@ -172,6 +172,7 @@ test.describe.serial('Subscription Renewal', () => {
         subscriptionId: mc060SubscriptionId,
         frequency: 'MONTHLY',
         payDate: mc060PayDate,
+        slug: config.paymentMethodSlug,
       });
     }
 
@@ -344,6 +345,7 @@ test.describe.serial('Subscription Renewal', () => {
         subscriptionId: mc061SubscriptionId,
         frequency: 'MONTHLY',
         payDate: mc061PayDate,
+        slug: config.paymentMethodSlug,
       });
     }
 
@@ -519,6 +521,7 @@ test.describe.serial('Subscription Renewal', () => {
         subscriptionId: mc062SubscriptionId,
         frequency: 'MONTHLY',
         payDate: mc062PayDate,
+        slug: config.paymentMethodSlug,
       });
     }
 
@@ -666,6 +669,7 @@ test.describe.serial('Subscription Renewal', () => {
         subscriptionId: mc063SubscriptionId,
         frequency: 'MONTHLY',
         payDate: mc063PayDate,
+        slug: config.paymentMethodSlug,
       });
     }
 
@@ -788,6 +792,7 @@ test.describe.skip('Subscription Order - Challenge with 3DS Inactive (from suite
         subscriptionId,
         frequency: 'MONTHLY',
         payDate: mc060PayDate,
+        slug: config.paymentMethodSlug,
       });
     }
 
@@ -895,6 +900,7 @@ test.describe.skip('Subscription Order - Challenge with Save CC Deactivated (fro
           subscriptionId: mc060SubscriptionId,
           frequency: 'MONTHLY',
           payDate: mc060PayDate,
+          slug: config.paymentMethodSlug,
         });
       }
     }
@@ -1017,6 +1023,7 @@ test.describe.skip('Subscription Order with Authorize Mode (from suite 14)', () 
     expect(agreementLog, 'agreement log not found').toBeTruthy();
     verifyAgreement(agreementLog!, {
       subscriptionId, frequency: 'MONTHLY', payDate,
+      slug: config.paymentMethodSlug,
     });
 
     await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName });

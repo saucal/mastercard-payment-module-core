@@ -165,6 +165,7 @@ test.describe.serial('Subscription Manual Renewal', () => {
         subscriptionId,
         frequency: 'MONTHLY',
         payDate,
+        slug: config.paymentMethodSlug,
       });
     }
 
@@ -238,6 +239,7 @@ test.describe.serial('Subscription Manual Renewal', () => {
         subscriptionId,
         frequency: 'MONTHLY',
         payDate: manualRenewDate,
+        slug: config.paymentMethodSlug,
       });
     }
 
