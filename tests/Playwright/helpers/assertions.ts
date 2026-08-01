@@ -2,6 +2,7 @@ import { Page, expect } from '@playwright/test';
 import type { CardData, PluginConfig } from '../plugin-config.types';
 import { getLogs, getWebhookLogs, getLogEntryCount, getLoggedMail } from './wc-api';
 import type { LogEntry, LogResponse, LoggedMail } from './wc-api';
+import type { OrderReceivedData } from './flows';
 
 // ─── Admin order screen ───────────────────────────────────────────────────────
 
@@ -750,4 +751,46 @@ export async function verifyCustomerEmail(
   );
   expect(customerMsg, `Customer email for order ${orderNumber} not found`).toBeTruthy();
   assertPaymentMethodInEmail(customerMsg!, options.paymentMethodTitle);
+}
+
+// ─── Order received (thank-you) page ──────────────────────────────────────────
+
+/**
+ * Assert the order-received page rendered correctly. `data` is the value
+ * flows.collectOrderReceivedData() just returned — required to check the
+ * subscription-id invariant, which the data-collection half cannot assert.
+ */
+export async function assertOrderReceived(
+  page: Page,
+  options: { displayName: string; expectDeclined?: boolean; expectedTotal?: string },
+  data?: OrderReceivedData,
+): Promise<void> {
+  if (options.expectDeclined) {
+    await expect(page.locator('.woocommerce-error')).toBeVisible();
+    return;
+  }
+
+  await expect(page.locator('h1.entry-title')).toContainText('Order received');
+
+  // Payment method
+  await expect(
+    page.locator('.method > strong, li:has-text("Payment method") > strong')
+  ).toContainText(options.displayName);
+
+  if (options.expectedTotal) {
+    // Try multiple selectors: tfoot total, order summary list, order details table
+    const totalLocator = page.locator(
+      'tfoot tr.order-total td span.woocommerce-Price-amount.amount > bdi, ' +
+      'li:has-text("Total") > strong, ' +
+      'tr:has(> th:has-text("Total"), > td.rowheader:has-text("Total")) td .woocommerce-Price-amount.amount'
+    ).first();
+    await expect(totalLocator).toContainText(options.expectedTotal);
+  }
+
+  // Carried over from the previous verifyOrderReceived(): when the page
+  // rendered a subscription link, its id must not be empty. `undefined` means
+  // no link was present, which is the non-subscription case, not a failure.
+  if (data?.subscriptionId !== undefined) {
+    expect(data.subscriptionId, 'Subscription ID should not be empty').toBeTruthy();
+  }
 }

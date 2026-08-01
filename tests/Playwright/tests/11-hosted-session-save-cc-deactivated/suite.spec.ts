@@ -11,7 +11,7 @@ import {
   extractSessionId,
 } from '../../helpers/checkout';
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
-import { verifyOrderReceived } from '../../helpers/order-received';
+import { collectOrderReceivedData } from '../../helpers/flows';
 import { verifyCartEmpty, verifyPaymentMethods } from '../../helpers/my-account';
 import { adminLogin, frontendLogin } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
@@ -25,6 +25,7 @@ import {
   verifyAuthorizeCaptureLog,
   verifyTokenLogsEmpty,
   verifyOrderEmails,
+  assertOrderReceived,
 } from '../../helpers/assertions';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
@@ -77,10 +78,11 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
 
     await clickPlaceOrder(page);
     await page.waitForURL(/order-received/, { timeout: 60000 });
-    const result = await verifyOrderReceived(page, {
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, {
       displayName: config.displayName,
       expectedTotal: total,
-    });
+    }, result);
     const orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
 
@@ -199,10 +201,11 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
 
     await clickPlaceOrder(page);
     await page.waitForURL(/order-received/, { timeout: 60000 });
-    const result = await verifyOrderReceived(page, {
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, {
       displayName: config.displayName,
       expectedTotal: total,
-    });
+    }, result);
     const orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
 

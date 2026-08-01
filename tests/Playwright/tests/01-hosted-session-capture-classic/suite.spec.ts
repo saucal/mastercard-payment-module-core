@@ -13,7 +13,7 @@ import {
   selectSavedToken,
 } from '../../helpers/checkout';
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
-import { verifyOrderReceived } from '../../helpers/order-received';
+import { collectOrderReceivedData } from '../../helpers/flows';
 import { handle3DSChallenge } from '../../helpers/three-ds';
 import {
   verifySessionPost,
@@ -28,6 +28,7 @@ import {
   assertOrderStatus,
   assertPaymentMethodMeta,
   assertCapturedNote,
+  assertOrderReceived,
 } from '../../helpers/assertions';
 import { adminLogin, frontendLogin } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
@@ -87,7 +88,8 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     session = await extractSessionId(page);
 
     await clickPlaceOrder(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
 
@@ -192,7 +194,8 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     session = await extractSessionId(page);
 
     await clickPlaceOrder(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
 
@@ -300,7 +303,8 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     session = await extractSessionId(page);
 
     await clickPlaceOrder(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
 
@@ -416,7 +420,8 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     session = await extractSessionId(page);
 
     await clickPlaceOrder(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
 
@@ -516,7 +521,8 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     session = await extractSessionId(page);
 
     await clickPlaceOrder(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
 
@@ -631,7 +637,8 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
 
     await clickPlaceOrder(page);
     await handle3DSChallenge(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
 
@@ -762,7 +769,8 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     if (/acs|3ds|threedsecure|mastercard\.com.*prompt/i.test(page.url())) {
       await handle3DSChallenge(page);
     }
-    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
 

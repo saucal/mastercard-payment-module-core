@@ -9,7 +9,7 @@ import {
   createAccountAtCheckout,
 } from '../../helpers/checkout';
 import { fillHostedCheckoutCC, clickHostedCheckoutPay, clickPlaceOrderHostedCheckout } from '../../helpers/hosted-checkout';
-import { verifyOrderReceived } from '../../helpers/order-received';
+import { collectOrderReceivedData } from '../../helpers/flows';
 import { handle3DSChallenge } from '../../helpers/three-ds';
 import {
   verifySessionPost,
@@ -18,6 +18,7 @@ import {
   assertOrderStatus,
   assertPaymentMethodMeta,
   assertAuthorizedNote,
+  assertOrderReceived,
 } from '../../helpers/assertions';
 import { adminLogin, frontendLogin } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
@@ -108,7 +109,8 @@ test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
       await handle3DSChallenge(page);
     }
 
-    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
 
@@ -165,7 +167,8 @@ test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
       await handle3DSChallenge(page);
     }
 
-    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
 
@@ -224,7 +227,8 @@ test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
       await handle3DSChallenge(page);
     }
 
-    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
 
@@ -286,7 +290,8 @@ test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
       await handle3DSChallenge(page);
     }
 
-    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, { displayName: config.displayName }, result);
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
 

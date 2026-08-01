@@ -14,7 +14,7 @@ import {
   assertSessionFieldsPresent,
 } from '../../helpers/hosted-session';
 import { handle3DSChallenge } from '../../helpers/three-ds';
-import { verifyOrderReceived } from '../../helpers/order-received';
+import { collectOrderReceivedData } from '../../helpers/flows';
 import {
   selectGatewayOnAddPaymentMethod,
   verifyPaymentMethods,
@@ -31,6 +31,7 @@ import {
   verifyTokenLog,
   verifyAuthorizeCaptureLog,
   verifyAdminEmail,
+  assertOrderReceived,
 } from '../../helpers/assertions';
 import config from '../../plugin-config';
 import { cards, fourDigits } from '../../fixtures/cards';
@@ -131,7 +132,8 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
       await handle3DSChallenge(page);
     }
     await page.waitForURL(/order-received/, { timeout: 60000 });
-    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, { displayName: config.displayName }, result);
     const orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
 

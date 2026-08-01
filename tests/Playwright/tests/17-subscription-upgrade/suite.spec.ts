@@ -10,7 +10,7 @@ import {
   extractSessionId,
 } from '../../helpers/checkout';
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
-import { verifyOrderReceived } from '../../helpers/order-received';
+import { collectOrderReceivedData } from '../../helpers/flows';
 import { handle3DSChallenge } from '../../helpers/three-ds';
 import { adminLogin, frontendLogin } from '../../helpers/wp-login';
 import { triggerSubscriptionRenewal, extractRenewalOrderNumber, navigateToOrder } from '../../helpers/admin-orders';
@@ -26,6 +26,7 @@ import {
   verifyAuthorizeCaptureLog,
   verifyAgreement,
   verifyOrderEmails,
+  assertOrderReceived,
 } from '../../helpers/assertions';
 import { verifySubscription, verifyOrderInMyAccount } from '../../helpers/my-account';
 import config from '../../plugin-config';
@@ -64,7 +65,8 @@ test.describe.serial('Subscription Upgrade', () => {
 
     await clickPlaceOrder(page);
     await handle3DSChallenge(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
     expect(result.subscriptionId).toBeTruthy();
@@ -200,7 +202,8 @@ test.describe.serial('Subscription Upgrade', () => {
       // This is store-specific and depends on the upgrade product being configured
       await selectPaymentMethod(page, config);
       await clickPlaceOrder(page);
-      const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
+      const result = await collectOrderReceivedData(page);
+      await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
       expect(result.orderNumber).toBeTruthy();
       orderNumber = result.orderNumber;
       // Update subscriptionId to the upgraded subscription if a new one was created

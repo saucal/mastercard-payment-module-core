@@ -9,7 +9,7 @@ import {
   extractOrderTotal,
 } from '../../helpers/checkout';
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
-import { verifyOrderReceived } from '../../helpers/order-received';
+import { collectOrderReceivedData } from '../../helpers/flows';
 import { adminLogin } from '../../helpers/wp-login';
 import { navigateToOrder, refundPayment } from '../../helpers/admin-orders';
 import {
@@ -17,6 +17,7 @@ import {
   assertOrderNoteContains,
   verifyRefundLog,
   verifyOrderEmails,
+  assertOrderReceived,
 } from '../../helpers/assertions';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
@@ -67,7 +68,8 @@ test.describe.serial('Refund', () => {
 
     await clickPlaceOrder(page);
     await page.waitForURL(/order-received/, { timeout: 60000 });
-    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
     const orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
 
@@ -115,7 +117,8 @@ test.describe.serial('Refund', () => {
 
     await clickPlaceOrder(page);
     await page.waitForURL(/order-received/, { timeout: 60000 });
-    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
     const orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
 

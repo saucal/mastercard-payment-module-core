@@ -10,7 +10,7 @@ import {
   extractSessionId,
 } from '../../helpers/checkout';
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
-import { verifyOrderReceived } from '../../helpers/order-received';
+import { collectOrderReceivedData } from '../../helpers/flows';
 import { adminLogin } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
 import {
@@ -23,6 +23,7 @@ import {
   verifyAuthorizeCaptureLog,
   verifyTokenLogsEmpty,
   verifyOrderEmails,
+  assertOrderReceived,
 } from '../../helpers/assertions';
 import { verifyCartEmpty } from '../../helpers/my-account';
 import config from '../../plugin-config';
@@ -79,7 +80,8 @@ test.describe.serial('Hosted Session - 3DS Inactive', () => {
 
     await clickPlaceOrder(page);
     await page.waitForURL(/order-received/, { timeout: 60000 });
-    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
 
@@ -168,7 +170,8 @@ test.describe.serial('Hosted Session - 3DS Inactive', () => {
 
     await clickPlaceOrder(page);
     await page.waitForURL(/order-received/, { timeout: 60000 });
-    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
 
@@ -258,7 +261,8 @@ test.describe.serial('Hosted Session - 3DS Inactive', () => {
 
     await clickPlaceOrder(page);
     await page.waitForURL(/order-received/, { timeout: 60000 });
-    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: total });
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
     orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
 

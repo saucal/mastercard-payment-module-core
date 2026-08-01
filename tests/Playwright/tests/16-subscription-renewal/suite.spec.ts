@@ -11,7 +11,7 @@ import {
   extractSessionId,
 } from '../../helpers/checkout';
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
-import { verifyOrderReceived } from '../../helpers/order-received';
+import { collectOrderReceivedData } from '../../helpers/flows';
 import { handle3DSChallenge } from '../../helpers/three-ds';
 import { verifySubscription, verifyOrderInMyAccount } from '../../helpers/my-account';
 import { adminLogin, registerUser } from '../../helpers/wp-login';
@@ -31,6 +31,7 @@ import {
   verifyAgreement,
   verifyOrderEmails,
   verifyAdminEmail,
+  assertOrderReceived,
 } from '../../helpers/assertions';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
@@ -68,7 +69,8 @@ test.describe.serial('Subscription Renewal', () => {
 
     await clickPlaceOrder(page);
     await handle3DSChallenge(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc060Total });
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: mc060Total }, result);
     mc060OrderNumber = result.orderNumber;
     expect(mc060OrderNumber).toBeTruthy();
     expect(result.subscriptionId).toBeTruthy();
@@ -239,7 +241,8 @@ test.describe.serial('Subscription Renewal', () => {
     mc061PayDate = new Date().toISOString().slice(0, 19);
 
     await clickPlaceOrder(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc061Total });
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: mc061Total }, result);
     mc061OrderNumber = result.orderNumber;
     expect(mc061OrderNumber).toBeTruthy();
     expect(result.subscriptionId).toBeTruthy();
@@ -413,7 +416,8 @@ test.describe.serial('Subscription Renewal', () => {
 
     await clickPlaceOrder(page);
     await handle3DSChallenge(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc062Total });
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: mc062Total }, result);
     mc062OrderNumber = result.orderNumber;
     expect(mc062OrderNumber).toBeTruthy();
     expect(result.subscriptionId).toBeTruthy();
@@ -559,7 +563,8 @@ test.describe.serial('Subscription Renewal', () => {
     mc063PayDate = new Date().toISOString().slice(0, 19);
 
     await clickPlaceOrder(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc063Total });
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: mc063Total }, result);
     mc063OrderNumber = result.orderNumber;
     expect(mc063OrderNumber).toBeTruthy();
     expect(result.subscriptionId).toBeTruthy();
@@ -718,7 +723,8 @@ test.describe.skip('Subscription Order - Challenge with 3DS Inactive (from suite
 
     await clickPlaceOrder(page);
     await handle3DSChallenge(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc060Total });
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: mc060Total }, result);
     orderNumber = result.orderNumber;
     mc060PayDate = new Date().toISOString().slice(0, 19);
     expect(orderNumber).toBeTruthy();
@@ -854,7 +860,8 @@ test.describe.skip('Subscription Order - Challenge with Save CC Deactivated (fro
     mc060PayDate = new Date().toISOString().slice(0, 19);
     await clickPlaceOrder(page);
     await handle3DSChallenge(page);
-    const result = await verifyOrderReceived(page, { displayName: config.displayName, expectedTotal: mc060Total });
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: mc060Total }, result);
     mc060OrderNumber = result.orderNumber;
     expect(mc060OrderNumber).toBeTruthy();
     expect(result.subscriptionId).toBeTruthy();
@@ -980,7 +987,8 @@ test.describe.skip('Subscription Order with Authorize Mode (from suite 14)', () 
 
     await clickPlaceOrder(page);
     await page.waitForURL(/order-received/, { timeout: 60000 });
-    const result = await verifyOrderReceived(page, { displayName: config.displayName });
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, { displayName: config.displayName }, result);
     const orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
     expect(result.subscriptionId, 'subscription id should be on the order-received page').toBeTruthy();
