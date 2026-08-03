@@ -903,3 +903,125 @@ export async function verifyCartEmpty(page: Page): Promise<void> {
     page.locator('.wc-block-cart__empty-cart__title, .cart-empty.woocommerce-info')
   ).toContainText('cart is currently empty', { timeout: 10000 });
 }
+
+// ─── Composite log trails ─────────────────────────────────────────────────────
+
+export interface CaptureLogTrailExpected {
+  payDate: string;
+  logOffset: number;
+  session: string;
+  total: string;
+  currency?: string;
+  transactionId: string;
+  orderNumber: string | number;
+  card: CardData;
+  /** false for saved-token checkouts, which don't POST a new session */
+  expectSessionPost: boolean;
+  /** true only when the checkout saves a new card */
+  expectToken: boolean;
+  /** false for saved-token checkouts, which don't re-fetch card details */
+  expectCardDetailsFetch: boolean;
+}
+
+/**
+ * Dedup of the capture-flow log-verification block repeated across
+ * MC-004..MC-010 in 01-hosted-session-capture-classic: fetches the
+ * session/token/all logs for the order, locates each relevant entry, and
+ * runs the matching verify* assertion against it.
+ */
+export async function assertCaptureLogTrail(expected: CaptureLogTrailExpected): Promise<void> {
+  const currency = expected.currency ?? 'USD';
+  const txFilter = (l: LogEntry) => !expected.transactionId || l.request?.url?.includes(expected.transactionId);
+
+  // Fetch every log window up front, in the same order the inline blocks did.
+  const allLogs = await getLogs(expected.payDate, '', expected.logOffset);
+  const sessionPostLogs = expected.expectSessionPost
+    ? await getLogs(expected.payDate, '/session', expected.logOffset)
+    : null;
+  const sessionGetLogs = await getLogs(expected.payDate, `/session/${expected.session}`, expected.logOffset);
+  const tokenLogs = await getLogs(expected.payDate, '/token', expected.logOffset);
+
+  if (sessionPostLogs) {
+    expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
+    const sessionPostLog = expected.session
+      ? sessionPostLogs.logs[0].content.find((l: LogEntry) => l.response?.body?.session?.id === expected.session && (l.response?.body?.result === 'SUCCESS' || l.response?.body?.session?.updateStatus === 'SUCCESS' || (l.response?.body?.session as any)?.version))
+      : sessionPostLogs.logs[0].content[0];
+    expect(sessionPostLog, `session POST entry not found for session ${expected.session}`).toBeTruthy();
+    verifySessionPost(sessionPostLog!, {
+      session: expected.session, total: expected.total, currency,
+      transactionId: expected.transactionId, orderNumber: expected.orderNumber,
+    });
+  }
+
+  expect(sessionGetLogs.logs[0]?.content.length, 'session GET logs should not be empty').toBeGreaterThan(0);
+  const sessionPut = sessionGetLogs.logs[0].content.find(
+    (l: LogEntry) => l.request?.type === 'PUT'
+      && l.request?.body?.apiOperation === 'UPDATE_SESSION'
+      && l.response?.body?.session?.updateStatus === 'SUCCESS'
+  );
+  expect(sessionPut, 'UPDATE_SESSION PUT log entry not found').toBeTruthy();
+  const resolvedSession: string = expected.session
+    || sessionPut!.request.body.session?.id
+    || sessionPut!.response.body.session?.id
+    || '';
+  verifySessionGet(sessionPut!, { session: resolvedSession, card: expected.card });
+
+  if (expected.expectCardDetailsFetch) {
+    const sessionGet = sessionGetLogs.logs[0].content.find(
+      (l: LogEntry) => l.request?.type === 'GET'
+        && l.request?.url?.includes('/session/')
+        && l.response?.body?.session?.id === resolvedSession
+    );
+    expect(sessionGet, 'session GET card details entry not found').toBeTruthy();
+    verifySessionGetCardDetails(sessionGet!, { session: resolvedSession, card: expected.card });
+  }
+
+  if (expected.expectToken) {
+    expect(tokenLogs.logs[0]?.content.length, 'token logs should not be empty').toBeGreaterThan(0);
+    verifyTokenLog(tokenLogs.logs[0].content[0], { session: resolvedSession, card: expected.card });
+  } else {
+    verifyTokenLogsEmpty(tokenLogs);
+  }
+
+  // Auth + capture logs (filter by transaction ID to avoid cross-order matches)
+  expect(allLogs.logs[0]?.content.length, 'all logs should not be empty').toBeGreaterThan(0);
+  const logContent: LogEntry[] = allLogs.logs[0].content;
+
+  const initiateAuthLog = logContent.find(
+    (l: LogEntry) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION' && txFilter(l) && l.response?.body?.result === 'SUCCESS'
+  );
+  expect(initiateAuthLog, 'INITIATE_AUTHENTICATION log not found').toBeTruthy();
+  verifyInitiateAuthentication(initiateAuthLog!, {
+    session: resolvedSession, card: expected.card, transactionId: expected.transactionId, currency,
+  });
+
+  const expectedAuthResult = expected.card.challenge ? 'PENDING' : 'SUCCESS';
+  const authenticatePayerLog = logContent.find(
+    (l: LogEntry) => l.request?.body?.apiOperation === 'AUTHENTICATE_PAYER' && txFilter(l)
+      && l.response?.body?.result === expectedAuthResult
+  );
+  expect(authenticatePayerLog, 'AUTHENTICATE_PAYER log not found').toBeTruthy();
+  verifyAuthenticatePayer(authenticatePayerLog!, {
+    session: resolvedSession, transactionId: expected.transactionId, currency, card: expected.card,
+  });
+
+  // For challenge cards, verify final authentication status after ACS prompt.
+  if (expected.card.challenge) {
+    const authResultLog = logContent.find(
+      (l: LogEntry) => txFilter(l) && (
+        l.response?.body?.authenticationStatus === 'AUTHENTICATION_SUCCESSFUL'
+        || l.response?.body?.order?.authenticationStatus === 'AUTHENTICATION_SUCCESSFUL'
+      )
+    );
+    expect(authResultLog, 'AUTHENTICATION_SUCCESSFUL result log not found').toBeTruthy();
+  }
+
+  const captureLog = logContent.find(
+    (l: LogEntry) => l.request?.body?.apiOperation === 'PAY' && txFilter(l) && l.response?.body?.result === 'SUCCESS'
+  );
+  expect(captureLog, 'PAY log not found').toBeTruthy();
+  verifyAuthorizeCaptureLog(captureLog!, {
+    apiOperation: 'PAY', session: resolvedSession, total: expected.total, currency,
+    transactionId: expected.transactionId, orderNumber: expected.orderNumber, card: expected.card,
+  });
+}
