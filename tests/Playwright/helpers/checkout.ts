@@ -20,7 +20,11 @@ const classicSelectors = {
   email: '#billing_email',
   createAccount: '//span[contains(text(), "Create an account?")]',
   accountPassword: '#account_password',
-  placeOrder: '#place_order',
+  // PayPal Payments' advanced-card-processing button reuses id="place_order"
+  // inside #ppcp-hosted-fields, so a bare '#place_order' matches two elements
+  // and every strict-mode assertion on it fails. Exclude their variant by class
+  // rather than taking .first(), which would silently depend on DOM order.
+  placeOrder: '#place_order:not(.ppcp-dcc-order-button)',
   sessionId: '#mastercard_merchant_cloud_session_id, #acme_session_id',
   saveCard: 'label[for="wc-mastercard_merchant_cloud-new-payment-method"], label[for="wc-acme-new-payment-method"]',
   savedTokenNew: '#wc-mastercard_merchant_cloud-payment-token-new, #wc-acme-payment-token-new',
