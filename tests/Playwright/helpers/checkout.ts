@@ -57,6 +57,15 @@ const blocksSelectors = {
 };
 
 export async function detectCheckoutMode(page: Page): Promise<CheckoutMode> {
+  // `count()` resolves immediately instead of waiting, so a call that lands
+  // while the checkout is still navigating sees zero of all three markers and
+  // throws even though the form renders a moment later. Wait for whichever
+  // marker appears first, then run the checks below unchanged.
+  await page
+    .locator('form.woocommerce-checkout, .wp-block-woocommerce-checkout, form#order_review')
+    .first()
+    .waitFor({ state: 'attached', timeout: 30000 })
+    .catch(() => {});
   if (await page.locator('form.woocommerce-checkout').count() > 0) return 'classic';
   if (await page.locator('.wp-block-woocommerce-checkout').count() > 0) return 'blocks';
   // The pay-for-order flow renders a minimal form with id="order_review"
@@ -231,9 +240,38 @@ export async function extractSessionId(page: Page): Promise<string> {
   return await page.locator(sel.sessionId).first().inputValue().catch(() => '');
 }
 
+/**
+ * Wait until WooCommerce's checkout AJAX has settled.
+ *
+ * Filling billing fields faster than WooCommerce's `update_order_review`
+ * debounce leaves overlapping requests, and the aborted one is often the
+ * request whose response would have stored the gateway's session-config hash.
+ * With a stale hash, `maybe_update_session()` sees a config difference at
+ * submit and issues one more UPDATE_SESSION — bumping the MPGS session version
+ * past the version the browser posted, so `validate_payment_session_status()`
+ * rejects the payment as "The Payment Session is invalid or has expired."
+ *
+ * Confirmed by diffing a passing manual checkout (order 5884: no UPDATE_SESSION
+ * between the browser's update and the validating GET) against a failing
+ * automated one (UPDATE_SESSION landing in the same second as the GET).
+ */
+export async function waitForCheckoutSettled(page: Page): Promise<void> {
+  await page.waitForFunction(
+    () => {
+      const jq = (window as any).jQuery;
+      if ( jq && jq.active > 0 ) return false;
+      // WooCommerce blockUI overlays the review/payment box while it updates.
+      return document.querySelectorAll('.blockUI').length === 0;
+    },
+    undefined,
+    { timeout: 30000 }
+  );
+}
+
 export async function clickPlaceOrder(page: Page): Promise<void> {
   const mode = await detectCheckoutMode(page);
   const sel = getSelectors(mode);
+  await waitForCheckoutSettled(page);
   const btn = page.locator(sel.placeOrder);
   await expect(btn).toBeVisible();
   await page.waitForFunction(
