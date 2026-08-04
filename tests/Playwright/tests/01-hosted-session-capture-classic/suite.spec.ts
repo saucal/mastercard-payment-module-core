@@ -17,6 +17,7 @@ import { collectOrderReceivedData } from '../../helpers/flows';
 import { handle3DSChallenge } from '../../helpers/three-ds';
 import {
   assertCaptureLogTrail,
+  expectedOrderStatus,
   verifyOrderEmails,
   assertOrderStatus,
   assertPaymentMethodMeta,
@@ -151,15 +152,17 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
 
     // === ADMIN BACKEND (admin page) ===
+    // Digital product: WooCommerce auto-completes it, so GI expects Completed.
+    const mc005Status = expectedOrderStatus({ product: 'download', transaction: 'capture' });
     await navigateToOrder(adminPage, orderNumber);
-    await assertOrderStatus(adminPage, 'Processing');
+    await assertOrderStatus(adminPage, mc005Status);
     await assertPaymentMethodMeta(adminPage, config, transactionId);
     await assertCapturedNote(adminPage, config, transactionId!);
 
     // === MY ACCOUNT (buyer's page) — 0 saved cards ===
     await frontendLogin(page, mc005Email, billing.password);
     await verifyPaymentMethods(page, { expectedCards: 0 });
-    await verifyOrderInMyAccount(page, orderNumber, 'Processing', { expectedTotal: total, displayName: config.displayName });
+    await verifyOrderInMyAccount(page, orderNumber, mc005Status, { expectedTotal: total, displayName: config.displayName });
   });
 
   // === MC-006: New user, saving CC ===
@@ -201,8 +204,10 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
 
     // === ADMIN BACKEND (admin page) ===
+    // Digital product: WooCommerce auto-completes it, so GI expects Completed.
+    const mc006Status = expectedOrderStatus({ product: 'download', transaction: 'capture' });
     await navigateToOrder(adminPage, orderNumber);
-    await assertOrderStatus(adminPage, 'Processing');
+    await assertOrderStatus(adminPage, mc006Status);
     await assertPaymentMethodMeta(adminPage, config, transactionId);
     await assertCapturedNote(adminPage, config, transactionId!);
 
@@ -215,7 +220,7 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
       expiryMonth: cards.mastercard.month,
       expiryYear: cards.mastercard.year,
     });
-    await verifyOrderInMyAccount(page, orderNumber, 'Processing', { expectedTotal: total, displayName: config.displayName });
+    await verifyOrderInMyAccount(page, orderNumber, mc006Status, { expectedTotal: total, displayName: config.displayName });
   });
 
   // === MC-007: Logged user, pay with saved CC ===

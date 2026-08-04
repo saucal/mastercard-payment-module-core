@@ -10,6 +10,35 @@ export async function assertOrderStatus(page: Page, expectedStatus: string): Pro
   await expect(page.locator('#select2-order_status-container')).toContainText(expectedStatus);
 }
 
+export type ProductKind = 'physical' | 'virtual' | 'download';
+export type TransactionKind = 'capture' | 'authorize';
+
+export interface ExpectedOrderStatusInput {
+  product: ProductKind;
+  transaction: TransactionKind;
+  declined?: boolean;
+}
+
+/**
+ * Ghost Inspector's order-status expectation, which is conditional on product
+ * type and transaction mode rather than fixed. From the `mc-*-admin` tests'
+ * steps on `#select2-order_status-container`:
+ *
+ *   declined                    -> Failed
+ *   authorize                   -> On hold
+ *   capture + download          -> Completed
+ *   capture + physical|virtual  -> Processing
+ *
+ * A `download` order reaches Completed because WooCommerce auto-completes
+ * orders whose items are all virtual and downloadable, so asserting Processing
+ * for one is always wrong. Subscriptions assert 'Active' on their own screen.
+ */
+export function expectedOrderStatus(input: ExpectedOrderStatusInput): string {
+  if (input.declined) return 'Failed';
+  if (input.transaction === 'authorize') return 'On hold';
+  return input.product === 'download' ? 'Completed' : 'Processing';
+}
+
 /**
  * Verify that a specific text appears in the order notes.
  * Optionally check at a specific position (1-indexed system note).
