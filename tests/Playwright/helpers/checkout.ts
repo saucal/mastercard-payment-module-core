@@ -141,6 +141,39 @@ export async function fillBilling(page: Page, billing: BillingData): Promise<voi
 
   await tryFill(page, sel.postcode, billing.zipCode);
   await tryFill(page, sel.phone, billing.phone);
+
+  if (mode === 'classic') {
+    await refreshOrderReview(page);
+  }
+}
+
+/**
+ * Force one final order-review recalculation and wait for it to land.
+ *
+ * The gateway stores its hosted-session config keyed by *cart hash*
+ * (`maybe_update_hosted_session_config()` → `hosted_session_config_key($hash)`),
+ * and the config includes the cart total. Filling billing changes shipping and
+ * tax, so the cart hash moves after the session was created; unless an
+ * `update_order_review` completes afterwards, nothing is stored under the new
+ * hash. At submit the plugin then finds no matching config, issues one more
+ * UPDATE_SESSION, bumps the MPGS session version past the version the browser
+ * already posted, and `validate_payment_session_status()` rejects the payment as
+ * "The Payment Session is invalid or has expired."
+ *
+ * Called at the end of `fillBilling` rather than just before submit on purpose:
+ * the refresh re-renders the payment box, which would tear down the
+ * hosted-session iframes and lose the card details.
+ */
+export async function refreshOrderReview(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    (window as any).jQuery?.(document.body).trigger('update_checkout');
+  });
+  // Let the request start before waiting for quiescence, otherwise a check that
+  // lands before jQuery registers it sees an already-idle page.
+  await page
+    .waitForFunction(() => ((window as any).jQuery?.active ?? 0) > 0, undefined, { timeout: 5000 })
+    .catch(() => {});
+  await waitForCheckoutSettled(page);
 }
 
 export async function createAccountAtCheckout(page: Page, password: string): Promise<void> {
