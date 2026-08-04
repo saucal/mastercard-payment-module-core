@@ -28,7 +28,7 @@ test.describe.serial('Hosted Session - Declined Transactions', () => {
   });
 
   test.afterAll(async () => {
-    await adminPage.close();
+    await adminPage.context().close();
   });
 
   // Pick the most-recently-created failed order created on/after `since` (ISO timestamp).

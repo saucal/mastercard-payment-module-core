@@ -48,7 +48,7 @@ test.describe.serial('Hosted Session - 3DS Inactive', () => {
   });
 
   test.afterAll(async () => {
-    await adminPage.close();
+    await adminPage.context().close();
   });
 
   // === MC-050: 3DS Visa with Challenge (3DS inactive — no auth flow) ===

@@ -57,7 +57,7 @@ test.describe.serial('Hosted Session - 3DS', () => {
   });
 
   test.afterAll(async () => {
-    await adminPage.close();
+    await adminPage.context().close();
   });
 
   // === MC-050: 3DS Visa with Challenge ===

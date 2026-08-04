@@ -91,7 +91,7 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
   });
 
   test.afterAll(async () => {
-    await adminPage.close();
+    await adminPage.context().close();
   });
 
   // === MC-011: Pay for order, not saving CC ===

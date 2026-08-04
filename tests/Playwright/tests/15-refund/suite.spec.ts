@@ -38,7 +38,7 @@ test.describe.serial('Refund', () => {
   });
 
   test.afterAll(async () => {
-    await adminPage.close();
+    await adminPage.context().close();
   });
 
   // === MC-040: Full refund ===

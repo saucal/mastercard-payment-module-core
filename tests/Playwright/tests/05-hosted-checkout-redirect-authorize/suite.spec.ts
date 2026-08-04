@@ -82,7 +82,7 @@ test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
   });
 
   test.afterAll(async () => {
-    await adminPage.close();
+    await adminPage.context().close();
   });
 
   // === MC-004: Guest checkout ===

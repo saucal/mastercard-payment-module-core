@@ -79,7 +79,7 @@ test.describe.serial('Hosted Checkout - Embedded - Capture', () => {
   });
 
   test.afterAll(async () => {
-    await adminPage.close();
+    await adminPage.context().close();
   });
 
   // === MC-004: Guest checkout ===

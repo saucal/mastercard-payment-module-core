@@ -60,7 +60,7 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
   });
 
   test.afterAll(async () => {
-    await adminPage.close();
+    await adminPage.context().close();
   });
 
   // === MC-050: Add Payment Method ===

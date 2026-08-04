@@ -43,7 +43,7 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
   });
 
   test.afterAll(async () => {
-    await adminPage.close();
+    await adminPage.context().close();
   });
 
   // Verifies a successful purchase with save_cards: 'no' — runs the full

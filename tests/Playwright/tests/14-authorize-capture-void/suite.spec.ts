@@ -42,7 +42,7 @@ test.describe.serial('Authorize / Capture / Void', () => {
   });
 
   test.afterAll(async () => {
-    await adminPage.close();
+    await adminPage.context().close();
   });
 
   // === MC-020: Partial capture ===

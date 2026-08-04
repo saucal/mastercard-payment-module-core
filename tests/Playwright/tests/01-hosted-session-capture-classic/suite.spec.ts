@@ -1,5 +1,4 @@
 import { test, expect } from '../../fixtures/test';
-import { Page } from '@playwright/test';
 import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getLogEntryCount } from '../../helpers/wc-api';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
@@ -27,7 +26,7 @@ import {
   verifyOrderInMyAccount,
   verifyCartEmpty,
 } from '../../helpers/assertions';
-import { adminLogin, frontendLogin } from '../../helpers/wp-login';
+import { frontendLogin } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
 import config from '../../plugin-config';
 import { cards, fourDigits } from '../../fixtures/cards';
@@ -44,22 +43,12 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
   let total: string;
   let logOffset: number;
 
-  // Shared admin browser context
-  let adminPage: Page;
-
-  test.beforeAll(async ({ browser }) => {
-    const adminContext = await browser.newContext({ ignoreHTTPSErrors: true });
-    adminPage = await adminContext.newPage();
-    await adminLogin(adminPage);
-  });
-
-  test.afterAll(async () => {
-    await adminPage.close();
-  });
+  // The admin context comes from the `adminPage` fixture, which logs in on
+  // first use and closes the context after each test.
 
   // === MC-004: Guest checkout ===
 
-  test('MC-004 - Guest checkout', async ({ page }) => {
+  test('MC-004 - Guest checkout', async ({ page, adminPage }) => {
     // === CHECKOUT (buyer's page) ===
     await switchCheckoutMode('classic');
     await configureGateway(config, {
@@ -115,7 +104,7 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
 
   // === MC-005: New user, NOT saving CC ===
 
-  test('MC-005 - New user not saving CC', async ({ page }) => {
+  test('MC-005 - New user not saving CC', async ({ page, adminPage }) => {
     // === CHECKOUT (buyer's page) ===
     logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
     payDate = await addToCartAndCheckout(page, config.products.digital);
@@ -167,7 +156,7 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
 
   // === MC-006: New user, saving CC ===
 
-  test('MC-006 - New user saving CC', async ({ page }) => {
+  test('MC-006 - New user saving CC', async ({ page, adminPage }) => {
     // === CHECKOUT (buyer's page) ===
     logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
     payDate = await addToCartAndCheckout(page, config.products.digital);
@@ -229,7 +218,7 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
   // details from MPGS — token references the card, no GET /session/{id}
   // for fresh card data).
 
-  test('MC-007 - Logged user pay with saved CC', async ({ page }) => {
+  test('MC-007 - Logged user pay with saved CC', async ({ page, adminPage }) => {
     // === CHECKOUT (buyer's page) ===
     await frontendLogin(page, mc006Email, billing.password);
     logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
@@ -285,7 +274,7 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
 
   // === MC-008: Logged user, pay with new CC (not saving) ===
 
-  test('MC-008 - Logged user pay with new CC', async ({ page }) => {
+  test('MC-008 - Logged user pay with new CC', async ({ page, adminPage }) => {
     // === CHECKOUT (buyer's page) ===
     await frontendLogin(page, mc006Email, billing.password);
     logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
@@ -342,7 +331,7 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
   // AUDIT 2026-04-29 vs GI: JUSTIFIED FIX — challenge card adds
   // `handle3DSChallenge` + `AUTHENTICATION_SUCCESSFUL` log probe (GI's
   // shared-step library handles this conditionally; PW makes it explicit).
-  test('MC-009 - Logged user pay with new CC and save it', async ({ page }) => {
+  test('MC-009 - Logged user pay with new CC and save it', async ({ page, adminPage }) => {
     // === CHECKOUT (buyer's page) ===
     await frontendLogin(page, mc006Email, billing.password);
     logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
@@ -401,7 +390,7 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
   // AUDIT 2026-04-29 vs GI: JUSTIFIED FIX — saved-token of a challenge card
   // skips `verifySessionGetCardDetails` (saved-token path) and adds
   // conditional 3DS handling (challenge token MAY re-challenge per issuer).
-  test('MC-010 - Logged user pay with second saved CC', async ({ page }) => {
+  test('MC-010 - Logged user pay with second saved CC', async ({ page, adminPage }) => {
     // === CHECKOUT (buyer's page) ===
     await frontendLogin(page, mc006Email, billing.password);
     logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
