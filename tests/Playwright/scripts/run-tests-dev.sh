@@ -26,10 +26,29 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TESTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 WORKTREE_DIR="$(cd "$TESTS_DIR/.." && pwd)"
-# Main plugin root: walk up from payment-core worktree to plugin root.
-# Worktree is at: <plugin>/packages/payment-core/.worktrees/<branch>/tests/Playwright/scripts
-PLUGIN_DIR="$(cd "$TESTS_DIR/../../../../../.." && pwd)"
+# Main plugin root: walk up until we find the dir holding packages/payment-core.
+# Works for both layouts: tests in the submodule itself
+# (<plugin>/packages/payment-core/tests/Playwright) and tests in a worktree
+# (<plugin>/packages/payment-core/.worktrees/<branch>/tests/Playwright).
+PLUGIN_DIR="$WORKTREE_DIR"
+while [[ "$PLUGIN_DIR" != "/" && ! -d "$PLUGIN_DIR/packages/payment-core" ]]; do
+  PLUGIN_DIR="$(dirname "$PLUGIN_DIR")"
+done
+if [[ "$PLUGIN_DIR" == "/" ]]; then
+  echo "Could not locate plugin root (no packages/payment-core above $WORKTREE_DIR)" >&2
+  exit 1
+fi
 CORE_DIR="$PLUGIN_DIR/packages/payment-core"
+
+# When tests live in the submodule itself rather than a worktree, WORKTREE_DIR
+# and CORE_DIR are different paths but resolve to the SAME git working tree --
+# stashing/resetting it twice would strand the second stash. Compare toplevels,
+# not path strings ("$CORE_DIR/tests" != "$CORE_DIR" but is the same repo).
+git_top() { git -C "$1" rev-parse --show-toplevel 2>/dev/null; }
+WORKTREE_IS_CORE=0
+if [[ "$(git_top "$WORKTREE_DIR")" == "$(git_top "$CORE_DIR")" ]]; then
+  WORKTREE_IS_CORE=1
+fi
 
 echo "Plugin:   $PLUGIN_DIR"
 echo "Core:     $CORE_DIR"
@@ -62,7 +81,9 @@ restore() {
   echo "=== Restoring working copies ==="
   reset_and_pop "plugin"       "$PLUGIN_DIR"   "$stashed_plugin"
   reset_and_pop "payment-core" "$CORE_DIR"     "$stashed_core"
-  reset_and_pop "worktree"     "$WORKTREE_DIR" "$stashed_worktree"
+  if (( WORKTREE_IS_CORE == 0 )); then
+    reset_and_pop "worktree"   "$WORKTREE_DIR" "$stashed_worktree"
+  fi
   exit "$status"
 }
 
@@ -84,7 +105,9 @@ echo ""
 echo "=== Snapshot uncommitted work ==="
 snapshot "plugin"       "$PLUGIN_DIR"   stashed_plugin
 snapshot "payment-core" "$CORE_DIR"     stashed_core
-snapshot "worktree"     "$WORKTREE_DIR" stashed_worktree
+if (( WORKTREE_IS_CORE == 0 )); then
+  snapshot "worktree"   "$WORKTREE_DIR" stashed_worktree
+fi
 
 echo ""
 echo "=== Applying build-time replacements + asset build ==="
