@@ -178,13 +178,30 @@ trap restore EXIT INT TERM
 
 snapshot() {
   local label="$1" dir="$2" stash_var="$3"
-  if is_dirty "$dir"; then
+  if ! is_dirty "$dir"; then
+    echo "- $label clean"
+    return
+  fi
+
+  # Only mark this checkout as stashed if a stash REALLY got created. A repo can
+  # look dirty to `status --porcelain -uno` while having nothing git stash will
+  # save -- most commonly when the only change is a dirty submodule pointer
+  # (" M packages/payment-core"), since stash does not descend into submodules.
+  # Trusting `git stash push` blindly there sets the flag with no stash behind
+  # it, and the restore step then pops whatever unrelated stash happens to be on
+  # top. That has twice dumped an old, unrelated stash into the working tree,
+  # once leaving a conflicted payment file that took the local site down.
+  local before after
+  before="$(git -C "$dir" rev-parse -q --verify refs/stash 2>/dev/null || true)"
+  git -C "$dir" stash push -m "run-tests-dev.sh snapshot $(date -u +%FT%TZ)" >/dev/null
+  after="$(git -C "$dir" rev-parse -q --verify refs/stash 2>/dev/null || true)"
+
+  if [[ -n "$after" && "$after" != "$before" ]]; then
     echo "- $label dirty: stash push + apply"
-    git -C "$dir" stash push -m "run-tests-dev.sh snapshot $(date -u +%FT%TZ)" >/dev/null
     printf -v "$stash_var" 1
     git -C "$dir" stash apply >/dev/null
   else
-    echo "- $label clean"
+    echo "- $label dirty but nothing stashable (no stash created; will not pop)"
   fi
 }
 
