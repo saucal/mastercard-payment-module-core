@@ -1,27 +1,65 @@
 #!/usr/bin/env bash
 #
-# Dev test runner: applies build-time placeholder replacement + asset build
-# against a snapshot of the working copy, runs Playwright tests, then restores.
+# Dev test runner. Supports two modes:
 #
-# Flow:
-#   1. stash tracked changes in each of: main plugin, payment-core submodule,
-#      tests worktree (safety net; stash push only if dirty)
-#   2. apply stash immediately (keeps working copy dirty, but snapshotted)
-#   3. run replace-domain + replace-prefix + build:core so tests hit the real
-#      `acme_*` hook names, not `PAYMENTS_CORE_HOOK_PREFIX_*` placeholders
-#   4. run Playwright from the tests worktree
-#   5. reset --hard ALWAYS (replace-prefix is unconditional, so restore must
-#      be too), then stash pop if a stash was taken
+#   built (default)
+#     Applies the build-time placeholder replacements + asset build to the
+#     working copy, so tests exercise the real hook names and meta keys that
+#     ship (e.g. `mastercard_merchant_cloud_order_id`). Faithful to production,
+#     but it MUTATES the working copy and must restore it afterwards.
 #
-# NOTE on scope: npm run replace-domain / replace-prefix use --base-dir=.
-# from the plugin root, so they recurse into packages/payment-core/ AND
-# packages/payment-core/.worktrees/<branch>/. All three checkouts
-# (PLUGIN_DIR, CORE_DIR, WORKTREE_DIR) must be reset afterwards.
+#   unbuilt (--unbuilt)
+#     Touches nothing. The plugin keeps its `PAYMENTS_CORE_HOOK_PREFIX_*`
+#     placeholders and the suite is pointed at them by forcing
+#     META_PREFIX=PAYMENTS_CORE_HOOK_PREFIX. Much faster (no composer reinstall,
+#     no asset build, no stash dance) and it CANNOT leave the site broken,
+#     because the source is never rewritten. Use it for iterating on tests.
 #
-# Usage: run-tests-dev.sh <playwright args...>
+# Why the mode matters: the site serves this working copy directly. Whatever the
+# PHP says at request time is what the tests observe, so the runtime prefix and
+# the suite's META_PREFIX have to agree. Built mode makes the source match the
+# .env; unbuilt mode makes the env match the source.
+#
+# Only the hook prefix differs between modes — it appears in PHP only (~244
+# occurrences in includes/ + templates/), never in JS/SCSS or built assets. The
+# text domain is not asserted on by any test.
+#
+# built-mode flow:
+#   1. stash tracked changes in the plugin + payment-core (+ tests worktree if
+#      separate); safety net, stash push only if dirty
+#   2. apply the stash immediately (working copy stays dirty, but snapshotted)
+#   3. run replace-domain + replace-prefix + build:core
+#   4. run Playwright
+#   5. reset --hard ALWAYS (step 3 is unconditional, so restore must be too),
+#      then stash pop if a stash was taken
+#
+# NOTE on scope: npm run replace-domain / replace-prefix use --base-dir=. from
+# the plugin root, so they recurse into packages/payment-core/ AND any
+# packages/payment-core/.worktrees/<branch>/. Every affected checkout must be
+# reset afterwards.
+#
+# Usage:
+#   run-tests-dev.sh [--built|--unbuilt] <playwright args...>
+#
+# Mode may also be set via TEST_MODE=built|unbuilt. The flag wins.
+#
+# Examples:
+#   run-tests-dev.sh 'tests/01-'
+#   run-tests-dev.sh --unbuilt 'tests/01-' --grep "MC-004"
 #
 
 set -uo pipefail
+
+MODE="${TEST_MODE:-built}"
+case "${1:-}" in
+  --unbuilt) MODE="unbuilt"; shift ;;
+  --built)   MODE="built";   shift ;;
+esac
+
+if [[ "$MODE" != "built" && "$MODE" != "unbuilt" ]]; then
+  echo "Invalid mode '$MODE' (expected 'built' or 'unbuilt')" >&2
+  exit 1
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TESTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -41,7 +79,7 @@ fi
 CORE_DIR="$PLUGIN_DIR/packages/payment-core"
 
 # When tests live in the submodule itself rather than a worktree, WORKTREE_DIR
-# and CORE_DIR are different paths but resolve to the SAME git working tree --
+# and CORE_DIR are different paths but resolve to the SAME git working tree —
 # stashing/resetting it twice would strand the second stash. Compare toplevels,
 # not path strings ("$CORE_DIR/tests" != "$CORE_DIR" but is the same repo).
 git_top() { git -C "$1" rev-parse --show-toplevel 2>/dev/null; }
@@ -50,11 +88,60 @@ if [[ "$(git_top "$WORKTREE_DIR")" == "$(git_top "$CORE_DIR")" ]]; then
   WORKTREE_IS_CORE=1
 fi
 
+echo "Mode:     $MODE"
 echo "Plugin:   $PLUGIN_DIR"
 echo "Core:     $CORE_DIR"
 echo "Worktree: $WORKTREE_DIR"
 echo "Tests:    $TESTS_DIR"
 
+archive_prior_results() {
+  echo ""
+  echo "=== Archiving prior test-results (Playwright wipes outputDir on start) ==="
+  local archive_root="$TESTS_DIR/test-results-archive"
+  mkdir -p "$archive_root"
+  if [[ -d "$TESTS_DIR/test-results" && -n "$(ls -A "$TESTS_DIR/test-results" 2>/dev/null)" ]]; then
+    local ts
+    ts="$(date -u +%Y%m%dT%H%M%SZ)"
+    mv "$TESTS_DIR/test-results" "$archive_root/$ts"
+    echo "- archived → test-results-archive/$ts"
+  else
+    echo "- no prior results"
+  fi
+}
+
+# ---------------------------------------------------------------- unbuilt mode
+if [[ "$MODE" == "unbuilt" ]]; then
+  # Source keeps its placeholders, so point the suite at them. Exporting wins
+  # over .env: dotenv does not override variables already in the environment.
+  export META_PREFIX="PAYMENTS_CORE_HOOK_PREFIX"
+  echo ""
+  echo "=== Unbuilt mode: working copy untouched ==="
+  echo "- no replacements, no build, no stash/reset"
+  echo "- META_PREFIX forced to PAYMENTS_CORE_HOOK_PREFIX"
+  echo ""
+  echo "!! KNOWN LIMITATION: wc_ajax flows DO NOT WORK unbuilt."
+  echo "!! The gateway registers its AJAX endpoints with the build-time literal"
+  echo "!!   add_action( 'wc_ajax_PAYMENTS_CORE_HOOK_PREFIX_reset_hosted_session', ... )"
+  echo "!! but the frontend JS builds the endpoint from the RUNTIME prefix"
+  echo "!!   'pluginPrefix' => \$core->get_prefix()   // always the gateway id"
+  echo "!! Unbuilt, those disagree, so every hosted-session checkout fails with"
+  echo "!! 'There was an error obtaining the payment session.' Affects all four"
+  echo "!! endpoints: reset_hosted_session, update_hosted_session_from_token,"
+  echo "!! authenticate_payer, dcc_quote — i.e. essentially every suite."
+  echo "!! Use built mode unless you are testing something that never calls wc_ajax."
+  echo ""
+  echo "- NOTE: webhook logs land in PAYMENTS_CORE_HOOK_PREFIX-webhooks-logs"
+
+  archive_prior_results
+
+  echo ""
+  echo "=== Running Playwright ==="
+  cd "$TESTS_DIR"
+  npx playwright test "$@"
+  exit $?
+fi
+
+# ------------------------------------------------------------------ built mode
 stashed_plugin=0
 stashed_core=0
 stashed_worktree=0
@@ -117,17 +204,7 @@ npm run replace-domain || { echo "replace-domain failed"; exit 1; }
 npm run replace-prefix || { echo "replace-prefix failed"; exit 1; }
 npm run build:core     || { echo "build:core failed"; exit 1; }
 
-echo ""
-echo "=== Archiving prior test-results (Playwright wipes outputDir on start) ==="
-ARCHIVE_ROOT="$TESTS_DIR/test-results-archive"
-mkdir -p "$ARCHIVE_ROOT"
-if [[ -d "$TESTS_DIR/test-results" && -n "$(ls -A "$TESTS_DIR/test-results" 2>/dev/null)" ]]; then
-  ts="$(date -u +%Y%m%dT%H%M%SZ)"
-  mv "$TESTS_DIR/test-results" "$ARCHIVE_ROOT/$ts"
-  echo "- archived → test-results-archive/$ts"
-else
-  echo "- no prior results"
-fi
+archive_prior_results
 
 echo ""
 echo "=== Running Playwright ==="
