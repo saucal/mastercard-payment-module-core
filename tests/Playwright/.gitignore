@@ -4,3 +4,6 @@ node_modules/
 /test-results-archive/
 /playwright-report/
 /playwright/.cache/
+/auth/
+.env.bak-*
+/reports/

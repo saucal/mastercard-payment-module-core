@@ -1,10 +1,14 @@
-import type { PluginConfig } from '../plugin-config.types';
+import type { PluginConfig, BillingData } from '../plugin-config.types';
+import { siteUrl, siteEnv } from './site';
+import { logOrderContext } from './debug';
 
-const BASE_URL = process.env.WP_BASE_URL || 'https://mastercard-saucal.sa.ngrok.io';
-const ADMIN_USER = process.env.WP_USERNAME || 'admin';
-const API_PASS = process.env.WP_API_PASS || '';
-const WOO_USER = process.env.WOO_USER || '';
-const WOO_PASS = process.env.WOO_PASS || '';
+const BASE_URL = siteUrl();
+// Per-site: an application password is issued by one install and rejected by the
+// others, so each site can override these with a _2 / _3 suffix.
+const ADMIN_USER = siteEnv('WP_USERNAME') || 'admin';
+const API_PASS = siteEnv('WP_API_PASS');
+const WOO_USER = siteEnv('WOO_USER');
+const WOO_PASS = siteEnv('WOO_PASS');
 
 function wpAuthHeaders(): HeadersInit {
   return {
@@ -25,6 +29,7 @@ export async function switchCheckoutMode(mode: 'classic' | 'blocks'): Promise<vo
   const res = await fetch(`${BASE_URL}/wp-json/custom/v1/${endpoint}`, {
     method: 'GET',
     headers: wpAuthHeaders(),
+    credentials: 'omit',
   });
   if (!res.ok) throw new Error(`switchCheckoutMode(${mode}) failed: ${res.status}`);
 }
@@ -33,6 +38,7 @@ export async function configureGateway(config: PluginConfig, settings: Record<st
   const res = await fetch(`${BASE_URL}/wp-json/custom/v1/update-option`, {
     method: 'POST',
     headers: wpAuthHeaders(),
+    credentials: 'omit',
     body: JSON.stringify({
       option_name: config.settingsOptionName,
       updates: settings,
@@ -44,6 +50,7 @@ export async function configureGateway(config: PluginConfig, settings: Record<st
 export async function getOrder(orderNumber: string): Promise<any> {
   const res = await fetch(`${BASE_URL}/wp-json/wc/v3/orders/${orderNumber}`, {
     headers: wcAuthHeaders(),
+    credentials: 'omit',
   });
   if (!res.ok) throw new Error(`getOrder(${orderNumber}) failed: ${res.status}`);
   return res.json();
@@ -52,6 +59,7 @@ export async function getOrder(orderNumber: string): Promise<any> {
 export async function getFailedOrders(): Promise<any[]> {
   const res = await fetch(`${BASE_URL}/wp-json/wc/v3/orders?status=failed`, {
     headers: wcAuthHeaders(),
+    credentials: 'omit',
   });
   if (!res.ok) throw new Error(`getFailedOrders failed: ${res.status}`);
   return res.json();
@@ -106,7 +114,7 @@ export interface LogEntry {
   response: {
     body: {
       result?: string;
-      session?: { id: string; updateStatus: string };
+      session?: { id: string; updateStatus: string; version?: string };
       order?: {
         id: string;
         currency: string;
@@ -146,6 +154,8 @@ export interface LogEntry {
         expiryDate: string;
         numberOfPayments: string;
       };
+      response?: { gatewayCode?: string };
+      token?: string;
       authenticationStatus?: string;
       id?: string;
       currency?: string;
@@ -266,4 +276,117 @@ export async function getLoggedMail(
     }
     await new Promise(r => setTimeout(r, intervalMs));
   }
+}
+
+// ─── Orders created over REST (pay-for-order flows) ───────────────────────────
+// One implementation shared by suites 03/04/05/12. They each carried their own
+// copy and drifted: some passed no customer or billing, some threw away the
+// error body, and all of them hand-built the pay URL.
+
+/**
+ * Resolve the customer ID for a registered account, by email.
+ *
+ * `?email=` is an exact filter, unlike `?search=`, so there is no ordering guess
+ * and no dependence on the username rendered in the My Account dashboard.
+ */
+export async function findCustomerIdByEmail(email: string): Promise<number> {
+  const res = await fetch(
+    `${BASE_URL}/wp-json/wc/v3/customers?email=${encodeURIComponent(email)}&role=all`,
+    { headers: wcAuthHeaders() },
+  );
+  const body = await res.text();
+  if (!res.ok) throw new Error(`findCustomerIdByEmail(${email}) failed: ${res.status} — ${body}`);
+  const users = JSON.parse(body);
+  if (!users.length) throw new Error(`findCustomerIdByEmail: no customer found for ${email}`);
+  await logOrderContext('customer lookup', {
+    email, matches: users.length, customerId: users[0].id, username: users[0].username,
+  });
+  return users[0].id;
+}
+
+export interface PendingOrder {
+  orderId: string;
+  orderKey: string;
+  total: string;
+  /**
+   * The pay URL WooCommerce generated. It points at whatever page this install
+   * uses for checkout — a hand-built `/checkout/order-pay/…` lands on the cart
+   * when the checkout page lives elsewhere (e.g. `/checkout-blocks/`).
+   */
+  paymentUrl: string;
+}
+
+/**
+ * Create a pending order for the pay-for-order flow.
+ *
+ * Pass `customerId` + `email` + `billing` for an order that belongs to a real
+ * account with an address; without them WooCommerce creates a guest order with
+ * no billing, which cannot complete checkout unaided.
+ */
+export async function createPendingOrder(opts: {
+  productId: number;
+  customerId?: number;
+  email?: string;
+  billing?: BillingData;
+}): Promise<PendingOrder> {
+  const { productId, customerId, email, billing } = opts;
+
+  const res = await fetch(`${BASE_URL}/wp-json/wc/v3/orders`, {
+    method: 'POST',
+    headers: wcAuthHeaders(),
+    body: JSON.stringify({
+      status: 'pending',
+      currency: 'USD',
+      ...(customerId ? { customer_id: customerId } : {}),
+      ...(billing ? {
+        billing: {
+          first_name: billing.firstName,
+          last_name: billing.lastName,
+          company: billing.company,
+          address_1: billing.street,
+          address_2: billing.address2,
+          city: billing.city,
+          state: billing.shortState,
+          postcode: billing.zipCode,
+          country: billing.shortCountry,
+          email: email ?? billing.email,
+          phone: billing.phone,
+        },
+      } : {}),
+      line_items: [{ product_id: productId, quantity: 1 }],
+    }),
+  });
+
+  // Read the body before deciding: WooCommerce explains refusals in JSON
+  // (`woocommerce_rest_invalid_product_id`, `…_cannot_create`, …), and throwing
+  // on the status alone discards the only useful part of the response.
+  const raw = await res.text();
+  if (!res.ok) {
+    throw new Error(
+      `createPendingOrder failed: ${res.status}\n`
+      + `  product=${productId} customer=${customerId ?? '(guest)'} email=${email ?? '(none)'}\n`
+      + `  response: ${raw}`,
+    );
+  }
+
+  const order = JSON.parse(raw);
+  await logOrderContext('pending order created', {
+    orderId: order.id,
+    orderKey: order.order_key,
+    status: order.status,
+    total: order.total,
+    currency: order.currency,
+    customerId: order.customer_id,
+    billingEmail: order.billing?.email,
+    lineItems: order.line_items?.length,
+    paymentUrl: order.payment_url,
+  });
+  if (!order.id) throw new Error(`createPendingOrder: no order id in response: ${raw}`);
+
+  return {
+    orderId: String(order.id),
+    orderKey: order.order_key,
+    total: String(order.total),
+    paymentUrl: order.payment_url || '',
+  };
 }
