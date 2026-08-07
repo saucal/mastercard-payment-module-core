@@ -1,8 +1,100 @@
-import { Page, TestInfo } from '@playwright/test';
+import { Page, TestInfo, test } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 
 const RESULTS_DIR = 'test-results';
+
+/**
+ * Render fetched emails into a page so they show up in that context's trace,
+ * video and screenshots, and attach the same HTML to the report.
+ *
+ * Email assertions run entirely over the `custom/v1/get-mail` endpoint, so on
+ * failure there is otherwise nothing to look at — the body that failed the
+ * assertion lives only in a variable. Painting it into `emailPage` makes the
+ * actual mail visible in the trace timeline next to everything else.
+ */
+export async function showEmails(page: Page, mails: MailLike[]): Promise<void> {
+  if (!mails.length) return;
+
+  const sections = mails.map((m) => `
+    <section style="margin:0 0 24px;border:1px solid #d0d7de;border-radius:6px;overflow:hidden">
+      <header style="font:12px/1.6 ui-monospace,monospace;padding:8px 12px;background:#f6f8fa;border-bottom:1px solid #d0d7de">
+        <div><b>to</b> ${escapeHtml(m.receiver)}</div>
+        <div><b>subject</b> ${escapeHtml(m.subject)}</div>
+        <div><b>sent</b> ${escapeHtml(String(m.timestamp))}</div>
+      </header>
+      <div style="padding:12px">${m.message}</div>
+    </section>`).join('\n');
+
+  const html = `<div style="font:14px/1.5 system-ui,sans-serif;padding:16px">
+    <h1 style="font-size:15px;margin:0 0 16px">${mails.length} email(s) fetched</h1>
+    ${sections}
+  </div>`;
+
+  await page.setContent(html, { waitUntil: 'domcontentloaded' }).catch(() => {});
+
+  try {
+    await test.info().attach('emails.html', { body: html, contentType: 'text/html' });
+  } catch {
+    /* not inside a test — the rendered page still stands */
+  }
+}
+
+/** Only the fields showEmails needs, so debug.ts stays independent of wc-api. */
+export interface MailLike {
+  receiver: string;
+  subject: string;
+  timestamp: string | number;
+  message: string;
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"]/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string
+  ));
+}
+
+/**
+ * Values worth seeing while a checkout test runs. Anything undefined or empty is
+ * skipped, so callers can pass whatever they happen to have at that point.
+ */
+export interface OrderContext {
+  orderNumber?: string | number;
+  transactionId?: string;
+  session?: string;
+  payDate?: string;
+  logOffset?: number;
+  total?: string;
+  card?: string;
+  email?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Print the order's identifying values to the console and attach them to the
+ * report. The console copy is what you watch during a run; the attachment is
+ * what tells you which order a past failure was about, since the order number
+ * and session ID are otherwise only recoverable from the video.
+ */
+export async function logOrderContext(label: string, ctx: OrderContext): Promise<void> {
+  const rows = Object.entries(ctx).filter(
+    ([, v]) => v !== undefined && v !== null && v !== ''
+  );
+  if (!rows.length) return;
+
+  const width = Math.max(...rows.map(([k]) => k.length));
+  const body = rows.map(([k, v]) => `  ${k.padEnd(width)} : ${String(v)}`).join('\n');
+
+  console.log(`\n  ── ${label} ──\n${body}\n`);
+
+  // test.info() throws outside a running test; logging should never be the
+  // reason a test fails.
+  try {
+    await test.info().attach(`${label}.txt`, { body, contentType: 'text/plain' });
+  } catch {
+    /* not inside a test, or attachment rejected — console output already stands */
+  }
+}
 
 function ensureDir(dir: string) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
