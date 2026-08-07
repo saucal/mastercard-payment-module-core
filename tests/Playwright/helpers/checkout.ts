@@ -1,6 +1,6 @@
 import { Page, expect } from '@playwright/test';
 import type { PluginConfig, BillingData } from '../plugin-config.types';
-import { waitForUnblock, waitForPageLoad } from './block-ui';
+import { waitForUnblock } from './block-ui';
 
 export type CheckoutMode = 'classic' | 'blocks';
 
@@ -72,7 +72,17 @@ export async function detectCheckoutMode(page: Page): Promise<CheckoutMode> {
   // instead of the full woocommerce-checkout form — treat it as classic
   // since the payment-method + place-order selectors are the same.
   if (await page.locator('form#order_review').count() > 0) return 'classic';
-  throw new Error('Could not detect checkout mode (neither classic nor blocks found)');
+  // Say *where* we are: this fires whenever a navigation landed somewhere other
+  // than a checkout — a 404, a login redirect, wp-admin — and the bare message
+  // sends you looking for a selector bug instead.
+  const title = await page.title().catch(() => '(unavailable)');
+  const heading = await page.locator('h1').first().textContent().catch(() => null);
+  throw new Error(
+    'Could not detect checkout mode (neither classic nor blocks found)\n'
+    + `  url:     ${page.url()}\n`
+    + `  title:   ${title}\n`
+    + `  h1:      ${heading?.trim() ?? '(none)'}`,
+  );
 }
 
 export function getSelectors(mode: CheckoutMode) {
@@ -141,10 +151,8 @@ export async function fillBilling(page: Page, billing: BillingData): Promise<voi
 
   await tryFill(page, sel.postcode, billing.zipCode);
   await tryFill(page, sel.phone, billing.phone);
+  await waitForUnblock(page);
 
-  if (mode === 'classic') {
-    await refreshOrderReview(page);
-  }
 }
 
 /**
@@ -188,7 +196,6 @@ export async function createAccountAtCheckout(page: Page, password: string): Pro
 }
 
 export async function selectPaymentMethod(page: Page, config: PluginConfig, useNewToken = false): Promise<void> {
-  await waitForUnblock(page);
   const mode = await detectCheckoutMode(page);
   const allSlugs = [config.paymentMethodSlug, ...config.paymentMethodSlugsAlt];
 
@@ -199,12 +206,14 @@ export async function selectPaymentMethod(page: Page, config: PluginConfig, useN
       const label = page.locator(`label[for="payment_method_${slug}"]`);
       if (await label.isVisible({ timeout: 3000 }).catch(() => false)) {
         await label.click();
+        await waitForUnblock(page);
         break;
       }
     } else {
       const blocksRadio = page.locator(`#radio-control-wc-payment-method-options-${slug}`);
       if (await blocksRadio.isVisible({ timeout: 3000 }).catch(() => false)) {
         await blocksRadio.click();
+        await waitForUnblock(page);
         break;
       }
     }
@@ -289,22 +298,13 @@ export async function extractSessionId(page: Page): Promise<string> {
  * automated one (UPDATE_SESSION landing in the same second as the GET).
  */
 export async function waitForCheckoutSettled(page: Page): Promise<void> {
-  await page.waitForFunction(
-    () => {
-      const jq = (window as any).jQuery;
-      if ( jq && jq.active > 0 ) return false;
-      // WooCommerce blockUI overlays the review/payment box while it updates.
-      return document.querySelectorAll('.blockUI').length === 0;
-    },
-    undefined,
-    { timeout: 30000 }
-  );
+  expect(page.locator('.blockUI, .wc-blocks-components-button--loading, .wc-block-components-spinner, .wc-block-components-checkout-place-order-button--loading')).toBeVisible({ timeout: 30000 }).catch(() => {});
+  expect(page.locator('.blockUI, .wc-blocks-components-button--loading, .wc-block-components-spinner, .wc-block-components-checkout-place-order-button--loading')).toHaveCount(0, { timeout: 30000 }).catch(() => {});
 }
 
 export async function clickPlaceOrder(page: Page): Promise<void> {
   const mode = await detectCheckoutMode(page);
   const sel = getSelectors(mode);
-  await waitForCheckoutSettled(page);
   const btn = page.locator(sel.placeOrder);
   await expect(btn).toBeVisible();
   await page.waitForFunction(
@@ -315,6 +315,7 @@ export async function clickPlaceOrder(page: Page): Promise<void> {
     sel.placeOrder.split(',')[0].trim(),
     { timeout: 30000 }
   );
+  await btn.scrollIntoViewIfNeeded();
   await btn.first().click();
 
   // Wait for either redirect to order-received, a checkout error, or 3DS redirect

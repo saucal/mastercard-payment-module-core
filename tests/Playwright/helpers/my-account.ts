@@ -1,6 +1,6 @@
 import { Page } from '@playwright/test';
 import type { PluginConfig } from '../plugin-config.types';
-import { waitForUnblock, waitForPageLoad } from './block-ui';
+import { waitForUnblock } from './block-ui';
 
 /**
  * Navigate to the Add Payment Method page and select the configured gateway.
@@ -10,7 +10,7 @@ import { waitForUnblock, waitForPageLoad } from './block-ui';
  */
 export async function selectGatewayOnAddPaymentMethod(page: Page, config: PluginConfig): Promise<void> {
   await page.goto('/my-account/add-payment-method/');
-  await waitForPageLoad(page);
+  await page.waitForLoadState('load');
 
   const allSlugs = [config.paymentMethodSlug, ...config.paymentMethodSlugsAlt];
 

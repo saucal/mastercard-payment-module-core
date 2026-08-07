@@ -109,7 +109,6 @@ async function typeIntoMpgsField(
 }
 
 export async function fillHostedSessionCC(page: Page, card: CardData, config: PluginConfig): Promise<void> {
-  await waitForUnblock(page);
 
   const iframes = page.locator(config.mpgsIframePattern);
   // Wait for iframes to load

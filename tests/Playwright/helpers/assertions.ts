@@ -3,6 +3,7 @@ import type { CardData, PluginConfig } from '../plugin-config.types';
 import { getLogs, getWebhookLogs, getLogEntryCount, getLoggedMail } from './wc-api';
 import type { LogEntry, LogResponse, LoggedMail } from './wc-api';
 import type { OrderReceivedData } from './flows';
+import { showEmails, logOrderContext } from './debug';
 
 // ─── Admin order screen ───────────────────────────────────────────────────────
 
@@ -556,7 +557,17 @@ export function verifyVoidLog(log: LogEntry, expected: VoidExpected): void {
   expect(log.request.body.transaction?.targetTransactionId).toContain(expected.transactionId);
 
   const res = log.response.body;
-  expect(res.result).toBe('SUCCESS');
+  // `undefined` here does not mean the void was refused — a refusal would read
+  // 'FAILURE'. It means the entry carries no parsed response at all, which
+  // happens when the log parser could not decode it: `parse_raw_log_content()`
+  // in the ghost-inspector-runner plugin only picks up a response body that
+  // sits on a single line starting with '{', so a pretty-printed response
+  // leaves `body` as a fragment or empty string. Say which it is.
+  expect(
+    res?.result,
+    'VOID response carried no result. Raw response.body was: '
+    + `${JSON.stringify(log.response?.body)?.slice(0, 400)}`,
+  ).toBe('SUCCESS');
 
   const order = res.order;
   expect(order).toBeTruthy();
@@ -730,12 +741,13 @@ function assertPaymentMethodInEmail(mail: LoggedMail, paymentMethodTitle: string
  */
 export async function verifyOrderEmails(
   orderNumber: string,
-  options: { paymentMethodTitle: string; adminEmail?: string; customerEmail?: string }
+  options: { paymentMethodTitle: string; adminEmail?: string; customerEmail?: string; page?: Page }
 ): Promise<void> {
   // minCount: 2 — both the admin and the customer mail must have been written
   // before asserting. Returning after only the admin row exists would silently
   // skip the customer assertion below.
   const mails = await getLoggedMail({ contains: orderNumber }, { minCount: 2 });
+  if (options.page) await showEmails(options.page, mails);
 
   const adminMsg = mails.find(m =>
     m.subject.toLowerCase().includes('new order') || m.subject.includes(`Order #${orderNumber}`)
@@ -759,10 +771,11 @@ export async function verifyOrderEmails(
  */
 export async function verifyAdminEmail(
   orderNumber: string,
-  options: { paymentMethodTitle: string; adminEmail?: string }
+  options: { paymentMethodTitle: string; adminEmail?: string; page?: Page }
 ): Promise<void> {
   const adminAddr = options.adminEmail || 'admin@';
   const mails = await getLoggedMail({ contains: orderNumber });
+  if (options.page) await showEmails(options.page, mails);
 
   const adminMsg = mails.find(m =>
     m.receiver.includes(adminAddr) ||
@@ -777,9 +790,10 @@ export async function verifyAdminEmail(
  */
 export async function verifyCustomerEmail(
   orderNumber: string,
-  options: { paymentMethodTitle: string; customerEmail: string }
+  options: { paymentMethodTitle: string; customerEmail: string; page?: Page }
 ): Promise<void> {
   const mails = await getLoggedMail({ contains: orderNumber });
+  if (options.page) await showEmails(options.page, mails);
 
   const customerMsg = mails.find(m =>
     m.receiver === options.customerEmail ||
@@ -861,6 +875,27 @@ export async function verifyPaymentMethods(
     return;
   }
 
+  // Assert the count first, and say what is on the page when it disagrees.
+  // Going straight to `tr:nth-of-type(2)` reports "element(s) not found", which
+  // cannot distinguish "only one card was saved" from "the markup changed" —
+  // and the interesting case is almost always the former.
+  const methodCells = page.locator('td.woocommerce-PaymentMethod.woocommerce-PaymentMethod--method');
+  await methodCells.first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+  const rendered = (await methodCells.allTextContents()).map((t) => t.replace(/\s+/g, ' ').trim());
+
+  await logOrderContext('saved payment methods', {
+    url: page.url(),
+    expected: options.expectedCards,
+    found: rendered.length,
+    rows: rendered.join(' | ') || '(none)',
+  });
+
+  expect(
+    rendered.length,
+    `expected ${options.expectedCards} saved card(s), found ${rendered.length}: `
+    + `[${rendered.join(' | ') || 'none'}]`,
+  ).toBe(options.expectedCards);
+
   for (let i = 1; i <= options.expectedCards; i++) {
     const row = page.locator(
       `tr:nth-of-type(${i}) > td.woocommerce-PaymentMethod.woocommerce-PaymentMethod--method`
@@ -884,11 +919,8 @@ export async function verifyPaymentMethods(
     }
   }
 
-  // Assert no extra card rows exist beyond expected count
-  const extraRow = page.locator(
-    `tr:nth-of-type(${options.expectedCards + 1}) > td.woocommerce-PaymentMethod.woocommerce-PaymentMethod--method`
-  );
-  await expect(extraRow).not.toBeVisible();
+  // No trailing "extra row" check: the count assertion above already covers it,
+  // and covers a *missing* row too, which the old check did not.
 }
 
 export async function verifyOrderInMyAccount(
@@ -973,7 +1005,7 @@ export async function assertCaptureLogTrail(expected: CaptureLogTrailExpected): 
   if (sessionPostLogs) {
     expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
     const sessionPostLog = expected.session
-      ? sessionPostLogs.logs[0].content.find((l: LogEntry) => l.response?.body?.session?.id === expected.session && (l.response?.body?.result === 'SUCCESS' || l.response?.body?.session?.updateStatus === 'SUCCESS' || (l.response?.body?.session as any)?.version))
+      ? sessionPostLogs.logs[0].content.find((l: LogEntry) => l.response?.body?.session?.id === expected.session && (l.response?.body?.result === 'SUCCESS' || l.response?.body?.session?.updateStatus === 'SUCCESS' || l.response?.body?.session?.version))
       : sessionPostLogs.logs[0].content[0];
     expect(sessionPostLog, `session POST entry not found for session ${expected.session}`).toBeTruthy();
     verifySessionPost(sessionPostLog!, {

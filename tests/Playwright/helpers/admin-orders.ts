@@ -1,11 +1,18 @@
 import { Page, expect } from '@playwright/test';
 import type { PluginConfig } from '../plugin-config.types';
+import { ensureAdminSession } from './wp-login';
 
+/**
+ * HPOS vs legacy is decided by a link in the admin menu, so this only answers
+ * correctly on a page that is already showing wp-admin — see
+ * `ensureAdminSession()`.
+ */
 export async function detectHPOS(page: Page): Promise<boolean> {
   return (await page.locator('a[href="admin.php?page=wc-orders"]').count()) > 0;
 }
 
 export async function navigateToOrder(page: Page, orderNumber: string): Promise<void> {
+  await ensureAdminSession(page);
   const hpos = await detectHPOS(page);
   if (hpos) {
     await page.goto(`/wp-admin/admin.php?page=wc-orders&action=edit&id=${orderNumber}`);
@@ -15,6 +22,7 @@ export async function navigateToOrder(page: Page, orderNumber: string): Promise<
 }
 
 export async function navigateToSubscription(page: Page, subscriptionId: string): Promise<void> {
+  await ensureAdminSession(page);
   const hpos = await detectHPOS(page);
   if (hpos) {
     await page.goto(`/wp-admin/admin.php?page=wc-orders--shop_subscription&action=edit&id=${subscriptionId}`);
@@ -69,8 +77,24 @@ export async function voidPayment(page: Page, config: PluginConfig): Promise<voi
   ).toBeVisible({ timeout: 15000 });
 }
 
-export async function refundPayment(page: Page, amount: string): Promise<void> {
-  await page.locator('.refund-items').click();
+/**
+ * Type a refund amount into the refund panel and return the total WooCommerce
+ * computed from it.
+ *
+ * `#refund_amount` is readonly on current WooCommerce: the total is derived from
+ * the per-line-item refund inputs, so filling it directly only spins until
+ * Playwright times out on "element is not editable". Older installs allow it,
+ * hence the branch.
+ *
+ * `verifyTotal` is for callers that expect the amount to be accepted verbatim.
+ * A test deliberately entering more than the remaining refundable amount wants
+ * whatever WooCommerce does with it, not an assertion failure here.
+ */
+export async function enterRefundAmount(
+  page: Page,
+  amount: string,
+  opts: { verifyTotal?: boolean } = {},
+): Promise<string> {
   // WC's refund_amount field is parsed via accounting.js using the store's
   // locale separators. Spanish-locale stores treat "." as a thousands sep,
   // so "10.00" is read as 1000. Read the decimal separator off the rendered
@@ -86,7 +110,70 @@ export async function refundPayment(page: Page, amount: string): Promise<void> {
     if (match) decimalSep = match[2];
   }
   const localized = decimalSep === ',' ? amount.replace('.', ',') : amount;
-  await page.locator('#refund_amount').fill(localized);
+
+  const totalField = page.locator('#refund_amount');
+  if (await totalField.isEditable().catch(() => false)) {
+    await totalField.fill(localized);
+    return (await totalField.inputValue()).trim();
+  }
+
+  const lineTotals = page.locator('input.refund_line_total');
+  if (!(await lineTotals.count())) {
+    throw new Error(
+      'enterRefundAmount: #refund_amount is readonly and no input.refund_line_total '
+      + 'fields were found — the refund UI markup is not what this helper expects.',
+    );
+  }
+
+  // Put the whole amount on the first *visible* refundable line. WooCommerce
+  // validates the order's remaining refundable total rather than each line, so a
+  // single-line allocation works for full and partial refunds alike and keeps
+  // the requested figure exact instead of reassembling it from quantities,
+  // taxes and shipping.
+  const target = lineTotals.filter({ visible: true }).first();
+  await target.fill(localized);
+  // WooCommerce recomputes #refund_amount from a delegated jQuery `change`
+  // handler on these inputs. fill() dispatches one, but dispatch again
+  // explicitly: if the handler was bound after our fill (the refund panel is
+  // rendered when .refund-items is clicked) the first event is lost.
+  await target.dispatchEvent('change');
+
+  const shown = (await totalField.inputValue()).trim();
+
+  if (shown === '' && opts.verifyTotal) {
+    // Nothing was computed. Dump what the panel actually offers rather than
+    // guessing which field WooCommerce wants — markup varies with taxes,
+    // shipping lines and WooCommerce version.
+    const inventory = await page.locator('#woocommerce-order-items input').evaluateAll((els) =>
+      els
+        .filter((el) => /refund/.test((el as HTMLInputElement).name || (el as HTMLInputElement).className))
+        .map((el) => {
+          const i = el as HTMLInputElement;
+          return `${i.name || i.id || i.className}="${i.value}"`
+            + `${i.readOnly ? ' [readonly]' : ''}${i.offsetParent === null ? ' [hidden]' : ''}`;
+        }),
+    );
+    throw new Error(
+      `enterRefundAmount: filled ${localized} into input.refund_line_total but #refund_amount stayed empty.\n`
+      + `  refund inputs present: ${inventory.join(', ') || '(none)'}`,
+    );
+  }
+
+  if (opts.verifyTotal) {
+    // Confirm the computed total matches before the caller submits, otherwise
+    // the gateway is asked to refund a different amount than intended.
+    expect(
+      shown.replace(',', '.'),
+      `refund total did not pick up the line amount (wanted ${amount}, field shows "${shown}")`,
+    ).toBe(amount.replace(',', '.'));
+  }
+
+  return shown;
+}
+
+export async function refundPayment(page: Page, amount: string): Promise<void> {
+  await page.locator('.refund-items').click();
+  await enterRefundAmount(page, amount, { verifyTotal: true });
   // Register the dialog handler BEFORE the click — clicking .do-api-refund
   // synchronously triggers the confirm() prompt; registering after the click
   // race-loses and the test hangs waiting for it to clear.

@@ -1,5 +1,4 @@
 import { Page } from '@playwright/test';
-import { waitForPageLoad } from './block-ui';
 
 export interface OrderReceivedData {
   orderNumber: string;
@@ -14,7 +13,7 @@ export interface OrderReceivedData {
  * validated here.
  */
 export async function collectOrderReceivedData(page: Page): Promise<OrderReceivedData> {
-  await waitForPageLoad(page);
+  await page.waitForLoadState('load');
 
   const declined = await page.locator('.woocommerce-error').isVisible().catch(() => false);
   if (declined) {
