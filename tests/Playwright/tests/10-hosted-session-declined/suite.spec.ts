@@ -1,5 +1,4 @@
 import { test, expect } from '../../fixtures/test';
-import { Page } from '@playwright/test';
 import { switchCheckoutMode, configureGateway, getFailedOrders, getLogEntryCount, getLogs } from '../../helpers/wc-api';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
@@ -10,7 +9,6 @@ import {
 } from '../../helpers/checkout';
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
 import { waitForUnblock } from '../../helpers/block-ui';
-import { adminLogin } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
 import { assertOrderStatus, assertOrderNoteContains, assertPaymentMethodMeta } from '../../helpers/assertions';
 
@@ -19,18 +17,6 @@ import { cards } from '../../fixtures/cards';
 import { billing } from '../../fixtures/billing';
 
 test.describe.serial('Hosted Session - Declined Transactions', () => {
-  let adminPage: Page;
-
-  test.beforeAll(async ({ browser }) => {
-    const adminContext = await browser.newContext({ ignoreHTTPSErrors: true });
-    adminPage = await adminContext.newPage();
-    await adminLogin(adminPage);
-  });
-
-  test.afterAll(async () => {
-    await adminPage.context().close();
-  });
-
   // Pick the most-recently-created failed order created on/after `since` (ISO timestamp).
   async function pickFailedOrderSince(since: string): Promise<any> {
     const orders = await getFailedOrders();
@@ -44,7 +30,7 @@ test.describe.serial('Hosted Session - Declined Transactions', () => {
 
   // === MC-014: Declined transaction ===
 
-  test('MC-014 - Declined transaction', async ({ page }) => {
+  test('MC-014 - Declined transaction', async ({ page, adminPage }) => {
     await switchCheckoutMode('classic');
     await configureGateway(config, {
       _3d_secure: 'yes',
@@ -91,7 +77,7 @@ test.describe.serial('Hosted Session - Declined Transactions', () => {
   // returns the more specific message for this card; tightening to it is
   // a regression-safer assertion than GI's pooled string.
 
-  test('MC-015 - Expired CC', async ({ page }) => {
+  test('MC-015 - Expired CC', async ({ page, adminPage }) => {
     const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
     const since = new Date().toISOString().slice(0, 19);
     const payDate = await addToCartAndCheckout(page, config.products.physical);
@@ -135,7 +121,7 @@ test.describe.serial('Hosted Session - Declined Transactions', () => {
   // omitted. MISSING (acknowledged) — no PAY-log assertion at all; if the
   // gateway begins returning a stable code, add it.
 
-  test('MC-016 - Timed out', async ({ page }) => {
+  test('MC-016 - Timed out', async ({ page, adminPage }) => {
     const since = new Date().toISOString().slice(0, 19);
     await addToCartAndCheckout(page, config.products.physical);
     await fillBilling(page, billing);

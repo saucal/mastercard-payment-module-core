@@ -1,5 +1,4 @@
 import { test, expect } from '../../fixtures/test';
-import { Page } from '@playwright/test';
 import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getOrderMeta, getLogEntryCount, getLogs } from '../../helpers/wc-api';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
@@ -11,7 +10,6 @@ import {
 } from '../../helpers/checkout';
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
 import { collectOrderReceivedData } from '../../helpers/flows';
-import { adminLogin } from '../../helpers/wp-login';
 import { navigateToOrder, capturePayment, voidPayment } from '../../helpers/admin-orders';
 import {
   assertOrderStatus,
@@ -29,21 +27,13 @@ import {
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
 import { billing } from '../../fixtures/billing';
+import { logOrderContext } from '../../helpers/debug';
 
 test.describe.serial('Authorize / Capture / Void', () => {
-  let adminPage: Page;
   // GI source: all four MCs use 5123456789012346 = cards.mastercard (frictionless).
   const card = cards.mastercard;
 
-  test.beforeAll(async ({ browser }) => {
-    const adminContext = await browser.newContext({ ignoreHTTPSErrors: true });
-    adminPage = await adminContext.newPage();
-    await adminLogin(adminPage);
-  });
 
-  test.afterAll(async () => {
-    await adminPage.context().close();
-  });
 
   // === MC-020: Partial capture ===
   // AUDIT 2026-04-29 vs GI:
@@ -56,7 +46,7 @@ test.describe.serial('Authorize / Capture / Void', () => {
   //   "Partially Captured" note + log amount; consider re-adding the form
   //   label assert for UI-coverage parity.
 
-  test('MC-020 - Partial capture', async ({ page }) => {
+  test('MC-020 - Partial capture', async ({ page, emailPage, adminPage }) => {
     await switchCheckoutMode('classic');
     await configureGateway(config, {
       _3d_secure: 'yes',
@@ -81,6 +71,7 @@ test.describe.serial('Authorize / Capture / Void', () => {
     expect(orderNumber).toBeTruthy();
 
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, session, total, payDate, logOffset });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
@@ -98,7 +89,7 @@ test.describe.serial('Authorize / Capture / Void', () => {
     const tokenLogs = await getLogs(payDate, '/token', logOffset);
     verifyTokenLogsEmpty(tokenLogs);
 
-    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     await navigateToOrder(adminPage, orderNumber);
     await assertOrderStatus(adminPage, 'On hold');
@@ -139,7 +130,7 @@ test.describe.serial('Authorize / Capture / Void', () => {
   //   substring + Processing/Completed status; consider adding form-removal
   //   assertions for parity.
 
-  test('MC-021 - Full capture', async ({ page }) => {
+  test('MC-021 - Full capture', async ({ page, emailPage, adminPage }) => {
     const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
     const payDate = await addToCartAndCheckout(page, config.products.digital);
 
@@ -157,6 +148,7 @@ test.describe.serial('Authorize / Capture / Void', () => {
     expect(orderNumber).toBeTruthy();
 
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, session, total, payDate, logOffset });
     expect(transactionId).toBeTruthy();
 
     const sessionGetLogs = await getLogs(payDate, `/session/${session}`, logOffset);
@@ -169,7 +161,7 @@ test.describe.serial('Authorize / Capture / Void', () => {
     expect(sessionPut, 'UPDATE_SESSION PUT log entry not found').toBeTruthy();
     verifySessionGet(sessionPut!, { session, card });
 
-    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     await navigateToOrder(adminPage, orderNumber);
     await assertOrderStatus(adminPage, 'On hold');
@@ -208,7 +200,7 @@ test.describe.serial('Authorize / Capture / Void', () => {
 
   // === MC-022: Void payment ===
 
-  test('MC-022 - Void payment', async ({ page }) => {
+  test('MC-022 - Void payment', async ({ page, adminPage }) => {
     const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
     const payDate = await addToCartAndCheckout(page, config.products.physical);
 
@@ -225,6 +217,7 @@ test.describe.serial('Authorize / Capture / Void', () => {
     expect(orderNumber).toBeTruthy();
 
     const { transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, total, payDate, logOffset });
     expect(transactionId).toBeTruthy();
 
     await navigateToOrder(adminPage, orderNumber);

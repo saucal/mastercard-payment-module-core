@@ -33,6 +33,7 @@ import {
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
 import { billing } from '../../fixtures/billing';
+import { logOrderContext } from '../../helpers/debug';
 
 test.describe.serial('Subscription Manual Renewal', () => {
   let orderNumber: string;
@@ -74,9 +75,10 @@ test.describe.serial('Subscription Manual Renewal', () => {
     subscriptionId = result.subscriptionId!;
   });
 
-  test('MC-060 - Admin', async ({ page }) => {
+  test('MC-060 - Admin', async ({ page, emailPage }) => {
     expect(orderNumber).toBeTruthy();
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, session, total, payDate });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
@@ -170,7 +172,7 @@ test.describe.serial('Subscription Manual Renewal', () => {
     }
 
     // Email verification
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     // Phase 12: Admin backend — verify order status in UI
     await adminLogin(page);
@@ -216,9 +218,10 @@ test.describe.serial('Subscription Manual Renewal', () => {
 
   // === MC-065: Admin - verify manual renewal order ===
 
-  test('MC-065 - Admin', async ({ page }) => {
+  test('MC-065 - Admin', async ({ page, emailPage }) => {
     expect(orderNumber).toBeTruthy();
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, session, total, payDate });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
@@ -244,7 +247,7 @@ test.describe.serial('Subscription Manual Renewal', () => {
     }
 
     // Email verification for renewal order
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     // Phase 12: Admin backend — verify order status in UI
     await adminLogin(page);
@@ -274,6 +277,7 @@ test.describe.serial('Subscription Manual Renewal', () => {
     expect(renewalOrderNumber).toBeTruthy();
 
     const { order, transactionId } = await verifyOrderViaAPI(renewalOrderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: renewalOrderNumber, transactionId, session, total, payDate });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();

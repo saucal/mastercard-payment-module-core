@@ -28,6 +28,7 @@ import {
 } from '../../helpers/assertions';
 import { frontendLogin } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
+import { logOrderContext } from '../../helpers/debug';
 import config from '../../plugin-config';
 import { cards, fourDigits } from '../../fixtures/cards';
 import { billing, uniqueEmail } from '../../fixtures/billing';
@@ -48,7 +49,7 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
 
   // === MC-004: Guest checkout ===
 
-  test('MC-004 - Guest checkout', async ({ page, adminPage }) => {
+  test('MC-004 - Guest checkout', async ({ page, adminPage, emailPage }) => {
     // === CHECKOUT (buyer's page) ===
     await switchCheckoutMode('classic');
     await configureGateway(config, {
@@ -85,6 +86,11 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
 
+    await logOrderContext(test.info().title, {
+      orderNumber, transactionId, session, total, payDate, logOffset,
+      card: `${cards.mastercard.name} ****${fourDigits(cards.mastercard)}`,
+    });
+
     // === LOG VERIFICATION ===
     await assertCaptureLogTrail({
       payDate, logOffset, session, total,
@@ -93,7 +99,7 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     });
 
     // === EMAIL VERIFICATION ===
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     // === ADMIN BACKEND (admin page) ===
     await navigateToOrder(adminPage, orderNumber);
@@ -104,7 +110,7 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
 
   // === MC-005: New user, NOT saving CC ===
 
-  test('MC-005 - New user not saving CC', async ({ page, adminPage }) => {
+  test('MC-005 - New user not saving CC', async ({ page, adminPage, emailPage }) => {
     // === CHECKOUT (buyer's page) ===
     logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
     payDate = await addToCartAndCheckout(page, config.products.digital);
@@ -130,6 +136,11 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(transactionId).toBeTruthy();
 
+    await logOrderContext(test.info().title, {
+      orderNumber, transactionId, session, total, payDate, logOffset,
+      card: `${cards.mastercard.name} ****${fourDigits(cards.mastercard)}`,
+    });
+
     // === LOG VERIFICATION ===
     await assertCaptureLogTrail({
       payDate, logOffset, session, total,
@@ -138,7 +149,7 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     });
 
     // === EMAIL VERIFICATION ===
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     // === ADMIN BACKEND (admin page) ===
     // Digital product: WooCommerce auto-completes it, so GI expects Completed.
@@ -156,7 +167,7 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
 
   // === MC-006: New user, saving CC ===
 
-  test('MC-006 - New user saving CC', async ({ page, adminPage }) => {
+  test('MC-006 - New user saving CC', async ({ page, adminPage, emailPage }) => {
     // === CHECKOUT (buyer's page) ===
     logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
     payDate = await addToCartAndCheckout(page, config.products.digital);
@@ -182,6 +193,11 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(transactionId).toBeTruthy();
 
+    await logOrderContext(test.info().title, {
+      orderNumber, transactionId, session, total, payDate, logOffset,
+      card: `${cards.mastercard.name} ****${fourDigits(cards.mastercard)}`,
+    });
+
     // === LOG VERIFICATION ===
     await assertCaptureLogTrail({
       payDate, logOffset, session, total,
@@ -190,7 +206,7 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     });
 
     // === EMAIL VERIFICATION ===
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     // === ADMIN BACKEND (admin page) ===
     // Digital product: WooCommerce auto-completes it, so GI expects Completed.
@@ -218,7 +234,7 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
   // details from MPGS — token references the card, no GET /session/{id}
   // for fresh card data).
 
-  test('MC-007 - Logged user pay with saved CC', async ({ page, adminPage }) => {
+  test('MC-007 - Logged user pay with saved CC', async ({ page, adminPage, emailPage }) => {
     // === CHECKOUT (buyer's page) ===
     await frontendLogin(page, mc006Email, billing.password);
     logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
@@ -242,6 +258,11 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(transactionId).toBeTruthy();
 
+    await logOrderContext(test.info().title, {
+      orderNumber, transactionId, session, total, payDate, logOffset,
+      card: `${cards.mastercard.name} ****${fourDigits(cards.mastercard)}`,
+    });
+
     // === LOG VERIFICATION ===
     // Saved-token path: no new session POST, no card-details GET; the session
     // may be empty in the DOM, so the composite derives it from the PUT log.
@@ -252,7 +273,7 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     });
 
     // === EMAIL VERIFICATION ===
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     // === ADMIN BACKEND (admin page) ===
     await navigateToOrder(adminPage, orderNumber);
@@ -274,7 +295,7 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
 
   // === MC-008: Logged user, pay with new CC (not saving) ===
 
-  test('MC-008 - Logged user pay with new CC', async ({ page, adminPage }) => {
+  test('MC-008 - Logged user pay with new CC', async ({ page, adminPage, emailPage }) => {
     // === CHECKOUT (buyer's page) ===
     await frontendLogin(page, mc006Email, billing.password);
     logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
@@ -298,6 +319,11 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(transactionId).toBeTruthy();
 
+    await logOrderContext(test.info().title, {
+      orderNumber, transactionId, session, total, payDate, logOffset,
+      card: `${cards.mastercard2.name} ****${fourDigits(cards.mastercard2)}`,
+    });
+
     // === LOG VERIFICATION ===
     await assertCaptureLogTrail({
       payDate, logOffset, session, total,
@@ -306,7 +332,7 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     });
 
     // === EMAIL VERIFICATION ===
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     // === ADMIN BACKEND (admin page) ===
     await navigateToOrder(adminPage, orderNumber);
@@ -331,7 +357,7 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
   // AUDIT 2026-04-29 vs GI: JUSTIFIED FIX — challenge card adds
   // `handle3DSChallenge` + `AUTHENTICATION_SUCCESSFUL` log probe (GI's
   // shared-step library handles this conditionally; PW makes it explicit).
-  test('MC-009 - Logged user pay with new CC and save it', async ({ page, adminPage }) => {
+  test('MC-009 - Logged user pay with new CC and save it', async ({ page, adminPage, emailPage }) => {
     // === CHECKOUT (buyer's page) ===
     await frontendLogin(page, mc006Email, billing.password);
     logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
@@ -357,6 +383,11 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(transactionId).toBeTruthy();
 
+    await logOrderContext(test.info().title, {
+      orderNumber, transactionId, session, total, payDate, logOffset,
+      card: `${cards.mastercard3.name} ****${fourDigits(cards.mastercard3)}`,
+    });
+
     // === LOG VERIFICATION ===
     await assertCaptureLogTrail({
       payDate, logOffset, session, total,
@@ -365,7 +396,7 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     });
 
     // === EMAIL VERIFICATION ===
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     // === ADMIN BACKEND (admin page) ===
     await navigateToOrder(adminPage, orderNumber);
@@ -390,7 +421,7 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
   // AUDIT 2026-04-29 vs GI: JUSTIFIED FIX — saved-token of a challenge card
   // skips `verifySessionGetCardDetails` (saved-token path) and adds
   // conditional 3DS handling (challenge token MAY re-challenge per issuer).
-  test('MC-010 - Logged user pay with second saved CC', async ({ page, adminPage }) => {
+  test('MC-010 - Logged user pay with second saved CC', async ({ page, adminPage, emailPage }) => {
     // === CHECKOUT (buyer's page) ===
     await frontendLogin(page, mc006Email, billing.password);
     logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
@@ -417,6 +448,11 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(transactionId).toBeTruthy();
 
+    await logOrderContext(test.info().title, {
+      orderNumber, transactionId, session, total, payDate, logOffset,
+      card: `${cards.mastercard3.name} ****${fourDigits(cards.mastercard3)}`,
+    });
+
     // === LOG VERIFICATION ===
     // Saved-token path: no new session POST, no card-details GET; the session
     // may be empty in the DOM, so the composite derives it from the PUT log.
@@ -427,7 +463,7 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
     });
 
     // === EMAIL VERIFICATION ===
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     // === ADMIN BACKEND (admin page) ===
     await navigateToOrder(adminPage, orderNumber);

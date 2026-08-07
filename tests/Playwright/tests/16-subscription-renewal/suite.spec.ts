@@ -37,6 +37,7 @@ import {
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
 import { billing, uniqueEmail } from '../../fixtures/billing';
+import { logOrderContext } from '../../helpers/debug';
 
 test.describe.serial('Subscription Renewal', () => {
   // === MC-060: Subscription with Challenge (classic) ===
@@ -78,9 +79,10 @@ test.describe.serial('Subscription Renewal', () => {
     mc060SubscriptionId = result.subscriptionId!;
   });
 
-  test('MC-060 - Admin', async ({ page }) => {
+  test('MC-060 - Admin', async ({ page, emailPage }) => {
     expect(mc060OrderNumber).toBeTruthy();
     const { order, transactionId } = await verifyOrderViaAPI(mc060OrderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: mc060OrderNumber, transactionId });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
@@ -177,7 +179,7 @@ test.describe.serial('Subscription Renewal', () => {
     }
 
     // Email verification (PURCHASE = both admin and customer emails)
-    await verifyOrderEmails(mc060OrderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(mc060OrderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     // Phase 12: Admin backend — verify order status in UI
     await adminLogin(page);
@@ -205,6 +207,7 @@ test.describe.serial('Subscription Renewal', () => {
     expect(renewalOrderNumber).toBeTruthy();
 
     const { order, transactionId } = await verifyOrderViaAPI(renewalOrderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: renewalOrderNumber, transactionId });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
@@ -251,9 +254,10 @@ test.describe.serial('Subscription Renewal', () => {
     mc061SubscriptionId = result.subscriptionId!;
   });
 
-  test('MC-061 - Admin', async ({ page }) => {
+  test('MC-061 - Admin', async ({ page, emailPage }) => {
     expect(mc061OrderNumber).toBeTruthy();
     const { order, transactionId } = await verifyOrderViaAPI(mc061OrderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: mc061OrderNumber, transactionId });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
@@ -350,7 +354,7 @@ test.describe.serial('Subscription Renewal', () => {
     }
 
     // Email verification
-    await verifyOrderEmails(mc061OrderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(mc061OrderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     // Phase 12: Admin backend — verify order status in UI
     await adminLogin(page);
@@ -378,6 +382,7 @@ test.describe.serial('Subscription Renewal', () => {
     expect(renewalOrderNumber).toBeTruthy();
 
     const { order, transactionId } = await verifyOrderViaAPI(renewalOrderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: renewalOrderNumber, transactionId });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
@@ -427,9 +432,10 @@ test.describe.serial('Subscription Renewal', () => {
     mc062SubscriptionId = result.subscriptionId!;
   });
 
-  test('MC-062 - Admin', async ({ page }) => {
+  test('MC-062 - Admin', async ({ page, emailPage }) => {
     expect(mc062OrderNumber).toBeTruthy();
     const { order, transactionId } = await verifyOrderViaAPI(mc062OrderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: mc062OrderNumber, transactionId });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
@@ -526,7 +532,7 @@ test.describe.serial('Subscription Renewal', () => {
     }
 
     // Email verification
-    await verifyOrderEmails(mc062OrderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(mc062OrderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     // Phase 12: Admin backend — verify order status in UI
     await adminLogin(page);
@@ -575,9 +581,10 @@ test.describe.serial('Subscription Renewal', () => {
     mc063SubscriptionId = result.subscriptionId!;
   });
 
-  test('MC-063 - Admin', async ({ page }) => {
+  test('MC-063 - Admin', async ({ page, emailPage }) => {
     expect(mc063OrderNumber).toBeTruthy();
     const { order, transactionId } = await verifyOrderViaAPI(mc063OrderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: mc063OrderNumber, transactionId });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
@@ -674,7 +681,7 @@ test.describe.serial('Subscription Renewal', () => {
     }
 
     // Email verification
-    await verifyOrderEmails(mc063OrderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(mc063OrderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     // Phase 12: Admin backend — verify order status in UI
     await adminLogin(page);
@@ -737,9 +744,10 @@ test.describe.skip('Subscription Order - Challenge with 3DS Inactive (from suite
     subscriptionId = result.subscriptionId!;
   });
 
-  test('MC-060 - Subscription Admin', async ({ page }) => {
+  test('MC-060 - Subscription Admin', async ({ page, emailPage }) => {
     expect(orderNumber).toBeTruthy();
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
@@ -796,7 +804,7 @@ test.describe.skip('Subscription Order - Challenge with 3DS Inactive (from suite
       });
     }
 
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     await adminLogin(page);
     await navigateToOrder(page, orderNumber);
@@ -821,6 +829,7 @@ test.describe.skip('Subscription Order - Challenge with 3DS Inactive (from suite
     expect(renewalOrderNumber).toBeTruthy();
 
     const { order, transactionId } = await verifyOrderViaAPI(renewalOrderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: renewalOrderNumber, transactionId });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(transactionId).toBeTruthy();
   });
@@ -874,9 +883,10 @@ test.describe.skip('Subscription Order - Challenge with Save CC Deactivated (fro
     mc060SubscriptionId = result.subscriptionId!;
   });
 
-  test('MC-060 - Subscription Admin', async ({ page }) => {
+  test('MC-060 - Subscription Admin', async ({ page, emailPage }) => {
     expect(mc060OrderNumber).toBeTruthy();
     const { order, transactionId } = await verifyOrderViaAPI(mc060OrderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: mc060OrderNumber, transactionId });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
@@ -905,7 +915,7 @@ test.describe.skip('Subscription Order - Challenge with Save CC Deactivated (fro
       }
     }
 
-    await verifyOrderEmails(mc060OrderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(mc060OrderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     await adminLogin(page);
     await navigateToOrder(page, mc060OrderNumber);
@@ -973,7 +983,7 @@ test.describe.skip('Subscription Order - Challenge with Save CC Deactivated (fro
 // ─────────────────────────────────────────────────────────────────────────────
 
 test.describe.skip('Subscription Order with Authorize Mode (from suite 14)', () => {
-  test('MC-061 - Subscription frictionless', async ({ page }) => {
+  test('MC-061 - Subscription frictionless', async ({ page, emailPage }) => {
     await switchCheckoutMode('classic');
     await configureGateway(config, {
       _3d_secure: 'yes',
@@ -1002,6 +1012,7 @@ test.describe.skip('Subscription Order with Authorize Mode (from suite 14)', () 
     const subscriptionId = result.subscriptionId!;
 
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, session, payDate, logOffset });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(transactionId).toBeTruthy();
     const orderSession = getOrderMeta(order, config.sessionIdMetaKey) || session;
@@ -1026,7 +1037,7 @@ test.describe.skip('Subscription Order with Authorize Mode (from suite 14)', () 
       slug: config.paymentMethodSlug,
     });
 
-    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     await adminLogin(page);
     await navigateToOrder(page, orderNumber);
@@ -1042,6 +1053,7 @@ test.describe.skip('Subscription Order with Authorize Mode (from suite 14)', () 
     expect(renewalOrderNumber).toBeTruthy();
 
     const { order: renewalOrder, transactionId: renewalTxn } = await verifyOrderViaAPI(renewalOrderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: renewalOrderNumber, transactionId: renewalTxn, session, payDate, logOffset });
     expect(renewalOrder.payment_method).toBe(config.paymentMethodSlug);
     expect(renewalTxn).toBeTruthy();
   });

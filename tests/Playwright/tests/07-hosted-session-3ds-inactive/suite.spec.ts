@@ -1,5 +1,4 @@
 import { test, expect } from '../../fixtures/test';
-import { Page } from '@playwright/test';
 import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getLogEntryCount, getLogs } from '../../helpers/wc-api';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
@@ -11,7 +10,6 @@ import {
 } from '../../helpers/checkout';
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
 import { collectOrderReceivedData } from '../../helpers/flows';
-import { adminLogin } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
 import {
   assertOrderStatus,
@@ -29,6 +27,7 @@ import {
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
 import { billing } from '../../fixtures/billing';
+import { logOrderContext } from '../../helpers/debug';
 
 test.describe.serial('Hosted Session - 3DS Inactive', () => {
   let orderNumber: string;
@@ -39,17 +38,8 @@ test.describe.serial('Hosted Session - 3DS Inactive', () => {
   let total: string;
   let logOffset: number;
 
-  let adminPage: Page;
 
-  test.beforeAll(async ({ browser }) => {
-    const adminContext = await browser.newContext({ ignoreHTTPSErrors: true });
-    adminPage = await adminContext.newPage();
-    await adminLogin(adminPage);
-  });
 
-  test.afterAll(async () => {
-    await adminPage.context().close();
-  });
 
   // === MC-050: 3DS Visa with Challenge (3DS inactive — no auth flow) ===
   // AUDIT 2026-04-29 vs GI (applies to all three MCs in this suite):
@@ -59,7 +49,7 @@ test.describe.serial('Hosted Session - 3DS Inactive', () => {
   // instead: no INITIATE_AUTHENTICATION / AUTHENTICATE_PAYER entries —
   // intent equivalent and parser-stable.
 
-  test('MC-050 - 3DS Visa with Challenge', async ({ page }) => {
+  test('MC-050 - 3DS Visa with Challenge', async ({ page, emailPage, adminPage }) => {
     await switchCheckoutMode('classic');
     await configureGateway(config, {
       _3d_secure: 'no',
@@ -88,6 +78,7 @@ test.describe.serial('Hosted Session - 3DS Inactive', () => {
     await verifyCartEmpty(page);
 
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, session, total, payDate, logOffset });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
@@ -147,7 +138,7 @@ test.describe.serial('Hosted Session - 3DS Inactive', () => {
       transactionId: transactionId!, orderNumber, card: cards.visaChallenge,
     });
 
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     await navigateToOrder(adminPage, orderNumber);
     await assertOrderStatus(adminPage, 'Processing');
@@ -157,7 +148,7 @@ test.describe.serial('Hosted Session - 3DS Inactive', () => {
 
   // === MC-051: 3DS Visa Frictionless (3DS inactive) ===
 
-  test('MC-051 - 3DS Visa Frictionless', async ({ page }) => {
+  test('MC-051 - 3DS Visa Frictionless', async ({ page, emailPage, adminPage }) => {
     logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
     payDate = await addToCartAndCheckout(page, config.products.physical);
     sessionDate = payDate;
@@ -178,6 +169,7 @@ test.describe.serial('Hosted Session - 3DS Inactive', () => {
     await verifyCartEmpty(page);
 
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, session, total, payDate, logOffset });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(transactionId).toBeTruthy();
 
@@ -235,7 +227,7 @@ test.describe.serial('Hosted Session - 3DS Inactive', () => {
       transactionId: transactionId!, orderNumber, card: cards.visaFrictionless,
     });
 
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     await navigateToOrder(adminPage, orderNumber);
     await assertOrderStatus(adminPage, 'Processing');
@@ -248,7 +240,7 @@ test.describe.serial('Hosted Session - 3DS Inactive', () => {
   // before checkout (`assertTextPresent h1.entry-title|My account`); PW
   // runs as guest. Add a `frontendLogin(page, ...)` step to mirror GI.
 
-  test('MC-052 - 3DS Visa Frictionless Authentication Attempted', async ({ page }) => {
+  test('MC-052 - 3DS Visa Frictionless Authentication Attempted', async ({ page, emailPage, adminPage }) => {
     logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
     payDate = await addToCartAndCheckout(page, config.products.physical);
     sessionDate = payDate;
@@ -269,6 +261,7 @@ test.describe.serial('Hosted Session - 3DS Inactive', () => {
     await verifyCartEmpty(page);
 
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, session, total, payDate, logOffset });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(transactionId).toBeTruthy();
 
@@ -326,7 +319,7 @@ test.describe.serial('Hosted Session - 3DS Inactive', () => {
       transactionId: transactionId!, orderNumber, card: cards.visaFrictionlessAttempted,
     });
 
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     await navigateToOrder(adminPage, orderNumber);
     await assertOrderStatus(adminPage, 'Processing');

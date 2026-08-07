@@ -16,7 +16,7 @@ import {
 import { handle3DSChallenge } from '../../helpers/three-ds';
 import { collectOrderReceivedData } from '../../helpers/flows';
 import { selectGatewayOnAddPaymentMethod, deletePaymentMethod } from '../../helpers/my-account';
-import { adminLogin, frontendLogin, registerUser } from '../../helpers/wp-login';
+import { frontendLogin, registerUser } from '../../helpers/wp-login';
 import { waitForUnblock } from '../../helpers/block-ui';
 import { navigateToOrder } from '../../helpers/admin-orders';
 import {
@@ -33,6 +33,7 @@ import {
 import config from '../../plugin-config';
 import { cards, fourDigits } from '../../fixtures/cards';
 import { billing, uniqueEmail } from '../../fixtures/billing';
+import { logOrderContext } from '../../helpers/debug';
 
 async function submitAddPaymentMethod(page: Page, opts: { handle3ds: boolean }): Promise<void> {
   await page.locator('#place_order').first().click();
@@ -46,22 +47,13 @@ async function submitAddPaymentMethod(page: Page, opts: { handle3ds: boolean }):
 }
 
 test.describe.serial('Hosted Session - Add Payment Method', () => {
-  let adminPage: Page;
   const mcEmail = uniqueEmail();
   // MC-050 saves a Visa challenge card; MC-051 charges via that token; MC-052 adds a Visa frictionless.
   const card1 = cards.visaChallenge;
   const card2 = cards.visaFrictionless;
   let mc050Token: string;
 
-  test.beforeAll(async ({ browser }) => {
-    const adminContext = await browser.newContext({ ignoreHTTPSErrors: true });
-    adminPage = await adminContext.newPage();
-    await adminLogin(adminPage);
-  });
 
-  test.afterAll(async () => {
-    await adminPage.context().close();
-  });
 
   // === MC-050: Add Payment Method ===
   // AUDIT 2026-04-29 vs GI: GI asserts h1 "My account" / "Payment methods"
@@ -113,7 +105,7 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
   // - JUSTIFIED FIX (cross-cutting): conditional 3DS handler — saved
   //   visaChallenge token still re-challenges depending on issuer behavior.
 
-  test('MC-051 - Logged user pay with saved CC', async ({ page }) => {
+  test('MC-051 - Logged user pay with saved CC', async ({ page, emailPage, adminPage }) => {
     await frontendLogin(page, mcEmail, billing.password);
 
     const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
@@ -135,6 +127,7 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
     expect(orderNumber).toBeTruthy();
 
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, payDate, logOffset });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
@@ -165,7 +158,7 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
       transactionId: transactionId!, orderNumber, card: card1,
     });
 
-    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     await navigateToOrder(adminPage, orderNumber);
     await assertOrderStatus(adminPage, 'Processing');
@@ -186,6 +179,22 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
 
     await submitAddPaymentMethod(page, { handle3ds: !!card2.challenge });
 
+    // Check the gateway before the account page. WooCommerce having said
+    // "Payment method successfully added." does not prove MPGS minted a token,
+    // and these two assertions fail for opposite reasons: no token here means
+    // the gateway never stored the card, whereas a token here plus a missing
+    // row means WordPress did not attach it to the customer.
+    const tokenLogs = await getLogs(payDate, '/token', logOffset);
+    await logOrderContext('second card tokenisation', {
+      card: `${card2.name} ****${fourDigits(card2)}`,
+      tokenLogEntries: tokenLogs.logs[0]?.content?.length ?? 0,
+      firstTokenStatus: tokenLogs.logs[0]?.content?.[0]?.response?.body?.result,
+    });
+    expect(tokenLogs.logs[0]?.content?.length, 'token log for second card not found').toBeGreaterThan(0);
+    const tokenLog = tokenLogs.logs[0].content[0];
+    const session = tokenLog.request?.body?.session?.id || '';
+    verifyTokenLog(tokenLog, { session, card: card2 });
+
     await verifyPaymentMethods(page, {
       expectedCards: 2,
       cards: [
@@ -193,12 +202,6 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
         { cardName: card2.name, fourDigits: fourDigits(card2), expiryMonth: card2.month, expiryYear: card2.year },
       ],
     });
-
-    const tokenLogs = await getLogs(payDate, '/token', logOffset);
-    expect(tokenLogs.logs[0]?.content?.length, 'token log for second card not found').toBeGreaterThan(0);
-    const tokenLog = tokenLogs.logs[0].content[0];
-    const session = tokenLog.request?.body?.session?.id || '';
-    verifyTokenLog(tokenLog, { session, card: card2 });
   });
 
   // === MC-053: Session loading ===

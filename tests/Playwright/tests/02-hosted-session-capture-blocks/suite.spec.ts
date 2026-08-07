@@ -33,11 +33,12 @@ import {
   verifyOrderInMyAccount,
   verifyCartEmpty,
 } from '../../helpers/assertions';
-import { adminLogin, frontendLogin } from '../../helpers/wp-login';
+import { frontendLogin } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
 import config from '../../plugin-config';
 import { cards, fourDigits } from '../../fixtures/cards';
 import { billing, uniqueEmail } from '../../fixtures/billing';
+import { logOrderContext } from '../../helpers/debug';
 
 test.describe.serial('Hosted Session - Capture - Blocks', () => {
   let orderNumber: string;
@@ -50,22 +51,12 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
   let total: string;
   let logOffset: number;
 
-  // Shared admin browser context
-  let adminPage: Page;
 
-  test.beforeAll(async ({ browser }) => {
-    const adminContext = await browser.newContext({ ignoreHTTPSErrors: true });
-    adminPage = await adminContext.newPage();
-    await adminLogin(adminPage);
-  });
 
-  test.afterAll(async () => {
-    await adminPage.context().close();
-  });
 
   // === MC-004: Guest checkout ===
 
-  test('MC-004 - Guest checkout', async ({ page }) => {
+  test('MC-004 - Guest checkout', async ({ page, emailPage, adminPage }) => {
     // === CHECKOUT (buyer's page) ===
     await switchCheckoutMode('blocks');
     await configureGateway(config, {
@@ -99,6 +90,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
 
     // === API VERIFICATION ===
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, session, total, payDate, logOffset });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
@@ -170,7 +162,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     });
 
     // === EMAIL VERIFICATION ===
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     // === ADMIN BACKEND (admin page) ===
     await navigateToOrder(adminPage, orderNumber);
@@ -181,7 +173,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
 
   // === MC-005: New user, NOT saving CC ===
 
-  test('MC-005 - New user not saving CC', async ({ page }) => {
+  test('MC-005 - New user not saving CC', async ({ page, emailPage, adminPage }) => {
     // === CHECKOUT (buyer's page) ===
     logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
     payDate = await addToCartAndCheckout(page, config.products.digital);
@@ -205,6 +197,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
 
     // === API VERIFICATION ===
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, session, total, payDate, logOffset });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(transactionId).toBeTruthy();
 
@@ -274,23 +267,23 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     });
 
     // === EMAIL VERIFICATION ===
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     // === ADMIN BACKEND (admin page) ===
     await navigateToOrder(adminPage, orderNumber);
-    await assertOrderStatus(adminPage, 'Processing');
+    await assertOrderStatus(adminPage, 'Completed');
     await assertPaymentMethodMeta(adminPage, config, transactionId);
     await assertCapturedNote(adminPage, config, transactionId!);
 
     // === MY ACCOUNT (buyer's page) ===
     await frontendLogin(page, mc005Email, billing.password);
     await verifyPaymentMethods(page, { expectedCards: 0 });
-    await verifyOrderInMyAccount(page, orderNumber, 'Processing', { expectedTotal: total, displayName: config.displayName });
+    await verifyOrderInMyAccount(page, orderNumber, 'Completed', { expectedTotal: total, displayName: config.displayName });
   });
 
   // === MC-008: Logged user, pay with new CC (not saving) ===
 
-  test('MC-008 - Logged user pay with new CC', async ({ page }) => {
+  test('MC-008 - Logged user pay with new CC', async ({ page, emailPage, adminPage }) => {
     // === CHECKOUT (buyer's page) ===
     await frontendLogin(page, mc005Email, billing.password);
     logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
@@ -313,6 +306,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
 
     // === API VERIFICATION ===
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, session, total, payDate, logOffset });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(transactionId).toBeTruthy();
 
@@ -381,7 +375,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     });
 
     // === EMAIL VERIFICATION ===
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     // === ADMIN BACKEND (admin page) ===
     await navigateToOrder(adminPage, orderNumber);
@@ -402,7 +396,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
   // this. JUSTIFIED FIX — challenge handling + AUTHENTICATION_SUCCESSFUL
   // log probe identical to suite 01 MC-009.
 
-  test('MC-009 - Logged user pay with new CC and save it', async ({ page }) => {
+  test('MC-009 - Logged user pay with new CC and save it', async ({ page, emailPage, adminPage }) => {
     // === CHECKOUT (buyer's page) ===
     await frontendLogin(page, mc005Email, billing.password);
     logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
@@ -427,6 +421,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
 
     // === API VERIFICATION ===
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, session, total, payDate, logOffset });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(transactionId).toBeTruthy();
 
@@ -510,7 +505,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     });
 
     // === EMAIL VERIFICATION ===
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     // === ADMIN BACKEND (admin page) ===
     await navigateToOrder(adminPage, orderNumber);
@@ -538,7 +533,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
   // un-clickable. PW force-clicks if needed and accepts either order-received
   // or 3DS challenge URL as the post-click destination.
 
-  test('MC-010 - Logged user pay with saved CC', async ({ page }) => {
+  test('MC-010 - Logged user pay with saved CC', async ({ page, emailPage, adminPage }) => {
     // === CHECKOUT (buyer's page) ===
     await frontendLogin(page, mc005Email, billing.password);
     logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
@@ -575,6 +570,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
 
     // === API VERIFICATION ===
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, session, total, payDate, logOffset });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(transactionId).toBeTruthy();
 
@@ -648,7 +644,7 @@ test.describe.serial('Hosted Session - Capture - Blocks', () => {
     });
 
     // === EMAIL VERIFICATION ===
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     // === ADMIN BACKEND (admin page) ===
     await navigateToOrder(adminPage, orderNumber);

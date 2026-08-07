@@ -33,6 +33,7 @@ import {
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
 import { billing } from '../../fixtures/billing';
+import { logOrderContext } from '../../helpers/debug';
 
 test.describe.serial('Subscription Upgrade', () => {
   let orderNumber: string;
@@ -74,9 +75,10 @@ test.describe.serial('Subscription Upgrade', () => {
     subscriptionId = result.subscriptionId!;
   });
 
-  test('MC-060 - Admin', async ({ page }) => {
+  test('MC-060 - Admin', async ({ page, emailPage }) => {
     expect(orderNumber).toBeTruthy();
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, session, total, payDate });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
@@ -170,7 +172,7 @@ test.describe.serial('Subscription Upgrade', () => {
     }
 
     // Email verification
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     // Phase 12: Admin backend — verify order status in UI
     await adminLogin(page);
@@ -224,6 +226,7 @@ test.describe.serial('Subscription Upgrade', () => {
   test('MC-064 - Admin', async ({ page }) => {
     expect(orderNumber).toBeTruthy();
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, session, total, payDate });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
@@ -276,6 +279,7 @@ test.describe.serial('Subscription Upgrade', () => {
     expect(renewalOrderNumber).toBeTruthy();
 
     const { order, transactionId } = await verifyOrderViaAPI(renewalOrderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: renewalOrderNumber, transactionId, session, total, payDate });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();

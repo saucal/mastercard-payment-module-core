@@ -1,5 +1,4 @@
 import { test, expect } from '../../fixtures/test';
-import { Page } from '@playwright/test';
 import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getLogEntryCount, getLogs } from '../../helpers/wc-api';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
@@ -10,9 +9,9 @@ import {
 } from '../../helpers/checkout';
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
 import { collectOrderReceivedData } from '../../helpers/flows';
-import { adminLogin } from '../../helpers/wp-login';
-import { navigateToOrder, refundPayment } from '../../helpers/admin-orders';
+import { navigateToOrder, refundPayment, enterRefundAmount } from '../../helpers/admin-orders';
 import {
+  expectedOrderStatus,
   assertOrderStatus,
   assertOrderNoteContains,
   verifyRefundLog,
@@ -22,24 +21,16 @@ import {
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
 import { billing } from '../../fixtures/billing';
+import { logOrderContext } from '../../helpers/debug';
 
 test.describe.serial('Refund', () => {
-  let adminPage: Page;
   // GI source: MC-040/041 use 5123456789012346 = cards.mastercard (frictionless).
   const card = cards.mastercard;
   // MC-042 reuses the partially refunded order from MC-041.
   let mc041OrderNumber: string;
   let mc041Total: string;
 
-  test.beforeAll(async ({ browser }) => {
-    const adminContext = await browser.newContext({ ignoreHTTPSErrors: true });
-    adminPage = await adminContext.newPage();
-    await adminLogin(adminPage);
-  });
 
-  test.afterAll(async () => {
-    await adminPage.context().close();
-  });
 
   // === MC-040: Full refund ===
   // AUDIT 2026-04-29 vs GI:
@@ -50,7 +41,7 @@ test.describe.serial('Refund', () => {
   //   status changed from Processing to Refunded". PW asserts only "Refund
   //   of" substring + status. Consider adding DOM amount + transition note.
 
-  test('MC-040 - Full refund', async ({ page }) => {
+  test('MC-040 - Full refund', async ({ page, emailPage, adminPage }) => {
     await switchCheckoutMode('classic');
     await configureGateway(config, {
       _3d_secure: 'yes',
@@ -74,11 +65,12 @@ test.describe.serial('Refund', () => {
     expect(orderNumber).toBeTruthy();
 
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, total, payDate, logOffset });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
 
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     await navigateToOrder(adminPage, orderNumber);
     const orderTotalStr = String(order.total);
@@ -106,7 +98,7 @@ test.describe.serial('Refund', () => {
   // - MISSING: same DOM-amount assertions as MC-040 (refund-row line_cost,
   //   refunded-total bdi). PW relies on the log-level partialAmount check.
 
-  test('MC-041 - Partial refund', async ({ page }) => {
+  test('MC-041 - Partial refund', async ({ page, emailPage, adminPage }) => {
     const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
     const payDate = await addToCartAndCheckout(page, config.products.digital);
 
@@ -123,9 +115,10 @@ test.describe.serial('Refund', () => {
     expect(orderNumber).toBeTruthy();
 
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, total, payDate, logOffset });
     expect(transactionId).toBeTruthy();
 
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     await navigateToOrder(adminPage, orderNumber);
 
@@ -134,7 +127,7 @@ test.describe.serial('Refund', () => {
     await refundPayment(adminPage, halfAmount);
 
     await navigateToOrder(adminPage, orderNumber);
-    await assertOrderStatus(adminPage, 'Processing');
+    await assertOrderStatus(adminPage, expectedOrderStatus({ product: 'download', transaction: 'capture' }));
     await assertOrderNoteContains(adminPage, 'Refund of');
 
     const transactionLogs = await getLogs(payDate, '/transaction', logOffset);
@@ -158,7 +151,7 @@ test.describe.serial('Refund', () => {
   //   Processing" (intent-equivalent to GI's "no second refund processed").
   //   GI's flow assumed alert-only; PW handles both.
 
-  test('MC-042 - Exceed total refund', async () => {
+  test('MC-042 - Exceed total refund', async ({ adminPage }) => {
     expect(mc041OrderNumber, 'MC-041 must run first to provide the partially refunded order').toBeTruthy();
 
     await navigateToOrder(adminPage, mc041OrderNumber);
@@ -172,7 +165,9 @@ test.describe.serial('Refund', () => {
 
     const exceedAmount = mc041Total;
     await adminPage.locator('.refund-items').click();
-    await adminPage.locator('#refund_amount').fill(exceedAmount);
+    // Same readonly-total handling as a real refund; not strict, because an
+    // over-refund is expected to be capped or rejected rather than accepted.
+    await enterRefundAmount(adminPage, exceedAmount);
 
     const refundBtn = adminPage.locator('.do-api-refund');
     const isDisabled = await refundBtn.isDisabled({ timeout: 3000 }).catch(() => false);
@@ -196,6 +191,6 @@ test.describe.serial('Refund', () => {
     expect(refundNotesAfter, 'over-refund must not produce a new refund note').toBe(refundNotesBefore);
 
     await navigateToOrder(adminPage, mc041OrderNumber);
-    await assertOrderStatus(adminPage, 'Processing');
+    await assertOrderStatus(adminPage, 'Completed');
   });
 });

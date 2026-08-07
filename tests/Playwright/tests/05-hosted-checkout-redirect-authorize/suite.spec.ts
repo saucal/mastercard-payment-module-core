@@ -1,6 +1,8 @@
 import { test, expect } from '../../fixtures/test';
-import { Page } from '@playwright/test';
-import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getLogEntryCount, getLogs } from '../../helpers/wc-api';
+import {
+  switchCheckoutMode, configureGateway, verifyOrderViaAPI, getLogEntryCount, getLogs,
+  findCustomerIdByEmail, createPendingOrder,
+} from '../../helpers/wc-api';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
   fillBilling,
@@ -22,32 +24,17 @@ import {
   verifyOrderInMyAccount,
   verifyCartEmpty,
 } from '../../helpers/assertions';
-import { adminLogin, frontendLogin } from '../../helpers/wp-login';
+import { frontendLogin, registerUser } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
 import { billing, uniqueEmail } from '../../fixtures/billing';
+import { logOrderContext } from '../../helpers/debug';
+import { siteUrl, siteEnv } from '../../helpers/site';
 
-const BASE_URL = process.env.WP_BASE_URL || 'https://mastercard-saucal.sa.ngrok.io';
-const WOO_USER = process.env.WOO_USER || '';
-const WOO_PASS = process.env.WOO_PASS || '';
-
-async function createPendingOrder(productId: number): Promise<{ orderId: string; orderKey: string; total: string }> {
-  const res = await fetch(`${BASE_URL}/wp-json/wc/v3/orders`, {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Basic ' + Buffer.from(`${WOO_USER}:${WOO_PASS}`).toString('base64'),
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      status: 'pending',
-      line_items: [{ product_id: productId, quantity: 1 }],
-    }),
-  });
-  if (!res.ok) throw new Error(`createPendingOrder failed: ${res.status}`);
-  const order = await res.json();
-  return { orderId: String(order.id), orderKey: order.order_key, total: String(order.total) };
-}
+const BASE_URL = siteUrl();
+const WOO_USER = siteEnv('WOO_USER');
+const WOO_PASS = siteEnv('WOO_PASS');
 
 // Hosted-checkout REDIRECT + AUTHORIZE — same log shape as the capture
 // variant (only INITIATE_CHECKOUT is server-side). Order ends in `on-hold`
@@ -67,27 +54,20 @@ async function createPendingOrder(productId: number): Promise<{ orderId: string;
 test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
   let orderNumber: string;
   const mc005Email = uniqueEmail();
+  // Pay-for-order needs an account that owns the order, as in suite 03.
+  const mc011Email = uniqueEmail();
   const mc008Email = mc005Email;
 
   let payDate: string;
   let total: string;
   let logOffset: number;
 
-  let adminPage: Page;
 
-  test.beforeAll(async ({ browser }) => {
-    const adminContext = await browser.newContext({ ignoreHTTPSErrors: true });
-    adminPage = await adminContext.newPage();
-    await adminLogin(adminPage);
-  });
 
-  test.afterAll(async () => {
-    await adminPage.context().close();
-  });
 
   // === MC-004: Guest checkout ===
 
-  test('MC-004 - Guest checkout', async ({ page }) => {
+  test('MC-004 - Guest checkout', async ({ page, emailPage, adminPage }) => {
     await switchCheckoutMode('classic');
     await configureGateway(config, {
       _3d_secure: 'yes',
@@ -118,6 +98,7 @@ test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
     await verifyCartEmpty(page);
 
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, total, payDate, logOffset });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(order.status).toBe('on-hold');
@@ -142,7 +123,7 @@ test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
 
     verifyTokenLogsEmpty(tokenLogs);
 
-    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     await navigateToOrder(adminPage, orderNumber);
     await assertOrderStatus(adminPage, 'On hold');
@@ -152,7 +133,7 @@ test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
 
   // === MC-005: New user ===
 
-  test('MC-005 - New user', async ({ page }) => {
+  test('MC-005 - New user', async ({ page, emailPage, adminPage }) => {
     logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
     payDate = await addToCartAndCheckout(page, config.products.digital);
     await fillBilling(page, { ...billing, email: mc005Email });
@@ -176,6 +157,7 @@ test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
     await verifyCartEmpty(page);
 
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, total, payDate, logOffset });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.status).toBe('on-hold');
     expect(transactionId).toBeTruthy();
@@ -199,7 +181,7 @@ test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
 
     verifyTokenLogsEmpty(tokenLogs);
 
-    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     await navigateToOrder(adminPage, orderNumber);
     await assertOrderStatus(adminPage, 'On hold');
@@ -212,7 +194,7 @@ test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
 
   // === MC-008: Logged user ===
 
-  test('MC-008 - Logged user', async ({ page }) => {
+  test('MC-008 - Logged user', async ({ page, emailPage, adminPage }) => {
     await frontendLogin(page, mc008Email, billing.password);
 
     logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
@@ -236,6 +218,7 @@ test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
     await verifyCartEmpty(page);
 
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, total, payDate, logOffset });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.status).toBe('on-hold');
     expect(transactionId).toBeTruthy();
@@ -259,7 +242,7 @@ test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
 
     verifyTokenLogsEmpty(tokenLogs);
 
-    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     await navigateToOrder(adminPage, orderNumber);
     await assertOrderStatus(adminPage, 'On hold');
@@ -272,12 +255,19 @@ test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
 
   // === MC-011: Pay for order ===
 
-  test('MC-011 - Pay for order', async ({ page }) => {
-    const { orderId, orderKey, total: orderTotal } = await createPendingOrder(config.products.physical);
+  test('MC-011 - Pay for order', async ({ page, adminPage }) => {
+    await registerUser(page, mc011Email, billing.password);
+    const customerId = await findCustomerIdByEmail(mc011Email);
+    const { orderId, orderKey, total: orderTotal, paymentUrl } = await createPendingOrder({
+      productId: config.products.physical, customerId, email: mc011Email, billing,
+    });
     total = orderTotal;
 
     logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
-    await page.goto(`/checkout/order-pay/${orderId}/?pay_for_order=true&key=${orderKey}`);
+    // WooCommerce's own pay URL points at whatever page this install uses for
+    // checkout; a hand-built /checkout/… path lands on the cart when the
+    // checkout page lives elsewhere (e.g. /checkout-blocks/).
+    await page.goto(paymentUrl || `/checkout/order-pay/${orderId}/?pay_for_order=true&key=${orderKey}`);
     await page.waitForLoadState('networkidle');
 
     payDate = new Date().toISOString().slice(0, 19);
@@ -299,6 +289,7 @@ test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
     await verifyCartEmpty(page);
 
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, total, payDate, logOffset });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(order.status).toBe('on-hold');

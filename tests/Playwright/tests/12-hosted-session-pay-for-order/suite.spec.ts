@@ -1,6 +1,8 @@
 import { test, expect } from '../../fixtures/test';
-import { Page } from '@playwright/test';
-import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getLogEntryCount, getLogs } from '../../helpers/wc-api';
+import {
+  switchCheckoutMode, configureGateway, verifyOrderViaAPI, getLogEntryCount, getLogs,
+  findCustomerIdByEmail, createPendingOrder,
+} from '../../helpers/wc-api';
 import {
   selectPaymentMethod,
   clickPlaceOrder,
@@ -11,7 +13,7 @@ import {
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
 import { collectOrderReceivedData } from '../../helpers/flows';
 import { handle3DSChallenge } from '../../helpers/three-ds';
-import { adminLogin, frontendLogin, registerUser } from '../../helpers/wp-login';
+import { frontendLogin, registerUser } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
 import {
   assertOrderStatus,
@@ -32,67 +34,21 @@ import {
 import config from '../../plugin-config';
 import { cards, fourDigits } from '../../fixtures/cards';
 import { billing, uniqueEmail } from '../../fixtures/billing';
+import { logOrderContext } from '../../helpers/debug';
+import { siteUrl, siteEnv } from '../../helpers/site';
 
-const BASE_URL = process.env.WP_BASE_URL || 'https://mastercard-saucal.sa.ngrok.io';
-const WOO_USER = process.env.WOO_USER || '';
-const WOO_PASS = process.env.WOO_PASS || '';
+const BASE_URL = siteUrl();
+const WOO_USER = siteEnv('WOO_USER');
+const WOO_PASS = siteEnv('WOO_PASS');
 
 const wcAuth = 'Basic ' + Buffer.from(`${WOO_USER}:${WOO_PASS}`).toString('base64');
 
-async function getCustomerId(email: string): Promise<number> {
-  const res = await fetch(`${BASE_URL}/wp-json/wc/v3/customers?email=${encodeURIComponent(email)}`, {
-    headers: { Authorization: wcAuth },
-  });
-  if (!res.ok) throw new Error(`getCustomerId failed: ${res.status}`);
-  const customers = await res.json();
-  if (!Array.isArray(customers) || !customers.length) throw new Error(`no customer found for ${email}`);
-  return customers[0].id;
-}
-
-async function createPendingOrder(productId: number, customerId: number, email: string): Promise<{ orderId: string; orderKey: string }> {
-  const res = await fetch(`${BASE_URL}/wp-json/wc/v3/orders`, {
-    method: 'POST',
-    headers: { Authorization: wcAuth, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      status: 'pending',
-      customer_id: customerId,
-      currency: 'USD',
-      billing: {
-        first_name: billing.firstName,
-        last_name: billing.lastName,
-        company: billing.company,
-        address_1: billing.street,
-        address_2: billing.address2,
-        city: billing.city,
-        state: billing.shortState,
-        postcode: billing.zipCode,
-        country: billing.shortCountry,
-        email,
-        phone: billing.phone,
-      },
-      line_items: [{ product_id: productId, quantity: 1 }],
-    }),
-  });
-  if (!res.ok) throw new Error(`createPendingOrder failed: ${res.status}`);
-  const order = await res.json();
-  return { orderId: String(order.id), orderKey: order.order_key };
-}
-
 test.describe.serial('Hosted Session - Pay For Order', () => {
-  let adminPage: Page;
   const mcEmail = uniqueEmail();
   let mcCustomerId: number;
   let mc012Token: string;
 
-  test.beforeAll(async ({ browser }) => {
-    const adminContext = await browser.newContext({ ignoreHTTPSErrors: true });
-    adminPage = await adminContext.newPage();
-    await adminLogin(adminPage);
-  });
 
-  test.afterAll(async () => {
-    await adminPage.context().close();
-  });
 
   // === MC-011: Pay for order, not saving CC ===
   // AUDIT 2026-04-29 vs GI (applies to MC-011/012/013): DRIFT — GI uses
@@ -101,7 +57,7 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
   // source-of-truth fidelity. Either switch to `config.products.digital`
   // / a `virtual` config slot, or document why physical is preferred.
 
-  test('MC-011 - Pay for order not saving CC', async ({ page }) => {
+  test('MC-011 - Pay for order not saving CC', async ({ page, emailPage, adminPage }) => {
     await switchCheckoutMode('classic');
     await configureGateway(config, {
       _3d_secure: 'yes',
@@ -111,14 +67,17 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
     });
 
     await registerUser(page, mcEmail, billing.password);
-    mcCustomerId = await getCustomerId(mcEmail);
+    mcCustomerId = await findCustomerIdByEmail(mcEmail);
 
     const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
     const payDate = new Date().toISOString().slice(0, 19);
 
-    const { orderId, orderKey } = await createPendingOrder(config.products.physical, mcCustomerId, mcEmail);
-    await page.goto(`/checkout/order-pay/${orderId}/?pay_for_order=true&key=${orderKey}`);
-    await page.waitForLoadState('networkidle');
+    const { orderId, orderKey, paymentUrl } = await createPendingOrder({ productId: config.products.physical, customerId: mcCustomerId, email: mcEmail, billing });
+    // WooCommerce's own pay URL points at whatever page this install uses for
+    // checkout; a hand-built /checkout/… path lands on the cart when the
+    // checkout page lives elsewhere (e.g. /checkout-blocks/).
+    await page.goto(paymentUrl || `/checkout/order-pay/${orderId}/?pay_for_order=true&key=${orderKey}`);
+    await page.waitForLoadState('load');
 
     await selectPaymentMethod(page, config);
     await fillHostedSessionCC(page, cards.mastercard, config);
@@ -132,6 +91,7 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
     expect(orderNumber).toBeTruthy();
 
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, session, payDate, logOffset });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
@@ -199,7 +159,7 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
       transactionId: transactionId!, orderNumber, card: cards.mastercard,
     });
 
-    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     await navigateToOrder(adminPage, orderNumber);
     await assertOrderStatus(adminPage, 'Processing');
@@ -213,7 +173,7 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
   // before filling CC iframe). Without it, WC tokenization-form.js keeps
   // the .saveNew row hidden and `clickSaveCardCheckbox` would fail.
 
-  test('MC-012 - Pay for order saving CC', async ({ page }) => {
+  test('MC-012 - Pay for order saving CC', async ({ page, emailPage, adminPage }) => {
     // Explicit login — registerUser in MC-011 does not survive across tests
     // reliably (cookies / WP nonces differ on /checkout/order-pay/). Without
     // a logged-in session WC's tokenization-form.js reads is_logged_in=""
@@ -223,8 +183,11 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
     const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
     const payDate = new Date().toISOString().slice(0, 19);
 
-    const { orderId, orderKey } = await createPendingOrder(config.products.physical, mcCustomerId, mcEmail);
-    await page.goto(`/checkout/order-pay/${orderId}/?pay_for_order=true&key=${orderKey}`);
+    const { orderId, orderKey, paymentUrl } = await createPendingOrder({ productId: config.products.physical, customerId: mcCustomerId, email: mcEmail, billing });
+    // WooCommerce's own pay URL points at whatever page this install uses for
+    // checkout; a hand-built /checkout/… path lands on the cart when the
+    // checkout page lives elsewhere (e.g. /checkout-blocks/).
+    await page.goto(paymentUrl || `/checkout/order-pay/${orderId}/?pay_for_order=true&key=${orderKey}`);
     await page.waitForLoadState('networkidle');
 
     // useNewToken=true clicks the "Use new payment method" radio — required
@@ -245,6 +208,7 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
     expect(orderNumber).toBeTruthy();
 
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, session, payDate, logOffset });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(transactionId).toBeTruthy();
     const total: string = String(order.total);
@@ -299,7 +263,7 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
       transactionId: transactionId!, orderNumber, card: cards.visaChallenge,
     });
 
-    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     await navigateToOrder(adminPage, orderNumber);
     await assertOrderStatus(adminPage, 'Processing');
@@ -320,13 +284,16 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
   // visaChallenge token MAY re-challenge depending on issuer behavior;
   // PW gates handle3DSChallenge on URL-pattern detection.
 
-  test('MC-013 - Pay for order with saved CC', async ({ page }) => {
+  test('MC-013 - Pay for order with saved CC', async ({ page, emailPage, adminPage }) => {
     await frontendLogin(page, mcEmail, billing.password);
     const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
     const payDate = new Date().toISOString().slice(0, 19);
 
-    const { orderId, orderKey } = await createPendingOrder(config.products.physical, mcCustomerId, mcEmail);
-    await page.goto(`/checkout/order-pay/${orderId}/?pay_for_order=true&key=${orderKey}`);
+    const { orderId, orderKey, paymentUrl } = await createPendingOrder({ productId: config.products.physical, customerId: mcCustomerId, email: mcEmail, billing });
+    // WooCommerce's own pay URL points at whatever page this install uses for
+    // checkout; a hand-built /checkout/… path lands on the cart when the
+    // checkout page lives elsewhere (e.g. /checkout-blocks/).
+    await page.goto(paymentUrl || `/checkout/order-pay/${orderId}/?pay_for_order=true&key=${orderKey}`);
     await page.waitForLoadState('networkidle');
 
     await selectPaymentMethod(page, config);
@@ -343,6 +310,7 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
     expect(orderNumber).toBeTruthy();
 
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, payDate, logOffset });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(transactionId).toBeTruthy();
     const total: string = String(order.total);
@@ -372,7 +340,7 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
       transactionId: transactionId!, orderNumber, card: cards.visaChallenge,
     });
 
-    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     await navigateToOrder(adminPage, orderNumber);
     await assertOrderStatus(adminPage, 'Processing');

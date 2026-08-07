@@ -12,9 +12,10 @@ import {
 } from '../../helpers/checkout';
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
 import { collectOrderReceivedData } from '../../helpers/flows';
-import { adminLogin, frontendLogin } from '../../helpers/wp-login';
+import { frontendLogin } from '../../helpers/wp-login';
 import { navigateToOrder } from '../../helpers/admin-orders';
 import {
+  expectedOrderStatus,
   assertOrderStatus,
   assertPaymentMethodMeta,
   assertCapturedNote,
@@ -31,30 +32,24 @@ import {
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
 import { billing, uniqueEmail } from '../../fixtures/billing';
+import { logOrderContext } from '../../helpers/debug';
 
 test.describe.serial('Hosted Session - Save CC Deactivated', () => {
-  let adminPage: Page;
   const mc031Email = uniqueEmail();
 
-  test.beforeAll(async ({ browser }) => {
-    const adminContext = await browser.newContext({ ignoreHTTPSErrors: true });
-    adminPage = await adminContext.newPage();
-    await adminLogin(adminPage);
-  });
 
-  test.afterAll(async () => {
-    await adminPage.context().close();
-  });
 
   // Verifies a successful purchase with save_cards: 'no' — runs the full
   // log + admin pipeline and asserts no token logs were emitted.
   async function runSuccessFlow(opts: {
     page: Page;
+    emailPage: Page;
+    adminPage: Page;
     card: typeof cards.mastercard;
     expectedSavedCards: number | 'skip';
     loginAfterPurchase?: { email: string; password: string };
   }): Promise<void> {
-    const { page, card, expectedSavedCards, loginAfterPurchase } = opts;
+    const { page, emailPage, adminPage, card, expectedSavedCards, loginAfterPurchase } = opts;
 
     const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
     const payDate = await addToCartAndCheckout(page, config.products.physical);
@@ -90,6 +85,7 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
     await verifyCartEmpty(page);
 
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, session, total, payDate, logOffset });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
@@ -140,7 +136,7 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
       transactionId: transactionId!, orderNumber, card,
     });
 
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     await navigateToOrder(adminPage, orderNumber);
     await assertOrderStatus(adminPage, 'Processing');
@@ -160,7 +156,7 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
   // /my-account/payment-methods/ assertion (no logged-in account exists);
   // helper `runSuccessFlow` honors `expectedSavedCards: 'skip'`.
 
-  test('MC-030 - Guest checkout', async ({ page }) => {
+  test('MC-030 - Guest checkout', async ({ page, emailPage, adminPage }) => {
     await switchCheckoutMode('classic');
     await configureGateway(config, {
       _3d_secure: 'yes',
@@ -172,6 +168,8 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
     // Guest has no /my-account/, skip the saved-cards check.
     await runSuccessFlow({
       page,
+      emailPage,
+      adminPage,
       card: cards.mastercard,
       expectedSavedCards: 'skip',
     });
@@ -183,7 +181,7 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
   // empty token logs). No documented reason. Either align upward to match
   // MC-030, or document why MC-031 needs less.
 
-  test('MC-031 - New user', async ({ page }) => {
+  test('MC-031 - New user', async ({ page, emailPage, adminPage }) => {
     const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
     const payDate = await addToCartAndCheckout(page, config.products.digital);
     const sessionDate = payDate;
@@ -211,6 +209,7 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
     expect(orderNumber).toBeTruthy();
 
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
+    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, session, total, payDate, logOffset });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(transactionId).toBeTruthy();
 
@@ -224,10 +223,10 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
     );
     expect(captureLog, 'PAY log not found').toBeTruthy();
 
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
+    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
     await navigateToOrder(adminPage, orderNumber);
-    await assertOrderStatus(adminPage, 'Processing');
+    await assertOrderStatus(adminPage, expectedOrderStatus({ product: 'download', transaction: 'capture' }));
     await assertPaymentMethodMeta(adminPage, config, transactionId);
     await assertCapturedNote(adminPage, config, transactionId!);
 
@@ -241,11 +240,13 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
 
   // === MC-032: Logged user pays with new CC, save CC deactivated ===
 
-  test('MC-032 - Logged user pay with new CC', async ({ page }) => {
+  test('MC-032 - Logged user pay with new CC', async ({ page, emailPage, adminPage }) => {
     await frontendLogin(page, mc031Email, billing.password);
 
     await runSuccessFlow({
       page,
+      emailPage,
+      adminPage,
       card: cards.mastercard2,
       expectedSavedCards: 0,
     });
