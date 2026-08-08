@@ -193,6 +193,19 @@ export async function createAccountAtCheckout(page: Page, password: string): Pro
   if (await pwField.isVisible({ timeout: 3000 }).catch(() => false)) {
     await pwField.fill(password);
   }
+
+  // Ticking "create an account" queues a DEBOUNCED update_checkout, so the
+  // overlay is still pending when we would otherwise return. The caller's next
+  // click then lands just as it appears: MC-031 burned its full actionTimeout
+  // retrying a click on label[for="payment_method_<slug>"] and failed the whole
+  // serial block.
+  //
+  // selectPaymentMethod cannot cover this -- it waits AFTER each click, which
+  // is too late for a click that was itself intercepted. Settle here instead,
+  // at the point that causes the update. waitForUnblock already waits for an
+  // overlay to appear before waiting for it to clear, and an overlay really
+  // does fire here, so its appear-window costs nothing on this path.
+  await waitForUnblock(page);
 }
 
 export async function selectPaymentMethod(page: Page, config: PluginConfig, useNewToken = false): Promise<void> {
