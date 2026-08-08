@@ -32,7 +32,20 @@ export default defineConfig({
   // worker the next file — the work queue this needs, with no orchestrator.
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 1,
+  // Two everywhere, not one locally. The suite depends on
+  // test-gateway.mastercard.com, and that call fails at a measured 0.16% (7 in
+  // 4314 requests) while a full run makes ~437 of them -- so about half of all
+  // runs hit at least one blip through no fault of the tests.
+  //
+  // At retries=1 roughly 6.5% of runs still end red on upstream alone, about
+  // one in fifteen, which is often enough that a red run stops being
+  // informative. A second retry takes it to ~0.85%, and costs nothing on a
+  // healthy run because it only fires after a retry has already failed.
+  //
+  // Not a licence to retry real problems away: helpers/gateway-health.ts
+  // attaches a verdict to every failed test, and one reporting no unusable
+  // gateway response is ours to fix.
+  retries: 2,
   workers,
   reporter: [
     [process.env.CI ? 'github' : 'list'],
