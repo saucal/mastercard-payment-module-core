@@ -27,6 +27,7 @@ import { test as base, expect, type Page, type BrowserContext } from '@playwrigh
 import { PageLog, dumpFailureArtifacts } from '../helpers/debug';
 import { adminStatePath, hasSavedAdminState } from '../helpers/wp-login';
 import { siteUrl, siteUrls } from '../helpers/site';
+import { findGatewayFailures, describeGatewayFailures } from '../helpers/gateway-health';
 
 export { expect };
 
@@ -194,11 +195,37 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
   _debugOnFailure: [async ({ page }, use, testInfo) => {
     const pageLog = new PageLog();
     pageLog.install(page);
+    const startedAt = new Date().toISOString().slice(0, 19);
 
     await use();
 
     if (testInfo.status !== testInfo.expectedStatus) {
       await dumpFailureArtifacts(page, testInfo, pageLog);
+
+      // Say which side the failure came from while the evidence is fresh. A
+      // gateway call that came back unusable explains most of the confusing
+      // symptoms (expired session, missing iframes, a log entry reported as
+      // "not found"); none found means the failure is ours.
+      //
+      // Never let this break the run: it is diagnostics on an already-failed
+      // test, and the log API is itself something that can be unavailable.
+      try {
+        const failures = await findGatewayFailures(
+          startedAt,
+          new Date().toISOString().slice(0, 19),
+        );
+        const verdict = describeGatewayFailures(failures);
+        await testInfo.attach('flakiness-verdict', {
+          body: verdict,
+          contentType: 'text/plain',
+        });
+        console.log(`  ⚠ ${verdict.split('\n')[0]}`);
+      } catch (err) {
+        await testInfo.attach('flakiness-verdict', {
+          body: `Could not determine gateway health: ${err}`,
+          contentType: 'text/plain',
+        });
+      }
     }
     pageLog.clear();
 
