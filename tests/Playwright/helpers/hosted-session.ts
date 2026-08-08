@@ -3,11 +3,27 @@ import type { CardData, PluginConfig } from '../plugin-config.types';
 import { waitForUnblock } from './block-ui';
 
 /**
+ * How long to wait for the MPGS per-field iframes.
+ *
+ * These only render after the server has created the hosted session with
+ * test-gateway.mastercard.com, so the budget has to cover an external
+ * round-trip plus four iframe loads. 15s was tight enough that ordinary
+ * upstream latency surfaced as "Could not find #number in any MPGS iframe" --
+ * an error that reads like a broken selector rather than a slow gateway.
+ *
+ * Applied to every wait on this path. An earlier pass raised only
+ * findFieldFrame, which covers assertSessionFieldsPresent but NOT
+ * fillHostedSessionCC -- the path that actually types the card, and which
+ * goes through findFieldIframeIndex and the iframes.first() wait instead.
+ */
+const MPGS_IFRAME_TIMEOUT = 30000;
+
+/**
  * Find the MPGS iframe that contains a specific field.
  * MPGS hosted session renders one iframe per field (number, expiryMonth, expiryYear, securityCode).
  * Returns both the FrameLocator (for content access) and the iframe index (for outer element click).
  */
-async function findFieldFrame(page: Page, config: PluginConfig, fieldId: string, timeout = 15000): Promise<FrameLocator> {
+async function findFieldFrame(page: Page, config: PluginConfig, fieldId: string, timeout = MPGS_IFRAME_TIMEOUT): Promise<FrameLocator> {
   const iframes = page.locator(config.mpgsIframePattern);
   const start = Date.now();
 
@@ -27,7 +43,7 @@ async function findFieldFrame(page: Page, config: PluginConfig, fieldId: string,
 /**
  * Find the index of the MPGS iframe containing a specific field.
  */
-async function findFieldIframeIndex(page: Page, config: PluginConfig, fieldId: string, timeout = 15000): Promise<number> {
+async function findFieldIframeIndex(page: Page, config: PluginConfig, fieldId: string, timeout = MPGS_IFRAME_TIMEOUT): Promise<number> {
   const iframes = page.locator(config.mpgsIframePattern);
   const start = Date.now();
 
@@ -46,7 +62,7 @@ async function findFieldIframeIndex(page: Page, config: PluginConfig, fieldId: s
 
 export async function assertSessionFieldsPresent(page: Page, config: PluginConfig): Promise<void> {
   const numberFrame = await findFieldFrame(page, config, 'number');
-  await expect(numberFrame.locator('#number')).toBeVisible({ timeout: 15000 });
+  await expect(numberFrame.locator('#number')).toBeVisible({ timeout: MPGS_IFRAME_TIMEOUT });
 
   const monthFrame = await findFieldFrame(page, config, 'expiryMonth');
   await expect(monthFrame.locator('#expiryMonth')).toBeVisible();
@@ -112,7 +128,7 @@ export async function fillHostedSessionCC(page: Page, card: CardData, config: Pl
 
   const iframes = page.locator(config.mpgsIframePattern);
   // Wait for iframes to load
-  await iframes.first().waitFor({ state: 'attached', timeout: 15000 });
+  await iframes.first().waitFor({ state: 'attached', timeout: MPGS_IFRAME_TIMEOUT });
   const count = await iframes.count();
   if (count < 4) throw new Error(`Expected 4 MPGS iframes, found ${count}`);
 
@@ -146,7 +162,7 @@ export async function fillHostedSessionCCPartial(
   await waitForUnblock(page);
 
   const iframes = page.locator(config.mpgsIframePattern);
-  await iframes.first().waitFor({ state: 'attached', timeout: 15000 });
+  await iframes.first().waitFor({ state: 'attached', timeout: MPGS_IFRAME_TIMEOUT });
 
   const fieldMap: { id: string; value: string | undefined }[] = [
     { id: 'number', value: fields.number },
