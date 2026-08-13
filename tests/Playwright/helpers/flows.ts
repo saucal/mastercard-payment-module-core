@@ -28,6 +28,7 @@ import {
   verifyOrderInMyAccount,
 } from './assertions';
 import { navigateToOrder } from './admin-orders';
+import { answerDccOffer, requireDccOffer, type DccChoice } from './dcc';
 import { logOrderContext } from './debug';
 import { billing as defaultBilling } from '../fixtures/billing';
 import { fourDigits } from '../fixtures/cards';
@@ -121,6 +122,18 @@ export interface HostedSessionCheckoutOptions {
   threeDS?: 'always' | 'maybe' | 'never';
   /** Assert the save-card checkbox is NOT rendered (guest checkout). */
   expectNoSaveCardCheckbox?: boolean;
+  /**
+   * Which side of a DCC offer to take, if one appears. Defaults to 'reject', so
+   * a checkout is not derailed by an offer it did not ask for. Only cards whose
+   * issuing currency differs from the order currency draw one.
+   */
+  dccChoice?: DccChoice;
+  /**
+   * Require a DCC offer and fail if none arrives. The DCC suite sets this — the
+   * offer is what it is testing. Capture suites leave it off, where an offer is
+   * incidental and its absence is not a failure.
+   */
+  requireDccOffer?: boolean;
 }
 
 /**
@@ -168,6 +181,16 @@ export async function checkoutHostedSession(
   }
   if (opts.saveCard) {
     await clickSaveCardCheckbox(page);
+  }
+
+  // Answer any DCC offer before reading the total: accepting one changes what the
+  // payer is charged, and an unanswered offer blocks place-order outright.
+  if (opts.requireDccOffer) {
+    await requireDccOffer(page, config);
+    const answered = await answerDccOffer(page, config, opts.dccChoice ?? 'reject');
+    expect(answered, 'a required DCC offer was present but could not be answered').toBe(true);
+  } else {
+    await answerDccOffer(page, config, opts.dccChoice ?? 'reject');
   }
 
   const total = await extractOrderTotal(page);

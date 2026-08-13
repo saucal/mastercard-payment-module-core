@@ -1,5 +1,6 @@
 import { Page, FrameLocator, expect } from '@playwright/test';
 import type { CardData, PluginConfig } from '../plugin-config.types';
+import { answerHostedCheckoutDcc, type DccChoice } from './dcc';
 
 export type HostedCheckoutMode = 'embedded' | 'redirect';
 
@@ -69,9 +70,20 @@ export async function fillHostedCheckoutCC(page: Page, card: CardData, config: P
   await fillField('gw-proxy-securityCode','securityCode', card.cvv);
 }
 
-export async function clickHostedCheckoutPay(page: Page, config: PluginConfig, mode: HostedCheckoutMode = 'embedded'): Promise<void> {
+export async function clickHostedCheckoutPay(
+  page: Page,
+  config: PluginConfig,
+  mode: HostedCheckoutMode = 'embedded',
+  dccChoice: DccChoice = 'reject',
+): Promise<void> {
   const host = getHostedHost(page, config, mode);
-  await host.locator('#label-transactional-currency').click().catch(() => {});
+  // MPGS renders a DCC accept/reject choice on its own hosted page whenever the
+  // merchant profile has currency conversion on, and it must be answered before
+  // #pay-label or the pay click does nothing. Optional: it only appears for cards
+  // MPGS quotes for. Previously an inline `.click().catch(() => {})`, which also
+  // swallowed a present-but-unclickable offer and left the failure to surface
+  // later as an unexplained stall.
+  await answerHostedCheckoutDcc(host, dccChoice);
   await host.locator('#pay-label').click();
   // After submission MPGS either: (a) redirects the top page to the 3DS
   // challenge, (b) redirects to the WC order-received page, (c) stays on
