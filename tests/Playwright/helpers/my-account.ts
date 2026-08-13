@@ -41,5 +41,5 @@ export async function deletePaymentMethod(page: Page, index: number): Promise<vo
   await page.locator(
     `tr:nth-of-type(${index}) > td.woocommerce-PaymentMethod--actions > a.delete`
   ).click();
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('load');
 }

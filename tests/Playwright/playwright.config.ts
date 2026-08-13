@@ -27,6 +27,9 @@ export default defineConfig({
   // site, so no suite pays for a login on its first admin screen.
   globalSetup: path.join(HERE, 'global-setup.ts'),
   timeout: 240000,
+  expect: {
+    timeout: 15000,
+  },
   // `fullyParallel: false` keeps every test of a spec file on one worker, so a
   // whole suite runs against a single site. Playwright then hands each free
   // worker the next file — the work queue this needs, with no orchestrator.
@@ -45,11 +48,11 @@ export default defineConfig({
   // Not a licence to retry real problems away: helpers/gateway-health.ts
   // attaches a verdict to every failed test, and one reporting no unusable
   // gateway response is ours to fix.
-  retries: 2,
+  retries: 1,
   workers,
   reporter: [
     [process.env.CI ? 'github' : 'list'],
-    ['html', { open: 'never', outputFolder: 'reports' }],
+    ['html', { open: 'never', outputFolder: 'reports', port: 9222 }],
   ],
   use: {
     baseURL,

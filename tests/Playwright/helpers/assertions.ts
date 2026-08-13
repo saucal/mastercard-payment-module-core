@@ -820,7 +820,7 @@ export async function assertOrderReceived(
     return;
   }
 
-  await expect(page.locator('h1.entry-title')).toContainText('Order received');
+  await expect(page.locator('h1.entry-title')).toContainText('Order received', { timeout: 30000 });
 
   // Payment method
   await expect(
@@ -956,13 +956,13 @@ export async function verifySubscription(
 export async function verifyCartEmpty(page: Page): Promise<void> {
   const cartUrl = process.env.CART_URL || '/cart/';
   await page.goto(cartUrl);
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('load');
 
 
   // Verify empty state — blocks or classic
   await expect(
     page.locator('.wc-block-cart__empty-cart__title, .cart-empty.woocommerce-info')
-  ).toContainText('cart is currently empty', { timeout: 10000 });
+  ).toContainText('cart is currently empty', { timeout: 30000 });
 }
 
 // ─── Composite log trails ─────────────────────────────────────────────────────

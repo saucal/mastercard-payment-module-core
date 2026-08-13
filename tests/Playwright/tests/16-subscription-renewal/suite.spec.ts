@@ -947,7 +947,7 @@ test.describe.skip('Subscription Order - Challenge with Save CC Deactivated (fro
       await page.goto(classicUrl);
     }
 
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
 
     const actionSelect = page.locator('#order_action, select[name="wc_order_action"]');
     await actionSelect.selectOption('wcs_process_renewal');
@@ -965,7 +965,7 @@ test.describe.skip('Subscription Order - Challenge with Save CC Deactivated (fro
     }
 
     await waitForUnblock(page);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
 
     await expect(page.locator('h1, .woocommerce-page-title, #title')).toBeVisible();
   });

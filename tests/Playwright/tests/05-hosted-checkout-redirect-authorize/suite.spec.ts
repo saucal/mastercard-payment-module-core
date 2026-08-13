@@ -268,7 +268,7 @@ test.describe.serial('Hosted Checkout - Redirect - Authorize', () => {
     // checkout; a hand-built /checkout/… path lands on the cart when the
     // checkout page lives elsewhere (e.g. /checkout-blocks/).
     await page.goto(paymentUrl || `/checkout/order-pay/${orderId}/?pay_for_order=true&key=${orderKey}`);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
 
     payDate = new Date().toISOString().slice(0, 19);
     await selectPaymentMethod(page, config);
