@@ -163,6 +163,9 @@ test.describe.serial('Hosted Session - Save CC Deactivated', () => {
       saved_cards: 'no',
       transaction_mode: 'PURCHASE',
       checkout_mode: 'hosted_session',
+      // Pinned off: site-global, and an unanswered DCC offer blocks place-order
+      // (see suite 01 for the full explanation). DCC's own coverage is suite 19.
+      currency_conversion: 'no',
     });
 
     // Guest has no /my-account/, skip the saved-cards check.

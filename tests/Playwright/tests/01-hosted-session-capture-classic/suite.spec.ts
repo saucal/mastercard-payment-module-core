@@ -1,51 +1,38 @@
-import { test, expect } from '../../fixtures/test';
-import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getLogEntryCount } from '../../helpers/wc-api';
-import { addToCartAndCheckout } from '../../helpers/cart';
-import {
-  fillBilling,
-  selectPaymentMethod,
-  clickPlaceOrder,
-  extractOrderTotal,
-  extractSessionId,
-  createAccountAtCheckout,
-  clickSaveCardCheckbox,
-  selectSavedToken,
-} from '../../helpers/checkout';
-import { fillHostedSessionCC } from '../../helpers/hosted-session';
-import { collectOrderReceivedData, checkoutHostedSession, assertOrderComplete } from '../../helpers/flows';
-import { handle3DSChallenge } from '../../helpers/three-ds';
-import {
-  assertCaptureLogTrail,
-  expectedOrderStatus,
-  verifyOrderEmails,
-  assertOrderStatus,
-  assertPaymentMethodMeta,
-  assertCapturedNote,
-  assertOrderReceived,
-  verifyPaymentMethods,
-  verifyOrderInMyAccount,
-  verifyCartEmpty,
-} from '../../helpers/assertions';
-import { frontendLogin } from '../../helpers/wp-login';
-import { navigateToOrder } from '../../helpers/admin-orders';
-import { logOrderContext } from '../../helpers/debug';
+import { test } from '../../fixtures/test';
+import { switchCheckoutMode, configureGateway } from '../../helpers/wc-api';
+import { checkoutHostedSession, assertOrderComplete } from '../../helpers/flows';
+import { assertCaptureLogTrail, expectedOrderStatus } from '../../helpers/assertions';
 import config from '../../plugin-config';
 import { cards, fourDigits } from '../../fixtures/cards';
 import { billing, uniqueEmail } from '../../fixtures/billing';
 
 test.describe.serial('Hosted Session - Capture - Classic', () => {
-  let orderNumber: string;
   const mc005Email = uniqueEmail();
   const mc006Email = uniqueEmail();
 
-  // Shared state per checkout test
-  let payDate: string;
-  let session: string;
-  let total: string;
-  let logOffset: number;
+  /** The account MC-006 creates and MC-007..MC-010 keep shopping with. */
+  const returning = { email: mc006Email, password: billing.password };
 
-  // The admin context comes from the `adminPage` fixture, which logs in on
-  // first use and closes the context after each test.
+  /** MC-006's saved card, still the only card for MC-007 and MC-008. */
+  const oneCard = {
+    expectedCards: 1,
+    cardName: cards.mastercard.name,
+    fourDigits: fourDigits(cards.mastercard),
+    expiryMonth: cards.mastercard.month,
+    expiryYear: cards.mastercard.year,
+  };
+
+  /** After MC-009 saves a second card, MC-009 and MC-010 expect both. */
+  const twoCards = {
+    expectedCards: 2,
+    cards: [
+      { cardName: cards.mastercard.name, fourDigits: fourDigits(cards.mastercard), expiryMonth: cards.mastercard.month, expiryYear: cards.mastercard.year },
+      { cardName: cards.mastercard3.name, fourDigits: fourDigits(cards.mastercard3), expiryMonth: cards.mastercard3.month, expiryYear: cards.mastercard3.year },
+    ],
+  };
+
+  // Digital product: WooCommerce auto-completes it, so GI expects Completed.
+  const downloadStatus = expectedOrderStatus({ product: 'download', transaction: 'capture' });
 
   // === MC-004: Guest checkout ===
 
@@ -56,6 +43,14 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
       saved_cards: 'yes',
       transaction_mode: 'PURCHASE',
       checkout_mode: 'hosted_session',
+      // Pin DCC off. It is a site-global setting, so leaving it unset means the
+      // suite inherits whatever the install has — and with it on, any card MPGS
+      // returns an offer for renders Accept/Reject radios that must be answered
+      // before place-order will submit. Unanswered, checkout silently never
+      // leaves /checkout/ (validate_dcc_data in DynamicCurrencyConversion.php).
+      // That made this suite intermittently red depending on which cards drew an
+      // offer. DCC has its own coverage in suite 19, including the disabled case.
+      currency_conversion: 'no',
     });
 
     const ctx = await checkoutHostedSession(page, config, {
@@ -64,7 +59,6 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
       // Guest should NOT see the save-card checkbox.
       expectNoSaveCardCheckbox: true,
     });
-    orderNumber = ctx.orderNumber;
 
     await assertCaptureLogTrail({
       ...ctx,
@@ -80,121 +74,47 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
   // === MC-005: New user, NOT saving CC ===
 
   test('MC-005 - New user not saving CC', async ({ page, adminPage, emailPage }) => {
-    // === CHECKOUT (buyer's page) ===
-    logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
-    payDate = await addToCartAndCheckout(page, config.products.digital);
-    await fillBilling(page, { ...billing, email: mc005Email });
-    await createAccountAtCheckout(page, billing.password);
-    await selectPaymentMethod(page, config);
-    await fillHostedSessionCC(page, cards.mastercard, config);
-
-    total = await extractOrderTotal(page);
-    session = await extractSessionId(page);
-
-    await clickPlaceOrder(page);
-    const result = await collectOrderReceivedData(page);
-    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
-    orderNumber = result.orderNumber;
-    expect(orderNumber).toBeTruthy();
-
-    // Cart should be empty after successful checkout
-    await verifyCartEmpty(page);
-
-    // === API VERIFICATION ===
-    const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
-    expect(order.payment_method).toBe(config.paymentMethodSlug);
-    expect(transactionId).toBeTruthy();
-
-    await logOrderContext(test.info().title, {
-      orderNumber, transactionId, session, total, payDate, logOffset,
-      card: `${cards.mastercard.name} ****${fourDigits(cards.mastercard)}`,
+    const ctx = await checkoutHostedSession(page, config, {
+      productId: config.products.digital,
+      card: cards.mastercard,
+      billing: { ...billing, email: mc005Email },
+      createAccount: billing.password,
     });
 
-    // === LOG VERIFICATION ===
     await assertCaptureLogTrail({
-      payDate, logOffset, session, total,
-      transactionId: transactionId!, orderNumber, card: cards.mastercard,
+      ...ctx,
       expectSessionPost: true, expectToken: false, expectCardDetailsFetch: true,
     });
 
-    // === EMAIL VERIFICATION ===
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
-
-    // === ADMIN BACKEND (admin page) ===
-    // Digital product: WooCommerce auto-completes it, so GI expects Completed.
-    const mc005Status = expectedOrderStatus({ product: 'download', transaction: 'capture' });
-    await navigateToOrder(adminPage, orderNumber);
-    await assertOrderStatus(adminPage, mc005Status);
-    await assertPaymentMethodMeta(adminPage, config, transactionId);
-    await assertCapturedNote(adminPage, config, transactionId!);
-
-    // === MY ACCOUNT (buyer's page) — 0 saved cards ===
-    await frontendLogin(page, mc005Email, billing.password);
-    await verifyPaymentMethods(page, { expectedCards: 0 });
-    await verifyOrderInMyAccount(page, orderNumber, mc005Status, { expectedTotal: total, displayName: config.displayName });
+    await assertOrderComplete(ctx, config, { page, adminPage, emailPage }, {
+      status: downloadStatus,
+      note: 'captured',
+      // Did not save the card, so My Account shows none.
+      myAccount: { email: mc005Email, password: billing.password, expectedCards: 0 },
+    });
   });
 
   // === MC-006: New user, saving CC ===
 
   test('MC-006 - New user saving CC', async ({ page, adminPage, emailPage }) => {
-    // === CHECKOUT (buyer's page) ===
-    logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
-    payDate = await addToCartAndCheckout(page, config.products.digital);
-    await fillBilling(page, { ...billing, email: mc006Email });
-    await createAccountAtCheckout(page, billing.password);
-    await selectPaymentMethod(page, config);
-    await fillHostedSessionCC(page, cards.mastercard, config);
-    await clickSaveCardCheckbox(page);
-
-    total = await extractOrderTotal(page);
-    session = await extractSessionId(page);
-
-    await clickPlaceOrder(page);
-    const result = await collectOrderReceivedData(page);
-    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
-    orderNumber = result.orderNumber;
-    expect(orderNumber).toBeTruthy();
-
-    await verifyCartEmpty(page);
-
-    // === API VERIFICATION ===
-    const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
-    expect(order.payment_method).toBe(config.paymentMethodSlug);
-    expect(transactionId).toBeTruthy();
-
-    await logOrderContext(test.info().title, {
-      orderNumber, transactionId, session, total, payDate, logOffset,
-      card: `${cards.mastercard.name} ****${fourDigits(cards.mastercard)}`,
+    const ctx = await checkoutHostedSession(page, config, {
+      productId: config.products.digital,
+      card: cards.mastercard,
+      billing: { ...billing, email: mc006Email },
+      createAccount: billing.password,
+      saveCard: true,
     });
 
-    // === LOG VERIFICATION ===
     await assertCaptureLogTrail({
-      payDate, logOffset, session, total,
-      transactionId: transactionId!, orderNumber, card: cards.mastercard,
+      ...ctx,
       expectSessionPost: true, expectToken: true, expectCardDetailsFetch: true,
     });
 
-    // === EMAIL VERIFICATION ===
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
-
-    // === ADMIN BACKEND (admin page) ===
-    // Digital product: WooCommerce auto-completes it, so GI expects Completed.
-    const mc006Status = expectedOrderStatus({ product: 'download', transaction: 'capture' });
-    await navigateToOrder(adminPage, orderNumber);
-    await assertOrderStatus(adminPage, mc006Status);
-    await assertPaymentMethodMeta(adminPage, config, transactionId);
-    await assertCapturedNote(adminPage, config, transactionId!);
-
-    // === MY ACCOUNT (buyer's page) — 1 saved card ===
-    await frontendLogin(page, mc006Email, billing.password);
-    await verifyPaymentMethods(page, {
-      expectedCards: 1,
-      cardName: cards.mastercard.name,
-      fourDigits: fourDigits(cards.mastercard),
-      expiryMonth: cards.mastercard.month,
-      expiryYear: cards.mastercard.year,
+    await assertOrderComplete(ctx, config, { page, adminPage, emailPage }, {
+      status: downloadStatus,
+      note: 'captured',
+      myAccount: { ...returning, ...oneCard },
     });
-    await verifyOrderInMyAccount(page, orderNumber, mc006Status, { expectedTotal: total, displayName: config.displayName });
   });
 
   // === MC-007: Logged user, pay with saved CC ===
@@ -204,121 +124,50 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
   // for fresh card data).
 
   test('MC-007 - Logged user pay with saved CC', async ({ page, adminPage, emailPage }) => {
-    // === CHECKOUT (buyer's page) ===
-    await frontendLogin(page, mc006Email, billing.password);
-    logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
-    payDate = await addToCartAndCheckout(page, config.products.physical);
-    await selectPaymentMethod(page, config);
-    await selectSavedToken(page, 1);
-
-    total = await extractOrderTotal(page);
-    session = await extractSessionId(page);
-
-    await clickPlaceOrder(page);
-    const result = await collectOrderReceivedData(page);
-    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
-    orderNumber = result.orderNumber;
-    expect(orderNumber).toBeTruthy();
-
-    await verifyCartEmpty(page);
-
-    // === API VERIFICATION ===
-    const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
-    expect(order.payment_method).toBe(config.paymentMethodSlug);
-    expect(transactionId).toBeTruthy();
-
-    await logOrderContext(test.info().title, {
-      orderNumber, transactionId, session, total, payDate, logOffset,
-      card: `${cards.mastercard.name} ****${fourDigits(cards.mastercard)}`,
+    const ctx = await checkoutHostedSession(page, config, {
+      productId: config.products.physical,
+      // The card the token stands for — nothing is typed in, but the log
+      // assertions still match against it.
+      card: cards.mastercard,
+      loginAs: returning,
+      savedTokenIndex: 1,
     });
 
-    // === LOG VERIFICATION ===
     // Saved-token path: no new session POST, no card-details GET; the session
     // may be empty in the DOM, so the composite derives it from the PUT log.
     await assertCaptureLogTrail({
-      payDate, logOffset, session, total,
-      transactionId: transactionId!, orderNumber, card: cards.mastercard,
+      ...ctx,
       expectSessionPost: false, expectToken: false, expectCardDetailsFetch: false,
     });
 
-    // === EMAIL VERIFICATION ===
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
-
-    // === ADMIN BACKEND (admin page) ===
-    await navigateToOrder(adminPage, orderNumber);
-    await assertOrderStatus(adminPage, 'Processing');
-    await assertPaymentMethodMeta(adminPage, config, transactionId);
-    await assertCapturedNote(adminPage, config, transactionId!);
-
-    // === MY ACCOUNT (buyer's page) — still 1 card ===
-    await frontendLogin(page, mc006Email, billing.password);
-    await verifyPaymentMethods(page, {
-      expectedCards: 1,
-      cardName: cards.mastercard.name,
-      fourDigits: fourDigits(cards.mastercard),
-      expiryMonth: cards.mastercard.month,
-      expiryYear: cards.mastercard.year,
+    await assertOrderComplete(ctx, config, { page, adminPage, emailPage }, {
+      status: 'Processing',
+      note: 'captured',
+      myAccount: { ...returning, ...oneCard },
     });
-    await verifyOrderInMyAccount(page, orderNumber, 'Processing', { expectedTotal: total, displayName: config.displayName });
   });
 
   // === MC-008: Logged user, pay with new CC (not saving) ===
 
   test('MC-008 - Logged user pay with new CC', async ({ page, adminPage, emailPage }) => {
-    // === CHECKOUT (buyer's page) ===
-    await frontendLogin(page, mc006Email, billing.password);
-    logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
-    payDate = await addToCartAndCheckout(page, config.products.physical);
-    await selectPaymentMethod(page, config, true); // useNewToken = true
-    await fillHostedSessionCC(page, cards.mastercard2, config);
-
-    total = await extractOrderTotal(page);
-    session = await extractSessionId(page);
-
-    await clickPlaceOrder(page);
-    const result = await collectOrderReceivedData(page);
-    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
-    orderNumber = result.orderNumber;
-    expect(orderNumber).toBeTruthy();
-
-    await verifyCartEmpty(page);
-
-    // === API VERIFICATION ===
-    const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
-    expect(order.payment_method).toBe(config.paymentMethodSlug);
-    expect(transactionId).toBeTruthy();
-
-    await logOrderContext(test.info().title, {
-      orderNumber, transactionId, session, total, payDate, logOffset,
-      card: `${cards.mastercard2.name} ****${fourDigits(cards.mastercard2)}`,
+    const ctx = await checkoutHostedSession(page, config, {
+      productId: config.products.physical,
+      card: cards.mastercard2,
+      loginAs: returning,
+      useNewToken: true,
     });
 
-    // === LOG VERIFICATION ===
     await assertCaptureLogTrail({
-      payDate, logOffset, session, total,
-      transactionId: transactionId!, orderNumber, card: cards.mastercard2,
+      ...ctx,
       expectSessionPost: true, expectToken: false, expectCardDetailsFetch: true,
     });
 
-    // === EMAIL VERIFICATION ===
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
-
-    // === ADMIN BACKEND (admin page) ===
-    await navigateToOrder(adminPage, orderNumber);
-    await assertOrderStatus(adminPage, 'Processing');
-    await assertPaymentMethodMeta(adminPage, config, transactionId);
-    await assertCapturedNote(adminPage, config, transactionId!);
-
-    // === MY ACCOUNT (buyer's page) — still 1 card (didn't save new one) ===
-    await frontendLogin(page, mc006Email, billing.password);
-    await verifyPaymentMethods(page, {
-      expectedCards: 1,
-      cardName: cards.mastercard.name,
-      fourDigits: fourDigits(cards.mastercard),
-      expiryMonth: cards.mastercard.month,
-      expiryYear: cards.mastercard.year,
+    await assertOrderComplete(ctx, config, { page, adminPage, emailPage }, {
+      status: 'Processing',
+      note: 'captured',
+      // Still 1 card — the new one was not saved.
+      myAccount: { ...returning, ...oneCard },
     });
-    await verifyOrderInMyAccount(page, orderNumber, 'Processing', { expectedTotal: total, displayName: config.displayName });
   });
 
   // === MC-009: Logged user, pay with new CC and save it ===
@@ -327,62 +176,26 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
   // `handle3DSChallenge` + `AUTHENTICATION_SUCCESSFUL` log probe (GI's
   // shared-step library handles this conditionally; PW makes it explicit).
   test('MC-009 - Logged user pay with new CC and save it', async ({ page, adminPage, emailPage }) => {
-    // === CHECKOUT (buyer's page) ===
-    await frontendLogin(page, mc006Email, billing.password);
-    logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
-    payDate = await addToCartAndCheckout(page, config.products.physical);
-    await selectPaymentMethod(page, config, true); // useNewToken = true
-    await fillHostedSessionCC(page, cards.mastercard3, config);
-    await clickSaveCardCheckbox(page);
-
-    total = await extractOrderTotal(page);
-    session = await extractSessionId(page);
-
-    await clickPlaceOrder(page);
-    await handle3DSChallenge(page);
-    const result = await collectOrderReceivedData(page);
-    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
-    orderNumber = result.orderNumber;
-    expect(orderNumber).toBeTruthy();
-
-    await verifyCartEmpty(page);
-
-    // === API VERIFICATION ===
-    const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
-    expect(order.payment_method).toBe(config.paymentMethodSlug);
-    expect(transactionId).toBeTruthy();
-
-    await logOrderContext(test.info().title, {
-      orderNumber, transactionId, session, total, payDate, logOffset,
-      card: `${cards.mastercard3.name} ****${fourDigits(cards.mastercard3)}`,
+    const ctx = await checkoutHostedSession(page, config, {
+      productId: config.products.physical,
+      card: cards.mastercard3,
+      loginAs: returning,
+      useNewToken: true,
+      saveCard: true,
+      threeDS: 'always',
     });
 
-    // === LOG VERIFICATION ===
     await assertCaptureLogTrail({
-      payDate, logOffset, session, total,
-      transactionId: transactionId!, orderNumber, card: cards.mastercard3,
+      ...ctx,
       expectSessionPost: true, expectToken: true, expectCardDetailsFetch: true,
     });
 
-    // === EMAIL VERIFICATION ===
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
-
-    // === ADMIN BACKEND (admin page) ===
-    await navigateToOrder(adminPage, orderNumber);
-    await assertOrderStatus(adminPage, 'Processing');
-    await assertPaymentMethodMeta(adminPage, config, transactionId);
-    await assertCapturedNote(adminPage, config, transactionId!);
-
-    // === MY ACCOUNT (buyer's page) — 2 cards (MC-006 saved + MC-009 saved) ===
-    await frontendLogin(page, mc006Email, billing.password);
-    await verifyPaymentMethods(page, {
-      expectedCards: 2,
-      cards: [
-        { cardName: cards.mastercard.name, fourDigits: fourDigits(cards.mastercard), expiryMonth: cards.mastercard.month, expiryYear: cards.mastercard.year },
-        { cardName: cards.mastercard3.name, fourDigits: fourDigits(cards.mastercard3), expiryMonth: cards.mastercard3.month, expiryYear: cards.mastercard3.year },
-      ],
+    await assertOrderComplete(ctx, config, { page, adminPage, emailPage }, {
+      status: 'Processing',
+      note: 'captured',
+      // 2 cards: MC-006's saved + MC-009's saved.
+      myAccount: { ...returning, ...twoCards },
     });
-    await verifyOrderInMyAccount(page, orderNumber, 'Processing', { expectedTotal: total, displayName: config.displayName });
   });
 
   // === MC-010: Logged user, pay with second saved CC ===
@@ -391,64 +204,26 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
   // skips `verifySessionGetCardDetails` (saved-token path) and adds
   // conditional 3DS handling (challenge token MAY re-challenge per issuer).
   test('MC-010 - Logged user pay with second saved CC', async ({ page, adminPage, emailPage }) => {
-    // === CHECKOUT (buyer's page) ===
-    await frontendLogin(page, mc006Email, billing.password);
-    logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
-    payDate = await addToCartAndCheckout(page, config.products.physical);
-    await selectPaymentMethod(page, config);
-    await selectSavedToken(page, 2);
-
-    total = await extractOrderTotal(page);
-    session = await extractSessionId(page);
-
-    await clickPlaceOrder(page);
-    if (/acs|3ds|threedsecure|mastercard\.com.*prompt/i.test(page.url())) {
-      await handle3DSChallenge(page);
-    }
-    const result = await collectOrderReceivedData(page);
-    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
-    orderNumber = result.orderNumber;
-    expect(orderNumber).toBeTruthy();
-
-    await verifyCartEmpty(page);
-
-    // === API VERIFICATION ===
-    const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
-    expect(order.payment_method).toBe(config.paymentMethodSlug);
-    expect(transactionId).toBeTruthy();
-
-    await logOrderContext(test.info().title, {
-      orderNumber, transactionId, session, total, payDate, logOffset,
-      card: `${cards.mastercard3.name} ****${fourDigits(cards.mastercard3)}`,
+    const ctx = await checkoutHostedSession(page, config, {
+      productId: config.products.physical,
+      card: cards.mastercard3,
+      loginAs: returning,
+      savedTokenIndex: 2,
+      // A saved challenge token MAY re-challenge, per issuer.
+      threeDS: 'maybe',
     });
 
-    // === LOG VERIFICATION ===
     // Saved-token path: no new session POST, no card-details GET; the session
     // may be empty in the DOM, so the composite derives it from the PUT log.
     await assertCaptureLogTrail({
-      payDate, logOffset, session, total,
-      transactionId: transactionId!, orderNumber, card: cards.mastercard3,
+      ...ctx,
       expectSessionPost: false, expectToken: false, expectCardDetailsFetch: false,
     });
 
-    // === EMAIL VERIFICATION ===
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
-
-    // === ADMIN BACKEND (admin page) ===
-    await navigateToOrder(adminPage, orderNumber);
-    await assertOrderStatus(adminPage, 'Processing');
-    await assertPaymentMethodMeta(adminPage, config, transactionId);
-    await assertCapturedNote(adminPage, config, transactionId!);
-
-    // === MY ACCOUNT (buyer's page) — still 2 cards ===
-    await frontendLogin(page, mc006Email, billing.password);
-    await verifyPaymentMethods(page, {
-      expectedCards: 2,
-      cards: [
-        { cardName: cards.mastercard.name, fourDigits: fourDigits(cards.mastercard), expiryMonth: cards.mastercard.month, expiryYear: cards.mastercard.year },
-        { cardName: cards.mastercard3.name, fourDigits: fourDigits(cards.mastercard3), expiryMonth: cards.mastercard3.month, expiryYear: cards.mastercard3.year },
-      ],
+    await assertOrderComplete(ctx, config, { page, adminPage, emailPage }, {
+      status: 'Processing',
+      note: 'captured',
+      myAccount: { ...returning, ...twoCards },
     });
-    await verifyOrderInMyAccount(page, orderNumber, 'Processing', { expectedTotal: total, displayName: config.displayName });
   });
 });

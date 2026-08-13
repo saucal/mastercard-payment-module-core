@@ -24,6 +24,9 @@ test.describe.serial('Hosted Session - Session Loading & Validation (Blocks)', (
       saved_cards: 'yes',
       transaction_mode: 'PURCHASE',
       checkout_mode: 'hosted_session',
+      // Pinned off: site-global, and an unanswered DCC offer blocks place-order
+      // (see suite 01 for the full explanation). DCC's own coverage is suite 19.
+      currency_conversion: 'no',
     });
   });
 

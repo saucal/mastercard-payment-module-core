@@ -52,6 +52,9 @@ test.describe.serial('Authorize / Capture / Void', () => {
       _3d_secure: 'yes',
       transaction_mode: 'AUTHORIZE',
       checkout_mode: 'hosted_session',
+      // Pinned off: site-global, and an unanswered DCC offer blocks place-order
+      // (see suite 01 for the full explanation). DCC's own coverage is suite 19.
+      currency_conversion: 'no',
     });
 
     const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
