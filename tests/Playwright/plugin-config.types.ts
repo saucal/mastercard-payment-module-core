@@ -47,6 +47,16 @@ export interface PluginConfig {
     physical: number;
     digital: number;
     subscription: number;
+    /** WooCommerce Pre-Orders product charged at checkout. */
+    preOrderUpfront: number;
+    /** WooCommerce Pre-Orders product charged when the pre-order is released. */
+    preOrderRelease: number;
+  };
+  /** Order meta written by DynamicCurrencyConversion::process_dcc_data. */
+  dccMetaKeys: {
+    exchangeRate: string;
+    currency: string;
+    amount: string;
   };
   cards?: Partial<CardFixtures>;
 }

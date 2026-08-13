@@ -38,26 +38,45 @@ function quoteArea(page: Page, config: PluginConfig) {
   return page.locator(`#${config.paymentMethodSlug}_currency_conversion`);
 }
 
+/**
+ * The offer radios. MPGS gives them stable ids (`#dccOfferAccept` /
+ * `#dccOfferReject`) as well as the name/value pair, both confirmed against a
+ * live offer — see docs/superpowers/notes/2026-08-13-dcc-preorder-discovery.md.
+ */
 function offerRadio(page: Page, config: PluginConfig, choice: DccChoice) {
-  return page.locator(`input[name="dccOfferState"][value="${OFFER_VALUE[choice]}"]`);
+  return page.locator(
+    `#dccOffer${choice === 'accept' ? 'Accept' : 'Reject'}, `
+    + `input[name="dccOfferState"][value="${OFFER_VALUE[choice]}"]`,
+  ).first();
 }
 
 /**
- * Wait for a quote and return its requestId. Fails if none arrives.
+ * Wait for a *real* offer — one with Accept/Reject radios — and return its
+ * requestId. Fails if none arrives.
+ *
+ * Deliberately stricter than "a requestId appeared". A quote can come back with
+ * empty offerText, in which case _hostedSessions.js:1335 injects a single hidden
+ * `dccOfferState=Unavailable` and there is nothing to accept or reject. That
+ * populates a requestId too, so polling the requestId alone would let the DCC
+ * suite pass against a card that never offered a conversion. Observed: only 2 of
+ * the 6 fixture PANs return Unavailable; the other 4 return radios.
  *
  * The quote fires on card-field validation, not page load, so call this after
- * the card is filled. The requestId field is the signal to poll:
- * _hostedSessions.js sets the offer HTML and the requestId together and clears
- * both on failure, so a non-empty requestId means a real offer landed.
+ * the card is filled.
  */
 export async function requireDccOffer(page: Page, config: PluginConfig, timeout = 30_000): Promise<string> {
   await expect
-    .poll(async () => (await requestIdField(page, config).inputValue().catch(() => '')).length, {
-      message: 'no DCC quote arrived — check currency_conversion is on and the card draws an offer',
+    .poll(async () => await page.locator('input[name="dccOfferState"][type="radio"]').count(), {
+      message:
+        'no DCC offer with Accept/Reject radios arrived. Either currency_conversion is off, '
+        + 'or this card returns the "Unavailable" shape (no conversion on offer) — '
+        + 'mastercard and mastercard3 both do. Use a card known to quote, e.g. visaFrictionless.',
       timeout,
     })
     .toBeGreaterThan(0);
-  return requestIdField(page, config).inputValue();
+  const requestId = await requestIdField(page, config).inputValue();
+  expect(requestId, 'offer radios rendered but the requestId field is empty').toBeTruthy();
+  return requestId;
 }
 
 /**
@@ -125,22 +144,24 @@ export async function assertNoDccQuote(page: Page, config: PluginConfig, timeout
  * `currency_conversion` setting cannot suppress it — init_addon_dcc returns
  * early for hosted checkout, so the offer comes from the MPGS merchant profile.
  *
- * Returns true if it answered. `accept` is not implemented: the id of the
- * pay-in-card-currency option has not been observed yet, and guessing it would
- * silently select the wrong currency.
+ * Both sides are confirmed against a live offer — see
+ * docs/superpowers/notes/2026-08-13-dcc-preorder-discovery.md:
+ *
+ *   #label-home-currency          accept — charge in the card's currency
+ *   #label-transactional-currency reject — charge in the order's currency
+ *
+ * Returns true if it answered, false if no offer was on the page.
  */
+const HOSTED_CHECKOUT_OPTION: Record<DccChoice, string> = {
+  accept: '#label-home-currency',
+  reject: '#label-transactional-currency',
+};
+
 export async function answerHostedCheckoutDcc(
   host: Page | FrameLocator,
   choice: DccChoice = 'reject',
 ): Promise<boolean> {
-  if (choice === 'accept') {
-    throw new Error(
-      'answerHostedCheckoutDcc: only "reject" is implemented. The MPGS hosted-page '
-      + 'option for paying in the card currency has not been identified yet — capture '
-      + 'it from a live offer before using accept here.',
-    );
-  }
-  const option = host.locator('#label-transactional-currency');
+  const option = host.locator(HOSTED_CHECKOUT_OPTION[choice]);
   if (!(await option.isVisible({ timeout: 5_000 }).catch(() => false))) return false;
   await option.click();
   return true;
