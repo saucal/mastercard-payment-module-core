@@ -12,7 +12,7 @@ import {
   selectSavedToken,
 } from '../../helpers/checkout';
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
-import { collectOrderReceivedData } from '../../helpers/flows';
+import { collectOrderReceivedData, checkoutHostedSession, assertOrderComplete } from '../../helpers/flows';
 import { handle3DSChallenge } from '../../helpers/three-ds';
 import {
   assertCaptureLogTrail,
@@ -50,7 +50,6 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
   // === MC-004: Guest checkout ===
 
   test('MC-004 - Guest checkout', async ({ page, adminPage, emailPage }) => {
-    // === CHECKOUT (buyer's page) ===
     await switchCheckoutMode('classic');
     await configureGateway(config, {
       _3d_secure: 'yes',
@@ -59,53 +58,23 @@ test.describe.serial('Hosted Session - Capture - Classic', () => {
       checkout_mode: 'hosted_session',
     });
 
-    logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
-    payDate = await addToCartAndCheckout(page, config.products.physical);
-    await fillBilling(page, billing);
-    await selectPaymentMethod(page, config);
-    await fillHostedSessionCC(page, cards.mastercard, config);
-
-    // Guest should NOT see save card checkbox
-    await expect(page.locator(`label[for="wc-${config.paymentMethodSlug}-new-payment-method"]`)).not.toBeVisible();
-
-    total = await extractOrderTotal(page);
-    session = await extractSessionId(page);
-
-    await clickPlaceOrder(page);
-    const result = await collectOrderReceivedData(page);
-    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
-    orderNumber = result.orderNumber;
-    expect(orderNumber).toBeTruthy();
-
-    // Guest cart should be empty after successful checkout
-    await verifyCartEmpty(page);
-
-    // === API VERIFICATION ===
-    const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
-    expect(order.payment_method).toBe(config.paymentMethodSlug);
-    expect(order.payment_method_title).toBe(config.displayName);
-    expect(transactionId).toBeTruthy();
-
-    await logOrderContext(test.info().title, {
-      orderNumber, transactionId, session, total, payDate, logOffset,
-      card: `${cards.mastercard.name} ****${fourDigits(cards.mastercard)}`,
+    const ctx = await checkoutHostedSession(page, config, {
+      productId: config.products.physical,
+      card: cards.mastercard,
+      // Guest should NOT see the save-card checkbox.
+      expectNoSaveCardCheckbox: true,
     });
+    orderNumber = ctx.orderNumber;
 
-    // === LOG VERIFICATION ===
     await assertCaptureLogTrail({
-      payDate, logOffset, session, total,
-      transactionId: transactionId!, orderNumber, card: cards.mastercard,
+      ...ctx,
       expectSessionPost: true, expectToken: false, expectCardDetailsFetch: true,
     });
 
-    // === EMAIL VERIFICATION ===
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
-
-    // === ADMIN BACKEND (admin page) ===
-    await navigateToOrder(adminPage, orderNumber);
-    await assertOrderStatus(adminPage, 'Processing');
-    await assertPaymentMethodMeta(adminPage, config, transactionId);
-    await assertCapturedNote(adminPage, config, transactionId!);
+    await assertOrderComplete(ctx, config, { page, adminPage, emailPage }, {
+      status: 'Processing',
+      note: 'captured',
+    });
   });
 
   // === MC-005: New user, NOT saving CC ===
