@@ -11,12 +11,18 @@
 ## Global Constraints
 
 - **Scope is `tests/Playwright/` only.** No `includes/` or `src/` changes. If a spec proves an addon bug, record it and keep going — fixing gateway code is a separate effort.
-- **Never run `npx playwright test` directly.** Always `bash tests/Playwright/scripts/run-tests-dev.sh '<path-regex>'`. Source ships build-time placeholders (`PAYMENTS_CORE_HOOK_PREFIX`, `__PAYMENTS_CORE_TEXT_DOMAIN__`) that the runner replaces and then restores; the tests assert against the *real* hook names.
-- **Unbuilt mode cannot run hosted-session suites.** Every suite in this plan is hosted-session or hosted-checkout, so `built` (the default) is mandatory.
+- **Run `npx playwright test` from `tests/Playwright/`, NOT `run-tests-dev.sh`.** Corrected 2026-08-13 after the runner failed on first use. Two independent reasons:
+  1. **It cannot run from this checkout.** `run-tests-dev.sh:72` walks up for a `packages/payment-core` directory and then calls `replace-domain`, `replace-prefix` and `build:core` (lines 220-222) — npm scripts that live in the *consuming* white-label plugin. This repo's `package.json` has `replace-text-domain` and none of those three, and there is no consuming-plugin checkout on this machine. Built mode exits at line 76.
+  2. **It would be inert anyway.** The runner's build dance exists for one stated reason (`run-tests-dev.sh:18-21`): "the site serves this working copy directly." The configured target is remote staging — `WP_BASE_URL=https://mastercard.mystagingwebsite.com`, serving its own deployed copy — so rewriting local source cannot affect what the tests observe. `.env` already sets `META_PREFIX=mastercard_merchant_cloud`, the real built prefix, which is exactly what the build step would have produced.
+
+  `playwright.config.ts:4` loads `.env` via dotenv, so a direct run picks up the prefix, the base URLs and the credentials. **The README's "always go through the dev runner" advice assumes a local site serving the working copy and does not apply to a remote target.** If the target is ever switched back to a local install, revisit this.
+- **`workers: 3`** — three installs are configured (`playwright.config.ts:22` derives workers from `siteUrls().length`). The README's "one install therefore means one worker: a full 01-15 run takes about an hour" does not describe this setup; expect roughly 20-25 minutes.
+- **`get-webhook-log` is missing from the deployed companion plugin.** Verified 2026-08-13: staging serves `get-log`, `get-mail`, `get-mastercard-order`, `to_checkout_blocks`, `to_checkout_classic`, `update-option` — no `get-webhook-log`, which the README lists as required. Anything reaching `assertions.ts#waitForWebhooks` or `wc-api.ts#getWebhookLogs` will fail on this site regardless of test correctness. Check whether a suite touches webhooks before blaming a failure on the gateway, and treat updating the companion plugin as a prerequisite for any webhook coverage.
 - **Behaviour preservation in Phase A.** Every existing assertion keeps its meaning and every test keeps its ID and name. The gate is `playwright test --list` producing a byte-identical test inventory before and after, plus a live green run.
 - **`configureGateway()` writes site-global gateway settings.** Any suite that flips a setting must be `test.describe.serial` and must set every setting it depends on in its first test — never inherit another suite's state. `workers` is already capped at the number of configured installs for this reason; do not raise it.
-- **New suites are numbered folders** matching the existing convention: `tests/<NN>-<kebab-scenario>/suite.spec.ts`. `run-tests-dev.sh` positional args are regexes matched against the file path, so the numeric prefix is how a suite is selected.
+- **New suites are numbered folders** matching the existing convention: `tests/<NN>-<kebab-scenario>/suite.spec.ts`. Positional args to `playwright test` are regexes matched against the file path, so the numeric prefix is how a suite is selected.
 - **Test IDs.** Existing suites use the Ghost Inspector `MC-NNN` ids. New cases have no GI ancestor, so they use a new prefix: `DCC-NNN` for Phase C Task 8, `PO-NNN` for Task 9. Do not invent new `MC-` numbers.
+- **`retries: 1`, not 2.** `playwright.config.ts:51` sets 1; the README and commit `e235bcf` ("Retry twice so a run result means something") both claim 2. The config wins at runtime, so the odds of a run ending red on upstream noise alone are the README's ~6.5% figure, not ~0.85%. Do not "fix" this as a drive-by — it is a real decision about run cost, and raising it triples the worst-case wall clock. Just know which number applies when a batch goes red.
 - **A suite is not done until it has been run against a live site and passed.** A `--list` pass and a TypeScript compile are necessary, never sufficient. Read the attached `flakiness-verdict` on any failure before treating it as a real defect — the measured upstream gateway failure rate is 0.16% per request against ~437 requests per full run.
 
 ---
@@ -71,19 +77,33 @@ getLogEntryCount → addToCartAndCheckout → fillBilling → [createAccountAtCh
 - Consumes: `helpers/cart.ts#addToCartAndCheckout`, `helpers/checkout.ts#{fillBilling,createAccountAtCheckout,selectPaymentMethod,selectSavedToken,clickSaveCardCheckbox,extractOrderTotal,extractSessionId,clickPlaceOrder}`, `helpers/hosted-session.ts#fillHostedSessionCC`, `helpers/three-ds.ts#handle3DSChallenge`, `helpers/wp-login.ts#frontendLogin`, `helpers/wc-api.ts#{getLogEntryCount,verifyOrderViaAPI}`, `helpers/assertions.ts#{assertOrderReceived,verifyCartEmpty}`, `helpers/debug.ts#logOrderContext`.
 - Produces: `CheckoutContext` and `checkoutHostedSession`. **`CheckoutContext` is deliberately spread-compatible with the existing `CaptureLogTrailExpected`** (`helpers/assertions.ts:970`) — its field names and types were chosen to match, so a spec can write `assertCaptureLogTrail({ ...ctx, expectSessionPost: true, ... })` with no adapter. Tasks 2, 3, 4, 8 and 9 all rely on that.
 
-- [ ] **Step 1: Record the current test inventory as the regression baseline**
+- [x] **Step 1: Record the current test inventory as the regression baseline**
 
 This is the gate for every Phase A task. Capture it before touching anything.
 
+`--list` output embeds `:line:col` for every test, and those shift on every edit — so a raw `diff` of two `--list` dumps flags a successful port as a coverage change. Normalize to file + test name first. Set `SP` to a scratch dir of your choosing and keep the baseline for the whole of Phase A.
+
 ```bash
 cd tests/Playwright
-npx playwright test --list --reporter=list > /tmp/inventory-before.txt 2>&1
-wc -l /tmp/inventory-before.txt
+SP=/tmp/pw-inventory && mkdir -p "$SP"
+npx playwright test --list --reporter=list 2>&1 \
+  | sed -E 's/:[0-9]+:[0-9]+ //' | grep '›' | sort > "$SP/names-before.txt"
+wc -l < "$SP/names-before.txt"
 ```
 
-Expected: a list of every test in all 18 suites. Keep this file for the whole of Phase A.
+Expected: **94**. That is the number to preserve through every Phase A task, and the names must match too — a rename would keep the count while changing coverage.
 
-- [ ] **Step 2: Add `CheckoutContext` and `checkoutHostedSession` to `flows.ts`**
+Reusable gate, referred to below as **the inventory gate**:
+
+```bash
+cd tests/Playwright && npx tsc --noEmit \
+  && npx playwright test --list --reporter=list 2>&1 \
+     | sed -E 's/:[0-9]+:[0-9]+ //' | grep '›' | sort > "$SP/names-after.txt" \
+  && diff "$SP/names-before.txt" "$SP/names-after.txt" \
+  && echo "INVENTORY UNCHANGED ($(wc -l < "$SP/names-after.txt") tests)"
+```
+
+- [x] **Step 2: Add `CheckoutContext` and `checkoutHostedSession` to `flows.ts`**
 
 Append to `tests/Playwright/helpers/flows.ts`:
 
@@ -131,8 +151,12 @@ export interface CheckoutContext {
 
 export interface HostedSessionCheckoutOptions {
   productId: number;
-  /** Omit only when paying with a saved token. */
-  card?: CardData;
+  /**
+   * Always required. On the saved-token path the card is not typed in, but the
+   * log assertions still match against the card the token represents — so pass
+   * the card that was originally saved.
+   */
+  card: CardData;
   /** Defaults to the shared `billing` fixture. Pass an override to vary email. */
   billing?: BillingData;
   /** Log in before adding to cart. */
@@ -253,20 +277,19 @@ export async function checkoutHostedSession(
 
 Add `Page` to the existing `@playwright/test` import at the top of the file.
 
-> **Saved-token `card`:** a saved-token checkout has no card object at the DOM level, but `assertCaptureLogTrail` still needs a `CardData` to match log contents against. Callers on the saved-token path must pass `card` explicitly (the card that was *originally* saved) even while passing `savedTokenIndex` — the empty-card fallback above exists only so the type is satisfied, and any assertion using it will fail loudly rather than silently pass. `01`'s MC-007 and MC-010 both already pass the originating card; keep doing that.
+> **Saved-token `card`:** a saved-token checkout has no card object at the DOM level, but `assertCaptureLogTrail` still needs a `CardData` to match log contents against, so `card` is required on every path. Suite 01's MC-007 and MC-010 already pass the originating card. **Deviation from the first draft of this plan:** `card` was going to be optional with an empty-object fallback; making it required is simpler and the fallback could only ever have masked a mistake.
+>
+> **Also simplified:** the default-billing lookup is a plain `import { billing as defaultBilling } from '../fixtures/billing'`, not the dynamic `await import(...)` the draft used. There was no reason for the dynamic form.
+>
+> **`logOrderContext` label:** `flows.ts` calls `test.info().title` (importing `test` from `@playwright/test`), which is valid anywhere inside a running test and keeps the label identical to what the inline call sites passed. No label option needed.
 
-- [ ] **Step 3: Verify it compiles and the inventory is unchanged**
+- [x] **Step 3: Verify it compiles and the inventory is unchanged**
 
-```bash
-cd tests/Playwright
-npx tsc --noEmit
-npx playwright test --list --reporter=list > /tmp/inventory-after.txt 2>&1
-diff /tmp/inventory-before.txt /tmp/inventory-after.txt && echo "INVENTORY UNCHANGED"
-```
+Run **the inventory gate** (Task 1, Step 1).
 
 Expected: `tsc` silent, `INVENTORY UNCHANGED`. A `flows.ts` addition cannot change the inventory; if it does, something imported at module scope is throwing.
 
-- [ ] **Step 4: Port MC-004 in suite 01 onto it**
+- [x] **Step 4: Port MC-004 in suite 01 onto it**
 
 Replace `tests/01-hosted-session-capture-classic/suite.spec.ts:52-109` (the whole `MC-004` test body) with:
 
@@ -305,16 +328,18 @@ Add `checkoutHostedSession` to the existing `helpers/flows` import.
 
 Note what this preserves exactly: the guest save-card-checkbox negative assertion (now `expectNoSaveCardCheckbox`), the `verifyCartEmpty`, both `order.payment_method` / `payment_method_title` checks, the `transactionId` truthiness check, and the `logOrderContext` call. Nothing was dropped.
 
-- [ ] **Step 5: Run MC-004 against the live site**
+- [x] **Step 5: Run MC-004 against the live site**
 
 ```bash
-cd /Users/christian/projects/mastercard-payment-module-core
-bash tests/Playwright/scripts/run-tests-dev.sh 'tests/01-' --grep "MC-004"
+cd tests/Playwright   # if not already there
+npx playwright test '01-' --grep "MC-004"
 ```
 
 Expected: 1 passed. If it fails, read the attached `flakiness-verdict` first — "no unusable gateway response" means the port is wrong, gateway requests listed means retry.
 
-- [ ] **Step 6: Commit**
+**Result 2026-08-13: 1 passed (2.2m).** Order 6162, session `SESSION0002883639194I3184681K03`, no retries. Committed as `d4e821a`.
+
+- [x] **Step 6: Commit**
 
 ```bash
 git add tests/Playwright/helpers/flows.ts tests/Playwright/tests/01-hosted-session-capture-classic/suite.spec.ts
@@ -339,7 +364,7 @@ The admin-side block is as duplicated as the checkout block: `navigateToOrder` a
 - Consumes: `CheckoutContext` from Task 1; `helpers/admin-orders.ts#navigateToOrder`; `helpers/assertions.ts#{assertOrderStatus,assertPaymentMethodMeta,assertCapturedNote,assertAuthorizedNote,verifyOrderEmails,verifyAdminEmail,verifyPaymentMethods,verifyOrderInMyAccount}`; `helpers/wp-login.ts#frontendLogin`.
 - Produces: `assertOrderComplete(ctx, config, pages, opts)` and `OrderCompleteOptions`. Tasks 3, 4, 8, 9 call it.
 
-- [ ] **Step 1: Add `assertOrderComplete` to `flows.ts`**
+- [x] **Step 1: Add `assertOrderComplete` to `flows.ts`** — done in `d4e821a` alongside Task 1; the two functions are one coherent unit and splitting the commit would have left `flows.ts` half-useful.
 
 ```ts
 export interface OrderCompleteOptions {
@@ -409,17 +434,11 @@ export async function assertOrderComplete(
 
 Extend the `./assertions` and `./admin-orders` imports at the top of `flows.ts` accordingly.
 
-- [ ] **Step 2: Verify compile + inventory**
+- [x] **Step 2: Verify compile + inventory** — passed in `d4e821a` (94 tests, unchanged).
 
-```bash
-cd tests/Playwright && npx tsc --noEmit
-npx playwright test --list --reporter=list > /tmp/inventory-after.txt 2>&1
-diff /tmp/inventory-before.txt /tmp/inventory-after.txt && echo "INVENTORY UNCHANGED"
-```
+- [ ] **Step 3: Port the remaining six cases of suite 01**
 
-Expected: silent, `INVENTORY UNCHANGED`.
-
-- [ ] **Step 3: Port all seven cases of suite 01**
+MC-004 is already done (Task 1). Six left: MC-005 through MC-010.
 
 Each case collapses to config → checkout → trail → complete. MC-009 in full, as the richest example (challenge card, saved card, two cards in My Account):
 
@@ -470,8 +489,8 @@ The remaining six map as follows. Keep every `AUDIT 2026-04-29 vs GI:` comment b
 - [ ] **Step 4: Run the whole suite 01 live**
 
 ```bash
-cd /Users/christian/projects/mastercard-payment-module-core
-bash tests/Playwright/scripts/run-tests-dev.sh 'tests/01-'
+cd tests/Playwright   # if not already there
+npx playwright test '01-'
 ```
 
 Expected: 7 passed. This suite is `describe.serial` and MC-007 onward depend on the card MC-006 saved, so a single-case run is not sufficient evidence here.
@@ -681,11 +700,7 @@ export async function assertHostedCheckoutLogTrail(expected: HostedCheckoutLogTr
 
 - [ ] **Step 3: Verify compile + inventory**
 
-```bash
-cd tests/Playwright && npx tsc --noEmit
-npx playwright test --list --reporter=list > /tmp/inventory-after.txt 2>&1
-diff /tmp/inventory-before.txt /tmp/inventory-after.txt && echo "INVENTORY UNCHANGED"
-```
+Run **the inventory gate** (Task 1, Step 1).
 
 Expected: silent, `INVENTORY UNCHANGED`. The composites have no callers yet, so this only proves they compile.
 
@@ -720,7 +735,7 @@ Expected result: 666 → roughly 120 lines. This is the single biggest reduction
 - [ ] **Step 2: Run suite 02 live**
 
 ```bash
-bash tests/Playwright/scripts/run-tests-dev.sh 'tests/02-'
+npx playwright test '02-'
 ```
 
 Expected: 5 passed.
@@ -741,9 +756,13 @@ Port and verify one batch at a time. Each batch is a commit and a live run — d
 Per batch:
 
 ```bash
-bash tests/Playwright/scripts/run-tests-dev.sh 'tests/(03|04|05)-'   # adjust per batch
-cd tests/Playwright && npx playwright test --list --reporter=list > /tmp/inventory-after.txt 2>&1
-diff /tmp/inventory-before.txt /tmp/inventory-after.txt && echo "INVENTORY UNCHANGED"
+cd tests/Playwright
+npx playwright test '(03|04|05)-'   # adjust the regex per batch
+```
+
+Then run **the inventory gate** (Task 1, Step 1), and commit:
+
+```bash
 git add -A tests/Playwright/tests && git commit -m "test: port suites 03-05 onto the flows layer"
 ```
 
@@ -779,7 +798,7 @@ export function describeSessionValidationCases(mode: CheckoutMode): void {
 > **This step is a copy, not a rewrite.** Open `tests/08-*/suite.spec.ts`, move the six test bodies across unchanged, and replace only the literal `'classic'` with `mode`. Then both `tests/08-*/suite.spec.ts` and `tests/09-*/suite.spec.ts` become three lines: import, `test.describe.serial('...', () => describeSessionValidationCases('classic'))`, done. The describe *titles* stay different (`Hosted Session - Session - Classic` / `- Blocks`) so the inventory diff stays clean.
 
 ```bash
-bash tests/Playwright/scripts/run-tests-dev.sh 'tests/(08|09)-'
+npx playwright test '(08|09)-'
 ```
 
 Expected: 12 passed (6 per mode).
@@ -787,11 +806,11 @@ Expected: 12 passed (6 per mode).
 - [ ] **Step 5: Final Phase A gate — full 01-15 run**
 
 ```bash
-cd /Users/christian/projects/mastercard-payment-module-core
-bash tests/Playwright/scripts/run-tests-dev.sh 'tests/(0[1-9]|1[0-5])-'
+cd tests/Playwright   # if not already there
+npx playwright test '(0[1-9]|1[0-5])-'
 ```
 
-Expected: all green. Budget about an hour per configured install — this is the run that earns the right to build on this layer. Note in the commit how many retries fired and what the `flakiness-verdict` attachments said; that is the new upstream-noise baseline.
+Expected: all green. With `workers: 3` this is roughly 20-25 minutes, not the README's one hour (that figure assumes a single install). This is the run that earns the right to build on this layer. Note in the commit how many retries fired and what the `flakiness-verdict` attachments said; that is the new upstream-noise baseline.
 
 - [ ] **Step 6: Commit**
 
@@ -1312,7 +1331,7 @@ test.describe.serial('DCC - Hosted Session', () => {
 ```
 
 ```bash
-bash tests/Playwright/scripts/run-tests-dev.sh 'tests/19-' --grep "DCC-001"
+npx playwright test '19-' --grep "DCC-001"
 ```
 
 Expected: 1 passed. A failure in `waitForDccQuote` means the card/currency pair does not produce an offer — go back to Task 6 Step 3 rather than loosening the assertion.
@@ -1380,7 +1399,7 @@ Guard it, since the subscription product depends on WooCommerce Subscriptions be
 - [ ] **Step 7: Run the whole suite and commit**
 
 ```bash
-bash tests/Playwright/scripts/run-tests-dev.sh 'tests/19-'
+npx playwright test '19-'
 ```
 
 Expected: 6 passed (or passed-with-documented-skips for DCC-003/DCC-006).
@@ -1484,7 +1503,7 @@ Guard the whole suite on the product ids being configured:
 ```
 
 ```bash
-bash tests/Playwright/scripts/run-tests-dev.sh 'tests/20-' --grep "PO-001"
+npx playwright test '20-' --grep "PO-001"
 ```
 
 Expected: 1 passed.
@@ -1598,9 +1617,9 @@ Asserts the two UI consequences of forced tokenization, both pure DOM and cheap:
 - [ ] **Step 7: Run the whole suite, then the full regression, and commit**
 
 ```bash
-bash tests/Playwright/scripts/run-tests-dev.sh 'tests/20-'
+npx playwright test '20-'
 # Then prove the new suites did not leak gateway settings into the old ones:
-bash tests/Playwright/scripts/run-tests-dev.sh 'tests/(0[1-9]|1[0-5]|19|20)-'
+npx playwright test '(0[1-9]|1[0-5]|19|20)-'
 ```
 
 Expected: all green. The second run is the one that matters — suites 19 and 20 both flip site-global settings, and a leak shows up as an unrelated older suite failing.
