@@ -105,16 +105,18 @@ Plugin: `woocommerce-pre-orders/woocommerce-pre-orders`, **network-active**.
 | Product | ID | `_wc_pre_orders_when_to_charge` | Notes |
 | --- | --- | --- | --- |
 | Album Medium Fish - Upon release | **4789** | `upon_release` | simple/physical, price 52.3256, availability `32472144000` (~year 2999, so it stays a pre-order) |
-| — none — | | `upfront` | **does not exist yet.** All 18 products swept via `wc/v3/products`; 4789 is the only one with `_wc_pre_orders_enabled=yes`. |
+| Large Gift - Physical | **1595** | `upfront` | simple, price 34.5, availability `4070908800` (~2099). Converted from variable + pre-orders enabled by Chris on 2026-08-13. |
 
-> `1595` was suggested as the upfront product but is not one: "Large Gift -
-> Physical", type **variable**, `_wc_pre_orders_enabled=no`. Being variable it
-> also cannot be added via `?add-to-cart=<id>` without a variation id.
+Both paths are available. `config.products.preOrder{Upfront,Release}` default to
+1595 / 4789.
+
+> Suite 20 must assert both ids are non-zero before using them. A product without
+> `_wc_pre_orders_enabled=yes` still checks out fine, so every pre-order-specific
+> assertion would pass vacuously against the wrong product rather than failing.
 >
-> **PO-001 is blocked until a charge-upfront pre-order product exists.**
-> `config.products.preOrderUpfront` therefore defaults to `0` so suite 20 fails
-> loudly rather than silently buying a non-pre-order product and passing.
-> Cheapest fix: clone 4789 and set "charge upfront".
+> 1595 must stay **simple**. `addToCartAndCheckout()` uses `?add-to-cart=<id>`,
+> which needs a *variation* id for a variable product — as a variable product it
+> had variations 1596/1597/1598.
 
 ### Release path
 

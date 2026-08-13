@@ -18,12 +18,11 @@ const config: PluginConfig = {
     physical: parseInt(process.env.PRODUCT_PHYSICAL || '61', 10),
     digital: parseInt(process.env.PRODUCT_DIGITAL || '316', 10),
     subscription: parseInt(process.env.PRODUCT_SUBSCRIPTION || '66', 10),
-    // 4789 is the charge-upon-release product on mastercard.mystagingwebsite.com
-    // (verified 2026-08-13). No charge-upfront pre-order product exists there yet,
-    // so it defaults to 0 — suite 20 asserts both are non-zero and fails loudly,
-    // which beats silently adding a non-pre-order product to the cart and
-    // "passing". Override per install.
-    preOrderUpfront: parseInt(process.env.PRODUCT_PREORDER_UPFRONT || '0', 10),
+    // Both verified on mastercard.mystagingwebsite.com 2026-08-13: simple
+    // products with _wc_pre_orders_enabled=yes and the charge mode below.
+    // Override per install — suite 20 asserts both are non-zero, since a
+    // non-pre-order product would make its assertions pass vacuously.
+    preOrderUpfront: parseInt(process.env.PRODUCT_PREORDER_UPFRONT || '1595', 10),
     preOrderRelease: parseInt(process.env.PRODUCT_PREORDER_RELEASE || '4789', 10),
   },
   // Written by DynamicCurrencyConversion::process_dcc_data, prefixed with the
