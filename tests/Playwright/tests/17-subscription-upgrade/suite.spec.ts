@@ -1,5 +1,5 @@
 import { test, expect } from '../../fixtures/test';
-import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getLogs } from '../../helpers/wc-api';
+import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getLogEntryCount, getLogs } from '../../helpers/wc-api';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import {
   fillBilling,
@@ -12,288 +12,214 @@ import {
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
 import { collectOrderReceivedData } from '../../helpers/flows';
 import { handle3DSChallenge } from '../../helpers/three-ds';
-import { adminLogin, frontendLogin } from '../../helpers/wp-login';
+import { frontendLogin } from '../../helpers/wp-login';
 import { triggerSubscriptionRenewal, extractRenewalOrderNumber, navigateToOrder } from '../../helpers/admin-orders';
 import {
   assertOrderStatus,
   assertPaymentMethodMeta,
   assertCapturedNote,
-  verifySessionPost,
-  verifySessionGet,
-  verifyTokenLog,
-  verifyInitiateAuthentication,
-  verifyAuthenticatePayer,
-  verifyAuthorizeCaptureLog,
-  verifyAgreement,
+  assertCaptureLogTrail,
+  assertSubscriptionAgreement,
+  assertMerchantInitiatedRenewal,
   verifyOrderEmails,
   assertOrderReceived,
   verifySubscription,
   verifyOrderInMyAccount,
+  parseAmount,
 } from '../../helpers/assertions';
 import config from '../../plugin-config';
-import { cards } from '../../fixtures/cards';
-import { billing } from '../../fixtures/billing';
+import { cards, fourDigits } from '../../fixtures/cards';
+import { billing, uniqueEmail } from '../../fixtures/billing';
 import { logOrderContext } from '../../helpers/debug';
 
+/**
+ * Subscription switch (upgrade), in the shape used by suites 01-15.
+ *
+ * The switch itself needs store configuration that does not exist on the test
+ * install: WooCommerce Subscriptions "Switching" enabled, plus a grouped or
+ * variable subscription the customer can move between. Without it there is no
+ * switch link to click, so MC-064 skips with that reason stated rather than
+ * failing, and the renewal that depends on it skips too instead of renewing the
+ * un-upgraded subscription and reporting a false pass.
+ *
+ * See tests/16-subscription-renewal for the notes on forced account creation
+ * and on why a renewal is asserted as a merchant-initiated transaction.
+ */
 test.describe.serial('Subscription Upgrade', () => {
-  let orderNumber: string;
+  const shopperEmail = uniqueEmail();
+
   let subscriptionId: string;
-  let session: string;
-  let total: string;
   let totalRenew: string;
-  let payDate: string;
+  /** Set only when the switch actually ran; gates the tests that depend on it. */
+  let upgraded = false;
+  let upgradeOrderNumber: string;
 
-  // === MC-060: Subscription with Challenge (baseline) ===
+  // === MC-060: baseline subscription the upgrade is performed against ===
 
-  test('MC-060 - Subscription with challenge', async ({ page }) => {
+  test('MC-060 - Subscription with challenge', async ({ page, adminPage, emailPage }) => {
     await switchCheckoutMode('classic');
     await configureGateway(config, {
       _3d_secure: 'yes',
       saved_cards: 'yes',
       transaction_mode: 'PURCHASE',
       checkout_mode: 'hosted_session',
-      subscription: 'yes',
     });
 
-    await addToCartAndCheckout(page, config.products.subscription);
-    await fillBilling(page, billing);
+    // === CHECKOUT (buyer's page) ===
+    const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
+    const payDate = await addToCartAndCheckout(page, config.products.subscription);
+    await fillBilling(page, { ...billing, email: shopperEmail });
     await selectPaymentMethod(page, config);
     await fillHostedSessionCC(page, cards.visaChallenge, config);
 
-    session = await extractSessionId(page);
-    total = await extractOrderTotal(page);
+    const total = await extractOrderTotal(page);
     totalRenew = await extractRecurringTotal(page);
-    payDate = new Date().toISOString().slice(0, 19);
+    const session = await extractSessionId(page);
 
     await clickPlaceOrder(page);
     await handle3DSChallenge(page);
     const result = await collectOrderReceivedData(page);
     await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
-    orderNumber = result.orderNumber;
+    const orderNumber = result.orderNumber;
     expect(orderNumber).toBeTruthy();
-    expect(result.subscriptionId).toBeTruthy();
+    expect(result.subscriptionId, 'subscription id should be on the order-received page').toBeTruthy();
     subscriptionId = result.subscriptionId!;
-  });
 
-  test('MC-060 - Admin', async ({ page, emailPage }) => {
-    expect(orderNumber).toBeTruthy();
+    // === API VERIFICATION ===
     const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
-    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, session, total, payDate });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
     expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
 
-    // Log extraction
-    const allLogs = await getLogs(payDate, '');
-    const sessionPostLogs = await getLogs(payDate, '/session');
-    const sessionGetLogs = await getLogs(payDate, `/session/${session}`);
-    const tokenLogs = await getLogs(payDate, '/token');
+    await logOrderContext(test.info().title, {
+      orderNumber, transactionId, session, total, payDate, logOffset,
+      card: `${cards.visaChallenge.name} ****${fourDigits(cards.visaChallenge)}`,
+    });
 
-    // Verify session POST
-    const sessionPostLog = sessionPostLogs.logs[0]?.content[0];
-    if (sessionPostLog) {
-      verifySessionPost(sessionPostLog, {
-        session,
-        total,
-        currency: 'USD',
-        transactionId: transactionId!,
-        orderNumber,
-        apiOperation: 'INITIATE_CHECKOUT',
-      });
-    }
+    // === LOG VERIFICATION ===
+    await assertCaptureLogTrail({
+      payDate, logOffset, session, total,
+      transactionId: transactionId!, orderNumber, card: cards.visaChallenge,
+      expectSessionPost: true, expectToken: true, expectCardDetailsFetch: true,
+    });
+    await assertSubscriptionAgreement({
+      payDate, logOffset, subscriptionId,
+      frequency: 'MONTHLY',
+      slug: config.paymentMethodSlug,
+    });
 
-    // Verify session GET
-    const sessionGetLog = sessionGetLogs.logs[0]?.content[0];
-    if (sessionGetLog) {
-      verifySessionGet(sessionGetLog, { session, card: cards.visaChallenge });
-    }
-
-    // Token log: subscription forces tokenization
-    const tokenLog = tokenLogs.logs[0]?.content[0];
-    if (tokenLog) {
-      verifyTokenLog(tokenLog, { session, card: cards.visaChallenge });
-    }
-
-    // Verify 3DS auth logs
-    const logContent = allLogs.logs[0]?.content ?? [];
-    const initiateAuthLog = logContent.find(
-      (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION',
-    );
-    if (initiateAuthLog) {
-      verifyInitiateAuthentication(initiateAuthLog, {
-        session,
-        card: cards.visaChallenge,
-        transactionId: transactionId!,
-        currency: 'USD',
-      });
-    }
-
-    const authenticatePayerLog = logContent.find(
-      (l: any) => l.request?.body?.apiOperation === 'AUTHENTICATE_PAYER',
-    );
-    if (authenticatePayerLog) {
-      verifyAuthenticatePayer(authenticatePayerLog, {
-        session,
-        transactionId: transactionId!,
-        currency: 'USD',
-        card: cards.visaChallenge,
-      });
-    }
-
-    // Verify PAY log
-    const captureLog = logContent.find(
-      (l: any) => l.request?.body?.apiOperation === 'PAY',
-    );
-    if (captureLog) {
-      verifyAuthorizeCaptureLog(captureLog, {
-        apiOperation: 'PAY',
-        session,
-        total,
-        currency: 'USD',
-        transactionId: transactionId!,
-        orderNumber,
-        card: cards.visaChallenge,
-      });
-    }
-
-    // Verify agreement (subscription)
-    const agreementLog = logContent.find(
-      (l: any) => l.request?.body?.agreement?.type === 'RECURRING',
-    );
-    if (agreementLog) {
-      verifyAgreement(agreementLog, {
-        type: 'RECURRING',
-        amountVariability: 'FIXED',
-        subscriptionId,
-        frequency: 'MONTHLY',
-        payDate,
-        slug: config.paymentMethodSlug,
-      });
-    }
-
-    // Email verification
+    // === EMAIL VERIFICATION ===
     await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
-    // Phase 12: Admin backend — verify order status in UI
-    await adminLogin(page);
-    await navigateToOrder(page, orderNumber);
-    await assertOrderStatus(page, 'Processing');
-    await assertPaymentMethodMeta(page, config, transactionId!);
-    await assertCapturedNote(page, config, transactionId!);
-    await verifyOrderInMyAccount(page, orderNumber, 'Processing', { displayName: config.displayName });
+    // === ADMIN BACKEND (admin page) ===
+    await navigateToOrder(adminPage, orderNumber);
+    await assertOrderStatus(adminPage, 'Processing');
+    await assertPaymentMethodMeta(adminPage, config, transactionId);
+    await assertCapturedNote(adminPage, config, transactionId!);
 
-    // Verify subscription status
-    expect(subscriptionId).toBeTruthy();
+    // === MY ACCOUNT (buyer's page) ===
+    await frontendLogin(page, shopperEmail, billing.password);
+    await verifyOrderInMyAccount(page, orderNumber, 'Processing', { displayName: config.displayName });
     await verifySubscription(page, subscriptionId, {
       expectedStatus: 'Active',
       displayName: config.displayName,
     });
   });
 
-  // === MC-064: Upgrade subscription ===
+  // === MC-064: switch the subscription to another plan ===
 
-  test('MC-064 - Upgrade subscription', async ({ page }) => {
-    expect(subscriptionId).toBeTruthy();
+  test('MC-064 - Upgrade subscription', async ({ page, adminPage, emailPage }) => {
+    expect(subscriptionId, 'no subscription from the baseline test').toBeTruthy();
 
-    await frontendLogin(page, billing.email, billing.password);
+    await frontendLogin(page, shopperEmail, billing.password);
     await page.goto(`/my-account/view-subscription/${subscriptionId}/`);
 
-    // Look for upgrade/switch button - depends on WooCommerce Subscriptions Switching being configured
     const upgradeLink = page.locator('a.subscription_switch_link, a[href*="switch-subscription"]');
-    if (await upgradeLink.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await upgradeLink.first().click();
-      // Select new product/plan and proceed through checkout
-      // This is store-specific and depends on the upgrade product being configured
-      await selectPaymentMethod(page, config);
-      await clickPlaceOrder(page);
-      const result = await collectOrderReceivedData(page);
-      await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
-      expect(result.orderNumber).toBeTruthy();
-      orderNumber = result.orderNumber;
-      // Update subscriptionId to the upgraded subscription if a new one was created
-      if (result.subscriptionId) {
-        subscriptionId = result.subscriptionId;
-      }
-    } else {
-      // TODO: Configure WooCommerce Subscriptions Switching and an upgradeable product
-      // to enable this test. Skipping as the upgrade option is not available.
-      test.skip();
-    }
-  });
+    const canSwitch = await upgradeLink.first().isVisible({ timeout: 5000 }).catch(() => false);
+    test.skip(
+      !canSwitch,
+      'No switch link on the subscription: WooCommerce Subscriptions "Switching" '
+      + 'is not enabled, or no upgradeable (variable/grouped) subscription product exists.',
+    );
 
-  // === MC-064: Admin - verify upgraded subscription ===
+    const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
+    const payDate = new Date().toISOString().slice(0, 19);
 
-  test('MC-064 - Admin', async ({ page }) => {
-    expect(orderNumber).toBeTruthy();
-    const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
-    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, session, total, payDate });
+    await upgradeLink.first().click();
+    await fillHostedSessionCC(page, cards.visaFrictionless, config);
+    const total = await extractOrderTotal(page);
+    const session = await extractSessionId(page);
+    await selectPaymentMethod(page, config);
+    await clickPlaceOrder(page);
+
+    const result = await collectOrderReceivedData(page);
+    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
+    upgradeOrderNumber = result.orderNumber;
+    expect(upgradeOrderNumber).toBeTruthy();
+    // A switch may keep the same subscription or open a new one.
+    if (result.subscriptionId) subscriptionId = result.subscriptionId;
+    upgraded = true;
+
+    const { order, transactionId } = await verifyOrderViaAPI(upgradeOrderNumber, config);
     expect(order.payment_method).toBe(config.paymentMethodSlug);
-    expect(order.payment_method_title).toBe(config.displayName);
     expect(transactionId).toBeTruthy();
 
-    // Log extraction for upgrade order
-    const upgradePayDate = new Date().toISOString().slice(0, 19);
-    const allLogs = await getLogs(upgradePayDate, '');
-    const logContent = allLogs.logs[0]?.content ?? [];
+    await logOrderContext(test.info().title, {
+      orderNumber: upgradeOrderNumber, transactionId, session, total, payDate, logOffset,
+    });
 
-    // Verify agreement in upgrade order logs
-    const agreementLog = logContent.find(
-      (l: any) => l.request?.body?.agreement?.type === 'RECURRING',
-    );
-    if (agreementLog) {
-      verifyAgreement(agreementLog, {
-        type: 'RECURRING',
-        amountVariability: 'FIXED',
-        subscriptionId,
-        frequency: 'MONTHLY',
-        payDate: upgradePayDate,
-        slug: config.paymentMethodSlug,
-      });
-    }
+    // The switch re-registers the agreement against the new plan.
+    await assertSubscriptionAgreement({
+      payDate, logOffset, subscriptionId,
+      frequency: 'MONTHLY',
+      slug: config.paymentMethodSlug,
+    });
 
-    // Phase 12: Admin backend — verify order status in UI
-    await adminLogin(page);
-    await navigateToOrder(page, orderNumber);
-    await assertOrderStatus(page, 'Processing');
-    await assertPaymentMethodMeta(page, config, transactionId!);
-    await assertCapturedNote(page, config, transactionId!);
-    await verifyOrderInMyAccount(page, orderNumber, 'Processing', { displayName: config.displayName });
+    await verifyOrderEmails(upgradeOrderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
 
-    // Verify subscription status in My Account
-    expect(subscriptionId).toBeTruthy();
+    await navigateToOrder(adminPage, upgradeOrderNumber);
+    await assertOrderStatus(adminPage, 'Processing');
+    await assertPaymentMethodMeta(adminPage, config, transactionId);
+    await assertCapturedNote(adminPage, config, transactionId!);
+
+    await verifyOrderInMyAccount(page, upgradeOrderNumber, 'Processing', { displayName: config.displayName });
     await verifySubscription(page, subscriptionId, {
       expectedStatus: 'Active',
       displayName: config.displayName,
     });
+
+    // The upgraded plan's recurring total is what renewals must charge.
+    totalRenew = await extractRecurringTotal(page).catch(() => totalRenew);
   });
 
-  // === MC-064: Renewal of upgraded subscription ===
+  // === MC-064: the upgraded subscription must still renew, merchant-initiated ===
 
-  test('MC-064 - Renewal of upgrade', async ({ page }) => {
-    expect(subscriptionId).toBeTruthy();
+  test('MC-064 - Renewal of upgrade', async ({ adminPage }) => {
+    test.skip(!upgraded, 'The upgrade did not run, so there is no upgraded subscription to renew.');
 
-    await adminLogin(page);
-    await triggerSubscriptionRenewal(page, subscriptionId);
+    const renewDate = new Date().toISOString().slice(0, 19);
+    const renewOffset = await getLogEntryCount(renewDate);
 
-    const renewalOrderNumber = await extractRenewalOrderNumber(page);
-    expect(renewalOrderNumber).toBeTruthy();
+    await triggerSubscriptionRenewal(adminPage, subscriptionId);
+    const renewalOrderNumber = await extractRenewalOrderNumber(adminPage);
+    expect(renewalOrderNumber, 'no renewal order was created').toBeTruthy();
 
     const { order, transactionId } = await verifyOrderViaAPI(renewalOrderNumber, config);
-    await logOrderContext(test.info().title, { orderNumber: renewalOrderNumber, transactionId, session, total, payDate });
+    await logOrderContext(test.info().title, {
+      orderNumber: renewalOrderNumber, transactionId, payDate: renewDate, logOffset: renewOffset,
+    });
     expect(order.payment_method).toBe(config.paymentMethodSlug);
-    expect(order.payment_method_title).toBe(config.displayName);
-    expect(transactionId).toBeTruthy();
+    expect(transactionId, 'renewal order has no gateway transaction').toBeTruthy();
+    expect(parseAmount(order.total)).toBeCloseTo(parseAmount(totalRenew), 2);
 
-    // Renewal: verify total matches totalRenew
-    const renewalTotal = parseFloat(totalRenew.replace(/[^0-9.]/g, ''));
-    const orderTotal = parseFloat(order.total);
-    expect(orderTotal).toBeCloseTo(renewalTotal, 2);
+    await assertMerchantInitiatedRenewal({
+      payDate: renewDate, logOffset: renewOffset,
+      subscriptionId,
+      slug: config.paymentMethodSlug,
+      total: totalRenew,
+    });
 
-    // Renewal uses stored token — no new session logs expected
-    const renewDate = new Date().toISOString().slice(0, 19);
-    const sessionPostLogs = await getLogs(renewDate, '/session');
-    const sessionGetLogs = await getLogs(renewDate, `/session/${session}`);
-    expect(sessionPostLogs.logs[0]?.content.length ?? 0).toBe(0);
-    expect(sessionGetLogs.logs[0]?.content.length ?? 0).toBe(0);
+    const sessionPostLogs = await getLogs(renewDate, '/session', renewOffset);
+    expect(sessionPostLogs.logs[0]?.content.length ?? 0, 'renewal should not create a session').toBe(0);
   });
 });

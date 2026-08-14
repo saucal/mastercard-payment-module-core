@@ -162,6 +162,11 @@ all three npm scripts.
 It finds the plugin root by walking up for `packages/payment-core`, so it works
 whether the suite lives in the submodule or in a worktree.
 
+> **Do not edit files while a run is in flight.** The runner stashes uncommitted
+> work at the start and finishes with `reset --hard` + `stash pop`. Anything you
+> change mid-run is not in that stash, so the reset discards it silently — the
+> run ends "successfully" and your edit is gone. Wait for the restore.
+
 ### Parallelism
 
 `workers` is derived from the number of configured installs and never exceeds it —
@@ -175,10 +180,113 @@ Three installs bring that down proportionally.
 
 ## Suite status
 
-- **01–15** — ported and green.
-- **16–18** (subscriptions) — **not** ported, excluded from normal runs, never yet
-  green. Two also carry `TODO`s for site configuration that does not exist
-  (Subscriptions switching, early manual renewal).
+Last full verification 2026-08-13: **77 passed, 2 skipped**.
+
+- **01–15** — green (67/67, 1.1h on one install).
+- **16** (subscription renewal) — green, 6/6.
+- **17** (subscription upgrade) — baseline green; the two switch tests skip
+  because Subscriptions *Switching* is not enabled on the install and no
+  upgradeable product exists. They state that reason rather than failing.
+- **18** (early manual renewal) — green, 3/3.
+
+Run 16–18 with `'tests/1[6-8]-'`. They are slower per test than 01–15: every
+scenario creates a subscription through a full 3DS checkout.
+
+## Subscriptions (suites 16-18)
+
+A subscription is two different payments, and the suites are built around that
+split:
+
+| | Initial payment (CIT) | Renewal (MIT) |
+| --- | --- | --- |
+| Initiated by | the payer, at checkout | you, on a schedule |
+| Session | yes | **none** |
+| 3DS | yes | **none** — SCA-exempt |
+| Card | entered, then stored | the stored token |
+| Asserted by | `assertCaptureLogTrail` + `assertSubscriptionAgreement` | `assertMerchantInitiatedRenewal` |
+
+The initial payment opens an **agreement** with the gateway; every later renewal
+charges the stored token against that agreement as a Merchant Initiated
+Transaction.
+
+### What an MIT must send
+
+```jsonc
+{
+  "apiOperation": "PAY",
+  "agreement":     { "id": "<slug>_subscription-order-<id>", "type": "RECURRING" },
+  "transaction":   { "source": "MERCHANT" },
+  "sourceOfFunds": { "type": "CARD", "token": "...",
+                     "provided": { "card": { "storedOnFile": "STORED" } } }
+}
+```
+
+**`agreement.type` is required on every renewal, not just the first payment.**
+Omitting it fails the whole request:
+
+```
+400 INVALID_REQUEST
+Field agreement.type must be provided when field agreement.id is provided
+for payer-initiated payments.
+```
+
+The API reference says the gateway reuses the type "for subsequent payments in
+the series", which reads as though `id` alone is enough on a renewal. It is not.
+
+A successful MIT comes back with `psd2.exemption: RECURRING_PAYMENT` — that is
+the gateway confirming it treated the charge as merchant-initiated. Assert it:
+an MIT that fails to earn the exemption gets sent for 3DS with no payer present
+and declines.
+
+> **A renewal order existing proves nothing.** WooCommerce creates the renewal
+> order *before* attempting the charge, so a failed MIT still leaves an order
+> behind. Assert the gateway response, not the order.
+
+### Account creation is forced
+
+WooCommerce Subscriptions renders the checkout account fields with **no "Create
+an account?" checkbox** and a required password. Two consequences:
+
+- `fillBilling()` fills `#account_password` when it is visible. Without it
+  checkout fails validation, never submits, and surfaces ~90s later as a missing
+  3DS challenge.
+- Every subscription test needs its own `uniqueEmail()`. A fixed address makes
+  the test single-use — the second run fails with *"An account is already
+  registered with your email address."*
+
+### Gotchas
+
+- **"Process renewal" is behind a native `confirm()`.** Subscriptions binds a
+  submit handler that returns `confirm(...)` for `wcs_process_renewal`.
+  Playwright auto-dismisses dialogs, so the form silently never submits — the
+  click lands, the button takes focus, and no POST is made.
+  `triggerSubscriptionRenewal()` accepts the dialog first.
+- **Renewal emails have different subjects.** Subscriptions swaps in its own
+  email classes: `New subscription renewal order (NNNN)` and `... renewal order
+  receipt from ...`. Note "new subscription renewal order" does not contain
+  "new order". When matching the admin mail, do not match on "renewal order"
+  alone — the customer's subject contains it too.
+- **An early manual renewal is payer-initiated.** It goes through checkout with
+  a session and 3DS, and the stored card is offered **pre-selected**, so no card
+  iframes render — use `selectSavedToken()`, not `fillHostedSessionCC()`.
+- **Subscriptions are not supported in hosted-checkout mode**; the addon returns
+  early. Suites 16-18 are hosted-session only.
+- **`minimumDaysBetweenPayments` does not block an early renewal.** The plugin
+  sends 31 for a monthly subscription and the gateway still approves a same-day
+  renewal.
+
+### Site requirements beyond the ones above
+
+- **MERCHANT must be an allowed transaction source.** Check with:
+  ```sh
+  wp option get woocommerce_<slug>_transaction_sources --format=json
+  # {"card":["INTERNET","MERCHANT"]}
+  ```
+  Without it the addon disables subscription support entirely and shows a
+  settings notice pointing at the acquirer.
+- **Suite 17 additionally needs** Subscriptions *Switching* enabled plus a
+  variable or grouped subscription product. Absent that, MC-064 skips with the
+  reason stated; it does not fail.
 
 ## Is this failure real, or the gateway?
 
