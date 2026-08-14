@@ -982,6 +982,12 @@ export interface CaptureLogTrailExpected {
   expectToken: boolean;
   /** false for saved-token checkouts, which don't re-fetch card details */
   expectCardDetailsFetch: boolean;
+  /**
+   * The money-movement operation the gateway logs: 'PAY' in PURCHASE mode,
+   * 'AUTHORIZE' in AUTHORIZE mode. Everything before it — session, token, 3DS —
+   * is identical, which is why this is a flag and not a second function.
+   */
+  apiOperation?: 'PAY' | 'AUTHORIZE';
 }
 
 /**
@@ -992,6 +998,7 @@ export interface CaptureLogTrailExpected {
  */
 export async function assertCaptureLogTrail(expected: CaptureLogTrailExpected): Promise<void> {
   const currency = expected.currency ?? 'USD';
+  const apiOperation = expected.apiOperation ?? 'PAY';
   const txFilter = (l: LogEntry) => !expected.transactionId || l.request?.url?.includes(expected.transactionId);
 
   // Fetch every log window up front, in the same order the inline blocks did.
@@ -1078,11 +1085,104 @@ export async function assertCaptureLogTrail(expected: CaptureLogTrailExpected): 
   }
 
   const captureLog = logContent.find(
-    (l: LogEntry) => l.request?.body?.apiOperation === 'PAY' && txFilter(l) && l.response?.body?.result === 'SUCCESS'
+    (l: LogEntry) => l.request?.body?.apiOperation === apiOperation && txFilter(l) && l.response?.body?.result === 'SUCCESS'
   );
-  expect(captureLog, 'PAY log not found').toBeTruthy();
+  expect(captureLog, `${apiOperation} log not found`).toBeTruthy();
   verifyAuthorizeCaptureLog(captureLog!, {
-    apiOperation: 'PAY', session: resolvedSession, total: expected.total, currency,
+    apiOperation, session: resolvedSession, total: expected.total, currency,
     transactionId: expected.transactionId, orderNumber: expected.orderNumber, card: expected.card,
   });
+}
+
+/** {@link assertCaptureLogTrail} inputs, minus the operation this pins. */
+export type AuthorizeLogTrailExpected = Omit<CaptureLogTrailExpected, 'apiOperation'>;
+
+/**
+ * The AUTHORIZE-mode sibling of assertCaptureLogTrail. The session, token and
+ * 3DS trail are byte-identical — only the money-movement operation differs — so
+ * this delegates rather than duplicating eighty lines. There is no CAPTURE yet;
+ * use assertCaptureOperationLog for the admin-side capture that follows.
+ */
+export async function assertAuthorizeLogTrail(expected: AuthorizeLogTrailExpected): Promise<void> {
+  await assertCaptureLogTrail({ ...expected, apiOperation: 'AUTHORIZE' });
+}
+
+/**
+ * Assert the admin-triggered CAPTURE against an already-authorized order. Unlike
+ * the checkout operations this lands on `/transaction`, and the amount is the
+ * captured amount, not the order total — partial captures pass a quarter of it.
+ *
+ * VOID deliberately has no sibling here: it is one case in suite 14 and needs
+ * verifyVoidLog, a different assertion with a different shape.
+ */
+export async function assertCaptureOperationLog(expected: {
+  payDate: string;
+  logOffset: number;
+  amount: string;
+  currency?: string;
+  transactionId: string;
+  orderNumber: string | number;
+  card: CardData;
+}): Promise<void> {
+  const transactionLogs = await getLogs(expected.payDate, '/transaction', expected.logOffset);
+  expect(transactionLogs.logs[0]?.content.length, 'transaction PUT logs should not be empty').toBeGreaterThan(0);
+  const log = transactionLogs.logs[0].content.find(
+    (l: LogEntry) => l.request?.body?.apiOperation === 'CAPTURE'
+      && l.request?.url?.includes(expected.transactionId)
+  );
+  expect(log, 'CAPTURE log not found').toBeTruthy();
+  verifyAuthorizeCaptureLog(log!, {
+    apiOperation: 'CAPTURE', total: expected.amount, currency: expected.currency ?? 'USD',
+    transactionId: expected.transactionId, orderNumber: expected.orderNumber, card: expected.card,
+  });
+}
+
+export interface HostedCheckoutLogTrailExpected {
+  payDate: string;
+  logOffset: number;
+  total: string;
+  currency?: string;
+  transactionId: string;
+  orderNumber: string | number;
+}
+
+/**
+ * Hosted-checkout log trail — the same fifteen lines repeated across all twelve
+ * cases of suites 03, 04 and 05.
+ *
+ * Deliberately shorter than the hosted-session trail: MPGS runs
+ * INITIATE_AUTHENTICATION, AUTHENTICATE_PAYER and the payment itself inside its
+ * own hosted UI, so none of those reach our log. Only INITIATE_CHECKOUT does,
+ * and it is INITIATE_CHECKOUT in authorize mode too (suite 05) — the transaction
+ * mode is not visible in this trail at all. Asserting more would be inventing it.
+ *
+ * The session id is discovered from the log rather than passed in: hosted
+ * checkout never exposes it to the page. Returned for callers that want it.
+ */
+export async function assertHostedCheckoutLogTrail(
+  expected: HostedCheckoutLogTrailExpected,
+): Promise<string> {
+  const sessionPostLogs = await getLogs(expected.payDate, '/session', expected.logOffset);
+  const tokenLogs = await getLogs(expected.payDate, '/token', expected.logOffset);
+
+  expect(sessionPostLogs.logs[0]?.content.length, 'session POST logs should not be empty').toBeGreaterThan(0);
+  const sessionPostLog = sessionPostLogs.logs[0].content.find(
+    (l: LogEntry) => l.request?.body?.apiOperation === 'INITIATE_CHECKOUT'
+      && l.response?.body?.result === 'SUCCESS'
+      && String(l.request?.body?.order?.reference) === String(expected.orderNumber)
+  );
+  expect(sessionPostLog, `INITIATE_CHECKOUT session POST entry not found for order ${expected.orderNumber}`).toBeTruthy();
+  const resolvedSession: string = sessionPostLog!.response.body.session?.id || '';
+  expect(resolvedSession, 'session id not returned from INITIATE_CHECKOUT').toBeTruthy();
+  verifySessionPost(sessionPostLog!, {
+    session: resolvedSession, total: expected.total, currency: expected.currency ?? 'USD',
+    transactionId: expected.transactionId, orderNumber: expected.orderNumber,
+    apiOperation: 'INITIATE_CHECKOUT',
+  });
+
+  // Hosted checkout never tokenizes on our side — every case in 03/04/05 asserts
+  // this, including the logged-in ones.
+  verifyTokenLogsEmpty(tokenLogs);
+
+  return resolvedSession;
 }
