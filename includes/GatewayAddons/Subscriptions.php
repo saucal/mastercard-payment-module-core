@@ -224,11 +224,17 @@ trait Subscriptions {
 			return array();
 		}
 
+		/**
+		 * Only the subscription's *end* date bounds the agreement.
+		 *
+		 * This used to fall back to the next payment date, which for an
+		 * open-ended subscription is one billing period away — so the agreement
+		 * we registered with the gateway expired on the very day the first
+		 * renewal was due, and every merchant-initiated renewal after that ran
+		 * against a lapsed agreement. An open-ended subscription has no expiry;
+		 * a year is the horizon we re-register against.
+		 */
 		$end_date = $subscription->get_date( 'end' );
-
-		if ( empty( $end_date ) ) {
-			$end_date = $subscription->get_date( 'next_payment' );
-		}
 
 		return array(
 			'type'                       => 'RECURRING',
@@ -610,8 +616,18 @@ trait Subscriptions {
 		$payment_data = array(
 			'apiOperation'     => 'PAY', // TODO: Respect authorize / capture settings.
 			'order'            => $this->hosted_session_order_payload( $order ),
+			/**
+			 * `type` is required here, not just on the transaction that opened the
+			 * agreement. Sending `id` alone gets a 400 from the gateway:
+			 *
+			 *   INVALID_REQUEST - "Field agreement.type must be provided when
+			 *   field agreement.id is provided for payer-initiated payments."
+			 *
+			 * which fails every renewal, so no subscription could ever renew.
+			 */
 			'agreement'        => array(
-				'id' => $this->unique_subscription_id( $subscription ),
+				'id'   => $this->unique_subscription_id( $subscription ),
+				'type' => 'RECURRING',
 			),
 			'transaction'      => array(
 				'source' => 'MERCHANT',
