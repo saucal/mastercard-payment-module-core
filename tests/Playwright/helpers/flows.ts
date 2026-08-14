@@ -33,7 +33,11 @@ export async function collectOrderReceivedData(page: Page): Promise<OrderReceive
   let subscriptionId: string | undefined;
   const subLink = page.locator('td.subscription-id > a');
   if (await subLink.isVisible({ timeout: 2000 }).catch(() => false)) {
-    subscriptionId = (await subLink.textContent() || '').trim();
+    // Subscriptions renders the id as "#2158". Strip the "#" here rather than at
+    // each use: callers both build wp-admin URLs from this and match it against
+    // the gateway's agreement.id ("<slug>_subscription-order-2158"), and neither
+    // tolerates the prefix.
+    subscriptionId = (await subLink.textContent() || '').trim().replace(/^#/, '');
   }
 
   return { orderNumber, subscriptionId, declined: false };

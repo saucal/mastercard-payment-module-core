@@ -123,7 +123,7 @@ export async function assertVoidFormVisible(page: Page, config: PluginConfig, vi
  * Parse a currency string to a number, handling both US (10.00) and
  * European (10,00) decimal formats, plus currency symbols.
  */
-function parseAmount(value: string): number {
+export function parseAmount(value: string): number {
   // Remove currency symbols and whitespace
   let cleaned = value.replace(/[^0-9.,]/g, '').trim();
   // If comma is the last separator (European), treat it as decimal
@@ -472,8 +472,13 @@ function calculateAgreementDates(
   payDate: string,
   frequency: PaymentFrequency,
 ): { startDate: string; expiryDate: string; numberOfPayments: string } {
-  const start = new Date(payDate);
-  const expiry = new Date(payDate);
+  // payDate is produced as `new Date().toISOString().slice(0, 19)` — UTC, but
+  // with the "Z" cut off. Re-parsing that without the suffix makes JavaScript
+  // read it as LOCAL time, which shifts the instant by the machine's UTC offset
+  // and lands on the wrong calendar day for most of the day west of Greenwich.
+  // The gateway values come from PHP gmdate(), so compare in UTC.
+  const start = new Date(`${payDate}Z`);
+  const expiry = new Date(`${payDate}Z`);
 
   // Default: 12 monthly payments spanning 1 year
   let numberOfPayments = 12;
@@ -525,14 +530,19 @@ export function verifyAgreement(log: LogEntry, expected: AgreementExpected): voi
   expect(agreement!.id).toContain(`${expected.slug}_subscription-order-${expected.subscriptionId}`);
   expect(agreement!.paymentFrequency).toBe(expected.frequency.toUpperCase());
 
-  const { startDate, expiryDate, numberOfPayments } = calculateAgreementDates(
+  const { startDate, expiryDate } = calculateAgreementDates(
     expected.payDate,
     expected.frequency,
   );
 
   expect(agreement!.startDate).toBe(startDate);
   expect(agreement!.expiryDate).toBe(expiryDate);
-  expect(agreement!.numberOfPayments).toBe(numberOfPayments);
+
+  // Deliberately not asserting agreement.numberOfPayments. It is OPTIONAL in the
+  // MPGS API, the gateway derives the schedule from paymentFrequency plus the
+  // start/expiry dates, and this plugin has never sent it — no occurrence in the
+  // repo's history, none in any captured gateway traffic. The expectation came
+  // from the Ghost Inspector suite and describes a payload nothing produces.
 }
 
 // ─── Void verification ────────────────────────────────────────────────────────
@@ -749,13 +759,26 @@ export async function verifyOrderEmails(
   const mails = await getLoggedMail({ contains: orderNumber }, { minCount: 2 });
   if (options.page) await showEmails(options.page, mails);
 
+  // Subscriptions swaps in its own email classes for renewal orders, so the
+  // subjects differ from a first payment and none of the original patterns
+  // match:
+  //   admin    "[site] New subscription renewal order (2208) - ..."
+  //   customer "Your site renewal order receipt from ..."
+  // Note "new subscription renewal order" does NOT contain "new order".
+  // Match the admin one on "new ... renewal order", not plain "renewal order":
+  // the customer's subject contains that phrase too ("renewal order receipt"),
+  // and mail order is not guaranteed, so the looser pattern can bind adminMsg to
+  // the customer's mail and quietly assert the wrong message.
   const adminMsg = mails.find(m =>
-    m.subject.toLowerCase().includes('new order') || m.subject.includes(`Order #${orderNumber}`)
+    m.subject.toLowerCase().includes('new order') ||
+    /new .*renewal order/.test(m.subject.toLowerCase()) ||
+    m.subject.includes(`Order #${orderNumber}`)
   );
   const customerMsg = mails.find(m =>
     m.subject.toLowerCase().includes('order has been received') ||
     m.subject.toLowerCase().includes('order is on') ||
-    m.subject.toLowerCase().includes('your order')
+    m.subject.toLowerCase().includes('your order') ||
+    m.subject.toLowerCase().includes('order receipt')
   );
 
   expect(adminMsg, `Admin email for order ${orderNumber} not found`).toBeTruthy();
@@ -1085,4 +1108,106 @@ export async function assertCaptureLogTrail(expected: CaptureLogTrailExpected): 
     apiOperation: 'PAY', session: resolvedSession, total: expected.total, currency,
     transactionId: expected.transactionId, orderNumber: expected.orderNumber, card: expected.card,
   });
+}
+
+// ─── Subscription trails ──────────────────────────────────────────────────────
+
+export interface SubscriptionAgreementExpected {
+  payDate: string;
+  logOffset: number;
+  subscriptionId: string;
+  frequency: PaymentFrequency;
+  slug: string;
+  amountVariability?: string;
+}
+
+/**
+ * Assert the agreement registered on the cardholder-initiated transaction that
+ * opens a subscription. Companion to assertCaptureLogTrail(), which covers the
+ * session/auth/capture trail but knows nothing about agreements.
+ *
+ * Scoped by logOffset for the same reason every other trail is: a retry re-runs
+ * checkout, and without the offset this matches the *previous* attempt's
+ * agreement and compares it against the new subscription id.
+ */
+export async function assertSubscriptionAgreement(
+  expected: SubscriptionAgreementExpected,
+): Promise<void> {
+  const allLogs = await getLogs(expected.payDate, '', expected.logOffset);
+  const content: LogEntry[] = allLogs.logs[0]?.content ?? [];
+
+  const agreementLog = content.find(
+    (l: LogEntry) => l.request?.body?.agreement?.id
+      === `${expected.slug}_subscription-order-${expected.subscriptionId}`,
+  );
+  expect(agreementLog, `agreement log not found for subscription ${expected.subscriptionId}`).toBeTruthy();
+
+  verifyAgreement(agreementLog!, {
+    type: 'RECURRING',
+    amountVariability: expected.amountVariability ?? 'FIXED',
+    subscriptionId: expected.subscriptionId,
+    frequency: expected.frequency,
+    payDate: expected.payDate,
+    slug: expected.slug,
+  });
+}
+
+export interface MerchantInitiatedRenewalExpected {
+  payDate: string;
+  logOffset: number;
+  subscriptionId: string;
+  slug: string;
+  total: string | number;
+  currency?: string;
+}
+
+/**
+ * Assert that a renewal was charged as a Merchant Initiated Transaction.
+ *
+ * This is the regression guard for the defect that made every renewal fail:
+ * the MIT sent `agreement.id` without `agreement.type`, and the gateway replied
+ *
+ *   INVALID_REQUEST - "Field agreement.type must be provided when field
+ *   agreement.id is provided for payer-initiated payments."
+ *
+ * A renewal that merely produces an order proves nothing -- the order is created
+ * before the charge is attempted -- so assert the request shape *and* that the
+ * gateway both approved it and classified it as merchant-initiated by granting
+ * the RECURRING_PAYMENT SCA exemption. No payer is present to authenticate, so
+ * an MIT that fails to earn that exemption would be sent for 3DS and decline.
+ */
+export async function assertMerchantInitiatedRenewal(
+  expected: MerchantInitiatedRenewalExpected,
+): Promise<void> {
+  const currency = expected.currency ?? 'USD';
+  const allLogs = await getLogs(expected.payDate, '', expected.logOffset);
+  const content: LogEntry[] = allLogs.logs[0]?.content ?? [];
+
+  // `as any`: LogEntry models the payer-initiated payloads used by 01-15 and
+  // has no MIT-only fields (transaction.source, sourceOfFunds.provided on a
+  // token charge, authentication.psd2). Widening the shared type for this would
+  // touch every suite; keep the looseness local.
+  const mit = content.find(
+    (l: any) => l.request?.body?.transaction?.source === 'MERCHANT'
+      && l.request?.body?.apiOperation === 'PAY',
+  );
+  expect(mit, 'no MERCHANT-source PAY request found for the renewal').toBeTruthy();
+
+  const req = mit!.request.body as any;
+  expect(req.agreement?.id).toBe(`${expected.slug}_subscription-order-${expected.subscriptionId}`);
+  // The field whose absence broke every renewal.
+  expect(req.agreement?.type, 'agreement.type missing on the merchant-initiated renewal').toBe('RECURRING');
+  // Charging a stored credential with no payer present.
+  expect(req.sourceOfFunds?.token, 'renewal did not charge a stored token').toBeTruthy();
+  expect(req.sourceOfFunds?.provided?.card?.storedOnFile).toBe('STORED');
+  expect(parseFloat(req.order?.amount)).toBeCloseTo(
+    typeof expected.total === 'number' ? expected.total : parseAmount(String(expected.total)),
+    2,
+  );
+  expect(req.order?.currency).toBe(currency);
+
+  const res = mit!.response?.body as any;
+  expect(res?.result, `renewal was not approved: ${JSON.stringify(res?.error ?? res?.response ?? {})}`).toBe('SUCCESS');
+  expect(res?.transaction?.source).toBe('MERCHANT');
+  expect(res?.authentication?.psd2?.exemption).toBe('RECURRING_PAYMENT');
 }

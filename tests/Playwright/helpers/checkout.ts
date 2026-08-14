@@ -151,6 +151,22 @@ export async function fillBilling(page: Page, billing: BillingData): Promise<voi
 
   await tryFill(page, sel.postcode, billing.zipCode);
   await tryFill(page, sel.phone, billing.phone);
+
+  // WooCommerce Subscriptions forces account creation for subscription carts:
+  // it renders the account fields with NO "Create an account?" checkbox and
+  // marks the password required. Nothing ticks a box, so createAccountAtCheckout
+  // does not apply here -- the field is simply present and mandatory, and left
+  // empty checkout fails validation with "Create account password is a required
+  // field", never submits, and the failure surfaces much later as a missing 3DS
+  // challenge.
+  //
+  // Guarded on visibility, so this is a no-op on non-subscription checkouts
+  // where the field stays hidden until the checkbox is ticked.
+  const forcedPassword = page.locator(sel.accountPassword).first();
+  if (await forcedPassword.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await forcedPassword.fill(billing.password);
+  }
+
   await waitForUnblock(page);
 
 }

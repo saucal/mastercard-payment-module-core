@@ -192,7 +192,24 @@ export async function refundPayment(page: Page, amount: string): Promise<void> {
 export async function triggerSubscriptionRenewal(page: Page, subscriptionId: string): Promise<void> {
   await navigateToSubscription(page, subscriptionId);
   await page.locator('select[name="wc_order_action"]').selectOption('wcs_process_renewal');
-  await page.locator('//button[contains(text(), "Update")], button[name="save"]').first().click();
+  // Subscriptions guards this action with a native confirm():
+  //
+  //   $('#order').on('submit', function () {
+  //     if ('wcs_process_renewal' == $('select[name=wc_order_action]').val())
+  //       return confirm( wcs_admin_meta_boxes.process_renewal_action_warning );
+  //   });
+  //
+  // Playwright auto-dismisses dialogs, so confirm() returned false and cancelled
+  // the submit -- the click landed, the button took focus, and nothing was ever
+  // POSTed. Accept it before clicking.
+  page.once('dialog', (dialog) => dialog.accept());
+
+  // CSS only. A selector string beginning with "//" is parsed as XPath in its
+  // entirety, so the previous '//button[...], button[name="save"]' was not a
+  // union of two engines -- it was one invalid XPath expression, and the click
+  // threw SyntaxError every time. `save_order`/`save` cover HPOS, `#publish` the
+  // classic post-edit screen.
+  await page.locator('button[name="save"], button.save_order, #publish').first().click();
   await expect(page.locator('#message > p')).toContainText('Subscription updated');
 }
 
