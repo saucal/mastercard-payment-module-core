@@ -845,7 +845,7 @@ npx playwright test '(08|09)-'
 
 Expected: 12 passed (6 per mode).
 
-- [ ] **Step 5: Final Phase A gate — full 01-15 run**
+- [x] **Step 5: Final Phase A gate — full 01-15 run** — 67 passed in 31.0m, no retries, no flaky verdicts. New upstream-noise baseline.
 
 ```bash
 cd tests/Playwright   # if not already there
@@ -854,7 +854,7 @@ npx playwright test '(0[1-9]|1[0-5])-'
 
 Expected: all green. With `workers: 3` this is roughly 20-25 minutes, not the README's one hour (that figure assumes a single install). This is the run that earns the right to build on this layer. Note in the commit how many retries fired and what the `flakiness-verdict` attachments said; that is the new upstream-noise baseline.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — `b430934`
 
 ```bash
 git add -A tests/Playwright
