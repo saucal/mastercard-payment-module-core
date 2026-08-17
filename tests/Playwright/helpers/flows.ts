@@ -12,6 +12,12 @@ import {
   clickPlaceOrder,
 } from './checkout';
 import { fillHostedSessionCC } from './hosted-session';
+import {
+  clickPlaceOrderHostedCheckout,
+  fillHostedCheckoutCC,
+  clickHostedCheckoutPay,
+  type HostedCheckoutMode,
+} from './hosted-checkout';
 import { handle3DSChallenge } from './three-ds';
 import { frontendLogin } from './wp-login';
 import { getLogEntryCount, verifyOrderViaAPI } from './wc-api';
@@ -233,6 +239,132 @@ export async function checkoutHostedSession(
     orderNumber: ctx.orderNumber,
     transactionId: ctx.transactionId,
     session: ctx.session,
+    total: ctx.total,
+    payDate: ctx.payDate,
+    logOffset: ctx.logOffset,
+    card: `${opts.card.name} ****${fourDigits(opts.card)}`,
+  });
+
+  return ctx;
+}
+
+export interface HostedCheckoutOptions {
+  /** 'embedded' keeps MPGS in an iframe; 'redirect' navigates the buyer away. */
+  hostedMode: HostedCheckoutMode;
+  card: CardData;
+  /** Cart entry: add this product, then check out. Mutually exclusive with payForOrder. */
+  productId?: number;
+  /**
+   * Pay-for-order entry (MC-011): go straight to a pending order's pay URL. The
+   * total is passed in from the REST response rather than scraped, because the
+   * order-pay page does not reliably render a row extractOrderTotal can read.
+   */
+  payForOrder?: { url: string; total: string };
+  billing?: BillingData;
+  loginAs?: { email: string; password: string };
+  createAccount?: string;
+}
+
+/**
+ * Drive a hosted-checkout (embedded or redirect) checkout end to end.
+ *
+ * The sibling of checkoutHostedSession, and separate from it on purpose: MPGS
+ * owns the whole payment UI here, so there are no card fields, no saved tokens
+ * and no save-card checkbox on our side — the options that dominate the
+ * hosted-session flow are all meaningless in this one.
+ */
+export async function checkoutHostedCheckout(
+  page: Page,
+  config: PluginConfig,
+  opts: HostedCheckoutOptions,
+): Promise<CheckoutContext> {
+  expect(
+    (opts.productId === undefined) !== (opts.payForOrder === undefined),
+    'pass exactly one of productId or payForOrder',
+  ).toBe(true);
+
+  if (opts.loginAs) {
+    await frontendLogin(page, opts.loginAs.email, opts.loginAs.password);
+  }
+
+  const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
+
+  let payDate: string;
+  let total: string;
+
+  if (opts.payForOrder) {
+    await page.goto(opts.payForOrder.url);
+    await page.waitForLoadState('load');
+    // Where we ended up matters more than where we aimed: an unroutable pay URL
+    // lands on a 404 or redirects to my-account, and the next failure would be
+    // the generic "Could not detect checkout mode".
+    await logOrderContext('order-pay page', {
+      requested: opts.payForOrder.url,
+      landedOn: page.url(),
+      title: await page.title(),
+      hasClassicForm: await page.locator('form.woocommerce-checkout').count(),
+      hasOrderReviewForm: await page.locator('form#order_review').count(),
+      hasBlocksCheckout: await page.locator('.wp-block-woocommerce-checkout').count(),
+    });
+    payDate = new Date().toISOString().slice(0, 19);
+    total = opts.payForOrder.total;
+  } else {
+    payDate = await addToCartAndCheckout(page, opts.productId!);
+    if (!opts.loginAs || opts.billing) {
+      await fillBilling(page, opts.billing ?? defaultBilling);
+    }
+    if (opts.createAccount) {
+      await createAccountAtCheckout(page, opts.createAccount);
+    }
+  }
+
+  await selectPaymentMethod(page, config);
+  if (!opts.payForOrder) {
+    total = await extractOrderTotal(page);
+  }
+
+  await clickPlaceOrderHostedCheckout(page, config, opts.hostedMode);
+  await fillHostedCheckoutCC(page, opts.card, config, opts.hostedMode);
+  await clickHostedCheckoutPay(page, config, opts.hostedMode);
+
+  if (opts.card.challenge) {
+    await handle3DSChallenge(page);
+  }
+
+  const received = await collectOrderReceivedData(page);
+  // Skip the total on the pay-for-order path: REST returns "10.00" while the
+  // order-received page may render locale-formatted "10,00 $". The REST check
+  // below re-confirms the amount anyway.
+  await assertOrderReceived(
+    page,
+    { displayName: config.displayName, expectedTotal: opts.payForOrder ? undefined : total! },
+    received,
+  );
+  expect(received.orderNumber, 'order number should be present on order-received').toBeTruthy();
+  await verifyCartEmpty(page);
+
+  const { order, transactionId } = await verifyOrderViaAPI(received.orderNumber, config);
+  expect(order.payment_method).toBe(config.paymentMethodSlug);
+  expect(order.payment_method_title).toBe(config.displayName);
+  expect(transactionId, 'gateway transaction id should be on the order').toBeTruthy();
+
+  const ctx: CheckoutContext = {
+    orderNumber: received.orderNumber,
+    subscriptionId: received.subscriptionId,
+    transactionId: transactionId!,
+    order,
+    // Hosted checkout never exposes the session to the page; the log-trail
+    // composite discovers it from INITIATE_CHECKOUT and returns it.
+    session: '',
+    total: total!,
+    payDate,
+    logOffset,
+    card: opts.card,
+  };
+
+  await logOrderContext(test.info().title, {
+    orderNumber: ctx.orderNumber,
+    transactionId: ctx.transactionId,
     total: ctx.total,
     payDate: ctx.payDate,
     logOffset: ctx.logOffset,
