@@ -225,15 +225,13 @@ export async function checkoutHostedSession(
   }
 
   if (opts.expectNoSaveCardCheckbox) {
-    // Both locators: the classic label and the blocks-side wording. Suite 11
-    // (saved_cards off) checked both, and "no save-card UI" is only true when
-    // neither is there — the guest case in suite 01 sees neither either way.
+    // Scoped to OUR gateway's label, deliberately. Suite 11 also carried a bare
+    // `text=Save to account` check; hoisting it here broke suite 01, because
+    // that wording is not ours — every gateway on the checkout renders the same
+    // label, so it matched PayPal's too and died on a strict-mode violation.
+    // This locator says the same thing about the only gateway under test.
     await expect(
       page.locator(`label[for="wc-${config.paymentMethodSlug}-new-payment-method"]`),
-      'save-card label should not render',
-    ).not.toBeVisible();
-    await expect(
-      page.locator('text=Save to account'),
       'save-card label should not render',
     ).not.toBeVisible();
   }
