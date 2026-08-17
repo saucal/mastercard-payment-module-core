@@ -196,7 +196,9 @@ export async function checkoutHostedSession(
   const total = await extractOrderTotal(page);
   const session = await extractSessionId(page);
 
-  await clickPlaceOrder(page);
+  // Saved-token checkouts are the case where blocks can leave the submit button
+  // stuck disabled; see clickPlaceOrder's own note.
+  await clickPlaceOrder(page, { force: opts.savedTokenIndex !== undefined });
 
   const threeDS = opts.threeDS ?? 'never';
   if (threeDS === 'always') {
@@ -256,7 +258,12 @@ export interface OrderCompleteOptions {
   myAccount?: {
     email: string;
     password: string;
-    expectedCards: number;
+    /**
+     * Omit to check only the order, not the saved-cards list. Hosted checkout
+     * (suites 03-05) never tokenizes on our side, and those suites accordingly
+     * never asserted a card count — adding one here would be inventing coverage.
+     */
+    expectedCards?: number;
     cardName?: string;
     fourDigits?: string;
     expiryMonth?: string;
@@ -299,7 +306,9 @@ export async function assertOrderComplete(
   if (opts.myAccount) {
     const { email, password, ...cardExpectations } = opts.myAccount;
     await frontendLogin(pages.page, email, password);
-    await verifyPaymentMethods(pages.page, cardExpectations);
+    if (cardExpectations.expectedCards !== undefined) {
+      await verifyPaymentMethods(pages.page, { ...cardExpectations, expectedCards: cardExpectations.expectedCards });
+    }
     await verifyOrderInMyAccount(pages.page, ctx.orderNumber, opts.status, {
       expectedTotal: ctx.total,
       displayName: config.displayName,

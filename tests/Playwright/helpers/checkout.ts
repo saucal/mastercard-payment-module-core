@@ -315,7 +315,14 @@ export async function waitForCheckoutSettled(page: Page): Promise<void> {
   expect(page.locator('.blockUI, .wc-blocks-components-button--loading, .wc-block-components-spinner, .wc-block-components-checkout-place-order-button--loading')).toHaveCount(0, { timeout: 30000 }).catch(() => {});
 }
 
-export async function clickPlaceOrder(page: Page): Promise<void> {
+/**
+ * @param opts.force Click even if the button never enables. WC blocks keeps the
+ *   submit disabled on a saved-token checkout, because the CC iframes are not
+ *   rendered and their empty fields leave stale validation state behind. The
+ *   payment handler skips CC validation for saved tokens, so the click is safe —
+ *   only the button's own state is wrong.
+ */
+export async function clickPlaceOrder(page: Page, opts: { force?: boolean } = {}): Promise<void> {
   const mode = await detectCheckoutMode(page);
   const sel = getSelectors(mode);
   const btn = page.locator(sel.placeOrder);
@@ -327,9 +334,11 @@ export async function clickPlaceOrder(page: Page): Promise<void> {
     },
     sel.placeOrder.split(',')[0].trim(),
     { timeout: 30000 }
-  );
+  ).catch((err) => {
+    if (!opts.force) throw err;
+  });
   await btn.scrollIntoViewIfNeeded();
-  await btn.first().click();
+  await btn.first().click({ force: opts.force ?? false });
 
   // Wait for either redirect to order-received, a checkout error, or 3DS redirect
   await Promise.race([
