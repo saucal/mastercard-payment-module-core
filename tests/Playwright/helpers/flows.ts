@@ -80,6 +80,24 @@ export async function collectOrderReceivedData(page: Page): Promise<OrderReceive
 
 // ─── Checkout orchestration ───────────────────────────────────────────────────
 
+/** Pay-for-order entry, shared by both orchestrators. Returns the pay date. */
+async function gotoPayForOrder(page: Page, url: string): Promise<string> {
+  await page.goto(url);
+  await page.waitForLoadState('load');
+  // Where we ended up matters more than where we aimed: an unroutable pay URL
+  // lands on a 404 or redirects to my-account, and the next failure would be
+  // the generic "Could not detect checkout mode".
+  await logOrderContext('order-pay page', {
+    requested: url,
+    landedOn: page.url(),
+    title: await page.title(),
+    hasClassicForm: await page.locator('form.woocommerce-checkout').count(),
+    hasOrderReviewForm: await page.locator('form#order_review').count(),
+    hasBlocksCheckout: await page.locator('.wp-block-woocommerce-checkout').count(),
+  });
+  return new Date().toISOString().slice(0, 19);
+}
+
 /**
  * Everything a downstream assertion needs about one completed checkout.
  *
@@ -101,7 +119,15 @@ export interface CheckoutContext {
 }
 
 export interface HostedSessionCheckoutOptions {
-  productId: number;
+  /** Cart entry. Omit only when passing payForOrder. */
+  productId?: number;
+  /**
+   * Pay-for-order entry (suite 12): skip the cart and drive an existing pending
+   * order's pay page. `total` defaults to the REST order's own total, which is
+   * where the pay-for-order cases read it from — the order-pay page does not
+   * reliably render a row extractOrderTotal can scrape.
+   */
+  payForOrder?: { url: string; total?: string };
   /**
    * Always required. On the saved-token path the card is not typed in, but the
    * log assertions still match against the card the token represents — so pass
@@ -160,16 +186,27 @@ export async function checkoutHostedSession(
     await frontendLogin(page, opts.loginAs.email, opts.loginAs.password);
   }
 
-  const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
-  const payDate = await addToCartAndCheckout(page, opts.productId);
+  expect(
+    (opts.productId === undefined) !== (opts.payForOrder === undefined),
+    'pass exactly one of productId or payForOrder',
+  ).toBe(true);
 
-  // A logged-in returning customer already has billing pre-filled and shows no
-  // account checkbox, so only fill when there is a reason to.
-  if (!opts.loginAs || opts.billing) {
-    await fillBilling(page, opts.billing ?? defaultBilling);
-  }
-  if (opts.createAccount) {
-    await createAccountAtCheckout(page, opts.createAccount);
+  const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
+
+  let payDate: string;
+  if (opts.payForOrder) {
+    payDate = await gotoPayForOrder(page, opts.payForOrder.url);
+  } else {
+    payDate = await addToCartAndCheckout(page, opts.productId!);
+
+    // A logged-in returning customer already has billing pre-filled and shows no
+    // account checkbox, so only fill when there is a reason to.
+    if (!opts.loginAs || opts.billing) {
+      await fillBilling(page, opts.billing ?? defaultBilling);
+    }
+    if (opts.createAccount) {
+      await createAccountAtCheckout(page, opts.createAccount);
+    }
   }
 
   await selectPaymentMethod(page, config, opts.useNewToken ?? false);
@@ -181,8 +218,16 @@ export async function checkoutHostedSession(
   }
 
   if (opts.expectNoSaveCardCheckbox) {
+    // Both locators: the classic label and the blocks-side wording. Suite 11
+    // (saved_cards off) checked both, and "no save-card UI" is only true when
+    // neither is there — the guest case in suite 01 sees neither either way.
     await expect(
       page.locator(`label[for="wc-${config.paymentMethodSlug}-new-payment-method"]`),
+      'save-card label should not render',
+    ).not.toBeVisible();
+    await expect(
+      page.locator('text=Save to account'),
+      'save-card label should not render',
     ).not.toBeVisible();
   }
   if (opts.saveCard) {
@@ -199,7 +244,8 @@ export async function checkoutHostedSession(
     await answerDccOffer(page, config, opts.dccChoice ?? 'reject');
   }
 
-  const total = await extractOrderTotal(page);
+  // The order-pay page has no scrapeable total; it comes off the REST order below.
+  const pageTotal = opts.payForOrder ? '' : await extractOrderTotal(page);
   const session = await extractSessionId(page);
 
   // Saved-token checkouts are the case where blocks can leave the submit button
@@ -214,7 +260,13 @@ export async function checkoutHostedSession(
   }
 
   const received = await collectOrderReceivedData(page);
-  await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, received);
+  // Skip the total on the pay-for-order path: REST returns "10.00" while the
+  // order-received page may render locale-formatted "10,00 $".
+  await assertOrderReceived(
+    page,
+    { displayName: config.displayName, expectedTotal: opts.payForOrder ? undefined : pageTotal },
+    received,
+  );
   expect(received.orderNumber, 'order number should be present on order-received').toBeTruthy();
   await verifyCartEmpty(page);
 
@@ -229,7 +281,7 @@ export async function checkoutHostedSession(
     transactionId: transactionId!,
     order,
     session,
-    total,
+    total: opts.payForOrder ? (opts.payForOrder.total ?? String(order.total)) : pageTotal,
     payDate,
     logOffset,
     card: opts.card,
@@ -293,20 +345,7 @@ export async function checkoutHostedCheckout(
   let total: string;
 
   if (opts.payForOrder) {
-    await page.goto(opts.payForOrder.url);
-    await page.waitForLoadState('load');
-    // Where we ended up matters more than where we aimed: an unroutable pay URL
-    // lands on a 404 or redirects to my-account, and the next failure would be
-    // the generic "Could not detect checkout mode".
-    await logOrderContext('order-pay page', {
-      requested: opts.payForOrder.url,
-      landedOn: page.url(),
-      title: await page.title(),
-      hasClassicForm: await page.locator('form.woocommerce-checkout').count(),
-      hasOrderReviewForm: await page.locator('form#order_review').count(),
-      hasBlocksCheckout: await page.locator('.wp-block-woocommerce-checkout').count(),
-    });
-    payDate = new Date().toISOString().slice(0, 19);
+    payDate = await gotoPayForOrder(page, opts.payForOrder.url);
     total = opts.payForOrder.total;
   } else {
     payDate = await addToCartAndCheckout(page, opts.productId!);
