@@ -103,6 +103,21 @@ cd tests/Playwright && npx tsc --noEmit \
   && echo "INVENTORY UNCHANGED ($(wc -l < "$SP/names-after.txt") tests)"
 ```
 
+> **One expected diff, from Task 4 Step 4.** The normalized line still carries the
+> spec-file path, and collapsing suites 08 and 09 moved their twelve tests'
+> declaration site to `_shared/session-validation-cases.ts`. So this gate reports
+> twelve changed lines and `--list` reports **17 files, not 18**, while the
+> describe-and-test names are byte-identical. To check names alone, drop the file
+> column too:
+>
+> ```bash
+> ... | sed -E 's/:[0-9]+:[0-9]+ //' | grep '›' \
+>     | sed -E 's#^  \[chromium\] › [^›]+› ##' | sort
+> ```
+>
+> Playwright still schedules the two spec files independently — a run puts classic
+> and blocks on separate workers and separate installs.
+
 - [x] **Step 2: Add `CheckoutContext` and `checkoutHostedSession` to `flows.ts`**
 
 Append to `tests/Playwright/helpers/flows.ts`:
@@ -726,13 +741,13 @@ them in the next task."
 - Consumes: everything produced by Tasks 1-3.
 - Produces: `describeSessionValidationCases(mode: 'classic' | 'blocks')` from the new `_shared` module, called by suites 08 and 09.
 
-- [ ] **Step 1: Port suite 02 (blocks capture) — five cases**
+- [x] **Step 1: Port suite 02 (blocks capture) — five cases** — `db3396e`
 
 02 is **not** a copy of 01. It has five cases, not seven: no MC-006, no MC-007, and its MC-010 is "Logged user pay with saved CC" where 01's MC-010 is "second saved CC". **Do not merge 02 into 01's factory** — that would silently change coverage. Thin it independently, using the same shape as Task 2 Step 3, with `switchCheckoutMode('blocks')`.
 
 Expected result: 666 → roughly 120 lines. This is the single biggest reduction in the suite.
 
-- [ ] **Step 2: Run suite 02 live**
+- [x] **Step 2: Run suite 02 live** — `db3396e`
 
 ```bash
 npx playwright test '02-'
@@ -740,7 +755,7 @@ npx playwright test '02-'
 
 Expected: 5 passed.
 
-- [ ] **Step 3: Commit, then repeat for the rest in these batches**
+- [x] **Step 3: Commit, then repeat for the rest in these batches** — batches a-f in `8883db4`, `1564926`, `3e4265f` and the 13-15 commit below
 
 Port and verify one batch at a time. Each batch is a commit and a live run — do not batch the runs, because a break in one suite is far cheaper to locate against one changed suite than five.
 
@@ -752,6 +767,33 @@ Port and verify one batch at a time. Each batch is a commit and a live run — d
 | d | 10, 11 (declined, save-cc-off) | `assertCaptureLogTrail` |
 | e | 12, 13 (pay-for-order, add-payment-method) | `assertCaptureLogTrail` |
 | f | 14, 15 (authorize/capture/void, refund) | `assertAuthorizeLogTrail` + `assertCaptureOperationLog` |
+
+> **What the table got wrong, as executed.** Four of these six rows needed
+> correcting against the live specs. Recorded here because the sketch reads as
+> authoritative and the specs are what actually hold.
+>
+> - **Row b, suite 07** — runs `_3d_secure: 'no'` and asserts
+>   `INITIATE_AUTHENTICATION` / `AUTHENTICATE_PAYER` are *absent*. The composite
+>   required them present. Added `expect3DS?: boolean`.
+> - **Row b, suite 06** — pins a specific final auth status per case and runs
+>   `verifyAuthenticationResult` on it. The composite only probed for existence,
+>   and only for challenge cards, so MC-051 (`SUCCESSFUL`) and MC-052
+>   (`ATTEMPTED`) would have become the same test. Added `authStatus?`.
+> - **Row d, suite 10** — **not ported, on purpose.** A declined checkout never
+>   reaches order-received, so `checkoutHostedSession`'s order-received and
+>   empty-cart assertions do not apply, and the PAY log is a `FAILURE`, so no
+>   trail composite fits. It is already 148 lines with its own local
+>   `pickFailedOrderSince`. Porting it would mean a fourth orchestrator for three
+>   cases sharing fifteen lines.
+> - **Row e, suite 13** — only MC-051 of its ten cases is a checkout; the rest
+>   drive `/my-account/add-payment-method` and never place an order. Expect a
+>   small line delta here (332 → 288), not a large one.
+> - **Row f, suite 15** — is PURCHASE + REFUND. There is no authorize trail and
+>   no capture operation, so neither listed composite applies. It asserts no
+>   checkout trail at all, deliberately: the REFUND is what is under test.
+>
+> Hosted checkout also needed its own orchestrator, `checkoutHostedCheckout`,
+> which Task 1 did not build — twelve cases were repeating its ~25 lines.
 
 Per batch:
 
@@ -766,7 +808,7 @@ Then run **the inventory gate** (Task 1, Step 1), and commit:
 git add -A tests/Playwright/tests && git commit -m "test: port suites 03-05 onto the flows layer"
 ```
 
-- [ ] **Step 4: Collapse suites 08 and 09 onto one shared factory**
+- [x] **Step 4: Collapse suites 08 and 09 onto one shared factory** — `16d2ffb`
 
 Unlike 01/02, these two are genuinely identical: six cases, same ids, same names (`MC-001 - Session loading`, `MC-002 - Place order without CC info`, and four `MC-003` variants). The only difference is classic vs blocks, which `switchCheckoutMode` + `getSelectors(mode)` already parameterize.
 
