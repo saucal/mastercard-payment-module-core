@@ -136,7 +136,20 @@ status filters `?pre_order_status=completed|cancelled`.
 > for product 4789. Any new test must locate its own order by number, never by
 > position in the list.
 
-## Companion plugin — the deployed build is stale, not deficient
+## Companion plugin — RESOLVED 2026-08-17
+
+> **This blocker is closed.** All three installs now serve all 8 `custom/v1`
+> routes, `get-mail` and `install-plugin` included:
+>
+> ```sh
+> curl -s "$WP_BASE_URL/wp-json/custom/v1" | jq -r '.routes|keys[]'
+> ```
+>
+> **Email-assertion failures are real failures again** — do not write them off as
+> environmental. The rest of this section is kept as the diagnosis of what was
+> wrong between 2026-08-13 and the deploy, not as current state.
+
+### Original diagnosis (2026-08-13) — the deployed build was stale, not deficient
 
 The suite needs `get-log`, `get-mail`, `get-webhook-log`, `update-option`,
 `to_checkout_classic`, `to_checkout_blocks` in namespace `custom/v1`.
@@ -174,8 +187,8 @@ curl -s -u "$WP_USERNAME:$WP_API_PASS" "$WP_BASE_URL/wp-json/custom/v1" | jq -r 
 
 `update-option` is POST-only — a GET returns 404 and that is not a fault.
 
-**Until `get-mail` is back, treat any email-assertion failure as environmental.**
-It is not a gateway or test defect.
+~~Until `get-mail` is back, treat any email-assertion failure as environmental.~~
+Superseded — see the RESOLVED banner at the top of this section.
 
 ## Gateway settings observed
 

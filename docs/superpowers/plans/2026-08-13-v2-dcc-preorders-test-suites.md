@@ -436,7 +436,7 @@ Extend the `./assertions` and `./admin-orders` imports at the top of `flows.ts` 
 
 - [x] **Step 2: Verify compile + inventory** — passed in `d4e821a` (94 tests, unchanged).
 
-- [ ] **Step 3: Port the remaining six cases of suite 01**
+- [x] **Step 3: Port the remaining six cases of suite 01** — `b2a4325`
 
 MC-004 is already done (Task 1). Six left: MC-005 through MC-010.
 
@@ -486,7 +486,7 @@ The remaining six map as follows. Keep every `AUDIT 2026-04-29 vs GI:` comment b
 | MC-008 | `physical`, `mastercard2`, `loginAs: mc006`, `useNewToken: true` | post ✓ token ✗ details ✓ | Processing, captured, myAccount 1 card |
 | MC-010 | `physical`, `card: cards.mastercard3`, `loginAs: mc006`, `savedTokenIndex: 2`, `threeDS: 'maybe'` | post ✗ token ✗ details ✗ | Processing, captured, myAccount 2 cards |
 
-- [ ] **Step 4: Run the whole suite 01 live**
+- [x] **Step 4: Run the whole suite 01 live** — `b2a4325`
 
 ```bash
 cd tests/Playwright   # if not already there
@@ -495,7 +495,7 @@ npx playwright test '01-'
 
 Expected: 7 passed. This suite is `describe.serial` and MC-007 onward depend on the card MC-006 saved, so a single-case run is not sufficient evidence here.
 
-- [ ] **Step 5: Confirm the line count moved the right way**
+- [x] **Step 5: Confirm the line count moved the right way** — `b2a4325`
 
 ```bash
 wc -l tests/Playwright/tests/01-hosted-session-capture-classic/suite.spec.ts
@@ -503,7 +503,7 @@ wc -l tests/Playwright/tests/01-hosted-session-capture-classic/suite.spec.ts
 
 Expected: roughly 150 lines, down from 485. If it is still over 250, inline blocks were left behind — find them.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — `b2a4325`
 
 ```bash
 git add tests/Playwright/helpers/flows.ts tests/Playwright/tests/01-hosted-session-capture-classic/suite.spec.ts
@@ -526,7 +526,7 @@ live run and an unchanged --list inventory."
 - Consumes: `getLogs`, `LogEntry`, `LogResponse` from `./wc-api`; the existing private-in-spirit `verifySessionGet`, `verifySessionGetCardDetails`, `verifyTokenLogsEmpty`, `verifyAuthorizeCaptureLog`, `verifyInitiateAuthentication`, `verifyAuthenticatePayer` in this same file.
 - Produces: `assertAuthorizeLogTrail(expected: AuthorizeLogTrailExpected)` and `assertHostedCheckoutLogTrail(expected: HostedCheckoutLogTrailExpected)`. Tasks 4 and 9 call them. Both accept a spread `CheckoutContext` plus their own flags, exactly like `assertCaptureLogTrail`.
 
-- [ ] **Step 1: Add `assertAuthorizeLogTrail`**
+- [x] **Step 1: Add `assertAuthorizeLogTrail`** — `0e55529`
 
 Append to `helpers/assertions.ts`. This is `assertCaptureLogTrail` with `apiOperation: 'AUTHORIZE'` in place of `'PAY'`, plus an optional follow-up CAPTURE assertion for the authorize-then-capture flows:
 
@@ -644,7 +644,7 @@ export async function assertCaptureOperationLog(expected: {
 }
 ```
 
-- [ ] **Step 2: Add `assertHostedCheckoutLogTrail`**
+- [x] **Step 2: Add `assertHostedCheckoutLogTrail`** — `0e55529`
 
 Hosted checkout has a genuinely *shorter* trail — MPGS runs `INITIATE_AUTHENTICATION` / `AUTHENTICATE_PAYER` / `PAY` inside its own iframe on its own domain, so those never reach our server log. The README documents this. Asserting them would be wrong, not merely absent.
 
@@ -698,13 +698,13 @@ export async function assertHostedCheckoutLogTrail(expected: HostedCheckoutLogTr
 
 > **Step 2 carries real uncertainty.** The exact shape of the hosted-checkout retrieve response is the one thing here not already proven by an existing passing assertion. Suites 03/04/05 pass today with inline assertions — before writing this composite, read `tests/03-hosted-checkout-embedded-capture/suite.spec.ts:100-130` and mirror what it actually checks rather than the sketch above. If they differ, the existing spec is the authority: it is green against the live gateway and this is not.
 
-- [ ] **Step 3: Verify compile + inventory**
+- [x] **Step 3: Verify compile + inventory** — `0e55529`
 
 Run **the inventory gate** (Task 1, Step 1).
 
 Expected: silent, `INVENTORY UNCHANGED`. The composites have no callers yet, so this only proves they compile.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit** — `0e55529`
 
 ```bash
 git add tests/Playwright/helpers/assertions.ts
@@ -906,7 +906,7 @@ assertion map documented three modules deleted in the three-layer refactor."
 **Interfaces:**
 - Produces: the discovery note (input to Tasks 7-9), plus `config.products.preOrderUpfront`, `config.products.preOrderRelease`, and `config.dccMetaKeys` on `PluginConfig`.
 
-- [ ] **Step 1: Confirm the environment prerequisites the whole phase rests on**
+- [x] **Step 1: Confirm the environment prerequisites the whole phase rests on** — `01bf0f6`
 
 ```bash
 source tests/Playwright/.env
@@ -924,7 +924,7 @@ wp option get "woocommerce_${GATEWAY_SLUG}_settings" --format=json | jq '.curren
 
 Expected: the pre-orders plugin listed; `debug` is `"yes"` (without it nothing is logged and every log assertion fails).
 
-- [ ] **Step 2: Find the two pre-order products and record their ids**
+- [x] **Step 2: Find the two pre-order products and record their ids** — `78f3f25`
 
 The two pre-order paths behave completely differently and both need a product:
 - **charged upfront** → normal `PURCHASE`, pre-order marked complete at checkout
@@ -939,7 +939,7 @@ wp post meta get <ID> _wc_pre_orders_when_to_charge   # 'upfront' | 'upon_releas
 
 Record both ids. If only one exists, create the other in the admin — a charge-upon-release product is mandatory for PO-002 through PO-005 and there is no way to test that path without one.
 
-- [ ] **Step 3: Find a card/currency pair that actually produces a DCC offer**
+- [x] **Step 3: Find a card/currency pair that actually produces a DCC offer** — `01bf0f6`
 
 DCC only quotes when the card's billing currency differs from the order currency. The store stays in its normal currency — **no store-currency switching is needed for gateway DCC**, which is why scope was set to the gateway feature only. What is needed is a test card issued outside that currency.
 
@@ -964,17 +964,17 @@ Record, for the card that produces an offer:
 - whether `input[name="dccOfferState"]` renders as one hidden input or several radios, and the exact `value` of each. `includes/GatewayAddons/DynamicCurrencyConversion.php:203` compares the literal string `'Accept'`, so anything else maps to `DECLINED` — confirm the real values rather than assuming.
 - the `value` of `#<slug>_dcc_request_id` after the quote
 
-- [ ] **Step 4: Find the pre-order release trigger**
+- [x] **Step 4: Find the pre-order release trigger** — `01bf0f6`
 
 `includes/GatewayAddons/PreOrders.php:73` hooks `wc_pre_orders_process_pre_order_completion_payment_<gateway>`, fired by the Pre-Orders plugin when a pre-order is released. Find how an admin fires it: locate the Pre-Orders admin screen, and record the exact URL, the control (bulk action vs per-row link), and its selector.
 
 Note also that `PreOrders.php:309` hides the gateway capture metabox for any pre-order — so the release cannot be triggered through the normal capture form, and PO-004 asserts that metabox is absent.
 
-- [ ] **Step 5: Write the discovery note**
+- [x] **Step 5: Write the discovery note** — `01bf0f6`
 
 Create `docs/superpowers/notes/2026-08-13-dcc-preorder-discovery.md` with: the confirmed REST routes, both pre-order product ids and their `_wc_pre_orders_when_to_charge` values, the DCC-producing card number, the verbatim offer-area HTML, the exact `dccOfferState` control shape and values, the `dcc_request_id` format, and the pre-order release URL + selector. Anything that could not be confirmed goes in an explicit "unresolved" section — Tasks 7-9 must not invent a selector for an unresolved item.
 
-- [ ] **Step 6: Extend `plugin-config.ts` with what was found**
+- [x] **Step 6: Extend `plugin-config.ts` with what was found** — `01bf0f6`
 
 `plugin-config.types.ts` — add to `PluginConfig`:
 
@@ -1025,7 +1025,7 @@ PRODUCT_PREORDER_RELEASE=
 CARD_DCC_FOREIGN=
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit** — `01bf0f6`
 
 ```bash
 git add docs/superpowers/notes/2026-08-13-dcc-preorder-discovery.md \
@@ -1052,7 +1052,7 @@ observed DOM rather than guessed selectors."
 - Consumes: the discovery note's confirmed selectors; `config.dccMetaKeys`; `helpers/wc-api.ts#getOrderMeta`.
 - Produces: `waitForDccQuote`, `respondToDccOffer`, `readDccRequestId`, `assertNoDccQuote` (in `dcc.ts`); `assertDccOrderMeta`, `assertDccReceiptRow`, `assertDccAdminPanel`, `assertDccQuoteLog` (in `assertions.ts`). Task 8 calls all of them.
 
-- [ ] **Step 1: Write `helpers/dcc.ts`**
+- [x] **Step 1: Write `helpers/dcc.ts`** — `c7325c2`
 
 ```ts
 import { Page, expect } from '@playwright/test';
