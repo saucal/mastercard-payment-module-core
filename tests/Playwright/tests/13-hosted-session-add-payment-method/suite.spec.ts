@@ -1,33 +1,19 @@
 import { test, expect } from '../../fixtures/test';
 import { Page } from '@playwright/test';
-import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getOrderMeta, getLogEntryCount, getLogs } from '../../helpers/wc-api';
-import { addToCartAndCheckout } from '../../helpers/cart';
-import {
-  fillBilling,
-  selectPaymentMethod,
-  clickPlaceOrder,
-  selectSavedToken,
-} from '../../helpers/checkout';
+import { switchCheckoutMode, configureGateway, getLogEntryCount, getLogs } from '../../helpers/wc-api';
 import {
   fillHostedSessionCC,
   fillHostedSessionCCPartial,
   assertSessionFieldsPresent,
 } from '../../helpers/hosted-session';
 import { handle3DSChallenge } from '../../helpers/three-ds';
-import { collectOrderReceivedData } from '../../helpers/flows';
+import { checkoutHostedSession, assertOrderComplete } from '../../helpers/flows';
 import { selectGatewayOnAddPaymentMethod, deletePaymentMethod } from '../../helpers/my-account';
 import { frontendLogin, registerUser } from '../../helpers/wp-login';
 import { waitForUnblock } from '../../helpers/block-ui';
-import { navigateToOrder } from '../../helpers/admin-orders';
 import {
-  assertOrderStatus,
-  assertPaymentMethodMeta,
-  assertCapturedNote,
-  verifySessionGet,
+  assertCaptureLogTrail,
   verifyTokenLog,
-  verifyAuthorizeCaptureLog,
-  verifyAdminEmail,
-  assertOrderReceived,
   verifyPaymentMethods,
 } from '../../helpers/assertions';
 import config from '../../plugin-config';
@@ -51,6 +37,9 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
   // MC-050 saves a Visa challenge card; MC-051 charges via that token; MC-052 adds a Visa frictionless.
   const card1 = cards.visaChallenge;
   const card2 = cards.visaFrictionless;
+  // Kept as MC-050's own assertion — that MPGS actually minted a token, not just
+  // that WooCommerce said so. It used to be threaded into MC-051's
+  // verifySessionGet as `token:`, which that function never reads.
   let mc050Token: string;
 
 
@@ -108,65 +97,44 @@ test.describe.serial('Hosted Session - Add Payment Method', () => {
   // - JUSTIFIED FIX (cross-cutting): conditional 3DS handler — saved
   //   visaChallenge token still re-challenges depending on issuer behavior.
 
-  test('MC-051 - Logged user pay with saved CC', async ({ page, emailPage, adminPage }) => {
-    await frontendLogin(page, mcEmail, billing.password);
-
-    const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
-    const payDate = await addToCartAndCheckout(page, config.products.physical);
-
-    await fillBilling(page, billing);
-    await selectPaymentMethod(page, config);
-    await selectSavedToken(page, 1);
-
-    await clickPlaceOrder(page);
-    // visaChallenge token still triggers 3DS on subsequent purchases
-    if (card1.challenge) {
-      await handle3DSChallenge(page);
-    }
-    await page.waitForURL(/order-received/, { timeout: 60000 });
-    const result = await collectOrderReceivedData(page);
-    await assertOrderReceived(page, { displayName: config.displayName }, result);
-    const orderNumber = result.orderNumber;
-    expect(orderNumber).toBeTruthy();
-
-    const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
-    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, payDate, logOffset });
-    expect(order.payment_method).toBe(config.paymentMethodSlug);
-    expect(order.payment_method_title).toBe(config.displayName);
-    expect(transactionId).toBeTruthy();
-    const total: string = String(order.total);
-    const session = getOrderMeta(order, config.sessionIdMetaKey) || '';
-
-    const sessionGetLogs = await getLogs(payDate, '/session/', logOffset);
-    expect(sessionGetLogs.logs[0]?.content?.length, 'session GET logs should not be empty').toBeGreaterThan(0);
-    const sessionPut = sessionGetLogs.logs[0].content.find(
-      (l: any) => l.request?.type === 'PUT'
-        && l.request?.body?.apiOperation === 'UPDATE_SESSION'
-        && l.response?.body?.session?.updateStatus === 'SUCCESS'
-    );
-    expect(sessionPut, 'UPDATE_SESSION PUT log entry not found').toBeTruthy();
-    const resolvedSession = sessionPut!.response?.body?.session?.id || session;
-    verifySessionGet(sessionPut!, { session: resolvedSession, card: card1, token: mc050Token });
-
-    const allLogs = await getLogs(payDate, '', logOffset);
-    const logContent = allLogs.logs[0]?.content ?? [];
-    const txFilter = (l: any) => !transactionId || l.request?.url?.includes(transactionId);
-
-    const captureLog = logContent.find(
-      (l: any) => l.request?.body?.apiOperation === 'PAY' && txFilter(l) && l.response?.body?.result === 'SUCCESS'
-    );
-    expect(captureLog, 'PAY log not found').toBeTruthy();
-    verifyAuthorizeCaptureLog(captureLog!, {
-      apiOperation: 'PAY', session: resolvedSession, total, currency: 'USD',
-      transactionId: transactionId!, orderNumber, card: card1,
+  // The one checkout in this suite, so the only case the flows layer applies to.
+  // Everything else here drives /my-account/add-payment-method, which never
+  // places an order.
+  test('MC-051 - Logged user pay with saved CC', async ({ page, adminPage, emailPage }) => {
+    const ctx = await checkoutHostedSession(page, config, {
+      productId: config.products.physical,
+      // The card MC-050's token stands for.
+      card: card1,
+      loginAs: { email: mcEmail, password: billing.password },
+      // Required, despite being logged in: MC-050 created this account with
+      // registerUser, which saves no billing address, so the checkout fields
+      // come up empty and WooCommerce rejects the order. Accounts created at
+      // checkout (suites 01, 02) do have billing and must not be re-filled.
+      billing,
+      savedTokenIndex: 1,
+      // 'maybe', not 'always': a saved challenge token re-challenges only if the
+      // issuer decides to. The pre-port code read
+      // `if (card1.challenge) await handle3DSChallenge(page)`, which is
+      // unconditional for this card and so passed only on runs where the ACS
+      // prompt happened to appear — it timed out waiting for the emulator on a
+      // run where MPGS took the frictionless path. Its own AUDIT note called for
+      // a conditional handler; this is it, and it matches how suites 01, 02 and
+      // 12 treat the same saved-challenge-token case.
+      threeDS: 'maybe',
     });
 
-    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
+    // Saved-token path: no new session POST and no card-details GET; the
+    // composite derives the session from the UPDATE_SESSION PUT.
+    await assertCaptureLogTrail({
+      ...ctx,
+      expectSessionPost: false, expectToken: false, expectCardDetailsFetch: false,
+    });
 
-    await navigateToOrder(adminPage, orderNumber);
-    await assertOrderStatus(adminPage, 'Processing');
-    await assertPaymentMethodMeta(adminPage, config, transactionId);
-    await assertCapturedNote(adminPage, config, transactionId!);
+    await assertOrderComplete(ctx, config, { page, adminPage, emailPage }, {
+      status: 'Processing',
+      note: 'captured',
+      emails: 'admin',
+    });
   });
 
   // === MC-052: Add second payment method ===

@@ -134,7 +134,14 @@ export interface HostedSessionCheckoutOptions {
    * the card that was originally saved.
    */
   card: CardData;
-  /** Defaults to the shared `billing` fixture. Override to vary the email. */
+  /**
+   * Defaults to the shared `billing` fixture. Setting this also FORCES the
+   * billing form to be filled, which matters when combined with `loginAs`:
+   * without it a logged-in buyer's fields are left alone, on the assumption the
+   * account already has an address. That assumption holds for accounts created
+   * at checkout, but NOT for ones made with `registerUser`, which saves no
+   * address — those check out into "Billing First name is a required field".
+   */
   billing?: BillingData;
   /** Log in before adding to cart. */
   loginAs?: { email: string; password: string };
