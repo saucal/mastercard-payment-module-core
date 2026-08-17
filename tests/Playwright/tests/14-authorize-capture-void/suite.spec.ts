@@ -1,52 +1,39 @@
 import { test, expect } from '../../fixtures/test';
-import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getOrderMeta, getLogEntryCount, getLogs } from '../../helpers/wc-api';
-import { addToCartAndCheckout } from '../../helpers/cart';
-import {
-  fillBilling,
-  selectPaymentMethod,
-  clickPlaceOrder,
-  extractOrderTotal,
-  extractSessionId,
-} from '../../helpers/checkout';
-import { fillHostedSessionCC } from '../../helpers/hosted-session';
-import { collectOrderReceivedData } from '../../helpers/flows';
+import { switchCheckoutMode, configureGateway, getLogs } from '../../helpers/wc-api';
+import { checkoutHostedSession, assertOrderComplete } from '../../helpers/flows';
 import { navigateToOrder, capturePayment, voidPayment } from '../../helpers/admin-orders';
 import {
   assertOrderStatus,
   assertCaptureFormVisible,
   assertVoidFormVisible,
-  assertAuthorizedNote,
   assertOrderNoteContains,
-  verifySessionGet,
-  verifyAuthorizeCaptureLog,
+  assertAuthorizeLogTrail,
+  assertCaptureOperationLog,
   verifyVoidLog,
-  verifyTokenLogsEmpty,
-  verifyAdminEmail,
-  assertOrderReceived,
 } from '../../helpers/assertions';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
-import { billing } from '../../fixtures/billing';
-import { logOrderContext } from '../../helpers/debug';
 
 test.describe.serial('Authorize / Capture / Void', () => {
   // GI source: all four MCs use 5123456789012346 = cards.mastercard (frictionless).
   const card = cards.mastercard;
 
-
+  // Every case here authorizes at checkout and then acts from the admin order
+  // screen. The checkout half is an ordinary hosted-session purchase in AUTHORIZE
+  // mode — assertAuthorizeLogTrail covers it — and only the admin half differs.
 
   // === MC-020: Partial capture ===
   // AUDIT 2026-04-29 vs GI:
   // - JUSTIFIED FIX (cross-cutting in this suite): log-based CAPTURE
-  //   assertion via `extractTransactionPutLogs` + `verifyAuthorizeCaptureLog`
-  //   replaces GI's brittle positional `nth-of-type` log indexes —
-  //   parser-stability requirement of the white-label migration.
+  //   assertion via the shared transaction-log helper replaces GI's brittle
+  //   positional `nth-of-type` log indexes — parser-stability requirement of
+  //   the white-label migration.
   // - MISSING: GI also asserts the post-partial-capture rest-amount label
   //   (`${{restTotal}}` shown in the capture form). PW only checks the
   //   "Partially Captured" note + log amount; consider re-adding the form
   //   label assert for UI-coverage parity.
 
-  test('MC-020 - Partial capture', async ({ page, emailPage, adminPage }) => {
+  test('MC-020 - Partial capture', async ({ page, adminPage, emailPage }) => {
     await switchCheckoutMode('classic');
     await configureGateway(config, {
       _3d_secure: 'yes',
@@ -57,51 +44,28 @@ test.describe.serial('Authorize / Capture / Void', () => {
       currency_conversion: 'no',
     });
 
-    const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
-    const payDate = await addToCartAndCheckout(page, config.products.physical);
+    const ctx = await checkoutHostedSession(page, config, {
+      productId: config.products.physical,
+      card,
+    });
 
-    await fillBilling(page, billing);
-    const total = await extractOrderTotal(page);
-    await selectPaymentMethod(page, config);
-    await fillHostedSessionCC(page, card, config);
-    const session = await extractSessionId(page);
+    await assertAuthorizeLogTrail({
+      ...ctx,
+      expectSessionPost: true, expectToken: false, expectCardDetailsFetch: true,
+    });
 
-    await clickPlaceOrder(page);
-    await page.waitForURL(/order-received/, { timeout: 60000 });
-    const result = await collectOrderReceivedData(page);
-    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
-    const orderNumber = result.orderNumber;
-    expect(orderNumber).toBeTruthy();
+    await assertOrderComplete(ctx, config, { page, adminPage, emailPage }, {
+      status: 'On hold',
+      note: 'authorized',
+      // AUTHORIZE mode gates the customer mail on capture.
+      emails: 'admin',
+    });
 
-    const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
-    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, session, total, payDate, logOffset });
-    expect(order.payment_method).toBe(config.paymentMethodSlug);
-    expect(order.payment_method_title).toBe(config.displayName);
-    expect(transactionId).toBeTruthy();
-
-    const sessionGetLogs = await getLogs(payDate, `/session/${session}`, logOffset);
-    expect(sessionGetLogs.logs[0]?.content.length, 'session GET logs should not be empty').toBeGreaterThan(0);
-    const sessionPut = sessionGetLogs.logs[0].content.find(
-      (l: any) => l.request?.type === 'PUT'
-        && l.request?.body?.apiOperation === 'UPDATE_SESSION'
-        && l.response?.body?.session?.updateStatus === 'SUCCESS'
-    );
-    expect(sessionPut, 'UPDATE_SESSION PUT log entry not found').toBeTruthy();
-    verifySessionGet(sessionPut!, { session, card });
-
-    const tokenLogs = await getLogs(payDate, '/token', logOffset);
-    verifyTokenLogsEmpty(tokenLogs);
-
-    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
-
-    await navigateToOrder(adminPage, orderNumber);
-    await assertOrderStatus(adminPage, 'On hold');
-    await assertAuthorizedNote(adminPage, config, transactionId!);
+    // Both forms are still on offer while the authorization is untouched.
     await assertCaptureFormVisible(adminPage, config, true);
     await assertVoidFormVisible(adminPage, config, true);
 
-    const orderTotalNum = parseFloat(String(order.total));
-    const partialAmount = (orderTotalNum / 4).toFixed(2);
+    const partialAmount = (parseFloat(String(ctx.order.total)) / 4).toFixed(2);
     await capturePayment(adminPage, config, partialAmount);
     await assertOrderStatus(adminPage, 'On hold');
     // Partial capture emits a "Partially Captured. Captured Amount: ..." note
@@ -112,15 +76,13 @@ test.describe.serial('Authorize / Capture / Void', () => {
       `${config.displayName} payment was Partially Captured`,
     );
 
-    const transactionLogs = await getLogs(payDate, '/transaction', logOffset);
-    expect(transactionLogs.logs[0]?.content.length, 'transaction PUT logs should not be empty').toBeGreaterThan(0);
-    const captureLog = transactionLogs.logs[0].content.find(
-      (l: any) => l.request?.body?.apiOperation === 'CAPTURE' && l.request?.url?.includes(transactionId!)
-    );
-    expect(captureLog, 'CAPTURE log not found').toBeTruthy();
-    verifyAuthorizeCaptureLog(captureLog!, {
-      apiOperation: 'CAPTURE', total: partialAmount, currency: 'USD',
-      transactionId: transactionId!, orderNumber, card,
+    await assertCaptureOperationLog({
+      payDate: ctx.payDate,
+      logOffset: ctx.logOffset,
+      amount: partialAmount,
+      transactionId: ctx.transactionId,
+      orderNumber: ctx.orderNumber,
+      card,
     });
   });
 
@@ -133,44 +95,24 @@ test.describe.serial('Authorize / Capture / Void', () => {
   //   substring + Processing/Completed status; consider adding form-removal
   //   assertions for parity.
 
-  test('MC-021 - Full capture', async ({ page, emailPage, adminPage }) => {
-    const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
-    const payDate = await addToCartAndCheckout(page, config.products.digital);
+  test('MC-021 - Full capture', async ({ page, adminPage, emailPage }) => {
+    const ctx = await checkoutHostedSession(page, config, {
+      productId: config.products.digital,
+      card,
+    });
 
-    await fillBilling(page, billing);
-    const total = await extractOrderTotal(page);
-    await selectPaymentMethod(page, config);
-    await fillHostedSessionCC(page, card, config);
-    const session = await extractSessionId(page);
+    await assertAuthorizeLogTrail({
+      ...ctx,
+      expectSessionPost: true, expectToken: false, expectCardDetailsFetch: true,
+    });
 
-    await clickPlaceOrder(page);
-    await page.waitForURL(/order-received/, { timeout: 60000 });
-    const result = await collectOrderReceivedData(page);
-    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
-    const orderNumber = result.orderNumber;
-    expect(orderNumber).toBeTruthy();
+    await assertOrderComplete(ctx, config, { page, adminPage, emailPage }, {
+      status: 'On hold',
+      note: 'authorized',
+      emails: 'admin',
+    });
 
-    const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
-    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, session, total, payDate, logOffset });
-    expect(transactionId).toBeTruthy();
-
-    const sessionGetLogs = await getLogs(payDate, `/session/${session}`, logOffset);
-    expect(sessionGetLogs.logs[0]?.content.length, 'session GET logs should not be empty').toBeGreaterThan(0);
-    const sessionPut = sessionGetLogs.logs[0].content.find(
-      (l: any) => l.request?.type === 'PUT'
-        && l.request?.body?.apiOperation === 'UPDATE_SESSION'
-        && l.response?.body?.session?.updateStatus === 'SUCCESS'
-    );
-    expect(sessionPut, 'UPDATE_SESSION PUT log entry not found').toBeTruthy();
-    verifySessionGet(sessionPut!, { session, card });
-
-    await verifyAdminEmail(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
-
-    await navigateToOrder(adminPage, orderNumber);
-    await assertOrderStatus(adminPage, 'On hold');
-    await assertAuthorizedNote(adminPage, config, transactionId!);
-
-    const orderTotalStr = String(order.total);
+    const orderTotalStr = String(ctx.order.total);
     // GI step 314 always fills the capture amount field; without it the
     // gateway's CAPTURE button submits 0 and the order stays On hold.
     await capturePayment(adminPage, config, orderTotalStr);
@@ -178,71 +120,65 @@ test.describe.serial('Authorize / Capture / Void', () => {
     // Reload to refresh select2 status widget — capturePayment posts via WP
     // admin "Order updated" notice but the status dropdown only re-renders
     // on the next page load.
-    await navigateToOrder(adminPage, orderNumber);
-    const statusEl = adminPage.locator('#select2-order_status-container');
-    const status = await statusEl.textContent() || '';
+    await navigateToOrder(adminPage, ctx.orderNumber);
+    const status = await adminPage.locator('#select2-order_status-container').textContent() || '';
     expect(
       ['Processing', 'Completed'].some(s => status.includes(s)),
       `expected Processing or Completed after full capture, got "${status}"`,
     ).toBeTruthy();
     await assertOrderNoteContains(
       adminPage,
-      `${config.displayName} payment was Captured (Order ID: ${transactionId})`,
+      `${config.displayName} payment was Captured (Order ID: ${ctx.transactionId})`,
     );
 
-    const transactionLogs = await getLogs(payDate, '/transaction', logOffset);
-    const captureLog = transactionLogs.logs[0]?.content.find(
-      (l: any) => l.request?.body?.apiOperation === 'CAPTURE' && l.request?.url?.includes(transactionId!)
-    );
-    expect(captureLog, 'CAPTURE log not found').toBeTruthy();
-    verifyAuthorizeCaptureLog(captureLog!, {
-      apiOperation: 'CAPTURE', total: orderTotalStr, currency: 'USD',
-      transactionId: transactionId!, orderNumber, card,
+    await assertCaptureOperationLog({
+      payDate: ctx.payDate,
+      logOffset: ctx.logOffset,
+      amount: orderTotalStr,
+      transactionId: ctx.transactionId,
+      orderNumber: ctx.orderNumber,
+      card,
     });
   });
 
   // === MC-022: Void payment ===
 
-  test('MC-022 - Void payment', async ({ page, adminPage }) => {
-    const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
-    const payDate = await addToCartAndCheckout(page, config.products.physical);
+  test('MC-022 - Void payment', async ({ page, adminPage, emailPage }) => {
+    const ctx = await checkoutHostedSession(page, config, {
+      productId: config.products.physical,
+      card,
+    });
 
-    await fillBilling(page, billing);
-    const total = await extractOrderTotal(page);
-    await selectPaymentMethod(page, config);
-    await fillHostedSessionCC(page, card, config);
+    await assertAuthorizeLogTrail({
+      ...ctx,
+      expectSessionPost: true, expectToken: false, expectCardDetailsFetch: true,
+    });
 
-    await clickPlaceOrder(page);
-    await page.waitForURL(/order-received/, { timeout: 60000 });
-    const result = await collectOrderReceivedData(page);
-    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
-    const orderNumber = result.orderNumber;
-    expect(orderNumber).toBeTruthy();
-
-    const { transactionId } = await verifyOrderViaAPI(orderNumber, config);
-    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, total, payDate, logOffset });
-    expect(transactionId).toBeTruthy();
-
-    await navigateToOrder(adminPage, orderNumber);
-    await assertOrderStatus(adminPage, 'On hold');
-    await assertAuthorizedNote(adminPage, config, transactionId!);
+    await assertOrderComplete(ctx, config, { page, adminPage, emailPage }, {
+      status: 'On hold',
+      note: 'authorized',
+      // This case asserted no mail at all.
+      emails: 'none',
+    });
 
     await voidPayment(adminPage, config);
 
     // Status select is bound at page load; reload to see the new value.
-    await navigateToOrder(adminPage, orderNumber);
+    await navigateToOrder(adminPage, ctx.orderNumber);
     await assertOrderStatus(adminPage, 'Cancelled');
     await assertCaptureFormVisible(adminPage, config, false);
     await assertVoidFormVisible(adminPage, config, false);
     await assertOrderNoteContains(adminPage, 'Authorization was cancelled');
 
-    const transactionLogs = await getLogs(payDate, '/transaction', logOffset);
+    // VOID has no composite on purpose: it is one case in one suite and needs
+    // verifyVoidLog, a different assertion with a different shape.
+    const transactionLogs = await getLogs(ctx.payDate, '/transaction', ctx.logOffset);
     const voidLog = transactionLogs.logs[0]?.content.find(
-      (l: any) => l.request?.body?.apiOperation === 'VOID' && l.request?.url?.includes(transactionId!)
+      (l: any) => l.request?.body?.apiOperation === 'VOID' && l.request?.url?.includes(ctx.transactionId)
     );
     expect(voidLog, 'VOID log not found').toBeTruthy();
     verifyVoidLog(voidLog!, {
-      transactionId: transactionId!, orderNumber, currency: 'USD', card,
+      transactionId: ctx.transactionId, orderNumber: ctx.orderNumber, currency: 'USD', card,
     });
   });
 

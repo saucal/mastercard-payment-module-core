@@ -1,27 +1,15 @@
 import { test, expect } from '../../fixtures/test';
-import { switchCheckoutMode, configureGateway, verifyOrderViaAPI, getLogEntryCount, getLogs } from '../../helpers/wc-api';
-import { addToCartAndCheckout } from '../../helpers/cart';
-import {
-  fillBilling,
-  selectPaymentMethod,
-  clickPlaceOrder,
-  extractOrderTotal,
-} from '../../helpers/checkout';
-import { fillHostedSessionCC } from '../../helpers/hosted-session';
-import { collectOrderReceivedData } from '../../helpers/flows';
+import { switchCheckoutMode, configureGateway, getLogs } from '../../helpers/wc-api';
+import { checkoutHostedSession, assertOrderComplete } from '../../helpers/flows';
 import { navigateToOrder, refundPayment, enterRefundAmount } from '../../helpers/admin-orders';
 import {
   expectedOrderStatus,
   assertOrderStatus,
   assertOrderNoteContains,
   verifyRefundLog,
-  verifyOrderEmails,
-  assertOrderReceived,
 } from '../../helpers/assertions';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
-import { billing } from '../../fixtures/billing';
-import { logOrderContext } from '../../helpers/debug';
 
 test.describe.serial('Refund', () => {
   // GI source: MC-040/041 use 5123456789012346 = cards.mastercard (frictionless).
@@ -30,7 +18,9 @@ test.describe.serial('Refund', () => {
   let mc041OrderNumber: string;
   let mc041Total: string;
 
-
+  // The checkout here is only a fixture for the refund — this suite asserts no
+  // session/token/PAY trail, deliberately, because the REFUND operation is what
+  // is under test. Suites 01-02 already cover the purchase trail itself.
 
   // === MC-040: Full refund ===
   // AUDIT 2026-04-29 vs GI:
@@ -41,7 +31,7 @@ test.describe.serial('Refund', () => {
   //   status changed from Processing to Refunded". PW asserts only "Refund
   //   of" substring + status. Consider adding DOM amount + transition note.
 
-  test('MC-040 - Full refund', async ({ page, emailPage, adminPage }) => {
+  test('MC-040 - Full refund', async ({ page, adminPage, emailPage }) => {
     await switchCheckoutMode('classic');
     await configureGateway(config, {
       _3d_secure: 'yes',
@@ -52,41 +42,27 @@ test.describe.serial('Refund', () => {
       currency_conversion: 'no',
     });
 
-    const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
-    const payDate = await addToCartAndCheckout(page, config.products.physical);
+    const ctx = await checkoutHostedSession(page, config, {
+      productId: config.products.physical,
+      card,
+    });
 
-    await fillBilling(page, billing);
-    const total = await extractOrderTotal(page);
-    await selectPaymentMethod(page, config);
-    await fillHostedSessionCC(page, card, config);
+    await assertOrderComplete(ctx, config, { page, adminPage, emailPage }, {
+      status: 'Processing',
+      note: 'captured',
+    });
 
-    await clickPlaceOrder(page);
-    await page.waitForURL(/order-received/, { timeout: 60000 });
-    const result = await collectOrderReceivedData(page);
-    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
-    const orderNumber = result.orderNumber;
-    expect(orderNumber).toBeTruthy();
-
-    const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
-    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, total, payDate, logOffset });
-    expect(order.payment_method).toBe(config.paymentMethodSlug);
-    expect(order.payment_method_title).toBe(config.displayName);
-    expect(transactionId).toBeTruthy();
-
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
-
-    await navigateToOrder(adminPage, orderNumber);
-    const orderTotalStr = String(order.total);
+    const orderTotalStr = String(ctx.order.total);
     await refundPayment(adminPage, orderTotalStr);
 
     // Status select is bound at page load; reload to see the new value.
-    await navigateToOrder(adminPage, orderNumber);
+    await navigateToOrder(adminPage, ctx.orderNumber);
     await assertOrderStatus(adminPage, 'Refunded');
     await assertOrderNoteContains(adminPage, 'Refund of');
 
-    const transactionLogs = await getLogs(payDate, '/transaction', logOffset);
+    const transactionLogs = await getLogs(ctx.payDate, '/transaction', ctx.logOffset);
     const refundLog = transactionLogs.logs[0]?.content.find(
-      (l: any) => l.request?.body?.apiOperation === 'REFUND' && l.request?.url?.includes(transactionId!)
+      (l: any) => l.request?.body?.apiOperation === 'REFUND' && l.request?.url?.includes(ctx.transactionId)
     );
     expect(refundLog, 'REFUND log not found').toBeTruthy();
     verifyRefundLog(refundLog!, { total: orderTotalStr, currency: 'USD', isPartial: false });
@@ -101,48 +77,39 @@ test.describe.serial('Refund', () => {
   // - MISSING: same DOM-amount assertions as MC-040 (refund-row line_cost,
   //   refunded-total bdi). PW relies on the log-level partialAmount check.
 
-  test('MC-041 - Partial refund', async ({ page, emailPage, adminPage }) => {
-    const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
-    const payDate = await addToCartAndCheckout(page, config.products.digital);
+  test('MC-041 - Partial refund', async ({ page, adminPage, emailPage }) => {
+    // Digital product: WooCommerce auto-completes it, and a partial refund
+    // leaves it Completed rather than moving it to Refunded.
+    const downloadStatus = expectedOrderStatus({ product: 'download', transaction: 'capture' });
 
-    await fillBilling(page, billing);
-    const total = await extractOrderTotal(page);
-    await selectPaymentMethod(page, config);
-    await fillHostedSessionCC(page, card, config);
+    const ctx = await checkoutHostedSession(page, config, {
+      productId: config.products.digital,
+      card,
+    });
 
-    await clickPlaceOrder(page);
-    await page.waitForURL(/order-received/, { timeout: 60000 });
-    const result = await collectOrderReceivedData(page);
-    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: total }, result);
-    const orderNumber = result.orderNumber;
-    expect(orderNumber).toBeTruthy();
+    await assertOrderComplete(ctx, config, { page, adminPage, emailPage }, {
+      status: downloadStatus,
+      note: 'captured',
+    });
 
-    const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
-    await logOrderContext(test.info().title, { orderNumber: orderNumber, transactionId, total, payDate, logOffset });
-    expect(transactionId).toBeTruthy();
-
-    await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
-
-    await navigateToOrder(adminPage, orderNumber);
-
-    const orderTotalStr = String(order.total);
+    const orderTotalStr = String(ctx.order.total);
     const halfAmount = (parseFloat(orderTotalStr) / 2).toFixed(2);
     await refundPayment(adminPage, halfAmount);
 
-    await navigateToOrder(adminPage, orderNumber);
-    await assertOrderStatus(adminPage, expectedOrderStatus({ product: 'download', transaction: 'capture' }));
+    await navigateToOrder(adminPage, ctx.orderNumber);
+    await assertOrderStatus(adminPage, downloadStatus);
     await assertOrderNoteContains(adminPage, 'Refund of');
 
-    const transactionLogs = await getLogs(payDate, '/transaction', logOffset);
+    const transactionLogs = await getLogs(ctx.payDate, '/transaction', ctx.logOffset);
     const refundLog = transactionLogs.logs[0]?.content.find(
-      (l: any) => l.request?.body?.apiOperation === 'REFUND' && l.request?.url?.includes(transactionId!)
+      (l: any) => l.request?.body?.apiOperation === 'REFUND' && l.request?.url?.includes(ctx.transactionId)
     );
     expect(refundLog, 'REFUND log not found').toBeTruthy();
     // For partial refunds, request transaction.amount is the partial — pass it
     // as `total` so verifyRefundLog asserts against the right number.
     verifyRefundLog(refundLog!, { total: halfAmount, currency: 'USD', isPartial: true, partialAmount: halfAmount });
 
-    mc041OrderNumber = orderNumber;
+    mc041OrderNumber = ctx.orderNumber;
     mc041Total = orderTotalStr;
   });
 
