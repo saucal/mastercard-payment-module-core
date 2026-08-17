@@ -988,6 +988,24 @@ export interface CaptureLogTrailExpected {
    * is identical, which is why this is a flag and not a second function.
    */
   apiOperation?: 'PAY' | 'AUTHORIZE';
+  /**
+   * Whether the gateway ran 3DS at all. Defaults to true. Pass false for the
+   * `_3d_secure=no` suites, where the assertion inverts: INITIATE_AUTHENTICATION
+   * and AUTHENTICATE_PAYER must be ABSENT, and the challenge-card
+   * AUTHENTICATION_SUCCESSFUL probe does not apply. Everything else — session,
+   * token, the money-movement operation — is identical either way.
+   */
+  expect3DS?: boolean;
+  /**
+   * Pin the final authentication status and run verifyAuthenticationResult
+   * against that entry — the 3DS suite (06) asserts this per case, including
+   * AUTHENTICATION_ATTEMPTED for a frictionless-attempted card.
+   *
+   * Left unset, the weaker default applies: a challenge card must produce an
+   * AUTHENTICATION_SUCCESSFUL entry somewhere and a frictionless one is not
+   * probed at all, which is all suites 01/02 ever asserted.
+   */
+  authStatus?: 'AUTHENTICATION_SUCCESSFUL' | 'AUTHENTICATION_ATTEMPTED';
 }
 
 /**
@@ -1055,33 +1073,55 @@ export async function assertCaptureLogTrail(expected: CaptureLogTrailExpected): 
   expect(allLogs.logs[0]?.content.length, 'all logs should not be empty').toBeGreaterThan(0);
   const logContent: LogEntry[] = allLogs.logs[0].content;
 
-  const initiateAuthLog = logContent.find(
-    (l: LogEntry) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION' && txFilter(l) && l.response?.body?.result === 'SUCCESS'
-  );
-  expect(initiateAuthLog, 'INITIATE_AUTHENTICATION log not found').toBeTruthy();
-  verifyInitiateAuthentication(initiateAuthLog!, {
-    session: resolvedSession, card: expected.card, transactionId: expected.transactionId, currency,
-  });
-
-  const expectedAuthResult = expected.card.challenge ? 'PENDING' : 'SUCCESS';
-  const authenticatePayerLog = logContent.find(
-    (l: LogEntry) => l.request?.body?.apiOperation === 'AUTHENTICATE_PAYER' && txFilter(l)
-      && l.response?.body?.result === expectedAuthResult
-  );
-  expect(authenticatePayerLog, 'AUTHENTICATE_PAYER log not found').toBeTruthy();
-  verifyAuthenticatePayer(authenticatePayerLog!, {
-    session: resolvedSession, transactionId: expected.transactionId, currency, card: expected.card,
-  });
-
-  // For challenge cards, verify final authentication status after ACS prompt.
-  if (expected.card.challenge) {
-    const authResultLog = logContent.find(
-      (l: LogEntry) => txFilter(l) && (
-        l.response?.body?.authenticationStatus === 'AUTHENTICATION_SUCCESSFUL'
-        || l.response?.body?.order?.authenticationStatus === 'AUTHENTICATION_SUCCESSFUL'
-      )
+  if (expected.expect3DS ?? true) {
+    const initiateAuthLog = logContent.find(
+      (l: LogEntry) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION' && txFilter(l) && l.response?.body?.result === 'SUCCESS'
     );
-    expect(authResultLog, 'AUTHENTICATION_SUCCESSFUL result log not found').toBeTruthy();
+    expect(initiateAuthLog, 'INITIATE_AUTHENTICATION log not found').toBeTruthy();
+    verifyInitiateAuthentication(initiateAuthLog!, {
+      session: resolvedSession, card: expected.card, transactionId: expected.transactionId, currency,
+    });
+
+    const expectedAuthResult = expected.card.challenge ? 'PENDING' : 'SUCCESS';
+    const authenticatePayerLog = logContent.find(
+      (l: LogEntry) => l.request?.body?.apiOperation === 'AUTHENTICATE_PAYER' && txFilter(l)
+        && l.response?.body?.result === expectedAuthResult
+    );
+    expect(authenticatePayerLog, 'AUTHENTICATE_PAYER log not found').toBeTruthy();
+    verifyAuthenticatePayer(authenticatePayerLog!, {
+      session: resolvedSession, transactionId: expected.transactionId, currency, card: expected.card,
+    });
+
+    // Final authentication status. When the caller pins one, that exact status is
+    // required and fully verified; otherwise only a challenge card is probed, and
+    // only for existence.
+    const wantedStatus = expected.authStatus ?? (expected.card.challenge ? 'AUTHENTICATION_SUCCESSFUL' : undefined);
+    if (wantedStatus) {
+      const authResultLog = logContent.find(
+        (l: LogEntry) => txFilter(l) && (
+          l.response?.body?.authenticationStatus === wantedStatus
+          || l.response?.body?.order?.authenticationStatus === wantedStatus
+        )
+      );
+      expect(authResultLog, `${wantedStatus} result log not found`).toBeTruthy();
+      if (expected.authStatus) {
+        verifyAuthenticationResult(authResultLog!, {
+          transactionId: expected.transactionId, currency, authStatus: expected.authStatus,
+        });
+      }
+    }
+  } else {
+    // 3DS inactive: the absence of the auth flow IS the assertion. Note this
+    // holds even for a challenge card — with _3d_secure=no the gateway never
+    // authenticates it, so there is no PENDING result and no ACS prompt.
+    expect(
+      logContent.find((l: LogEntry) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION' && txFilter(l)),
+      'INITIATE_AUTHENTICATION log should NOT be present (3DS inactive)',
+    ).toBeFalsy();
+    expect(
+      logContent.find((l: LogEntry) => l.request?.body?.apiOperation === 'AUTHENTICATE_PAYER' && txFilter(l)),
+      'AUTHENTICATE_PAYER log should NOT be present (3DS inactive)',
+    ).toBeFalsy();
   }
 
   const captureLog = logContent.find(
