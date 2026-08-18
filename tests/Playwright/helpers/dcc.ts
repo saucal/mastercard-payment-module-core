@@ -126,6 +126,22 @@ export async function answerDccOffer(
  * pass simply by running before a quote that does eventually arrive.
  */
 export async function assertNoDccQuote(page: Page, config: PluginConfig, timeout = 8_000): Promise<void> {
+  // No field at all is the strongest form of "no quote", and it is what the
+  // setting-off case produces: display_dcc_info_area prints nothing when the
+  // addon is disabled. Short-circuit here rather than polling, because
+  // inputValue() on a missing element auto-waits for it to appear — roughly 30s,
+  // well past this poll's own timeout — so the poll would expire before its first
+  // iteration ever returned a value. answerDccOffer already guards this way.
+  if (await requestIdField(page, config).count() === 0) {
+    await expect(
+      offerRadio(page, config, 'accept'),
+      'no DCC field, but offer radios rendered anyway',
+    ).toHaveCount(0);
+    return;
+  }
+
+  // Field present: it must stay empty. Polled rather than checked once, since the
+  // quote is async and a bare check would pass simply by running early.
   await expect
     .poll(async () => (await requestIdField(page, config).inputValue().catch(() => '')).length, {
       message: 'a DCC quote arrived where none should have',

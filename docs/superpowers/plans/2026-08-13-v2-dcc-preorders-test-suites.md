@@ -1354,7 +1354,37 @@ Covers what `includes/GatewayAddons/DynamicCurrencyConversion.php` actually does
 **Interfaces:**
 - Consumes: Tasks 1, 2, 7; `config.dccMetaKeys`; the discovery note's card and selectors.
 
-- [ ] **Step 1: Write DCC-001 (accept the offer) and run it**
+> **Three corrections to this task's sketches, all found by running.**
+>
+> 1. **Card and helper names.** The sketch defaulted to `cards.mastercard`, which the
+>    discovery note records as returning the hidden `Unavailable` shape — no offer at
+>    all — so `requireDccOffer` would have failed with nothing wrong. The suite uses
+>    `visaFrictionless` (quotes, and no ACS prompt to confuse a DCC failure with a 3DS
+>    one) and `PAYER_CURRENCY = 'GBP'`. The sketch also called `waitForDccQuote` /
+>    `respondToDccOffer`, which do not exist; the helpers are `requireDccOffer` /
+>    `answerDccOffer`.
+> 2. **`assertNoDccQuote` was broken for its main case.** It polled
+>    `requestIdField.inputValue()`, but when DCC is off that field is never rendered,
+>    and `inputValue()` on a missing element auto-waits ~30s — well past the 8s poll —
+>    so the poll expired before its first iteration returned anything. It could only
+>    pass when the field was present-but-empty, i.e. never for "DCC off". Fixed with the
+>    same `count === 0` guard its sibling `answerDccOffer` already had.
+> 3. **DCC-006 cannot enter a card.** A subscription cart does not reliably mount the
+>    MPGS iframes — the same problem suite 14 documents for MC-061 — so
+>    `fillHostedSessionCC` times out. Adding `subscription: 'yes'` did not help. The case
+>    now asserts the mechanism instead: `dccEnabled` in `core_gateway_params` is added
+>    only by `add_dcc_script_data`, registered only inside `init_dcc_hooks`, the method
+>    that bails on a subscription cart. `toBeUndefined()` proves the filter never ran,
+>    which is distinct from DCC merely being off (that yields `""`). A positive control
+>    on an ordinary cart keeps it non-vacuous — and immediately caught that
+>    `wp_localize_script` serialises the boolean to the string `"1"`.
+>
+> DCC-001 also creates an account and saves the card, so DCC-004 has a token to quote
+> against rather than running a second setup checkout. It uses the flow's
+> `requireDccOffer` / `dccChoice` options, which Task 7 Step 1 added for exactly this and
+> which postdate the sketch's hand-driven version.
+
+- [x] **Step 1: Write DCC-001 (accept the offer) and run it** — passed first run
 
 ```ts
 import { test, expect } from '../../fixtures/test';
@@ -1432,7 +1462,7 @@ npx playwright test '19-' --grep "DCC-001"
 
 Expected: 1 passed. A failure in `waitForDccQuote` means the card/currency pair does not produce an offer — go back to Task 6 Step 3 rather than loosening the assertion.
 
-- [ ] **Step 2: Add DCC-002 (decline) and run**
+- [x] **Step 2: Add DCC-002 (decline) and run**
 
 Same as DCC-001 through the quote, then `respondToDccOffer(page, config, 'decline')`. Assert:
 - `assertDccQuoteLog({ ..., uptake: 'DECLINED' })`
@@ -1441,7 +1471,7 @@ Same as DCC-001 through the quote, then `respondToDccOffer(page, config, 'declin
 - no admin DCC panel: `await expect(adminPage.locator('h4:has-text("Dynamic Currency Conversion")')).toHaveCount(0)`
 - the order total still in the store currency, unchanged
 
-- [ ] **Step 3: Add DCC-003 (offer state not chosen is rejected) and run**
+- [x] **Step 3: Add DCC-003 (offer state not chosen is rejected) and run** — no skip needed; visaFrictionless renders real radios, so an unanswered offer is provokable
 
 `validate_dcc_data` (`DynamicCurrencyConversion.php:153`) adds a checkout error when a `_dcc_request_id` is present but no `dccOfferState` was submitted. Fill the card, wait for the quote, do **not** answer the offer, then place the order and assert the error:
 
@@ -1454,7 +1484,7 @@ Same as DCC-001 through the quote, then `respondToDccOffer(page, config, 'declin
 
 > If the gateway renders the offer as a single *hidden* `dccOfferState` input rather than radios (the `Unavailable` shape, `_hostedSessions.js:1335`), this case cannot be provoked from the UI — the field is always submitted. If the discovery note shows that shape, **skip DCC-003 with an explanatory `test.skip()` naming the reason**; do not delete it, and do not fake the condition by removing the field with JS.
 
-- [ ] **Step 4: Add DCC-004 (saved-token quote) and run**
+- [x] **Step 4: Add DCC-004 (saved-token quote) and run**
 
 Exercises `ajax_dcc_quote`, a different code path from the card-entry quote — it fetches the quote server-side from the stored token instead of from the card number. Reuse the card saved by DCC-001 if it saved one; otherwise run a `saveCard: true` checkout first via `checkoutHostedSession`, then:
 
@@ -1468,7 +1498,7 @@ Exercises `ajax_dcc_quote`, a different code path from the card-entry quote — 
 
 Then the same accept assertions as DCC-001, plus: the quote came from the AJAX endpoint, not the browser-to-gateway call.
 
-- [ ] **Step 5: Add DCC-005 (setting off ⇒ no quote) and run**
+- [x] **Step 5: Add DCC-005 (setting off ⇒ no quote) and run**
 
 ```ts
     await configureGateway(config, { currency_conversion: 'no', /* ...rest as DCC-001 */ });
@@ -1482,7 +1512,7 @@ Then fill the card and `assertNoDccQuote(page, config)`. Also assert the info ar
 
 Finish the checkout and confirm it succeeds normally with no `dcc_*` meta. **This test must restore `currency_conversion: 'yes'` or run last** — the setting is site-global and a leaked `'no'` silently guts every other DCC test.
 
-- [ ] **Step 6: Add DCC-006 (subscription cart ⇒ no quote) and run**
+- [x] **Step 6: Add DCC-006 (subscription cart ⇒ no quote) and run**
 
 `init_dcc_hooks` bails when the cart contains a subscription (`DynamicCurrencyConversion.php:109`), so no DCC script data, no quote. With `currency_conversion: 'yes'` and `subscription: 'yes'`, add `config.products.subscription` to the cart and `assertNoDccQuote(page, config)`.
 
@@ -1492,7 +1522,7 @@ Guard it, since the subscription product depends on WooCommerce Subscriptions be
     test.skip(!config.products.subscription, 'PRODUCT_SUBSCRIPTION not configured');
 ```
 
-- [ ] **Step 7: Run the whole suite and commit**
+- [x] **Step 7: Run the whole suite and commit** — 6 passed in 7.4m, no retries. `--list` now 100 tests in 18 files
 
 ```bash
 npx playwright test '19-'

@@ -116,6 +116,13 @@ export interface CheckoutContext {
   payDate: string;
   logOffset: number;
   card: CardData;
+  /**
+   * The order-received URL, kept because the flow leaves that page — verifyCartEmpty
+   * navigates to the cart. Anything asserting on the receipt itself (the DCC
+   * "Paid Amount:" row) has to come back here. The key is in the query string, so
+   * it re-opens for a guest too.
+   */
+  orderReceivedUrl: string;
 }
 
 export interface HostedSessionCheckoutOptions {
@@ -273,6 +280,7 @@ export async function checkoutHostedSession(
     received,
   );
   expect(received.orderNumber, 'order number should be present on order-received').toBeTruthy();
+  const orderReceivedUrl = page.url();
   await verifyCartEmpty(page);
 
   const { order, transactionId } = await verifyOrderViaAPI(received.orderNumber, config);
@@ -286,6 +294,7 @@ export async function checkoutHostedSession(
     transactionId: transactionId!,
     order,
     session,
+    orderReceivedUrl,
     total: opts.payForOrder ? (opts.payForOrder.total ?? String(order.total)) : pageTotal,
     payDate,
     logOffset,
@@ -385,6 +394,7 @@ export async function checkoutHostedCheckout(
     received,
   );
   expect(received.orderNumber, 'order number should be present on order-received').toBeTruthy();
+  const orderReceivedUrl = page.url();
   await verifyCartEmpty(page);
 
   const { order, transactionId } = await verifyOrderViaAPI(received.orderNumber, config);
@@ -397,6 +407,7 @@ export async function checkoutHostedCheckout(
     subscriptionId: received.subscriptionId,
     transactionId: transactionId!,
     order,
+    orderReceivedUrl,
     // Hosted checkout never exposes the session to the page; the log-trail
     // composite discovers it from INITIATE_CHECKOUT and returns it.
     session: '',
