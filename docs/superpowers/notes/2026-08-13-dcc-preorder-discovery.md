@@ -89,14 +89,40 @@ The offer comes from the MPGS merchant profile and renders on MPGS's own page
 | `#mastercardDisclaimer` | the "MAKE SURE YOU UNDERSTAND THE COSTS…" text |
 | `#order-summary-muted-currency` | order currency, `USD` |
 
-**`#label-home-currency` is the accept selector that was previously unknown** —
-`helpers/dcc.ts#answerHostedCheckoutDcc` currently throws on `'accept'` and can
-now implement it.
+**`#label-home-currency` is the accept selector that was previously unknown.**
+`answerHostedCheckoutDcc` implements both sides as of `c7325c2`.
 
-> Note the payer currency differs between the two paths — GBP on hosted session,
-> BRL on hosted checkout — for the same card. Payer currency is MPGS's choice, so
-> assert *that a conversion happened*, never a specific currency, unless the test
-> pins it deliberately.
+**The pay control is renamed when an offer is showing.** Verified 2026-08-18:
+with a conversion on offer the MPGS page has **`#pay-label-dcc1`** and *no* bare
+`#pay-label`, so anything clicking the latter times out. `clickHostedCheckoutPay`
+now matches `[id^="pay-label"]`. This was a latent break in suites 03-05 too —
+they pass only while MPGS declines to quote their card, which is MPGS's choice and
+not a setting we control.
+
+> Payer currency is MPGS's choice and is **not stable**: the note first recorded
+> BRL here, and a 2026-08-18 run returned GBP for the same card. Assert *that a
+> conversion happened*, never a specific currency, unless a test pins it
+> deliberately. `DccExpected.payerCurrency` is optional for this reason.
+
+**The `dcc_*` meta IS written on this path** — settled by a live run on
+2026-08-18, since the source alone could not say. `process_dcc_data` and
+`render_dcc_data` are registered *before* the `is_hosted_checkout()` guard
+(`DynamicCurrencyConversion.php:42-47`), and MPGS does return
+`currencyConversion` with `uptake=ACCEPTED` on the post-payment retrieve. Order
+6268: rate `0.609999`, `GBP`, `35.11` against a USD `57.56` order.
+
+What does **not** happen here, because `init_dcc_hooks` is past the guard:
+
+| | Hosted session | Hosted checkout |
+| --- | --- | --- |
+| `currency_conversion` setting | gates DCC | **inert** — an offer arrives with it set to `no` |
+| Our own quote call | yes | no — MPGS quotes on its own page |
+| Offer validation (`validate_dcc_data`) | yes | no |
+| `Paid Amount:` receipt row | yes | **no** — `render_dcc_data_receipt` never registered |
+| `dcc_*` meta on accept | yes | yes |
+| Admin DCC panel | yes | yes |
+
+Covered by `tests/21-dcc-hosted-checkout` (DCC-007 accept, DCC-008 reject).
 
 ## Pre-orders
 

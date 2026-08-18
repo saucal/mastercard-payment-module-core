@@ -329,6 +329,18 @@ export interface HostedCheckoutOptions {
   billing?: BillingData;
   loginAs?: { email: string; password: string };
   createAccount?: string;
+  /**
+   * Which side of MPGS's own conversion offer to take. Defaults to 'reject', so a
+   * checkout is not derailed by an offer it did not ask for.
+   *
+   * This offer is NOT the plugin's: init_addon_dcc returns at the
+   * is_hosted_checkout() guard, so the `currency_conversion` setting has no
+   * bearing on it. It comes from the MPGS merchant profile and renders on MPGS's
+   * own page.
+   */
+  dccChoice?: DccChoice;
+  /** Require MPGS to offer a conversion, and fail if it does not. */
+  requireDccOffer?: boolean;
 }
 
 /**
@@ -378,7 +390,13 @@ export async function checkoutHostedCheckout(
 
   await clickPlaceOrderHostedCheckout(page, config, opts.hostedMode);
   await fillHostedCheckoutCC(page, opts.card, config, opts.hostedMode);
-  await clickHostedCheckoutPay(page, config, opts.hostedMode);
+  await clickHostedCheckoutPay(
+    page,
+    config,
+    opts.hostedMode,
+    opts.dccChoice ?? 'reject',
+    opts.requireDccOffer ?? false,
+  );
 
   if (opts.card.challenge) {
     await handle3DSChallenge(page);

@@ -1230,8 +1230,15 @@ export async function assertHostedCheckoutLogTrail(
 // ─── Dynamic Currency Conversion ──────────────────────────────────────────────
 
 export interface DccExpected {
-  /** The payer's currency, i.e. the card's — not the store's. */
-  payerCurrency: string;
+  /**
+   * The payer's currency, i.e. the card's — not the store's.
+   *
+   * Optional, because MPGS picks it and the same card is quoted differently per
+   * path: GBP on hosted session, BRL on hosted checkout (see the discovery note).
+   * Omit it to assert only that a conversion happened — some currency, differing
+   * from the order's — and pin it only where the test means to.
+   */
+  payerCurrency?: string;
 }
 
 /**
@@ -1262,7 +1269,15 @@ export async function assertDccOrderMeta(
 
   expect(rate, 'dcc exchange rate meta missing').toBeTruthy();
   expect(Number(rate), 'dcc exchange rate should be numeric and non-zero').toBeGreaterThan(0);
-  expect(currency, 'dcc currency meta missing').toBe(expected.payerCurrency);
+  expect(currency, 'dcc currency meta missing').toBeTruthy();
+  if (expected.payerCurrency) {
+    expect(currency, 'dcc currency meta').toBe(expected.payerCurrency);
+  } else {
+    // Unpinned: any currency will do, as long as it is not the order's — the same
+    // value would mean nothing was converted.
+    expect(currency, 'payer currency should differ from the order currency')
+      .not.toBe(order.currency);
+  }
   expect(Number(amount), 'dcc converted amount should be numeric and non-zero').toBeGreaterThan(0);
   // The converted amount must differ from the order total — the same number means
   // the "conversion" did nothing and the assertions above would pass vacuously.
@@ -1282,7 +1297,9 @@ export async function assertDccReceiptRow(page: Page, expected: DccExpected): Pr
   await expect(row, 'DCC "Paid Amount" row missing from the receipt').toBeVisible({ timeout: 15_000 });
   // The value is `wc_price(amount, currency) (CURRENCY)` — the code is in the
   // parenthetical, so the row text carries it.
-  await expect(row).toContainText(expected.payerCurrency);
+  if (expected.payerCurrency) {
+    await expect(row).toContainText(expected.payerCurrency);
+  }
 }
 
 /**
@@ -1305,7 +1322,9 @@ export async function assertDccAdminPanel(page: Page, expected: DccExpected): Pr
   ]) {
     await expect(panel, `DCC panel missing "${label}"`).toContainText(label);
   }
-  await expect(panel).toContainText(expected.payerCurrency);
+  if (expected.payerCurrency) {
+    await expect(panel).toContainText(expected.payerCurrency);
+  }
 }
 
 /**

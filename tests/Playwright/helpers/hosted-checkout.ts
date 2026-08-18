@@ -75,6 +75,12 @@ export async function clickHostedCheckoutPay(
   config: PluginConfig,
   mode: HostedCheckoutMode = 'embedded',
   dccChoice: DccChoice = 'reject',
+  /**
+   * Fail if MPGS offered no conversion. For the DCC suite, where the offer is the
+   * subject; ordinary hosted-checkout suites leave it off, since whether MPGS
+   * quotes a given card is its own decision.
+   */
+  requireDcc = false,
 ): Promise<void> {
   const host = getHostedHost(page, config, mode);
   // MPGS renders a DCC accept/reject choice on its own hosted page whenever the
@@ -83,8 +89,20 @@ export async function clickHostedCheckoutPay(
   // MPGS quotes for. Previously an inline `.click().catch(() => {})`, which also
   // swallowed a present-but-unclickable offer and left the failure to surface
   // later as an unexplained stall.
-  await answerHostedCheckoutDcc(host, dccChoice);
-  await host.locator('#pay-label').click();
+  const answeredDcc = await answerHostedCheckoutDcc(host, dccChoice);
+  if (requireDcc) {
+    expect(
+      answeredDcc,
+      'MPGS offered no currency conversion on its hosted page. The offer comes from '
+      + 'the merchant profile, not the plugin — currency_conversion cannot enable it.',
+    ).toBe(true);
+  }
+  // MPGS renames the pay control when it is showing a conversion offer: the plain
+  // `#pay-label` is replaced by `#pay-label-dcc1` (indexed, hence the prefix
+  // match), and no bare `#pay-label` exists on that variant. Matching both keeps
+  // this working whether or not MPGS decides to quote the card — which is its
+  // decision, not a setting we control, so suites 03-05 need this too.
+  await host.locator('[id^="pay-label"]').first().click();
   // After submission MPGS either: (a) redirects the top page to the 3DS
   // challenge, (b) redirects to the WC order-received page, (c) stays on
   // the hosted-checkout UI with an error. Race the positive outcomes and
