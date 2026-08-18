@@ -18,9 +18,8 @@ different branding — so one suite covers all consuming plugins, parameterised 
 
 Spec files should read as `config → flow → assertions`.
 
-> `ASSERTION-MAP.md` predates this layout and still refers to `log-verification.ts`,
-> `email-verification.ts` and `order-received.ts`, which no longer exist. Treat it as
-> historical until it is refreshed.
+`ASSERTION-MAP.md` maps each Ghost Inspector assertion phase to the composite that
+covers it, and is current with this layout.
 
 ## Prerequisites
 

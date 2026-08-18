@@ -3,13 +3,59 @@
 This document maps each GI imported step group to its Playwright helper function call.
 Use this when updating suite files to add missing assertions.
 
+## Read this first: specs do not call these functions directly
+
+Suites 01-15 call **composites**, not the per-phase functions below. A spec reads
+`config → flow → assertions` and nothing else:
+
+```typescript
+const ctx = await checkoutHostedSession(page, config, { productId, card });
+await assertCaptureLogTrail({ ...ctx, expectSessionPost: true, expectToken: false, expectCardDetailsFetch: true });
+await assertOrderComplete(ctx, config, { page, adminPage, emailPage }, { status: 'Processing', note: 'captured' });
+```
+
+The phase sections below still describe **what** is asserted and are accurate on
+that. They no longer show how a spec is written. Use this table to find the entry
+point, then read the phase for the detail:
+
+| Phases | Entry point | Module |
+|---|---|---|
+| 2-8, 10 (hosted-session log trail) | `assertCaptureLogTrail`, or `assertAuthorizeLogTrail` for AUTHORIZE mode | `helpers/assertions.ts` |
+| 2, 3, 10 only (hosted checkout) | `assertHostedCheckoutLogTrail` — MPGS runs 3DS and the payment in its own UI, so phases 5-8 never reach our log | `helpers/assertions.ts` |
+| Admin-triggered CAPTURE | `assertCaptureOperationLog` | `helpers/assertions.ts` |
+| 1, plus checkout driving | `checkoutHostedSession` / `checkoutHostedCheckout` | `helpers/flows.ts` |
+| 11, 12, 13 | `assertOrderComplete` | `helpers/flows.ts` |
+| MC-001..MC-003 field validation | `describeSessionValidationCases(mode)` | `tests/_shared/session-validation-cases.ts` |
+
+Composite options that change which phases apply: `expect3DS: false` inverts
+phases 5-7 to assert *absence* (the `_3d_secure=no` suites); `authStatus` pins
+phase 7 to a specific result; `expectSessionPost` / `expectToken` /
+`expectCardDetailsFetch` gate phases 3, 4 and 10.
+
+`audit-assertions.py` mirrors this table in its `COMPOSITE_EXPANSIONS`. Change one,
+change the other, then run `python3 audit-assertions.py --self-check`.
+
+## Module homes
+
+The three-layer refactor deleted `log-verification.ts`, `email-verification.ts`,
+`order-received.ts`, `my-account.ts` and `api.ts` as assertion homes:
+
+| What | Where now |
+|---|---|
+| Every business assertion (`verify*`, `assert*`) | `helpers/assertions.ts` |
+| Log, mail and order fetches (`getLogs`, `verifyOrderViaAPI`, `getOrderMeta`) | `helpers/wc-api.ts` |
+| Order-received page read | `collectOrderReceivedData` in `helpers/flows.ts` |
+| Orchestrators | `helpers/flows.ts` |
+| Admin navigation, capture/void/refund actions | `helpers/admin-orders.ts` |
+| Logins | `helpers/wp-login.ts` |
+
 ## Admin Test Assertion Flow (standard order)
 
 Every admin test follows this sequence. Some phases are conditional (marked with conditions).
 
 ### Phase 1: Get Woo Order Details
 ```typescript
-import { verifyOrderViaAPI, getOrder, getOrderMeta } from '../../helpers/api';
+import { verifyOrderViaAPI, getOrder, getOrderMeta } from '../../helpers/wc-api';
 
 const { order, transactionId } = await verifyOrderViaAPI(orderNumber, config);
 expect(order.payment_method).toBe(config.paymentMethodSlug);
@@ -20,21 +66,28 @@ expect(transactionId).toBeTruthy();
 ```
 
 ### Phase 2: Log Extraction
-```typescript
-import {
-  extractAllLogs, extractSessionPostLogs, extractSessionGetLogs,
-  extractTokenLogs, extractTransactionPutLogs
-} from '../../helpers/log-verification';
 
-const allLogs = await extractAllLogs(payDate);
-const sessionPostLogs = await extractSessionPostLogs(payDate, sessionDate);
-const sessionGetLogs = await extractSessionGetLogs(payDate, session);
-const tokenLogs = await extractTokenLogs(payDate);
+The `extract*Logs` wrappers are gone. There is one fetch, `getLogs(payDate, path,
+logOffset)` in `helpers/wc-api.ts`, and the composites call it — a spec should not
+need to.
+
+```typescript
+import { getLogs } from '../../helpers/wc-api';
+
+const allLogs         = await getLogs(payDate, '', logOffset);
+const sessionPostLogs = await getLogs(payDate, '/session', logOffset);
+const sessionGetLogs  = await getLogs(payDate, `/session/${session}`, logOffset);
+const tokenLogs       = await getLogs(payDate, '/token', logOffset);
+const transactionLogs = await getLogs(payDate, '/transaction', logOffset);
 ```
+
+`logOffset` matters: it is the log-entry count taken *before* checkout, so the
+window excludes earlier orders. `checkoutHostedSession` captures it into
+`ctx.logOffset`; pass that through.
 
 ### Phase 3: Verify Session (conditional: not renewal, not refund-exceed)
 ```typescript
-import { verifySessionPost, verifySessionGet } from '../../helpers/log-verification';
+import { verifySessionPost, verifySessionGet } from '../../helpers/assertions';
 
 const sessionPostLog = sessionPostLogs[0].content[0];
 verifySessionPost(sessionPostLog, {
@@ -50,7 +103,7 @@ verifySessionGet(sessionGetLog, {
 
 ### Phase 4: Verify Token (conditional on savingCC/tokenizedCards)
 ```typescript
-import { verifyTokenLog, verifyTokenLogsEmpty } from '../../helpers/log-verification';
+import { verifyTokenLog, verifyTokenLogsEmpty } from '../../helpers/assertions';
 
 // If guest or not saving CC or tokenizedCards inactive:
 verifyTokenLogsEmpty(tokenLogs);
@@ -62,7 +115,7 @@ verifyTokenLog(tokenLog, { session, card: cards.mastercard });
 
 ### Phase 5: Verify Initiate Authentication (conditional: 3DS active)
 ```typescript
-import { verifyInitiateAuthentication } from '../../helpers/log-verification';
+import { verifyInitiateAuthentication } from '../../helpers/assertions';
 
 const authLog = allLogs[0].content[1]; // index depends on log ordering
 verifyInitiateAuthentication(authLog, {
@@ -72,7 +125,7 @@ verifyInitiateAuthentication(authLog, {
 
 ### Phase 6: Verify Authenticate Payer (conditional: 3DS active)
 ```typescript
-import { verifyAuthenticatePayer } from '../../helpers/log-verification';
+import { verifyAuthenticatePayer } from '../../helpers/assertions';
 
 const payerLog = allLogs[0].content[2]; // or [3] depending on ordering
 verifyAuthenticatePayer(payerLog, {
@@ -82,7 +135,7 @@ verifyAuthenticatePayer(payerLog, {
 
 ### Phase 7: Verify Authentication Result (conditional: 3DS active)
 ```typescript
-import { verifyAuthenticationResult } from '../../helpers/log-verification';
+import { verifyAuthenticationResult } from '../../helpers/assertions';
 
 verifyAuthenticationResult(authResultLog, {
   transactionId, currency: 'USD',
@@ -92,7 +145,7 @@ verifyAuthenticationResult(authResultLog, {
 
 ### Phase 8: Verify Authorize/Capture/Pay
 ```typescript
-import { verifyAuthorizeCaptureLog } from '../../helpers/log-verification';
+import { verifyAuthorizeCaptureLog } from '../../helpers/assertions';
 
 verifyAuthorizeCaptureLog(captureLog, {
   apiOperation: 'PAY', // or 'AUTHORIZE' or 'CAPTURE'
@@ -103,7 +156,7 @@ verifyAuthorizeCaptureLog(captureLog, {
 
 ### Phase 9: Verify Agreement (conditional: subscription)
 ```typescript
-import { verifyAgreement } from '../../helpers/log-verification';
+import { verifyAgreement } from '../../helpers/assertions';
 
 verifyAgreement(log, {
   type: 'RECURRING', amountVariability: 'FIXED',
@@ -113,14 +166,14 @@ verifyAgreement(log, {
 
 ### Phase 10: Verify Saved Token Log (conditional: saving CC)
 ```typescript
-import { verifyTokenLog } from '../../helpers/log-verification';
+import { verifyTokenLog } from '../../helpers/assertions';
 
 verifyTokenLog(tokenLog, { session, card: cards.mastercard });
 ```
 
 ### Phase 11: Email Verification
 ```typescript
-import { verifyOrderEmails, verifyAdminEmail, verifyCustomerEmail } from '../../helpers/email-verification';
+import { verifyOrderEmails, verifyAdminEmail, verifyCustomerEmail } from '../../helpers/assertions';
 
 // For PURCHASE transactions (admin + customer emails):
 await verifyOrderEmails(orderNumber, { paymentMethodTitle: config.displayName });
@@ -145,7 +198,7 @@ await expect(page.locator('li.note.system-note .note_content > p').first()).toCo
 
 ### Phase 13: Check My Account
 ```typescript
-import { verifyPaymentMethods, verifyOrderInMyAccount, verifyCartEmpty } from '../../helpers/my-account';
+import { verifyPaymentMethods, verifyOrderInMyAccount, verifyCartEmpty } from '../../helpers/assertions';
 
 // Verify saved payment methods count and details
 await verifyPaymentMethods(page, { expectedCards: N, cardName: card.name, fourDigits: fourDigits(card) });
@@ -159,7 +212,7 @@ await verifyCartEmpty(page);
 
 ### Phase 14: Check Subscription (conditional)
 ```typescript
-import { verifySubscription } from '../../helpers/my-account';
+import { verifySubscription } from '../../helpers/assertions';
 
 await verifySubscription(page, subscriptionId, {
   expectedStatus: 'Active',
@@ -170,10 +223,13 @@ await verifySubscription(page, subscriptionId, {
 ## Checkout Test Assertion Flow (standard)
 
 ### Save Card Checkbox Assertions
+
+Pass `expectNoSaveCardCheckbox: true` to `checkoutHostedSession`; do not hand-roll
+this.
+
 ```typescript
-// Guest: NOT visible
+// Guest, or saved_cards off: NOT visible. Scoped to our gateway's own label.
 await expect(page.locator(`label[for="wc-${config.paymentMethodSlug}-new-payment-method"]`)).not.toBeVisible();
-await expect(page.locator('text=Save to account')).not.toBeVisible();
 
 // Blocks guest:
 await expect(page.locator('div.wc-block-components-payment-methods__save-card-info input')).not.toBeVisible();
@@ -181,6 +237,14 @@ await expect(page.locator('div.wc-block-components-payment-methods__save-card-in
 // New user with save enabled: IS visible
 // Subscription: NOT visible (forced tokenization)
 ```
+
+> **Do not add `page.locator('text=Save to account')`.** This map used to
+> recommend it and suite 11 carried it. That wording belongs to no gateway in
+> particular — WooCommerce renders the same label for every one — so on a checkout
+> page that also offers PayPal it matches two elements and fails on a strict-mode
+> violation rather than on anything about the payment method under test. The
+> slug-scoped locator above asserts the same thing about the only gateway that
+> matters here.
 
 ### Order Received Assertions
 ```typescript

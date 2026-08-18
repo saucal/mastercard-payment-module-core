@@ -8,18 +8,37 @@ import json
 import os
 import glob
 import re
+import sys
 from collections import defaultdict
 
 # ============================================================
 # Configuration
 # ============================================================
 
-GI_BASE = (
-    "/Users/saggio/Dropbox/@@ Portable Soft/GIT/docker-environment"
-    "/data/apps/mastercard/public_html/wp-content/plugins"
-    "/woocommerce-gateway-acme-mpgs/ghost-inspector-export"
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+# Both default to nothing so a missing GI export fails with a clear message
+# instead of silently auditing zero suites against a path that never existed.
+GI_BASE = os.environ.get("GI_BASE", "")
+PW_BASE = os.environ.get(
+    "PW_BASE",
+    os.path.join(HERE, "tests", "Playwright", "tests"),
 )
-PW_BASE = "/tmp/payment-core-playwright/tests/Playwright/tests"
+
+
+def require_paths() -> None:
+    """
+    Checked when an audit actually runs, not at import — `--self-check` is
+    useful precisely when no GI export is on hand.
+    """
+    if not GI_BASE or not os.path.isdir(GI_BASE):
+        raise SystemExit(
+            "GI_BASE is unset or not a directory.\n"
+            "Point it at the Ghost Inspector export root:\n"
+            "  GI_BASE=/path/to/ghost-inspector-export python3 audit-assertions.py"
+        )
+    if not os.path.isdir(PW_BASE):
+        raise SystemExit(f"PW_BASE is not a directory: {PW_BASE}")
 
 # GI suite slug -> Playwright directory
 SUITE_MAP = {
@@ -57,9 +76,10 @@ PHASE_MATCHERS = [
     ("Verify Saved token log",                      ["verifyTokenLog", "verifyTokenLogsEmpty"]),
     ("Verify Refund log",                           ["verifyRefundLog"]),
     ("Verify Void log",                             ["verifyVoidLog"]),
+    # extractAllLogs / extractTokenLogs were deleted in the three-layer refactor.
     ("Verify Transaction on logs",                  ["verifyAuthorizeCaptureLog", "verifyRefundLog",
                                                      "verifyVoidLog", "verifyAuthenticationResult",
-                                                     "extractAllLogs", "extractTokenLogs", "verifyTokenLog"]),
+                                                     "verifyTokenLog"]),
     ("Playgrounds Email",                           ["verifyOrderEmails", "verifyAdminEmail", "verifyCustomerEmail"]),
     ("verify Email - Admin and Customer",           ["verifyOrderEmails", "verifyAdminEmail", "verifyCustomerEmail"]),
     ("verify Email - Only Admin",                   ["verifyAdminEmail", "verifyOrderEmails"]),
@@ -70,8 +90,12 @@ PHASE_MATCHERS = [
     ("Check transcation is present on Order backend", ["navigateToOrder", "assertOrderStatus"]),
     ("Check Subscription Backend",                  ["verifySubscription"]),
     ("Get Woo order details",                       ["verifyOrderViaAPI", "getOrder", "getFailedOrders"]),
-    ("Place Order button enabled",                  ["clickPlaceOrder", "verifyOrderReceived"]),
-    ("Place Order",                                 ["clickPlaceOrder", "verifyOrderReceived"]),
+    # verifyOrderReceived() was split into assertOrderReceived (checks) and
+    # collectOrderReceivedData (reads) by the three-layer refactor.
+    ("Place Order button enabled",                  ["clickPlaceOrder", "assertOrderReceived",
+                                                     "collectOrderReceivedData"]),
+    ("Place Order",                                 ["clickPlaceOrder", "assertOrderReceived",
+                                                     "collectOrderReceivedData"]),
     ("Fill CC Hosted Checkout",                     ["fillHostedCheckoutCC"]),
     ("Fill CC",                                     ["fillHostedSessionCC", "fillHostedSessionCCPartial"]),
     ("Fill Checkout",                               ["fillBilling", "selectPaymentMethod", "addToCartAndCheckout"]),
@@ -94,6 +118,71 @@ PHASE_MATCHERS = [
                                                      "clickPlaceOrder"]),
     ("Page full loaded",                            []),   # technical/infra - no direct PW equivalent
 ]
+
+# ============================================================
+# Composite expansion
+# ============================================================
+#
+# The three-layer port moved the low-level calls out of the spec files and behind
+# these entry points, so a spec that calls assertCaptureLogTrail no longer
+# literally contains "verifySessionPost". Without expanding them, every phase in
+# suites 01-15 reports MISSING and the audit reads as near-total coverage loss.
+#
+# Each list is what the entry point actually performs, read off its body in
+# helpers/. Keep it in step with ASSERTION-MAP.md, and run `--self-check` after
+# editing: that verifies every identifier named here is still a real helper.
+
+_HOSTED_SESSION_TRAIL = [
+    "verifySessionPost", "verifySessionGet", "verifySessionGetCardDetails",
+    "verifyTokenLog", "verifyTokenLogsEmpty", "verifyInitiateAuthentication",
+    "verifyAuthenticatePayer", "verifyAuthenticationResult",
+    "verifyAuthorizeCaptureLog",
+]
+
+COMPOSITE_EXPANSIONS = {
+    "assertCaptureLogTrail": _HOSTED_SESSION_TRAIL,
+    # Delegates to assertCaptureLogTrail with apiOperation AUTHORIZE.
+    "assertAuthorizeLogTrail": _HOSTED_SESSION_TRAIL,
+    # Deliberately shorter: MPGS runs 3DS and the payment inside its own UI, so
+    # only INITIATE_CHECKOUT reaches our log.
+    "assertHostedCheckoutLogTrail": ["verifySessionPost", "verifyTokenLogsEmpty"],
+    "assertCaptureOperationLog": ["verifyAuthorizeCaptureLog"],
+    "checkoutHostedSession": [
+        "addToCartAndCheckout", "fillBilling", "createAccountAtCheckout",
+        "selectPaymentMethod", "selectSavedToken", "fillHostedSessionCC",
+        "clickSaveCardCheckbox", "clickPlaceOrder", "handle3DSChallenge",
+        "frontendLogin", "assertOrderReceived", "verifyCartEmpty",
+        "verifyOrderViaAPI",
+    ],
+    "checkoutHostedCheckout": [
+        "addToCartAndCheckout", "fillBilling", "createAccountAtCheckout",
+        "selectPaymentMethod", "fillHostedCheckoutCC",
+        "clickPlaceOrderHostedCheckout", "clickHostedCheckoutPay",
+        "handle3DSChallenge", "frontendLogin", "assertOrderReceived",
+        "verifyCartEmpty", "verifyOrderViaAPI",
+    ],
+    "assertOrderComplete": [
+        "verifyOrderEmails", "verifyAdminEmail", "navigateToOrder",
+        "assertOrderStatus", "assertPaymentMethodMeta", "assertCapturedNote",
+        "assertAuthorizedNote", "frontendLogin", "verifyPaymentMethods",
+        "verifyOrderInMyAccount",
+    ],
+}
+
+
+def expand_composites(pw_content: str) -> str:
+    """
+    Append the identifiers each composite performs, so the existing phase
+    matchers keep working against specs that call the composite instead.
+    """
+    extra = []
+    for composite, performed in COMPOSITE_EXPANSIONS.items():
+        if composite in pw_content:
+            extra.extend(performed)
+    if not extra:
+        return pw_content
+    return pw_content + "\n// expanded composites: " + " ".join(sorted(set(extra)))
+
 
 ASSERT_COMMANDS = {
     "assertText", "assertTextPresent", "assertElementPresent",
@@ -205,14 +294,34 @@ def match_phase(phase_raw: str, pw_content: str) -> tuple:
 
 
 def load_playwright_spec(pw_suite_dir: str) -> str:
-    """Load all .spec.ts content for a Playwright suite directory."""
+    """
+    Load all .spec.ts content for a Playwright suite directory, following any
+    `../_shared/...` import.
+
+    Suites 08 and 09 were identical, so their six test bodies now live in
+    tests/_shared/session-validation-cases.ts and each spec file is three lines.
+    The steps genuinely moved there, so the audit has to read there too —
+    unlike helpers/, which holds implementation and would match everything.
+    """
     content_parts = []
     for spec_file in glob.glob(os.path.join(pw_suite_dir, "*.spec.ts")):
         try:
             with open(spec_file, encoding="utf-8") as f:
-                content_parts.append(f.read())
+                text = f.read()
         except Exception:
-            pass
+            continue
+        content_parts.append(text)
+
+        for rel in re.findall(r"from '\.\./(_shared/[\w.-]+)'", text):
+            shared = os.path.join(os.path.dirname(pw_suite_dir), rel)
+            if not shared.endswith(".ts"):
+                shared += ".ts"
+            try:
+                with open(shared, encoding="utf-8") as f:
+                    content_parts.append(f.read())
+            except Exception:
+                print(f"  ⚠  shared module imported but unreadable: {shared}")
+
     return "\n".join(content_parts)
 
 
@@ -221,6 +330,8 @@ def load_playwright_spec(pw_suite_dir: str) -> str:
 # ============================================================
 
 def run_audit():
+    require_paths()
+
     total_phases = 0
     covered_phases = 0
     na_phases = 0
@@ -245,7 +356,7 @@ def run_audit():
             print()
             continue
 
-        pw_content = load_playwright_spec(pw_suite_dir)
+        pw_content = expand_composites(load_playwright_spec(pw_suite_dir))
         if not pw_content:
             print(f"Suite: {pw_dir_name}")
             print(f"  ⚠  No Playwright spec found in: {pw_suite_dir}")
@@ -353,5 +464,44 @@ def run_audit():
         print()
 
 
+def self_check() -> int:
+    """
+    Verify every identifier this script looks for is still a real helper or
+    shared-module export. Runs without a GI export, so it is the cheap way to
+    catch the rot that motivated this pass: the matchers were still naming
+    extractAllLogs and extractTokenLogs, deleted in the three-layer refactor,
+    which can only ever report as MISSING.
+    """
+    roots = [
+        os.path.join(HERE, "tests", "Playwright", "helpers"),
+        os.path.join(HERE, "tests", "Playwright", "tests", "_shared"),
+    ]
+    exported = set()
+    for root in roots:
+        for path in glob.glob(os.path.join(root, "*.ts")):
+            with open(path, encoding="utf-8") as f:
+                exported |= set(re.findall(r"export (?:async )?function (\w+)", f.read()))
+
+    referenced = {i for _, idents in PHASE_MATCHERS for i in idents}
+    referenced |= set(COMPOSITE_EXPANSIONS)
+    for performed in COMPOSITE_EXPANSIONS.values():
+        referenced |= set(performed)
+    # Not functions, so not expected in the export list.
+    referenced -= {"cards.visaChallenge"}
+
+    unknown = sorted(i for i in referenced if i not in exported)
+    if unknown:
+        print("SELF-CHECK FAILED — these identifiers are no longer exported by")
+        print("helpers/ or tests/_shared/, so any phase relying on them can only")
+        print("report MISSING:")
+        for i in unknown:
+            print(f"  - {i}")
+        return 1
+    print(f"SELF-CHECK OK — all {len(referenced)} referenced identifiers exist.")
+    return 0
+
+
 if __name__ == "__main__":
+    if "--self-check" in sys.argv:
+        raise SystemExit(self_check())
     run_audit()

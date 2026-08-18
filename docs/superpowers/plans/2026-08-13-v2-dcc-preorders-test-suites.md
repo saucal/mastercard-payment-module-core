@@ -869,11 +869,38 @@ Full 01-15 run green. --list inventory identical to pre-refactor baseline."
 
 Two known-broken support pieces, both called out in the design doc and the README but never done. Small, and they stop misleading the next person.
 
+> **This task needed more than its four steps, because Task 4 broke the script.**
+> Fixing the paths would have produced a *runnable* audit that lied. The specs no
+> longer contain the identifiers the matchers grep for — those calls moved behind
+> the composites — so with a real GI export the audit reported near-total coverage
+> loss across suites 01-15. Measured before the fix: 18 identifier-suite hits
+> across a 13-identifier sample; after, 143.
+>
+> Added, beyond Steps 1-4:
+>
+> - `COMPOSITE_EXPANSIONS` — what each orchestrator and composite performs, read
+>   off its body in `helpers/`, so a spec calling `assertCaptureLogTrail` counts as
+>   covering the phases it actually asserts. Mirrors ASSERTION-MAP's entry-point
+>   table; keep the two in step.
+> - `load_playwright_spec` follows `../_shared/…` imports, so suites 08 and 09 are
+>   not read as empty now that their six test bodies live in the shared module.
+>   Scoped to `_shared` on purpose: pulling in `helpers/` would make every
+>   identifier match everywhere and the audit always green.
+> - `--self-check`, which verifies every identifier the script looks for is still
+>   exported by `helpers/` or `tests/_shared/`. It runs without a GI export, and it
+>   immediately caught three dead references: `extractAllLogs`, `extractTokenLogs`
+>   and `verifyOrderReceived` (split into `assertOrderReceived` and
+>   `collectOrderReceivedData`). Run it after touching either file.
+>
+> The map also recommended `page.locator('text=Save to account')`, which is the
+> locator that broke suite 01 during Task 4 — it matches every gateway's save-card
+> label, not ours. That advice is now an explicit warning instead.
+
 **Files:**
 - Modify: `audit-assertions.py:17-22`
 - Modify: `tests/Playwright/ASSERTION-MAP.md`
 
-- [ ] **Step 1: Replace the hardcoded paths in `audit-assertions.py`**
+- [x] **Step 1: Replace the hardcoded paths in `audit-assertions.py`**
 
 Lines 17-22 currently read:
 
@@ -907,7 +934,7 @@ if not os.path.isdir(PW_BASE):
     raise SystemExit(f"PW_BASE is not a directory: {PW_BASE}")
 ```
 
-- [ ] **Step 2: Verify the script now fails loudly rather than silently**
+- [x] **Step 2: Verify the script now fails loudly rather than silently** — exits 1 with the GI_BASE message.
 
 ```bash
 cd /Users/christian/projects/mastercard-payment-module-core
@@ -916,13 +943,13 @@ python3 audit-assertions.py
 
 Expected: exits with the `GI_BASE is unset` message. That is the correct outcome without a GI export in hand — the old code would have produced an empty or nonsense audit instead.
 
-- [ ] **Step 3: Refresh `ASSERTION-MAP.md`'s module references**
+- [x] **Step 3: Refresh `ASSERTION-MAP.md`'s module references**
 
 `tests/Playwright/README.md:21-23` flags this in the README's own text: the map still refers to `log-verification.ts`, `email-verification.ts` and `order-received.ts`, all deleted. Update the module column to the current homes — `helpers/assertions.ts` for every business assertion, `helpers/wc-api.ts` for the log/mail fetches, `helpers/flows.ts` for the order-received read — and add the three composites (`assertCaptureLogTrail`, `assertAuthorizeLogTrail`, `assertHostedCheckoutLogTrail`) as the entry points for the phase groups they cover. Keep the 14-phase structure; it is still accurate about *what* is asserted.
 
 Then delete the now-false warning at `README.md:21-23`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add audit-assertions.py tests/Playwright/ASSERTION-MAP.md tests/Playwright/README.md
