@@ -100,6 +100,12 @@ export interface LogEntry {
       sourceOfFunds?: { token?: string };
       transaction?: { currency: string; targetTransactionId?: string; amount?: number };
       authentication?: { channel: string };
+      /**
+       * Attached by DynamicCurrencyConversion::maybe_add_dcc_payment_data when a
+       * quote requestId was posted. uptake is 'NOT_AVAILABLE' unless an offer
+       * state came back: 'ACCEPTED' for Accept, 'DECLINED' for anything else.
+       */
+      currencyConversion?: { requestId?: string; uptake?: string };
       agreement?: {
         type: string;
         amountVariability: string;
@@ -115,6 +121,22 @@ export interface LogEntry {
     body: {
       result?: string;
       session?: { id: string; updateStatus: string; version?: string };
+      /**
+       * PAYMENT_OPTIONS_INQUIRY response. Only present on the saved-token quote,
+       * which ajax_dcc_quote makes server-side; an entered card's quote goes
+       * browser-to-MPGS and never reaches this log.
+       */
+      paymentTypes?: {
+        card?: {
+          currencyConversion?: {
+            requestId?: string;
+            offerText?: string;
+            payerCurrency?: string;
+            payerAmount?: string;
+            payerExchangeRate?: string;
+          };
+        };
+      };
       order?: {
         id: string;
         currency: string;

@@ -1196,7 +1196,34 @@ export async function readDccRequestId(page: Page, config: PluginConfig): Promis
 
 > **`respondToDccOffer` values are the one guess left in this plan, and it must not survive Step 1.** `DynamicCurrencyConversion.php:203` compares against the literal `'Accept'` and treats everything else as `DECLINED`, which is why `'Accept'` is the accept value — but the *decline* value and the control type (radio vs something else) are gateway-authored. Replace both with the observed values from the discovery note before running anything. If the discovery note listed this as unresolved, stop and resolve it; do not proceed on the guess.
 
-- [ ] **Step 2: Add the DCC assertions to `assertions.ts`**
+- [x] **Step 2: Add the DCC assertions to `assertions.ts`**
+
+> **The sketch's `assertDccQuoteLog` was wrong and is split in two.** It asserted a
+> `PAYMENT_OPTIONS_INQUIRY` entry in our gateway log for every DCC case. That entry
+> only exists on the **saved-token** path: `ajax_dcc_quote` inquires server-side via
+> `api()->payment_options_inquiry()`. For an entered card, `_hostedSessions.js:1422`
+> posts the inquiry from the **browser straight to MPGS** —
+> `dccRequestEndpoint` is `api()->get_domain() . 'paymentOptionsInquiry'`,
+> authenticated with the session id — so nothing passes through WordPress to log.
+> As written it would have failed DCC-001, 002, 003 and 005 for a reason unrelated
+> to DCC working.
+>
+> - `assertDccUptakeLog` — the universal signal. `maybe_add_dcc_payment_data`
+>   attaches `currencyConversion: { requestId, uptake }` to the payment data our
+>   server sends, so it is in the PAY/AUTHORIZE request body on every path.
+> - `assertDccQuoteInquiryLog` — the server-side inquiry, saved-token path only
+>   (DCC-004). Its failure message says so, so the next person does not debug a
+>   phantom.
+>
+> Everything else in the sketch checked out against
+> `includes/GatewayAddons/DynamicCurrencyConversion.php`: the three meta keys and
+> their ACCEPTED-plus-complete-quote precondition (`:220-230`), the `Paid Amount:`
+> receipt row (`:258`), and all five admin-panel labels (`:294-305`). The admin
+> panel locator now targets the `<p>` following the `<h4>` rather than the
+> heading's parent, which is the whole order-data box.
+>
+> `LogEntry` in `wc-api.ts` gained `request.body.currencyConversion` and
+> `response.body.paymentTypes` — the DCC fields were not in the type.
 
 ```ts
 // ─── Dynamic Currency Conversion ──────────────────────────────────────────────
@@ -1300,7 +1327,7 @@ Extend the existing `./wc-api` import in `assertions.ts:3` — it currently read
 `import { getLogs, getWebhookLogs, getLogEntryCount, getLoggedMail } from './wc-api';`
 and needs `getOrder` and `getOrderMeta` added.
 
-- [ ] **Step 3: Verify compile**
+- [x] **Step 3: Verify compile** — clean; `--list` unchanged at 94, as expected for helpers with no callers yet.
 
 ```bash
 cd tests/Playwright && npx tsc --noEmit
@@ -1308,7 +1335,7 @@ cd tests/Playwright && npx tsc --noEmit
 
 Expected: silent.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tests/Playwright/helpers/dcc.ts tests/Playwright/helpers/assertions.ts

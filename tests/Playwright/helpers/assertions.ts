@@ -1,6 +1,6 @@
 import { Page, expect } from '@playwright/test';
 import type { CardData, PluginConfig } from '../plugin-config.types';
-import { getLogs, getWebhookLogs, getLogEntryCount, getLoggedMail } from './wc-api';
+import { getLogs, getWebhookLogs, getLogEntryCount, getLoggedMail, getOrder, getOrderMeta } from './wc-api';
 import type { LogEntry, LogResponse, LoggedMail } from './wc-api';
 import type { OrderReceivedData } from './flows';
 import { showEmails, logOrderContext } from './debug';
@@ -1225,4 +1225,155 @@ export async function assertHostedCheckoutLogTrail(
   verifyTokenLogsEmpty(tokenLogs);
 
   return resolvedSession;
+}
+
+// ─── Dynamic Currency Conversion ──────────────────────────────────────────────
+
+export interface DccExpected {
+  /** The payer's currency, i.e. the card's — not the store's. */
+  payerCurrency: string;
+}
+
+/**
+ * Assert the three dcc_* meta keys DynamicCurrencyConversion::process_dcc_data
+ * writes on an accepted offer.
+ *
+ * That method returns early unless uptake is exactly 'ACCEPTED' *and* all three
+ * of payerExchangeRate / payerCurrency / payerAmount came back on the response
+ * (DynamicCurrencyConversion.php:220-226), so absence is the correct assertion
+ * for a declined offer — hence `expectAbsent`.
+ */
+export async function assertDccOrderMeta(
+  orderNumber: string,
+  config: PluginConfig,
+  expected: DccExpected & { expectAbsent?: boolean },
+): Promise<void> {
+  const order = await getOrder(orderNumber);
+  const rate = getOrderMeta(order, config.dccMetaKeys.exchangeRate);
+  const currency = getOrderMeta(order, config.dccMetaKeys.currency);
+  const amount = getOrderMeta(order, config.dccMetaKeys.amount);
+
+  if (expected.expectAbsent) {
+    expect(rate, 'dcc exchange rate should not be written for a declined offer').toBeFalsy();
+    expect(currency, 'dcc currency should not be written for a declined offer').toBeFalsy();
+    expect(amount, 'dcc amount should not be written for a declined offer').toBeFalsy();
+    return;
+  }
+
+  expect(rate, 'dcc exchange rate meta missing').toBeTruthy();
+  expect(Number(rate), 'dcc exchange rate should be numeric and non-zero').toBeGreaterThan(0);
+  expect(currency, 'dcc currency meta missing').toBe(expected.payerCurrency);
+  expect(Number(amount), 'dcc converted amount should be numeric and non-zero').toBeGreaterThan(0);
+  // The converted amount must differ from the order total — the same number means
+  // the "conversion" did nothing and the assertions above would pass vacuously.
+  expect(Number(amount), 'converted amount should differ from the order total')
+    .not.toBe(Number(order.total));
+}
+
+/**
+ * The "Paid Amount:" row render_dcc_data_receipt adds to the order totals table
+ * on the order-received page and in My Account.
+ *
+ * It is a `woocommerce_get_order_item_totals` filter registered inside
+ * init_dcc_hooks, so it renders wherever WooCommerce prints order totals.
+ */
+export async function assertDccReceiptRow(page: Page, expected: DccExpected): Promise<void> {
+  const row = page.locator('tr:has-text("Paid Amount"), li:has-text("Paid Amount")').first();
+  await expect(row, 'DCC "Paid Amount" row missing from the receipt').toBeVisible({ timeout: 15_000 });
+  // The value is `wc_price(amount, currency) (CURRENCY)` — the code is in the
+  // parenthetical, so the row text carries it.
+  await expect(row).toContainText(expected.payerCurrency);
+}
+
+/**
+ * The DCC panel render_dcc_data prints after the billing address on the admin
+ * order screen. Asserts all five labels, since a partial render is the likely
+ * failure and a single-label check would miss it.
+ */
+export async function assertDccAdminPanel(page: Page, expected: DccExpected): Promise<void> {
+  const heading = page.locator('h4:has-text("Dynamic Currency Conversion")');
+  await expect(heading, 'DCC admin panel heading missing').toBeVisible({ timeout: 15_000 });
+  // The labels live in the <p> immediately after the heading. Scoped to that
+  // sibling rather than the heading's parent, which is the whole order-data box.
+  const panel = heading.locator('xpath=./following-sibling::p[1]');
+  for (const label of [
+    'Original Currency:',
+    'Payment Currency:',
+    'Original Amount:',
+    'Paid Amount (Converted):',
+    'Exchange Rate:',
+  ]) {
+    await expect(panel, `DCC panel missing "${label}"`).toContainText(label);
+  }
+  await expect(panel).toContainText(expected.payerCurrency);
+}
+
+/**
+ * Assert the currencyConversion block on the PAY/AUTHORIZE request.
+ *
+ * This is the DCC signal that is always available. maybe_add_dcc_payment_data
+ * attaches `currencyConversion: { requestId, uptake }` to the payment data our
+ * server sends, so it is in the request body we log on every path — entered card
+ * or saved token.
+ *
+ * uptake is 'ACCEPTED' for Accept, 'DECLINED' for anything else answered, and
+ * 'NOT_AVAILABLE' when the offer was the hidden `Unavailable` shape or no offer
+ * state was posted at all (DynamicCurrencyConversion.php:195-205).
+ */
+export async function assertDccUptakeLog(expected: {
+  payDate: string;
+  logOffset: number;
+  transactionId: string;
+  uptake: 'ACCEPTED' | 'DECLINED' | 'NOT_AVAILABLE';
+}): Promise<void> {
+  const allLogs = await getLogs(expected.payDate, '', expected.logOffset);
+  expect(allLogs.logs[0]?.content.length, 'all logs should not be empty').toBeGreaterThan(0);
+  const content: LogEntry[] = allLogs.logs[0].content;
+
+  const pay = content.find(
+    (l: LogEntry) => l.request?.url?.includes(expected.transactionId)
+      && (l.request?.body?.apiOperation === 'PAY' || l.request?.body?.apiOperation === 'AUTHORIZE'),
+  );
+  expect(pay, 'PAY/AUTHORIZE log not found for the DCC order').toBeTruthy();
+
+  const conversion = pay!.request?.body?.currencyConversion;
+  expect(conversion, 'PAY request carries no currencyConversion block').toBeTruthy();
+  expect(conversion?.requestId, 'currencyConversion should carry the quote requestId').toBeTruthy();
+  expect(conversion?.uptake, `PAY request should carry uptake=${expected.uptake}`).toBe(expected.uptake);
+}
+
+/**
+ * Assert the server-side PAYMENT_OPTIONS_INQUIRY quote call.
+ *
+ * SAVED-TOKEN PATH ONLY. For an entered card the quote never reaches our log:
+ * `_hostedSessions.js` posts PAYMENT_OPTIONS_INQUIRY from the browser straight to
+ * MPGS (`dccRequestEndpoint` is `api()->get_domain() . 'paymentOptionsInquiry'`,
+ * authenticated with the session id), so nothing passes through WordPress to be
+ * logged. Only `ajax_dcc_quote` — the saved-token handler — inquires server-side
+ * via `api()->payment_options_inquiry()`.
+ *
+ * Asserting this on an entered-card case would fail for a reason that has nothing
+ * to do with DCC being broken. Use assertDccUptakeLog for those.
+ */
+export async function assertDccQuoteInquiryLog(expected: {
+  payDate: string;
+  logOffset: number;
+}): Promise<void> {
+  const allLogs = await getLogs(expected.payDate, '', expected.logOffset);
+  expect(allLogs.logs[0]?.content.length, 'all logs should not be empty').toBeGreaterThan(0);
+  const content: LogEntry[] = allLogs.logs[0].content;
+
+  const inquiry = content.find(
+    (l: LogEntry) => l.request?.body?.apiOperation === 'PAYMENT_OPTIONS_INQUIRY',
+  );
+  expect(
+    inquiry,
+    'PAYMENT_OPTIONS_INQUIRY log not found. This assertion only holds for the '
+    + 'saved-token path; an entered card quotes browser-to-MPGS and is never logged.',
+  ).toBeTruthy();
+  expect(inquiry!.response?.body?.result, 'quote inquiry should succeed').toBe('SUCCESS');
+  expect(
+    inquiry!.response?.body?.paymentTypes?.card?.currencyConversion?.requestId,
+    'quote response should carry a currencyConversion requestId',
+  ).toBeTruthy();
 }
