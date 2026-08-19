@@ -56,6 +56,15 @@ export async function getOrder(orderNumber: string): Promise<any> {
   return res.json();
 }
 
+export async function getProduct(productId: number): Promise<any> {
+  const res = await fetch(`${BASE_URL}/wp-json/wc/v3/products/${productId}`, {
+    headers: wcAuthHeaders(),
+    credentials: 'omit',
+  });
+  if (!res.ok) throw new Error(`getProduct(${productId}) failed: ${res.status}`);
+  return res.json();
+}
+
 export async function getFailedOrders(): Promise<any[]> {
   const res = await fetch(`${BASE_URL}/wp-json/wc/v3/orders?status=failed`, {
     headers: wcAuthHeaders(),
