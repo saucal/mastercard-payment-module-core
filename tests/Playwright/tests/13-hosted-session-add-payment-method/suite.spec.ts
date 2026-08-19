@@ -24,7 +24,7 @@ import { logOrderContext } from '../../helpers/debug';
 async function submitAddPaymentMethod(page: Page, opts: { handle3ds: boolean }): Promise<void> {
   await page.locator('#place_order').first().click();
   if (opts.handle3ds) {
-    await handle3DSChallenge(page, /payment-methods|add-payment-method/);
+    await handle3DSChallenge(page, { urlPattern: /payment-methods|add-payment-method/ });
   }
   await page.waitForURL(/payment-methods/, { timeout: 30000 });
   await waitForUnblock(page);

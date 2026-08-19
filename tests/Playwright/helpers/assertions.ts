@@ -1340,12 +1340,23 @@ export async function assertDccAdminPanel(page: Page, expected: DccExpected): Pr
 }
 
 /**
- * Assert the currencyConversion block on the PAY/AUTHORIZE request.
+ * Assert the currencyConversion block our server declared to MPGS.
  *
- * This is the DCC signal that is always available. maybe_add_dcc_payment_data
- * attaches `currencyConversion: { requestId, uptake }` to the payment data our
- * server sends, so it is in the request body we log on every path — entered card
- * or saved token.
+ * maybe_add_dcc_payment_data attaches `currencyConversion: { requestId, uptake }`
+ * to the payment data, and it is registered on two filters — the plain
+ * hosted-session one and the 3DS one (DynamicCurrencyConversion.php:119-120).
+ * Which request ends up carrying it therefore depends on the path:
+ *
+ *   3DS off  → the block rides on PAY (or AUTHORIZE).
+ *   3DS on   → the block rides on INITIATE_AUTHENTICATION, and the later PAY has
+ *              none. Confirmed live on order 6317, 2026-08-19: the conversion is
+ *              declared once, MPGS applies it to the session, and the PAY
+ *              response still came back converted — the order carries
+ *              dcc_currency=MXN, dcc_amount=762.67, matching the offer.
+ *
+ * So this looks for whichever operation declared it rather than pinning PAY,
+ * which would fail on every 3DS case for a reason that has nothing to do with
+ * DCC. `assertDccOrderMeta` is the outcome check either way.
  *
  * uptake is 'ACCEPTED' for Accept, 'DECLINED' for anything else answered, and
  * 'NOT_AVAILABLE' when the offer was the hidden `Unavailable` shape or no offer
@@ -1361,16 +1372,28 @@ export async function assertDccUptakeLog(expected: {
   expect(allLogs.logs[0]?.content.length, 'all logs should not be empty').toBeGreaterThan(0);
   const content: LogEntry[] = allLogs.logs[0].content;
 
-  const pay = content.find(
+  const declaringOps = ['PAY', 'AUTHORIZE', 'INITIATE_AUTHENTICATION'];
+  const forThisOrder = content.filter(
     (l: LogEntry) => l.request?.url?.includes(expected.transactionId)
-      && (l.request?.body?.apiOperation === 'PAY' || l.request?.body?.apiOperation === 'AUTHORIZE'),
+      && declaringOps.includes(l.request?.body?.apiOperation),
   );
-  expect(pay, 'PAY/AUTHORIZE log not found for the DCC order').toBeTruthy();
+  expect(
+    forThisOrder.length,
+    'no PAY / AUTHORIZE / INITIATE_AUTHENTICATION log found for the DCC order',
+  ).toBeGreaterThan(0);
 
-  const conversion = pay!.request?.body?.currencyConversion;
-  expect(conversion, 'PAY request carries no currencyConversion block').toBeTruthy();
+  const declaring = forThisOrder.find((l: LogEntry) => l.request?.body?.currencyConversion);
+  const conversion = declaring?.request?.body?.currencyConversion;
+  expect(
+    conversion,
+    'no currencyConversion block on any of '
+      + forThisOrder.map((l) => l.request?.body?.apiOperation).join(', '),
+  ).toBeTruthy();
   expect(conversion?.requestId, 'currencyConversion should carry the quote requestId').toBeTruthy();
-  expect(conversion?.uptake, `PAY request should carry uptake=${expected.uptake}`).toBe(expected.uptake);
+  expect(
+    conversion?.uptake,
+    `${declaring?.request?.body?.apiOperation} should carry uptake=${expected.uptake}`,
+  ).toBe(expected.uptake);
 }
 
 /**
