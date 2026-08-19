@@ -178,6 +178,29 @@ Three installs bring that down proportionally.
 - **16–18** (subscriptions) — **not** ported, excluded from normal runs, never yet
   green. Two also carry `TODO`s for site configuration that does not exist
   (Subscriptions switching, early manual renewal).
+- **19** (DCC, hosted session, classic) — green.
+- **20** (pre-orders) — green. PO-005 is a deliberate `test.fail()`: it documents
+  a real gateway bug, so it turns **red when the bug is fixed**. See the Task 9
+  notes in `docs/superpowers/plans/2026-08-13-v2-dcc-preorders-test-suites.md`.
+- **21** (DCC through MPGS hosted checkout) — green. A different feature from 19
+  despite the name: the offer is MPGS's, and the `currency_conversion` setting is
+  inert in that mode.
+- **22** (DCC, hosted session, blocks) — green. Blocks renders the offer area from
+  React and validates it client-side, and the server reads a lowercased
+  `dccofferstate`, so almost none of suite 19's code path is shared.
+
+### Prerequisites for 19–22
+
+- **WooCommerce Pre-Orders** active, with one `upfront` and one `upon_release`
+  product, both simple and both with an availability date far enough out that they
+  stay pre-orders. `PRODUCT_PREORDER_UPFRONT` / `PRODUCT_PREORDER_RELEASE` (default
+  1595 / 4789). Suite 20 asserts the meta over REST before it runs, so a wrong id
+  fails loudly instead of passing vacuously.
+- **A card whose issuing currency differs from the store currency.** Only some
+  fixture PANs draw a conversion offer — `visaFrictionless` does, `mastercard`
+  returns the "Unavailable" shape. The DCC suites fail rather than skip if no
+  offer arrives, which is the point.
+- The `currency_conversion` gateway setting; each DCC suite sets it itself.
 
 ## Is this failure real, or the gateway?
 

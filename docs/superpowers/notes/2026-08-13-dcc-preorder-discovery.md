@@ -124,6 +124,21 @@ What does **not** happen here, because `init_dcc_hooks` is past the guard:
 
 Covered by `tests/21-dcc-hosted-checkout` (DCC-007 accept, DCC-008 reject).
 
+### DCC in the block checkout — added 2026-08-19
+
+Blocks is a third implementation, distinct from both of the above, and covered by
+`tests/22-dcc-hosted-session-blocks` (DCC-009..DCC-012).
+
+| | Classic | Blocks |
+| --- | --- | --- |
+| Offer area markup | `display_dcc_info_area` + the payment-fields template | React: `_elements.js`, `_saved-token-handler.js` |
+| Element ids | `#<slug>_currency_conversion`, `#<slug>_dcc_request_id` | **identical** — `helpers/dcc.ts` needs no mode switch |
+| Unanswered-offer guard | server, `validate_dcc_data` | client, `_hostedSessions.js#validateCurrencyConversionData` (:1525) — blocks never calls `validate_fields()` |
+| Posted field | `dccOfferState` | `dccofferstate` (blocks lowercases payment-method data) |
+| Error message | same string either way | same string either way |
+
+Payer currency is GBP for `visaFrictionless`, the same as classic.
+
 ## Pre-orders
 
 Plugin: `woocommerce-pre-orders/woocommerce-pre-orders`, **network-active**.
@@ -153,6 +168,35 @@ status filters `?pre_order_status=completed|cancelled`.
 `Complete` is what fires
 `wc_pre_orders_process_pre_order_completion_payment_<gateway>` and therefore
 `PreOrders::process_pre_order_release_payment`.
+
+> **Use the bulk action, not the row link — confirmed 2026-08-19.** The tablenav
+> carries a plain `select[name=action]#bulk-action-selector-top` with a
+> `complete` option, an `input[type=submit]#doaction`, and per-row
+> `input[name="order_id[]"]` checkboxes whose value is the order id. That is what
+> `helpers/pre-orders.ts#releasePreOrder` drives, and it fires the same
+> completion hook without depending on the JS behind the `href=null` row links.
+>
+> Match a row on the checkbox **value**, never the visible text: the cell reads
+> "Order 4790", so a substring match on the number alone also hits "Order 47901".
+>
+> Row actions are only rendered for pre-orders still in an active state — on a
+> list of completed/cancelled rows there are none to find.
+
+### Emails and status — confirmed 2026-08-19
+
+Both charge modes leave the order at status **`Pre-ordered`** until release; the
+charge mode decides whether money moved, not the status.
+
+The plugin replaces both ordinary order emails:
+
+| | Subject |
+| --- | --- |
+| admin | `[Testing Site] New customer pre-order (6276) - August 19, 2026` |
+| customer | `Your Testing Site pre-order confirmation from August 19, 2026` |
+
+Neither matches `verifyOrderEmails`' patterns. Both carry the gateway's
+`Payment method:` row and a `Total: ... charged upfront` line.
+`helpers/pre-orders.ts#assertPreOrderEmails` covers them.
 
 > **Caution:** the screen's `h1` reads "Help & Support" (the theme/admin wrapper),
 > so do not assert on the heading to confirm you are on the right screen — match

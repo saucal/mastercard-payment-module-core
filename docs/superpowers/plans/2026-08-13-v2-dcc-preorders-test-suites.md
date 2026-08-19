@@ -1552,7 +1552,7 @@ Covers `includes/GatewayAddons/PreOrders.php`. The two paths are genuinely diffe
 - Consumes: Tasks 1, 2, 3 (`assertAuthorizeLogTrail`, `assertCaptureOperationLog`); the discovery note's product ids and release path.
 - Produces: `releasePreOrder(adminPage, orderNumber)` and `assertPreOrderStatus(adminPage, expected)` in `helpers/pre-orders.ts`.
 
-- [ ] **Step 1: Write `helpers/pre-orders.ts`**
+- [x] **Step 1: Write `helpers/pre-orders.ts`**
 
 ```ts
 import { Page, expect } from '@playwright/test';
@@ -1589,7 +1589,7 @@ export async function assertPreOrderStatus(adminPage: Page, expected: string): P
 }
 ```
 
-- [ ] **Step 2: Write PO-001 (charged upfront) and run**
+- [x] **Step 2: Write PO-001 (charged upfront) and run**
 
 The upfront path takes no special branch — `maybe_add_pre_order_payment_data` returns early (`PreOrders.php:98`) — so this is an ordinary capture checkout plus the pre-order-specific admin state. That makes it the cheapest case and the right one to prove the plumbing.
 
@@ -1634,7 +1634,7 @@ npx playwright test '20-' --grep "PO-001"
 
 Expected: 1 passed.
 
-- [ ] **Step 3: Write PO-002 (charged upon release — checkout half) and run**
+- [x] **Step 3: Write PO-002 (charged upon release — checkout half) and run**
 
 The interesting path. `maybe_add_pre_order_payment_data` forces `apiOperation: 'AUTHORIZE'` regardless of the gateway's `transaction_mode`, and `maybe_force_save_method_pre_order` forces tokenization. So: set `transaction_mode: 'PURCHASE'` deliberately, and assert the gateway still authorized — that is the whole point of the addon and the assertion that would catch it regressing.
 
@@ -1670,7 +1670,7 @@ The interesting path. `maybe_add_pre_order_payment_data` forces `apiOperation: '
 
 > **`status: 'Pre-ordered'` is the label to verify first.** `mark_order_as_pre_ordered` sets the Pre-Orders plugin's own status, and `maybe_bypass_change_status` stops the gateway from moving it. Confirm the exact admin label from the discovery note or a manual checkout before trusting this string — `assertOrderStatus` does an exact text match and a wrong label fails in a way that looks like a gateway bug.
 
-- [ ] **Step 4: Write PO-003 (release captures the authorized funds) and run**
+- [x] **Step 4: Write PO-003 (release captures the authorized funds) and run**
 
 Depends on PO-002's order, so keep the suite `describe.serial` and carry `releaseCtx`.
 
@@ -1698,7 +1698,7 @@ Depends on PO-002's order, so keep the suite `describe.serial` and carry `releas
 
 > The capture fires after PO-002's `payDate`/`logOffset` window opened, so reusing that window is correct and finds the entry. But if the release happens on a *later day* than the checkout, `getLogs` reads a different log file and finds nothing. If this suite is ever split across a date boundary, capture a fresh `payDate`/`logOffset` immediately before `releasePreOrder` instead.
 
-- [ ] **Step 5: Write PO-004 (forced-save UI) and run**
+- [x] **Step 5: Write PO-004 (forced-save UI) and run**
 
 Asserts the two UI consequences of forced tokenization, both pure DOM and cheap:
 
@@ -1718,7 +1718,7 @@ Asserts the two UI consequences of forced tokenization, both pure DOM and cheap:
   });
 ```
 
-- [ ] **Step 6: Write PO-005 (hosted checkout declines the tokenization path) and run**
+- [x] **Step 6: Write PO-005 (hosted checkout declines the tokenization path) and run**
 
 `init_addon_pre_orders` returns early — never adding `'pre-orders'` to `supports` — when the mode is hosted checkout and the cart needs tokenization (`PreOrders.php:44`). The observable result is that the gateway does not offer itself for that cart.
 
@@ -1740,7 +1740,7 @@ Asserts the two UI consequences of forced tokenization, both pure DOM and cheap:
 
 **Restore `checkout_mode: 'hosted_session'` at the end of this test** — it is site-global, and leaving hosted checkout on breaks every later suite.
 
-- [ ] **Step 7: Run the whole suite, then the full regression, and commit**
+- [x] **Step 7: Run the whole suite, then the full regression, and commit**
 
 ```bash
 npx playwright test '20-'
@@ -1758,6 +1758,80 @@ Covers charged-upfront, charged-upon-release (AUTHORIZE override + forced
 tokenization), the release capture, the forced-save UI, and hosted checkout
 declining the tokenization path."
 ```
+
+### Task 9 — what the live runs corrected
+
+Written and green as `tests/20-pre-orders/`, 2026-08-19, commit `e9dde0d`. Five
+things in the sketch above were wrong against the real site; the code that
+shipped is the authority, not the snippets.
+
+1. **Both charge modes end at status `Pre-ordered`, not just the release one.**
+   The sketch had PO-001 asserting `Processing`. WooCommerce Pre-Orders holds
+   *every* pre-order at its own status until release — the charge mode decides
+   whether money moved, not the status. Verified on order 6277.
+2. **The pre-order emails replace the ordinary ones.** `verifyOrderEmails`
+   matches "new order" / "order has been received"; the plugin sends
+   `[Testing Site] New customer pre-order (NNNN) - <date>` and
+   `Your Testing Site pre-order confirmation from <date>`. Both carry the
+   gateway's "Payment method:" row. Hence `assertPreOrderEmails` in
+   `helpers/pre-orders.ts`, and `emails: 'none'` on the two checkout cases.
+3. **`assertCapturedNote` pins the note to position 2** and the pre-order's own
+   "Email “Pre-ordered” sent." note pushes it down. Asserted unpinned instead.
+   The same fragility bit suite 22 — the position is a race against however many
+   email notes WooCommerce has written, not a property of any flow.
+4. **The release goes through the bulk action, not the row link.** The row
+   actions are JS-driven `<a href=null>`; the tablenav has a plain
+   `select[name=action]` with a `complete` option plus `input[name="order_id[]"]`
+   checkboxes, which is what `releasePreOrder` drives. Rows are matched on the
+   checkbox *value* — the cell reads "Order 4790", so a text match on the number
+   alone would also hit "Order 47901".
+5. **`expect3DS: false` is required** on both log-trail calls, since the suite
+   runs `_3d_secure: 'no'`. It defaults to true.
+
+Also added: `assertPreOrderProduct`, a REST guard that both ids really carry
+`_wc_pre_orders_enabled=yes` and the expected `_wc_pre_orders_when_to_charge`.
+The discovery note warns that a non-pre-order product checks out fine, so
+without it every pre-order-specific assertion passes vacuously.
+
+**PO-005 found a real gateway bug and ships as `test.fail()`.**
+`init_addon_pre_orders` is called from `build()`
+(`WC_Abstract_Payment_Gateway_CC.php:166`), i.e. while WooCommerce constructs
+its gateways and before the cart is loaded from the session. So
+`cart_contains_pre_order_tokenization()` sees no cart, returns false, the
+hosted-checkout guard at `PreOrders.php:42` never trips, and `'pre-orders'` is
+added to `$supports` unconditionally. Observed 2026-08-19: with product 4789 in
+the cart under hosted checkout, WooCommerce offers exactly two gateways —
+`pre_orders_pay_later` and ours — so the Pre-Orders plugin *is* filtering on
+`supports('pre-orders')` and ours wrongly claims it. The addon's DCC sibling
+shows the fix: `init_addon_dcc` defers its cart-dependent half to
+`woocommerce_cart_loaded_from_session` (`DynamicCurrencyConversion.php:72`).
+Fixing gateway code is out of scope per the global constraints, so the case is
+marked `test.fail()` and will turn red the day it is fixed.
+
+---
+
+### Task 10 (added 2026-08-19): Suite 22 — DCC through the block checkout
+
+Not in the original plan. Suite 19 covers DCC on classic only, and blocks is a
+separate implementation of both ends of the flow:
+
+- the offer area is rendered by React —
+  `src/js/payment-methods/core-cc/_elements.js`, and `_saved-token-handler.js`
+  on the token path. `display_dcc_info_area` (on
+  `after_payment_fields_hosted_session`) and `dcc_after_payment_method_fields`
+  (in `templates/payment-fields-hosted-session.php`) never fire here.
+- an unanswered offer is refused **client-side**, in
+  `_hostedSessions.js#validateCurrencyConversionData` (:1525) via
+  `onCheckoutValidation` — blocks never calls the gateway's `validate_fields()`.
+- blocks lowercases payment-method data, so the server reads `dccofferstate`
+  through its own branch in `maybe_add_dcc_payment_data`
+  (`DynamicCurrencyConversion.php:194-196`).
+
+DCC-009..DCC-012 (accept, decline, unanswered, saved-token quote) in
+`tests/22-dcc-hosted-session-blocks/`, green 2026-08-19, commit `f499f48`. The
+element ids match between modes, so `helpers/dcc.ts` needed no changes.
+
+---
 
 - [ ] **Step 8: Update the README's suite status**
 

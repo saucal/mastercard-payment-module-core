@@ -48,6 +48,14 @@ The three-layer refactor deleted `log-verification.ts`, `email-verification.ts`,
 | Orchestrators | `helpers/flows.ts` |
 | Admin navigation, capture/void/refund actions | `helpers/admin-orders.ts` |
 | Logins | `helpers/wp-login.ts` |
+| DCC offer waits and accept/decline actions | `helpers/dcc.ts` |
+| Pre-order product guard, release, list-screen status, emails | `helpers/pre-orders.ts` |
+
+Two assertions live in `helpers/pre-orders.ts` rather than `assertions.ts`
+because they only make sense next to the primitives they are paired with:
+`assertPreOrderProduct` (a REST guard against a mis-configured product id) and
+`assertPreOrderEmails` (the pre-order emails, which replace the ordinary pair
+`verifyOrderEmails` looks for).
 
 ## Admin Test Assertion Flow (standard order)
 
