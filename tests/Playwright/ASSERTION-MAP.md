@@ -49,6 +49,7 @@ The three-layer refactor deleted `log-verification.ts`, `email-verification.ts`,
 | Admin navigation, capture/void/refund actions | `helpers/admin-orders.ts` |
 | Logins | `helpers/wp-login.ts` |
 | DCC offer waits and accept/decline actions | `helpers/dcc.ts` |
+| ACS challenge outcome (`select#selectAuthResult`) | `helpers/three-ds.ts` |
 | Pre-order product guard, release, list-screen status, emails | `helpers/pre-orders.ts` |
 
 Two assertions live in `helpers/pre-orders.ts` rather than `assertions.ts`

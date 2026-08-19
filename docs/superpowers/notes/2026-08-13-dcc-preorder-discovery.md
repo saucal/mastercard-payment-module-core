@@ -139,6 +139,102 @@ Blocks is a third implementation, distinct from both of the above, and covered b
 
 Payer currency is GBP for `visaFrictionless`, the same as classic.
 
+### Currency-specific cards — added 2026-08-19
+
+Two more PANs, probed live. Both draw a real Accept/Reject offer.
+
+| PAN | Payer currency | Offer | 3DS behaviour |
+| --- | --- | --- | --- |
+| `5288049999998964` | **MXN** (762.67 on a $57.56 order) | `1 USD = 13.249999 MXN` | **challenges** |
+| `4541879999990975` | **HKD** (447.24) | `1 USD = 7.769999 HKD, which includes a rate margin of 2%` | frictionless, and the authentication is **DECLINED** |
+
+The HKD card never reaches an ACS prompt and never pays: `INITIATE_AUTHENTICATION`
+succeeds, then `AUTHENTICATE_PAYER` returns `FAILURE` / `AUTHENTICATION_FAILED` /
+`DECLINED`.
+
+#### The ACS emulator is a form, not a keyboard dance
+
+`https://mtf.gateway.mastercard.com/acs/mastercard/v2/prompt` — top-level page,
+not an iframe. It carries `select#selectAuthResult` and `input#acssubmit`:
+
+| value | meaning |
+| --- | --- |
+| `AUTHENTICATED` | (Y) successful — the **first** option, which is why the old `Tab Tab Enter` worked |
+| `UNAUTHENTICATED` | (N) not authenticated, transaction denied |
+| `CANCELLED_AUTHENTICATION` | (N) payer cancelled |
+| `AUTHENTICATION_NOT_AVAILABLE` | (U) |
+| `AUTHENTICATION_REJECTED` | (R) |
+| `AUTHENTICATION_SERVER_ERROR` | (E) |
+
+`handle3DSChallenge` now selects the outcome explicitly.
+
+#### Two decline paths, two different messages
+
+| path | classic | blocks |
+| --- | --- | --- |
+| challenge answered `UNAUTHENTICATED` | `The payment method was declined. Please try again with a different payment method.` | **nothing at all** — see below |
+| HKD frictionless failure | `There was an error with the payment authentication. Please try again.` | identical |
+
+#### Blocks says nothing when a challenge is declined
+
+A second defect, independent of the tokenization one. In the block checkout a
+challenge answered `UNAUTHENTICATED` returns the buyer to the checkout with the
+cart still full and **no notice anywhere on the page** — verified 2026-08-19 over
+a 15 s wait and against the full accessibility tree of the failed page, which
+contains no error text at all. Classic shows a proper message for the same input,
+and blocks *does* show one for the HKD frictionless failure, so neither the
+selector nor the mode is the problem.
+
+`dcc-card-cases.ts` pins the empty string for blocks, so the day a message is
+added the case goes red and whoever added it replaces the branch with the real
+copy. The invariant that actually matters — no order, buyer still on checkout —
+is asserted in both modes regardless.
+
+#### Blocks does not tokenize an account created at checkout through a challenge
+
+Found while running the card cases, and **not a DCC bug** — DCC was merely the
+first thing to exercise the combination.
+
+In the block checkout, a buyer who ticks "create an account" at checkout and asks
+to save their card gets **no `/token` call at all** when a 3DS challenge
+intervenes. The card they asked to save is silently not saved.
+
+Isolated 2026-08-19 against three controls, all of which do tokenize:
+
+| checkout | account | 3DS | `/token` calls |
+| --- | --- | --- | --- |
+| classic | created at checkout | challenge | **1** — order 6344 |
+| blocks | already logged in | challenge | **1** — suite 02 MC-009, long green |
+| blocks | created at checkout | off | **1** — DCC-009, reused by DCC-012 |
+| **blocks** | **created at checkout** | **challenge** | **0** — orders 6355 *and* 6360 |
+
+Order 6360 reproduced it with `currency_conversion` off, which is what rules DCC
+out. Suite 02 never caught it because it has no "new user saving CC" case in
+blocks — suite 01 has MC-006, its blocks sibling does not.
+
+`tests/_shared/dcc-card-cases.ts` pins the broken value deliberately: the blocks
+run asserts **zero** token calls, so the assertion goes red the day the defect is
+fixed. The saved-token-plus-challenge case is `test.skip()`ped in blocks for the
+same reason — there is no token for it to select.
+
+#### Where the conversion is declared depends on 3DS
+
+`maybe_add_dcc_payment_data` is registered on both the plain and the 3DS payment
+filters (`DynamicCurrencyConversion.php:119-120`), but it reads `$_POST`. With
+3DS on, the PAY runs on the post-ACS request, which no longer carries
+`_dcc_request_id` / `dccOfferState`:
+
+```
+3DS off  currencyConversion on PAY
+3DS on   currencyConversion on INITIATE_AUTHENTICATION; PAY has none
+```
+
+**This is not a bug.** MPGS applies the conversion to the session, and the order
+still comes back converted — order 6317 carries `dcc_currency=MXN`,
+`dcc_amount=762.67`, `dcc_exchange_rate=13.249999`, matching the offer exactly.
+`assertDccUptakeLog` therefore looks for whichever operation declared it rather
+than pinning PAY.
+
 ## Pre-orders
 
 Plugin: `woocommerce-pre-orders/woocommerce-pre-orders`, **network-active**.

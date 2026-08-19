@@ -267,8 +267,26 @@ export async function checkoutHostedSession(
   const threeDS = opts.threeDS ?? 'never';
   if (threeDS === 'always') {
     await handle3DSChallenge(page);
-  } else if (threeDS === 'maybe' && /acs|3ds|threedsecure|mastercard\.com.*prompt/i.test(page.url())) {
-    await handle3DSChallenge(page);
+  } else if (threeDS === 'maybe') {
+    // Wait for the browser to land somewhere before deciding, rather than
+    // sampling page.url() the instant clickPlaceOrder returns. Place-order
+    // navigates asynchronously, so the old immediate test could read the
+    // checkout URL, conclude there was no challenge, and then block on
+    // order-received while the ACS prompt sat on screen — a 240s test timeout
+    // that looked like a hang. DCC-019 hit it on 2026-08-19 after passing the
+    // same assertions in an earlier run.
+    //
+    // One waitForURL over both destinations rather than a race: whichever
+    // arrives first satisfies it, and the URL is then unambiguous.
+    await page
+      .waitForURL(/acs|3ds|threedsecure|prompt|order-received/i, { timeout: 60000 })
+      .catch(() => {
+        // Neither appeared. Not fatal here — let the order-received assertions
+        // below report what the page actually is.
+      });
+    if (/acs|3ds|threedsecure|prompt/i.test(page.url())) {
+      await handle3DSChallenge(page);
+    }
   }
 
   const received = await collectOrderReceivedData(page);

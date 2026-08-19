@@ -178,7 +178,8 @@ Three installs bring that down proportionally.
 - **16–18** (subscriptions) — **not** ported, excluded from normal runs, never yet
   green. Two also carry `TODO`s for site configuration that does not exist
   (Subscriptions switching, early manual renewal).
-- **19** (DCC, hosted session, classic) — green.
+- **19** (DCC, hosted session, classic) — green. DCC-001..006 on
+  visaFrictionless/GBP, plus DCC-013..019 from the shared card factory.
 - **20** (pre-orders) — green. PO-005 is a deliberate `test.fail()`: it documents
   a real gateway bug, so it turns **red when the bug is fixed**. See the Task 9
   notes in `docs/superpowers/plans/2026-08-13-v2-dcc-preorders-test-suites.md`.
@@ -187,7 +188,23 @@ Three installs bring that down proportionally.
   inert in that mode.
 - **22** (DCC, hosted session, blocks) — green. Blocks renders the offer area from
   React and validates it client-side, and the server reads a lowercased
-  `dccofferstate`, so almost none of suite 19's code path is shared.
+  `dccofferstate`, so almost none of suite 19's code path is shared. DCC-009..012,
+  plus DCC-020..026 from the shared card factory.
+
+Four cases in that factory are deliberately inverted or skipped in blocks,
+covering two defects that are **not** DCC bugs — DCC was simply the first thing to
+exercise the combinations. In the block checkout, a buyer who creates their
+account at checkout is not tokenized when a 3DS challenge intervenes, and a
+declined challenge shows them no message at all. Both are pinned at their broken
+values, so each goes red the day it is fixed, and the saved-token-plus-challenge
+case skips because there is no token for it to select. The discovery note carries
+the isolation matrix for both.
+
+`tests/_shared/dcc-card-cases.ts` holds the seven currency-specific cases both
+suites run — a real ACS challenge answered either way, and an authentication
+declined outright, on two cards that quote MXN and HKD. Same shape as
+`session-validation-cases.ts` for suites 08/09: one copy, called once per mode,
+with the id block passed in (13 for classic, 20 for blocks).
 
 ### Prerequisites for 19–22
 
@@ -196,10 +213,12 @@ Three installs bring that down proportionally.
   stay pre-orders. `PRODUCT_PREORDER_UPFRONT` / `PRODUCT_PREORDER_RELEASE` (default
   1595 / 4789). Suite 20 asserts the meta over REST before it runs, so a wrong id
   fails loudly instead of passing vacuously.
-- **A card whose issuing currency differs from the store currency.** Only some
+- **Cards whose issuing currency differs from the store currency.** Only some
   fixture PANs draw a conversion offer — `visaFrictionless` does, `mastercard`
   returns the "Unavailable" shape. The DCC suites fail rather than skip if no
-  offer arrives, which is the point.
+  offer arrives, which is the point. The card factory additionally needs
+  `mastercardMxnChallenge` (MXN, challenges) and `visaHkdFrictionless` (HKD,
+  authentication declined).
 - The `currency_conversion` gateway setting; each DCC suite sets it itself.
 
 ## Is this failure real, or the gateway?

@@ -9,8 +9,7 @@ import {
   extractOrderTotal,
 } from '../../helpers/checkout';
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
-import { handle3DSChallenge, type ThreeDSOutcome } from '../../helpers/three-ds';
-import { requireDccOffer, assertNoDccQuote, answerDccOffer, type DccChoice } from '../../helpers/dcc';
+import { requireDccOffer, assertNoDccQuote } from '../../helpers/dcc';
 import { waitForUnblock } from '../../helpers/block-ui';
 import {
   checkoutHostedSession,
@@ -24,12 +23,12 @@ import {
   assertDccAdminPanel,
   assertDccUptakeLog,
   assertDccQuoteInquiryLog,
-  assertCaptureLogTrail,
 } from '../../helpers/assertions';
 import { navigateToOrder } from '../../helpers/admin-orders';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
 import { billing, uniqueEmail } from '../../fixtures/billing';
+import { describeDccCardCases } from '../_shared/dcc-card-cases';
 
 /**
  * The card that draws a real conversion offer, and the currency MPGS quotes it
@@ -53,29 +52,6 @@ const DCC_ON = {
   currency_conversion: 'yes',
 } as const;
 
-/**
- * The same, with 3DS on. Only the cards below need it, and it is deliberately a
- * separate constant rather than a mutation of DCC_ON: `configureGateway` writes
- * site-global settings, so every case must state the whole configuration it
- * depends on rather than inherit one.
- */
-const DCC_ON_3DS = { ...DCC_ON, _3d_secure: 'yes' } as const;
-
-/**
- * The two payer currencies these cards quote in, captured live 2026-08-19:
- *
- *   5288049999998964  MXN (762.67)   1 USD = 13.249999 MXN   challenges
- *   4541879999990975  HKD (447.24)   1 USD = 7.769999 HKD    frictionless, and
- *                                    the authentication is DECLINED
- *
- * The HKD card never reaches a challenge and never pays: INITIATE_AUTHENTICATION
- * succeeds, then AUTHENTICATE_PAYER comes back FAILURE / AUTHENTICATION_FAILED /
- * DECLINED and the gateway refuses to submit. That is what makes it worth a DCC
- * case at all — an accepted conversion offer must not leave anything behind on
- * an order that never happens.
- */
-const MXN = 'MXN';
-const HKD = 'HKD';
 
 test.describe.serial('DCC - Hosted Session', () => {
   const dccEmail = uniqueEmail();
@@ -316,188 +292,7 @@ test.describe.serial('DCC - Hosted Session', () => {
     await assertNoDccQuote(page, config);
   });
 
-  // ─── Currency-specific cards ────────────────────────────────────────────────
-  //
-  // Everything above runs on visaFrictionless/GBP with 3DS off. The cases below
-  // add the two dimensions that combination cannot reach: a real ACS challenge
-  // answered both ways, and an authentication that is declined outright.
-
-  /** The account DCC-013 creates, whose saved card DCC-019 quotes against. */
-  const mxnEmail = uniqueEmail();
-  const mxnReturning = { email: mxnEmail, password: billing.password };
-
-  /**
-   * Drive a checkout that is expected NOT to complete, and return the error the
-   * buyer is shown.
-   *
-   * `checkoutHostedSession` cannot be used for these: it asserts the
-   * order-received page and an empty cart, and a declined authentication reaches
-   * neither. That is the same reason suite 10 was never ported.
-   */
-  async function attemptBlockedCheckout(
-    page: import('@playwright/test').Page,
-    card: typeof cards[string],
-    choice: DccChoice,
-    outcome?: ThreeDSOutcome,
-  ): Promise<string> {
-    await addToCartAndCheckout(page, config.products.physical);
-    await fillBilling(page, billing);
-    await selectPaymentMethod(page, config);
-    await fillHostedSessionCC(page, card, config);
-
-    // The offer must really be on the page before answering it, or these cases
-    // would pass for the wrong reason on a card that never quoted.
-    await requireDccOffer(page, config);
-    expect(await answerDccOffer(page, config, choice), 'DCC offer could not be answered').toBe(true);
-
-    await clickPlaceOrder(page);
-    if (outcome) await handle3DSChallenge(page, { outcome });
-    await waitForUnblock(page);
-
-    // No order-received, no order: the buyer is still on checkout.
-    await expect(page).toHaveURL(/checkout/);
-    return getCheckoutError(page);
-  }
-
-  // === DCC-013: MXN, offer accepted, challenge passed ===
-
-  test('DCC-013 - MXN offer accepted through a passed 3DS challenge', async ({ page, adminPage, emailPage }) => {
-    // Restated rather than inherited from DCC-001, so this block can be run on
-    // its own with --grep without silently testing the block checkout.
-    await switchCheckoutMode('classic');
-    await configureGateway(config, { ...DCC_ON_3DS });
-
-    const ctx = await checkoutHostedSession(page, config, {
-      productId: config.products.physical,
-      card: cards.mastercardMxnChallenge,
-      billing: { ...billing, email: mxnEmail },
-      createAccount: billing.password,
-      saveCard: true,
-      requireDccOffer: true,
-      dccChoice: 'accept',
-      // The card challenges, so the ACS prompt is not optional here.
-      threeDS: 'always',
-    });
-
-    // On the 3DS path the conversion is declared at INITIATE_AUTHENTICATION
-    // rather than on PAY — maybe_add_dcc_payment_data reads $_POST, and the PAY
-    // runs on the post-ACS request, which no longer carries the offer fields.
-    // MPGS applies it to the session, so the order still comes back converted;
-    // assertDccUptakeLog looks for whichever operation declared it.
-    await assertDccUptakeLog({ ...ctx, uptake: 'ACCEPTED' });
-    await assertDccOrderMeta(ctx.orderNumber, config, { payerCurrency: MXN });
-
-    await page.goto(ctx.orderReceivedUrl);
-    await assertDccReceiptRow(page, { payerCurrency: MXN });
-
-    await navigateToOrder(adminPage, ctx.orderNumber);
-    await assertDccAdminPanel(adminPage, { payerCurrency: MXN });
-
-    await assertCaptureLogTrail({
-      ...ctx, expectSessionPost: true, expectToken: true, expectCardDetailsFetch: true,
-    });
-    await assertOrderComplete(ctx, config, { page, adminPage, emailPage }, {
-      status: 'Processing',
-      note: 'captured',
-    });
-  });
-
-  // === DCC-014: MXN, offer declined, challenge passed ===
-
-  test('DCC-014 - MXN offer declined through a passed 3DS challenge', async ({ page, adminPage, emailPage }) => {
-    const ctx = await checkoutHostedSession(page, config, {
-      productId: config.products.physical,
-      card: cards.mastercardMxnChallenge,
-      requireDccOffer: true,
-      dccChoice: 'reject',
-      threeDS: 'always',
-    });
-
-    await assertDccUptakeLog({ ...ctx, uptake: 'DECLINED' });
-    await assertDccOrderMeta(ctx.orderNumber, config, {
-      payerCurrency: MXN,
-      expectAbsent: true,
-    });
-    expect(ctx.order.currency, 'order currency should be unchanged').toBe('USD');
-
-    await assertOrderComplete(ctx, config, { page, adminPage, emailPage }, {
-      status: 'Processing',
-      note: 'captured',
-    });
-  });
-
-  // === DCC-015 / DCC-016: MXN, challenge declined, either side of the offer ===
-  //
-  // The two decline paths surface differently, and the strings below are the
-  // distinction. A challenge answered UNAUTHENTICATED comes back as a declined
-  // payment method; the HKD card's frictionless failure comes back as an
-  // authentication error. Both captured live 2026-08-19.
-
-  test('DCC-015 - MXN offer accepted but the 3DS challenge is declined', async ({ page }) => {
-    const error = await attemptBlockedCheckout(
-      page, cards.mastercardMxnChallenge, 'accept', 'UNAUTHENTICATED',
-    );
-    expect(error).toContain('payment method was declined');
-  });
-
-  test('DCC-016 - MXN offer declined and the 3DS challenge is declined', async ({ page }) => {
-    const error = await attemptBlockedCheckout(
-      page, cards.mastercardMxnChallenge, 'reject', 'UNAUTHENTICATED',
-    );
-    expect(error).toContain('payment method was declined');
-  });
-
-  // === DCC-017 / DCC-018: HKD, authentication declined without a challenge ===
-
-  test('DCC-017 - HKD offer accepted but authentication is declined', async ({ page }) => {
-    // No outcome argument: this card never reaches an ACS prompt. The decline
-    // happens at AUTHENTICATE_PAYER, frictionlessly.
-    const error = await attemptBlockedCheckout(page, cards.visaHkdFrictionless, 'accept');
-    expect(error).toContain('error with the payment authentication');
-  });
-
-  test('DCC-018 - HKD offer declined and authentication is declined', async ({ page }) => {
-    const error = await attemptBlockedCheckout(page, cards.visaHkdFrictionless, 'reject');
-    expect(error).toContain('error with the payment authentication');
-  });
-
-  // === DCC-019: the saved MXN card still draws an offer ===
-
-  test('DCC-019 - Saved card quotes an offer and challenges', async ({ page, adminPage, emailPage }) => {
-    const ctx = await checkoutHostedSession(page, config, {
-      productId: config.products.physical,
-      // The card DCC-013 saved; the token stands in for it.
-      card: cards.mastercardMxnChallenge,
-      loginAs: mxnReturning,
-      savedTokenIndex: 1,
-      requireDccOffer: true,
-      dccChoice: 'accept',
-      // A saved challenge token may or may not re-challenge, per issuer.
-      threeDS: 'maybe',
-    });
-
-    // The distinguishing assertion: a saved token has no PAN in the DOM, so the
-    // browser cannot quote against MPGS directly — ajax_dcc_quote fetches it
-    // server-side, which is the only way the inquiry reaches our log.
-    await assertDccQuoteInquiryLog({ payDate: ctx.payDate, logOffset: ctx.logOffset });
-
-    await assertDccUptakeLog({ ...ctx, uptake: 'ACCEPTED' });
-    await assertDccOrderMeta(ctx.orderNumber, config, { payerCurrency: MXN });
-
-    await navigateToOrder(adminPage, ctx.orderNumber);
-    await assertDccAdminPanel(adminPage, { payerCurrency: MXN });
-
-    await assertOrderComplete(ctx, config, { page, adminPage, emailPage }, {
-      status: 'Processing',
-      note: 'captured',
-      // Still the one card DCC-013 saved.
-      myAccount: { ...mxnReturning, expectedCards: 1 },
-    });
-  });
-
-  // 3DS is site-global and the cases above turn it on. Leaving it on would
-  // silently change the meaning of any later suite that does not set it.
-  test.afterAll(async () => {
-    await configureGateway(config, { ...DCC_ON });
-  });
+  // The currency-specific cards, classic side. Shared with suite 22 — see
+  // tests/_shared/dcc-card-cases.ts.
+  describeDccCardCases('classic', 13);
 });

@@ -22,6 +22,7 @@ import { navigateToOrder } from '../../helpers/admin-orders';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
 import { billing, uniqueEmail } from '../../fixtures/billing';
+import { describeDccCardCases } from '../_shared/dcc-card-cases';
 
 /**
  * DCC through the block checkout — the same feature as suite 19, but almost none
@@ -191,4 +192,7 @@ test.describe.serial('DCC - Hosted Session (blocks)', () => {
       myAccount: { ...returning, expectedCards: 1 },
     });
   });
+
+  // The same currency-specific cards, blocks side.
+  describeDccCardCases('blocks', 20);
 });
