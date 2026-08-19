@@ -1833,9 +1833,12 @@ element ids match between modes, so `helpers/dcc.ts` needed no changes.
 
 ---
 
-- [ ] **Step 8: Update the README's suite status**
+- [x] **Step 8: Update the README's suite status**
 
-`tests/Playwright/README.md:176-182` currently says "01-15 ported and green, 16-18 not ported". Update to reflect 19 and 20, and add the two new prerequisites to the Prerequisites list: WooCommerce Pre-Orders active with both product types, and `currency_conversion` plus a foreign-currency card for DCC. Add the new env vars to the setup table.
+Done in `27f86fa`. The "Suite status" section now lists 19-22 individually,
+including PO-005's inverted meaning, and gained a "Prerequisites for 19-22"
+subsection covering the pre-order products, the foreign-currency card, and
+`currency_conversion`.
 
 ```bash
 git add tests/Playwright/README.md

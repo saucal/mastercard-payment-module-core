@@ -80,16 +80,9 @@ test.describe.serial('Pre-orders', () => {
       // decides whether the money moved, not the status. Verified live on order
       // 6277, 2026-08-19.
       status: 'Pre-ordered',
-      // assertCapturedNote pins the note to position 2, and a pre-order pushes
-      // it down with its own "Email “Pre-ordered” sent." note. The position is
-      // not what this case is about, so assert the text unpinned below.
-      note: 'none',
+      note: 'captured',
       emails: 'none',
     });
-    await assertOrderNoteContains(
-      adminPage,
-      `${config.displayName} payment was Captured (Order ID: ${ctx.transactionId})`,
-    );
 
     // maybe_hide_capture_meta_box_pre_order hides the gateway capture box for
     // every pre-order, upfront included — the one addon behaviour this path has.

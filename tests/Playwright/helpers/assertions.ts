@@ -61,10 +61,22 @@ export async function assertOrderNoteContains(page: Page, text: string, position
 }
 
 /**
- * Verify the order note for a captured payment (GI expects this at position 2).
+ * Verify the order note for a captured payment.
+ *
+ * Deliberately NOT pinned to a position, though Ghost Inspector pinned it to 2.
+ * WooCommerce writes the gateway's two notes and the two "Email ... sent." notes
+ * inside the same second, and the admin screen orders by timestamp — so whether
+ * the emails tie with the capture note or land a second after it decides whether
+ * the capture note renders second or fourth. Observed both on 2026-08-19: order
+ * 6291 had all four at 12:22:53, order 6295 had the emails a second later. The
+ * pin turned that coin-flip into red runs across suites 01, 02, 04, 07, 11, 12
+ * and 15, and a pre-order's extra "Email “Pre-ordered” sent." note shifted it
+ * again in suite 20.
+ *
+ * The text is the assertion; the position never was.
  */
 export async function assertCapturedNote(page: Page, config: PluginConfig, transactionId: string): Promise<void> {
-  await assertOrderNoteContains(page, `${config.displayName} payment was Captured (Order ID: ${transactionId})`, 2);
+  await assertOrderNoteContains(page, `${config.displayName} payment was Captured (Order ID: ${transactionId})`);
 }
 
 /**

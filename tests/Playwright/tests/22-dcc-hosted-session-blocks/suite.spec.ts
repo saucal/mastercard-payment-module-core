@@ -12,7 +12,6 @@ import { requireDccOffer } from '../../helpers/dcc';
 import { waitForUnblock } from '../../helpers/block-ui';
 import { checkoutHostedSession, assertOrderComplete } from '../../helpers/flows';
 import {
-  assertOrderNoteContains,
   assertDccOrderMeta,
   assertDccReceiptRow,
   assertDccAdminPanel,
@@ -103,16 +102,8 @@ test.describe.serial('DCC - Hosted Session (blocks)', () => {
 
     await assertOrderComplete(ctx, config, { page, adminPage, emailPage }, {
       status: 'Processing',
-      // 'none' + the unpinned check below: assertCapturedNote pins the note to
-      // position 2, and how many "Email ... sent." notes WooCommerce has written
-      // by the time the admin screen renders is a race, not a property of this
-      // flow. The text is the assertion; the position never was.
-      note: 'none',
+      note: 'captured',
     });
-    await assertOrderNoteContains(
-      adminPage,
-      `${config.displayName} payment was Captured (Order ID: ${ctx.transactionId})`,
-    );
   });
 
   // === DCC-010: Decline ===
@@ -138,16 +129,8 @@ test.describe.serial('DCC - Hosted Session (blocks)', () => {
 
     await assertOrderComplete(ctx, config, { page, adminPage, emailPage }, {
       status: 'Processing',
-      // 'none' + the unpinned check below: assertCapturedNote pins the note to
-      // position 2, and how many "Email ... sent." notes WooCommerce has written
-      // by the time the admin screen renders is a race, not a property of this
-      // flow. The text is the assertion; the position never was.
-      note: 'none',
+      note: 'captured',
     });
-    await assertOrderNoteContains(
-      adminPage,
-      `${config.displayName} payment was Captured (Order ID: ${ctx.transactionId})`,
-    );
   });
 
   // === DCC-011: An unanswered offer is rejected client-side ===
@@ -203,13 +186,9 @@ test.describe.serial('DCC - Hosted Session (blocks)', () => {
 
     await assertOrderComplete(ctx, config, { page, adminPage, emailPage }, {
       status: 'Processing',
-      note: 'none',
+      note: 'captured',
       // Still the one card DCC-009 saved — paying with a token does not add another.
       myAccount: { ...returning, expectedCards: 1 },
     });
-    await assertOrderNoteContains(
-      adminPage,
-      `${config.displayName} payment was Captured (Order ID: ${ctx.transactionId})`,
-    );
   });
 });

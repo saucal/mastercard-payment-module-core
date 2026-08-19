@@ -53,6 +53,30 @@ export const cards: Record<string, CardData> = {
     cvv: '100',
     challenge: false,
   },
+  /**
+   * DCC fixtures. Both quote in a currency other than the store's, which is what
+   * draws a conversion offer at all — that is a property of the BIN at MPGS, not
+   * something the suite controls.
+   */
+  mastercardMxnChallenge: {
+    number: '5288049999998964',
+    name: 'MasterCard',
+    shortName: 'MASTERCARD',
+    month: '01',
+    year: '39',
+    cvv: '100',
+    challenge: true,
+  },
+  visaHkdFrictionless: {
+    number: '4541879999990975',
+    name: 'Visa',
+    shortName: 'VISA',
+    month: '01',
+    year: '39',
+    cvv: '100',
+    challenge: false,
+  },
+
   declined: {
     number: '5123456789012346',
     name: 'MasterCard',
