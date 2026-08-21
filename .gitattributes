@@ -43,3 +43,4 @@ assets/663.js export-ignore
 docs export-ignore
 phpstan.neon export-ignore
 audit-assertions.py export-ignore
+.claude export-ignore
