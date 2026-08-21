@@ -340,10 +340,13 @@ export async function clickPlaceOrder(page: Page, opts: { force?: boolean } = {}
   await btn.scrollIntoViewIfNeeded();
   await btn.first().click({ force: opts.force ?? false });
 
-  // Wait for either redirect to order-received, a checkout error, or 3DS redirect
+  // Wait for either redirect to order-received, a checkout error, or 3DS redirect.
+  // waitUntil 'commit' because arrival is all we need: the blocks order-received
+  // page fires networkidle but never `load`, so the default waitUntil sat out the
+  // full 60s on a page the browser was already showing (DCC-009, 2026-08-19).
   await Promise.race([
-    page.waitForURL(/order-received/, { timeout: 60000 }),
-    page.waitForURL(/acs|3ds|threedsecure|mastercard\.com.*prompt/i, { timeout: 60000 }),
+    page.waitForURL(/order-received/, { timeout: 60000, waitUntil: 'commit' }),
+    page.waitForURL(/acs|3ds|threedsecure|mastercard\.com.*prompt/i, { timeout: 60000, waitUntil: 'commit' }),
     page.locator(sel.errorMessage).first().waitFor({ state: 'visible', timeout: 60000 }),
   ]);
 }

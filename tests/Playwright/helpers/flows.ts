@@ -279,7 +279,7 @@ export async function checkoutHostedSession(
     // One waitForURL over both destinations rather than a race: whichever
     // arrives first satisfies it, and the URL is then unambiguous.
     await page
-      .waitForURL(/acs|3ds|threedsecure|prompt|order-received/i, { timeout: 60000 })
+      .waitForURL(/acs|3ds|threedsecure|prompt|order-received/i, { timeout: 60000, waitUntil: 'commit' })
       .catch(() => {
         // Neither appeared. Not fatal here — let the order-received assertions
         // below report what the page actually is.

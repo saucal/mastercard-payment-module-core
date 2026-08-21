@@ -108,8 +108,8 @@ export async function clickHostedCheckoutPay(
   // the hosted-checkout UI with an error. Race the positive outcomes and
   // let the caller handle any 3DS challenge after.
   await Promise.race([
-    page.waitForURL(/order-received/, { timeout: 60000 }),
-    page.waitForURL(/acs|3ds|threedsecure|mastercard\.com.*prompt/i, { timeout: 60000 }),
+    page.waitForURL(/order-received/, { timeout: 60000, waitUntil: 'commit' }),
+    page.waitForURL(/acs|3ds|threedsecure|mastercard\.com.*prompt/i, { timeout: 60000, waitUntil: 'commit' }),
   ]).catch(() => {});
 }
 
