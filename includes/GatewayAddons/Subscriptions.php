@@ -219,7 +219,7 @@ trait Subscriptions {
 	 * @param WC_Subscription $subscription Subscription object.
 	 * @return array
 	 */
-	protected function get_agreement_data( $subscription, $require_expiry = false ) {
+	protected function get_agreement_data( $subscription, $establishing = false ) {
 		if ( ! $subscription instanceof WC_Subscription ) {
 			return array();
 		}
@@ -259,8 +259,11 @@ trait Subscriptions {
 			'id'                         => $this->unique_subscription_id( $subscription ),
 			'paymentFrequency'           => $this->formatted_subscription_period( $subscription ),
 			'startDate'                  => gmdate( 'Y-m-d' ),
-			'expiryDate'                 => $this->agreement_expiry_date( $end_date, $require_expiry ),
-			'minimumDaysBetweenPayments' => $this->calculate_min_days_between_payments( $subscription ),
+			'expiryDate'                 => $this->agreement_expiry_date( $end_date, $establishing ),
+			// max(1): array_filter() below drops a 0, and a dropped value fails the
+			// same validation as omitting it — which would bite whenever the next
+			// payment is less than a day away.
+			'minimumDaysBetweenPayments' => $establishing ? max( 1, $this->calculate_min_days_between_payments( $subscription ) ) : '',
 		);
 	}
 
@@ -269,15 +272,15 @@ trait Subscriptions {
 	 * The agreement expiry to send, or '' to omit it.
 	 *
 	 * @param string $end_date       Subscription end date, empty when open-ended.
-	 * @param bool   $require_expiry Whether the operation rejects a missing expiry.
+	 * @param bool   $establishing   Whether this operation establishes the agreement.
 	 * @return string
 	 */
-	protected function agreement_expiry_date( $end_date, $require_expiry ) {
+	protected function agreement_expiry_date( $end_date, $establishing ) {
 		if ( ! empty( $end_date ) ) {
 			return gmdate( 'Y-m-d', strtotime( $end_date ) );
 		}
 
-		return $require_expiry ? gmdate( 'Y-m-d', strtotime( '+1 year' ) ) : '';
+		return $establishing ? gmdate( 'Y-m-d', strtotime( '+1 year' ) ) : '';
 	}
 
 
