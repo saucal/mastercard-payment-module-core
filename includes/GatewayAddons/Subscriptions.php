@@ -196,7 +196,7 @@ trait Subscriptions {
 			return $payment_data;
 		}
 
-		$payment_data['agreement'] = array_filter( $this->get_agreement_data( $subscription ) );
+		$payment_data['agreement'] = array_filter( $this->get_agreement_data( $subscription, true ) );
 
 		$has_free_trial = $this->order_contains_free_trial( $subscription ) || ( class_exists( 'WC_Subscriptions_Cart' ) && WC_Subscriptions_Cart::cart_contains_free_trial() );
 
@@ -219,20 +219,37 @@ trait Subscriptions {
 	 * @param WC_Subscription $subscription Subscription object.
 	 * @return array
 	 */
-	protected function get_agreement_data( $subscription ) {
+	protected function get_agreement_data( $subscription, $require_expiry = false ) {
 		if ( ! $subscription instanceof WC_Subscription ) {
 			return array();
 		}
 
 		/**
-		 * Only the subscription's *end* date bounds the agreement.
+		 * Only a real end date bounds the agreement; otherwise send nothing.
 		 *
-		 * This used to fall back to the next payment date, which for an
-		 * open-ended subscription is one billing period away — so the agreement
-		 * we registered with the gateway expired on the very day the first
-		 * renewal was due, and every merchant-initiated renewal after that ran
-		 * against a lapsed agreement. An open-ended subscription has no expiry;
-		 * a year is the horizon we re-register against.
+		 * Most WooCommerce subscriptions run until cancelled, so they have no
+		 * contractual end date. Mastercard Gateway Support, 2026-09: for such
+		 * agreements expiryDate and numberOfPayments "should not be provided...
+		 * omit fields whose values are not defined by the merchant-customer
+		 * agreement", and "if the agreement.expiryDate passes the agreement
+		 * comes to an end and you would need to create a new agreement".
+		 *
+		 * So any invented horizon is actively harmful: it would kill the
+		 * agreement on that date, and re-establishing one needs a payer-present
+		 * CIT, which an unattended renewal cannot do. Callers array_filter() this
+		 * array, so returning an empty string omits the field.
+		 *
+		 * $require_expiry is the exception, and it is not optional. The 3DS
+		 * AUTHENTICATE_PAYER that establishes the agreement rejects the request
+		 * outright without one:
+		 *
+		 *   INVALID_REQUEST - "Authentication requests to establish recurring and
+		 *   installment agreements must provide recurring expiry"
+		 *
+		 * So the gateway contradicts its own support guidance here: omit it on the
+		 * payment, but the authentication step demands a date even when the
+		 * agreement has no end. A year is the horizon we send there. Raised with
+		 * Mastercard - see data/apps/mastercard/ (unversioned).
 		 */
 		$end_date = $subscription->get_date( 'end' );
 
@@ -242,9 +259,25 @@ trait Subscriptions {
 			'id'                         => $this->unique_subscription_id( $subscription ),
 			'paymentFrequency'           => $this->formatted_subscription_period( $subscription ),
 			'startDate'                  => gmdate( 'Y-m-d' ),
-			'expiryDate'                 => gmdate( 'Y-m-d', ! empty( $end_date ) ? strtotime( $end_date ) : strtotime( '+1 year' ) ),
+			'expiryDate'                 => $this->agreement_expiry_date( $end_date, $require_expiry ),
 			'minimumDaysBetweenPayments' => $this->calculate_min_days_between_payments( $subscription ),
 		);
+	}
+
+
+	/**
+	 * The agreement expiry to send, or '' to omit it.
+	 *
+	 * @param string $end_date       Subscription end date, empty when open-ended.
+	 * @param bool   $require_expiry Whether the operation rejects a missing expiry.
+	 * @return string
+	 */
+	protected function agreement_expiry_date( $end_date, $require_expiry ) {
+		if ( ! empty( $end_date ) ) {
+			return gmdate( 'Y-m-d', strtotime( $end_date ) );
+		}
+
+		return $require_expiry ? gmdate( 'Y-m-d', strtotime( '+1 year' ) ) : '';
 	}
 
 
@@ -626,8 +659,9 @@ trait Subscriptions {
 			 * which fails every renewal, so no subscription could ever renew.
 			 */
 			'agreement'        => array(
-				'id'   => $this->unique_subscription_id( $subscription ),
-				'type' => 'RECURRING',
+				'id'                => $this->unique_subscription_id( $subscription ),
+				'type'              => 'RECURRING',
+				'amountVariability' => 'FIXED',
 			),
 			'transaction'      => array(
 				'source' => 'MERCHANT',
