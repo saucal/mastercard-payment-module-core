@@ -668,43 +668,16 @@ trait Subscriptions {
 			$payment_token = $payment_token->get_token();
 		}
 
-		$payment_data = array(
-			'apiOperation'     => 'PAY', // TODO: Respect authorize / capture settings.
-			'order'            => $this->hosted_session_order_payload( $order ),
-			/**
-			 * `type` is required here, not just on the transaction that opened the
-			 * agreement. Sending `id` alone gets a 400 from the gateway:
-			 *
-			 *   INVALID_REQUEST - "Field agreement.type must be provided when
-			 *   field agreement.id is provided for payer-initiated payments."
-			 *
-			 * which fails every renewal, so no subscription could ever renew.
-			 */
-			'agreement'        => array(
+		$this->create_merchant_initiated_payment(
+			$order,
+			$this->unique_order_id( $order ),
+			array(
 				'id'                => $this->unique_subscription_id( $subscription ),
 				'type'              => 'RECURRING',
 				'amountVariability' => 'FIXED',
 			),
-			'transaction'      => array(
-				'source' => 'MERCHANT',
-			),
-			'referenceOrderId' => $this->unique_order_id( $parent_order ),
-			'sourceOfFunds'    => array(
-				'type'     => 'CARD',
-				'token'    => $payment_token,
-				'provided' => array(
-					'card' => array(
-						'storedOnFile' => 'STORED',
-					),
-				),
-			),
-		);
-
-		$this->create_payment_transaction(
-			$order,
-			$this->unique_order_id( $order ),
-			$this->unique_transaction_id( $order ),
-			$payment_data,
+			$this->unique_order_id( $parent_order ),
+			$payment_token
 		);
 	}
 

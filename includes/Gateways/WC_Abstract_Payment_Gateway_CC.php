@@ -998,6 +998,58 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		return $order_data;
 	}
 
+
+	/**
+	 * Charge a stored credential with no payer present, under an agreement that a
+	 * cardholder-initiated transaction established earlier.
+	 *
+	 * The one merchant-initiated payload, shared by subscription renewals and
+	 * pre-order releases so two copies cannot drift apart. `agreement.type` must
+	 * be on every MIT, not only on the transaction that opened the agreement;
+	 * sending `id` alone gets
+	 *
+	 *   INVALID_REQUEST - "Field agreement.type must be provided when field
+	 *   agreement.id is provided for payer-initiated payments."
+	 *
+	 * ponytail: a retry after the gateway accepted a charge we failed to record
+	 * would charge twice (new transaction id, same gateway order). Look the
+	 * gateway order up before charging if releases/renewals start being retried.
+	 *
+	 * @param WC_Order $order              Order being charged.
+	 * @param string   $gateway_order_id   Gateway order to charge under.
+	 * @param array    $agreement          Agreement fields; at least id and type.
+	 * @param string   $reference_order_id Gateway order of the establishing CIT.
+	 * @param string   $token              Stored gateway token.
+	 *
+	 * @return array Gateway order data.
+	 * @throws Exception When the gateway declines or errors.
+	 */
+	public function create_merchant_initiated_payment( $order, $gateway_order_id, $agreement, $reference_order_id, $token ) {
+		return $this->create_payment_transaction(
+			$order,
+			$gateway_order_id,
+			$this->unique_transaction_id( $order ),
+			array(
+				'apiOperation'     => 'PAY', // TODO: Respect authorize / capture settings.
+				'order'            => $this->hosted_session_order_payload( $order ),
+				'agreement'        => $agreement,
+				'transaction'      => array(
+					'source' => 'MERCHANT',
+				),
+				'referenceOrderId' => $reference_order_id,
+				'sourceOfFunds'    => array(
+					'type'     => 'CARD',
+					'token'    => $token,
+					'provided' => array(
+						'card' => array(
+							'storedOnFile' => 'STORED',
+						),
+					),
+				),
+			)
+		);
+	}
+
 	/**
 	 * Is forcing the save of the payment method.
 	 *

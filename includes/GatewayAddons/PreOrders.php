@@ -14,6 +14,7 @@ use WC_Order;
 use WC_Pre_Orders_Order;
 use WC_Pre_Orders_Cart;
 use WC_Pre_Orders_Product;
+use WC_Payment_Tokens;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
@@ -55,6 +56,11 @@ trait PreOrders {
 		// Add pre-order payment data to the payment request.
 		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_data', array( $this, 'maybe_add_pre_order_payment_data' ), 10, 2 );
 		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_hosted_session_data', array( $this, 'maybe_add_pre_order_payment_data' ), 10, 2 );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_hosted_session_3ds_data', array( $this, 'maybe_add_pre_order_authentication_initiate_data' ), 10, 2 );
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_hosted_session_3ds_authenticate_payer_data', array( $this, 'maybe_add_pre_order_authentication_data' ), 10, 2 );
+
+		// Verified at checkout, paid at release: do not record the payment yet.
+		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_verification_completes_payment', array( $this, 'maybe_defer_pre_order_payment' ), 10, 2 );
 
 		// Hide the save payment method checkbox for subscriptions.
 		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_display_save_payment_method_checkbox', array( $this, 'maybe_display_save_checkbox_pre_orders' ) );
@@ -78,7 +84,21 @@ trait PreOrders {
 
 
 	/**
-	 * Add pre-order payment data to the payment request.
+	 * Store the card and establish an agreement for a pre-order charged on release.
+	 *
+	 * Nothing is taken at checkout. This used to AUTHORIZE the full amount and
+	 * CAPTURE it at release, which fails once the authorization expires, and
+	 * releases are routinely weeks or months away. Mastercard Gateway Support:
+	 * "If an Authorization expires you will no longer be able to Capture it... it
+	 * may be best to use MIT with the agreement.id".
+	 *
+	 * So the checkout is a cardholder-initiated VERIFY that opens an UNSCHEDULED
+	 * agreement, and the release is a merchant-initiated PAY under it - see
+	 * process_pre_order_release_payment(). storedOnFile TO_BE_STORED is left to
+	 * the base gateway: saving is forced for these carts, and the base sets the
+	 * flag after this filter runs, so anything set here would be overwritten.
+	 *
+	 * A pre-order charged upfront is an ordinary payment and is left alone.
 	 *
 	 * @param array         $payment_data Payment data.
 	 * @param WC_Order|null $order        Order object.
@@ -86,23 +106,133 @@ trait PreOrders {
 	 * @return array
 	 */
 	public function maybe_add_pre_order_payment_data( $payment_data, $order ) {
-		if ( ! $this->is_order( $order ) ) {
+		if ( ! $this->is_pre_order_charged_on_release( $order ) ) {
 			return $payment_data;
 		}
 
-		if ( ! $this->has_pre_order( $order->get_id() ) ) {
-			return $payment_data;
-		}
-
-		// For pre-orders charged upfront, process payment normally.
-		if ( ! WC_Pre_Orders_Order::order_requires_payment_tokenization( $order ) ) {
-			return $payment_data;
-		}
-
-		// Use AUTHORIZE operation for pre-orders that will be charged upon release.
-		$payment_data['apiOperation'] = 'AUTHORIZE';
+		$payment_data['apiOperation'] = 'VERIFY';
+		$payment_data['agreement']    = $this->pre_order_agreement( $order );
 
 		return $payment_data;
+	}
+
+
+	/**
+	 * Authenticate the payer for adding a card rather than for a payment.
+	 *
+	 * @param array         $init_authentication INITIATE_AUTHENTICATION data.
+	 * @param WC_Order|null $order               Order object.
+	 *
+	 * @return array
+	 */
+	public function maybe_add_pre_order_authentication_initiate_data( $init_authentication, $order ) {
+		if ( $this->is_pre_order_charged_on_release( $order ) ) {
+			$init_authentication['authentication']['purpose'] = 'ADD_CARD';
+		}
+
+		return $init_authentication;
+	}
+
+
+	/**
+	 * Carry the agreement into AUTHENTICATE_PAYER, which is where it is
+	 * established.
+	 *
+	 * Unlike a RECURRING agreement, an UNSCHEDULED one needs no expiryDate and no
+	 * minimumDaysBetweenPayments here: the gateway's "must provide recurring
+	 * expiry and recurring frequency" check is scoped to recurring and
+	 * installment agreements, and does not fire for UNSCHEDULED. The order amount
+	 * stays as it is - AUTHENTICATE_PAYER rejects a zero amount.
+	 *
+	 * @param array         $payment_data AUTHENTICATE_PAYER data.
+	 * @param WC_Order|null $order        Order object.
+	 *
+	 * @return array
+	 */
+	public function maybe_add_pre_order_authentication_data( $payment_data, $order ) {
+		if ( $this->is_pre_order_charged_on_release( $order ) ) {
+			$payment_data['agreement'] = $this->pre_order_agreement( $order );
+		}
+
+		return $payment_data;
+	}
+
+
+	/**
+	 * Do not mark a pre-order charged on release as paid when its card is
+	 * verified. WC_Pre_Orders_Order::mark_order_as_pre_ordered() takes over from
+	 * here, via the payment_success action.
+	 *
+	 * @param bool     $complete Whether the verification completes the payment.
+	 * @param WC_Order $order    Order object.
+	 *
+	 * @return bool
+	 */
+	public function maybe_defer_pre_order_payment( $complete, $order ) {
+		return $this->is_pre_order_charged_on_release( $order ) ? false : $complete;
+	}
+
+
+	/**
+	 * Whether the order is a pre-order that is charged on release and still
+	 * needs its card taken.
+	 *
+	 * order_requires_payment_tokenization() turns false once
+	 * mark_order_as_pre_ordered() has recorded the token, so this is only true
+	 * during the checkout that establishes the agreement - never at release.
+	 *
+	 * @param WC_Order|null $order Order object.
+	 *
+	 * @return bool
+	 */
+	protected function is_pre_order_charged_on_release( $order ) {
+		return $this->is_order( $order )
+			&& $this->has_pre_order( $order->get_id() )
+			&& WC_Pre_Orders_Order::order_requires_payment_tokenization( $order );
+	}
+
+
+	/**
+	 * The agreement a pre-order is charged under. Derived from the order, so
+	 * nothing needs storing to rebuild it at release.
+	 *
+	 * @param WC_Order $order Order object.
+	 *
+	 * @return array
+	 */
+	protected function pre_order_agreement( $order ) {
+		return array(
+			'id'   => 'PAYMENTS_CORE_HOOK_PREFIX_pre-order-' . $order->get_id(),
+			'type' => 'UNSCHEDULED',
+		);
+	}
+
+
+	/**
+	 * The gateway order the release is charged under.
+	 *
+	 * A subscription renewal gets a new gateway order for free, because
+	 * WooCommerce creates a new WC order for it. A pre-order release charges the
+	 * same WC order, and unique_order_id() is derived from it, so reusing that
+	 * would put the charge on the gateway order the checkout VERIFY already
+	 * created - where the Credential on File guide requires a delayed charge be
+	 * "submitted as a new order". Created once and stored, so a retried release
+	 * charges the same gateway order.
+	 *
+	 * @param WC_Order $order Order object.
+	 *
+	 * @return string
+	 */
+	protected function pre_order_release_order_id( $order ) {
+		$release_order_id = $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_release_order_id' );
+
+		if ( ! $release_order_id ) {
+			$release_order_id = $order->get_id() . '-release-' . substr( md5( get_site_url() . '-' . $order->get_id() . '-' . wp_generate_password( 12, false ) ), 0, 12 );
+			$order->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_release_order_id', $release_order_id );
+			$order->save_meta_data();
+		}
+
+		return $release_order_id;
 	}
 
 
@@ -192,64 +322,51 @@ trait PreOrders {
 
 
 	/**
-	 * Process pre-order release payment (capture authorized funds).
+	 * Charge a pre-order on release, as a merchant-initiated payment.
 	 *
-	 * @param int $order_id Order ID.
+	 * Fired by WC_Pre_Orders_Manager::complete_pre_order() with the order - an
+	 * object, not an ID, despite what this used to be typed as. An ID is still
+	 * accepted.
+	 *
+	 * @param WC_Order|int $order Order.
 	 *
 	 * @return void
-	 *
-	 * @throws Exception Exception.
 	 */
-	public function process_pre_order_release_payment( $order_id ) {
-		$order = wc_get_order( $order_id );
+	public function process_pre_order_release_payment( $order ) {
+		$order = wc_get_order( $order );
 
 		if ( ! $order ) {
-			$this->core_plugin->logger()->log( sprintf( 'Pre-order release: Invalid order ID %d', $order_id ), 'error' );
+			$this->core_plugin->logger()->log( 'Pre-order release: invalid order', 'error' );
 			return;
 		}
 
-		// Ensure this is our gateway.
-		if ( $order->get_payment_method() !== $this->id ) {
+		if ( $order->get_payment_method() !== $this->id || ! WC_Pre_Orders_Order::order_contains_pre_order( $order->get_id() ) ) {
 			return;
 		}
 
-		// Ensure this is a pre-order.
-		if ( ! WC_Pre_Orders_Order::order_contains_pre_order( $order_id ) ) {
-			return;
-		}
-
-		// Check if already captured.
-		if ( $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_order_captured' ) ) {
-			$this->core_plugin->logger()->log( sprintf( 'Pre-order %d already captured', $order_id ), 'info' );
+		if ( $order->is_paid() ) {
+			$this->core_plugin->logger()->log( sprintf( 'Pre-order %d already paid', $order->get_id() ), 'info' );
 			return;
 		}
 
 		try {
-			// Get the authorized amount.
-			$authorized_amount = $this->get_authorized_amount( $order );
-
-			if ( $authorized_amount <= 0 ) {
-				throw new Exception( __( 'No authorized amount found for this pre-order.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
+			$tokens = $order->get_payment_tokens();
+			$token  = ! empty( $tokens ) ? WC_Payment_Tokens::get( reset( $tokens ) ) : null;
+			if ( ! $token ) {
+				throw new Exception( __( 'No stored card found for this pre-order.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
-			// Capture the payment.
-			$this->process_capture_payment( $order, $authorized_amount, $authorized_amount );
+			// Read the checkout's gateway order before charging: processing the
+			// release overwrites the order's gateway order id with the new one.
+			$reference_order_id = $this->unique_order_id( $order );
 
-			// Add order note.
-			$order->add_order_note(
-				sprintf(
-					// translators: %1$s: Gateway title, %2$s: Amount.
-					__( '%1$s pre-order payment captured: %2$s', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
-					$this->title,
-					wc_price( $authorized_amount, array( 'currency' => $order->get_currency() ) )
-				)
+			$this->create_merchant_initiated_payment(
+				$order,
+				$this->pre_order_release_order_id( $order ),
+				$this->pre_order_agreement( $order ),
+				$reference_order_id,
+				$token->get_token()
 			);
-
-			// Mark payment complete.
-			$order->payment_complete( $order->get_transaction_id() );
-
-			$this->core_plugin->logger()->log( sprintf( 'Pre-order %d payment captured successfully', $order_id ), 'info' );
-
 		} catch ( Exception $e ) {
 			$order->update_status(
 				'failed',
@@ -261,7 +378,7 @@ trait PreOrders {
 			);
 
 			$this->core_plugin->logger()->log(
-				sprintf( 'Pre-order %d payment capture failed: %s', $order_id, $e->getMessage() ),
+				sprintf( 'Pre-order %d release payment failed: %s', $order->get_id(), $e->getMessage() ),
 				'error'
 			);
 		}
