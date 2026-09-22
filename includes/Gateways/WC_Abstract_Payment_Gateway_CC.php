@@ -864,7 +864,22 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			if ( ! isset( $payment_data['sourceOfFunds']['provided']['card'] ) ) {
 				$payment_data['sourceOfFunds']['provided']['card'] = array();
 			}
-			if ( $saving_card ) {
+			/*
+			 * A credential the payer picked from their saved methods is already
+			 * stored, so it is STORED even when the cart also forces saving.
+			 *
+			 * $saving_card used to be checked first, and subscriptions force it on
+			 * (maybe_force_save_method), so subscribing with an already-saved card
+			 * was reported to the gateway as TO_BE_STORED — "the first transaction
+			 * using these card details" — for a credential stored long before.
+			 * Suites never caught it because every test enters a fresh card.
+			 *
+			 * The session-derived token stays last: during a new-card checkout the
+			 * session can already carry one, and that case really is TO_BE_STORED.
+			 */
+			if ( $this->is_saved_payment_method() ) {
+				$payment_data['sourceOfFunds']['provided']['card']['storedOnFile'] = 'STORED';
+			} elseif ( $saving_card ) {
 				$payment_data['sourceOfFunds']['provided']['card']['storedOnFile'] = 'TO_BE_STORED';
 			} elseif ( $using_token ) {
 				$payment_data['sourceOfFunds']['provided']['card']['storedOnFile'] = 'STORED';
