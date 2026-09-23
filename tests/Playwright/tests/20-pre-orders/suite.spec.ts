@@ -1,5 +1,5 @@
 import { test, expect } from '../../fixtures/test';
-import { switchCheckoutMode, configureGateway } from '../../helpers/wc-api';
+import { switchCheckoutMode, configureGateway, getLogEntryCount, getOrder } from '../../helpers/wc-api';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import { fillBilling, selectPaymentMethod } from '../../helpers/checkout';
 import {
@@ -9,11 +9,12 @@ import {
 } from '../../helpers/flows';
 import {
   assertCaptureLogTrail,
-  assertAuthorizeLogTrail,
-  assertCaptureOperationLog,
+  assertAgreementLog,
+  assertMerchantInitiatedPaymentLog,
   assertCaptureFormVisible,
   assertOrderStatus,
   assertOrderNoteContains,
+  assertPaymentMethodMeta,
 } from '../../helpers/assertions';
 import { navigateToOrder } from '../../helpers/admin-orders';
 import {
@@ -32,9 +33,14 @@ import { billing, uniqueEmail } from '../../fixtures/billing';
  * The two charge modes are different flows, not variants. Charged-upfront takes
  * no addon branch at all (`maybe_add_pre_order_payment_data` returns early once
  * `order_requires_payment_tokenization` is false), so it is an ordinary capture
- * checkout. Charged-upon-release forces AUTHORIZE and forces tokenization
- * regardless of the gateway settings, and the money moves later, when the
- * merchant releases the pre-order.
+ * checkout.
+ *
+ * Charged-upon-release is a stored-credential flow. The checkout is a VERIFY
+ * that stores the card and opens an UNSCHEDULED agreement, whatever the
+ * transaction mode, and takes nothing. The release is a merchant-initiated PAY
+ * under that agreement, on its own gateway order. It used to AUTHORIZE at
+ * checkout and CAPTURE at release, which fails once the authorization expires
+ * — releases are routinely months away.
  */
 
 /** The gateway config the checkout cases share. */
@@ -91,10 +97,10 @@ test.describe.serial('Pre-orders', () => {
 
   // === PO-002: Charged upon release — the checkout half ===
 
-  test('PO-002 - Pre-order charged upon release authorizes and tokenizes', async ({ page, adminPage, emailPage }) => {
+  test('PO-002 - Pre-order charged upon release verifies and tokenizes', async ({ page, adminPage, emailPage }) => {
     // Deliberately PURCHASE: maybe_add_pre_order_payment_data must override it
-    // with AUTHORIZE. Asserting the authorize trail against a PURCHASE setting
-    // is the assertion that catches the addon regressing.
+    // with VERIFY. Asserting a VERIFY trail against a PURCHASE setting is the
+    // assertion that catches the addon regressing.
     await configureGateway(config, { ...BASE_SETTINGS });
 
     const ctx = await checkoutHostedSession(page, config, {
@@ -107,47 +113,66 @@ test.describe.serial('Pre-orders', () => {
     });
     releaseCtx = ctx;
 
-    await assertAuthorizeLogTrail({
-      ...ctx, expectSessionPost: true, expectToken: true, expectCardDetailsFetch: true,
+    await assertCaptureLogTrail({
+      ...ctx, apiOperation: 'VERIFY',
+      expectSessionPost: true, expectToken: true, expectCardDetailsFetch: true,
       expect3DS: false,
     });
+    await assertAgreementLog({
+      payDate: ctx.payDate,
+      logOffset: ctx.logOffset,
+      transactionId: ctx.transactionId,
+      apiOperation: 'VERIFY',
+      agreementId: `${config.paymentMethodSlug}_pre-order-${ctx.orderNumber}`,
+      agreementType: 'UNSCHEDULED',
+    });
+
+    // Verified, not paid: maybe_defer_pre_order_payment keeps process_wc_order
+    // from calling payment_complete(), which would record a payment nobody made.
+    expect(ctx.order.date_paid, 'a verified pre-order must not be marked paid').toBeFalsy();
 
     await assertPreOrderEmails(ctx.orderNumber, config, emailPage);
-    await assertOrderComplete(ctx, config, { page, adminPage, emailPage }, {
-      // mark_order_as_pre_ordered sets the Pre-Orders plugin's own status and
-      // maybe_bypass_change_status stops the gateway moving it to On hold.
-      status: 'Pre-ordered',
-      note: 'authorized',
-      emails: 'none',
-    });
+    // Not assertOrderComplete: that asserts "Payment via <gateway> (<id>)", and
+    // with no payment_complete() the order carries no transaction id yet.
+    await navigateToOrder(adminPage, ctx.orderNumber);
+    // mark_order_as_pre_ordered sets the Pre-Orders plugin's own status and
+    // maybe_bypass_change_status stops the gateway moving it.
+    await assertOrderStatus(adminPage, 'Pre-ordered');
+    await assertPaymentMethodMeta(adminPage, config);
+    await assertOrderNoteContains(adminPage, `${config.displayName} payment was Verified`);
   });
 
-  // === PO-003: Releasing captures the authorization ===
+  // === PO-003: Releasing charges the stored card ===
 
-  test('PO-003 - Releasing the pre-order captures the authorization', async ({ adminPage }) => {
+  test('PO-003 - Releasing the pre-order charges the stored card', async ({ adminPage }) => {
     expect(releaseCtx, 'PO-002 must have run first').toBeTruthy();
     const ctx = releaseCtx!;
+
+    // A fresh window: the charge happens now, not during PO-002's checkout.
+    const payDate = new Date().toISOString().slice(0, 19);
+    const logOffset = await getLogEntryCount(payDate);
 
     await releasePreOrder(adminPage, ctx.orderNumber);
     await assertPreOrderStatus(adminPage, ctx.orderNumber, 'Completed');
 
+    // ctx.transactionId is the checkout's gateway order. The release charges a
+    // new one of its own and must point back to this.
+    await assertMerchantInitiatedPaymentLog({
+      payDate,
+      logOffset,
+      orderNumber: ctx.orderNumber,
+      amount: ctx.total,
+      agreementId: `${config.paymentMethodSlug}_pre-order-${ctx.orderNumber}`,
+      agreementType: 'UNSCHEDULED',
+      referenceOrderId: ctx.transactionId,
+    });
+
+    const order = await getOrder(ctx.orderNumber);
+    expect(order.date_paid, 'the release must mark the pre-order paid').toBeTruthy();
+
     await navigateToOrder(adminPage, ctx.orderNumber);
     await assertOrderStatus(adminPage, 'Processing');
-    // process_pre_order_release_payment adds its own note on top of the
-    // gateway's capture note.
-    await assertOrderNoteContains(adminPage, 'pre-order payment captured');
-
-    // The capture fires inside PO-002's log window, so reusing payDate/logOffset
-    // finds it. If this suite ever straddles midnight, getLogs would read the
-    // next day's file — capture a fresh window right before releasePreOrder then.
-    await assertCaptureOperationLog({
-      payDate: ctx.payDate,
-      logOffset: ctx.logOffset,
-      amount: ctx.total,
-      transactionId: ctx.transactionId,
-      orderNumber: ctx.orderNumber,
-      card: ctx.card,
-    });
+    await assertOrderNoteContains(adminPage, `${config.displayName} payment was Captured`);
   });
 
   // === PO-004: The forced-save UI ===
