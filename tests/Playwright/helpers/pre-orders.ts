@@ -78,17 +78,27 @@ export async function releasePreOrder(adminPage: Page, orderNumber: string): Pro
   await adminPage.selectOption('#bulk-action-selector-top', 'complete');
   // Completing charges the card, so the screen may ask first.
   adminPage.once('dialog', (d) => d.accept());
-  await adminPage.click('#doaction');
-  await adminPage.waitForLoadState('load');
+  // The POST charges the card before it redirects back with ?message=, so a
+  // plain 'load' wait can resolve on the old page mid-request. Wait for the
+  // redirect itself; the gateway round-trip can take a while.
+  await Promise.all([
+    adminPage.waitForURL(/[?&]message=/, { timeout: 60_000 }),
+    adminPage.click('#doaction'),
+  ]);
 }
 
-/** The pre-order's own status column, distinct from the WC order status. */
+/**
+ * The pre-order's own status column, distinct from the WC order status.
+ *
+ * It is the table's primary column, which WordPress renders as
+ * `<th scope="row">`, so a `td.` prefix never matches.
+ */
 export async function assertPreOrderStatus(
   adminPage: Page,
   orderNumber: string,
   expected: string,
 ): Promise<void> {
-  await expect(preOrderRow(adminPage, orderNumber).locator('td.column-status mark')).toContainText(
+  await expect(preOrderRow(adminPage, orderNumber).locator('.column-status mark')).toContainText(
     expected,
     { timeout: 15_000 },
   );

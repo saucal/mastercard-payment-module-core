@@ -596,7 +596,24 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 						$order_data['id'],
 					)
 				);
-				$order->payment_complete( $order_data['id'] );
+				/**
+				 * Whether a verification completes the order's payment.
+				 *
+				 * True for what VERIFY was first used for - free trials, zero totals,
+				 * changing a card - where nothing is owed. A pre-order charged on
+				 * release is verified at checkout but paid at release: completing it
+				 * here would record a payment nobody made, and reduce stock a second
+				 * time on top of WC_Pre_Orders_Order::mark_order_as_pre_ordered().
+				 *
+				 * @since 2.0.0
+				 *
+				 * @param bool     $complete   Whether to call payment_complete().
+				 * @param WC_Order $order      The order.
+				 * @param array    $order_data Gateway order data.
+				 */
+				if ( apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_verification_completes_payment', true, $order, $order_data ) ) {
+					$order->payment_complete( $order_data['id'] );
+				}
 
 				/**
 				 * Fires after a verified payment has been successfully processed.
