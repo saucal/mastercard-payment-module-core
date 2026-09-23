@@ -7,11 +7,10 @@ import {
   selectPaymentMethod,
   clickPlaceOrder,
   extractOrderTotal,
-  extractRecurringTotal,
   extractSessionId,
 } from '../../helpers/checkout';
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
-import { collectOrderReceivedData } from '../../helpers/flows';
+import { collectOrderReceivedData, type CheckoutContext } from '../../helpers/flows';
 import { handle3DSChallenge } from '../../helpers/three-ds';
 import { adminLogin, registerUser } from '../../helpers/wp-login';
 import { triggerSubscriptionRenewal, extractRenewalOrderNumber, navigateToOrder } from '../../helpers/admin-orders';
@@ -22,680 +21,105 @@ import {
   assertAuthorizedNote,
   verifySessionPost,
   verifySessionGet,
-  verifyTokenLog,
-  verifyInitiateAuthentication,
-  verifyAuthenticatePayer,
-  verifyAuthenticationResult,
   verifyAuthorizeCaptureLog,
   verifyAgreement,
   verifyOrderEmails,
   verifyAdminEmail,
   assertOrderReceived,
   verifySubscription,
-  verifyOrderInMyAccount,
 } from '../../helpers/assertions';
+import {
+  assertSubscriptionProduct,
+  checkoutSubscription,
+  assertSubscriptionRenews,
+} from '../../helpers/subscriptions';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
 import { billing, uniqueEmail } from '../../fixtures/billing';
 import { logOrderContext } from '../../helpers/debug';
 
+/**
+ * Covers includes/GatewayAddons/Subscriptions.php.
+ *
+ * A subscription is a stored-credential flow. The first payment is
+ * cardholder-initiated: the payer is present, authenticates, and the card is
+ * stored while a RECURRING agreement is opened. Every renewal is
+ * merchant-initiated: the stored card is charged under that agreement with no
+ * payer, no session and no 3DS.
+ *
+ * Renewals are driven through the subscription's admin "Process renewal"
+ * action, which fires the same `woocommerce_scheduled_subscription_payment_<gateway>`
+ * hook as the scheduler.
+ */
+
+/** The gateway config every checkout here shares; the cases vary card and checkout mode. */
+const SETTINGS = {
+  _3d_secure: 'yes',
+  saved_cards: 'yes',
+  transaction_mode: 'PURCHASE',
+  checkout_mode: 'hosted_session',
+  // Pinned off: site-global, and an unanswered DCC offer blocks place-order
+  // (see suite 01). visaChallenge and visaFrictionless both draw one.
+  currency_conversion: 'no',
+} as const;
+
 test.describe.serial('Subscription Renewal', () => {
-  // === MC-060: Subscription with Challenge (classic) ===
+  /** Each checkout's context, for the renewal case that follows it. */
+  let mc060: CheckoutContext | undefined;
+  let mc061: CheckoutContext | undefined;
 
-  let mc060OrderNumber: string;
-  let mc060SubscriptionId: string;
-  let mc060Session: string;
-  let mc060Total: string;
-  let mc060TotalRenew: string;
-  let mc060PayDate: string;
+  test.beforeAll(async () => {
+    await assertSubscriptionProduct(config.products.subscription);
+  });
 
-  test('MC-060 - Subscription with challenge (classic)', async ({ page }) => {
+  // === MC-060: Subscription with challenge (classic) ===
+
+  test('MC-060 - Subscription with challenge (classic)', async ({ page, adminPage, emailPage }) => {
     await switchCheckoutMode('classic');
-    await configureGateway(config, {
-      _3d_secure: 'yes',
-      saved_cards: 'yes',
-      transaction_mode: 'PURCHASE',
-      checkout_mode: 'hosted_session',
-      subscription: 'yes',
-    });
+    await configureGateway(config, { ...SETTINGS });
 
-    await addToCartAndCheckout(page, config.products.subscription);
-    await fillBilling(page, billing);
-    await selectPaymentMethod(page, config);
-    await fillHostedSessionCC(page, cards.visaChallenge, config);
-
-    mc060Session = await extractSessionId(page);
-    mc060Total = await extractOrderTotal(page);
-    mc060TotalRenew = await extractRecurringTotal(page);
-    mc060PayDate = new Date().toISOString().slice(0, 19);
-
-    await clickPlaceOrder(page);
-    await handle3DSChallenge(page);
-    const result = await collectOrderReceivedData(page);
-    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: mc060Total }, result);
-    mc060OrderNumber = result.orderNumber;
-    expect(mc060OrderNumber).toBeTruthy();
-    expect(result.subscriptionId).toBeTruthy();
-    mc060SubscriptionId = result.subscriptionId!;
+    ({ ctx: mc060 } = await checkoutSubscription({ page, adminPage, emailPage }, config, {
+      card: cards.visaChallenge, threeDS: 'always',
+    }));
   });
 
-  test('MC-060 - Admin', async ({ page, emailPage }) => {
-    expect(mc060OrderNumber).toBeTruthy();
-    const { order, transactionId } = await verifyOrderViaAPI(mc060OrderNumber, config);
-    await logOrderContext(test.info().title, { orderNumber: mc060OrderNumber, transactionId });
-    expect(order.payment_method).toBe(config.paymentMethodSlug);
-    expect(order.payment_method_title).toBe(config.displayName);
-    expect(transactionId).toBeTruthy();
-
-    // Log extraction
-    const allLogs = await getLogs(mc060PayDate, '');
-    const sessionPostLogs = await getLogs(mc060PayDate, '/session');
-    const sessionGetLogs = await getLogs(mc060PayDate, `/session/${mc060Session}`);
-    const tokenLogs = await getLogs(mc060PayDate, '/token');
-
-    // Verify session POST
-    const sessionPostLog = sessionPostLogs.logs[0]?.content[0];
-    if (sessionPostLog) {
-      verifySessionPost(sessionPostLog, {
-        session: mc060Session,
-        total: mc060Total,
-        currency: 'USD',
-        transactionId: transactionId!,
-        orderNumber: mc060OrderNumber,
-        apiOperation: 'INITIATE_CHECKOUT',
-      });
-    }
-
-    // Verify session GET (UPDATE_SESSION)
-    const sessionGetLog = sessionGetLogs.logs[0]?.content[0];
-    if (sessionGetLog) {
-      verifySessionGet(sessionGetLog, {
-        session: mc060Session,
-        card: cards.visaChallenge,
-      });
-    }
-
-    // Token log: subscription forces tokenization
-    const tokenLog = tokenLogs.logs[0]?.content[0];
-    if (tokenLog) {
-      verifyTokenLog(tokenLog, { session: mc060Session, card: cards.visaChallenge });
-    }
-
-    // Verify 3DS auth logs
-    const logContent = allLogs.logs[0]?.content ?? [];
-    const initiateAuthLog = logContent.find(
-      (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION',
-    );
-    if (initiateAuthLog) {
-      verifyInitiateAuthentication(initiateAuthLog, {
-        session: mc060Session,
-        card: cards.visaChallenge,
-        transactionId: transactionId!,
-        currency: 'USD',
-      });
-    }
-
-    const authenticatePayerLog = logContent.find(
-      (l: any) => l.request?.body?.apiOperation === 'AUTHENTICATE_PAYER',
-    );
-    if (authenticatePayerLog) {
-      verifyAuthenticatePayer(authenticatePayerLog, {
-        session: mc060Session,
-        transactionId: transactionId!,
-        currency: 'USD',
-        card: cards.visaChallenge,
-      });
-    }
-
-    // Verify PAY log
-    const captureLog = logContent.find(
-      (l: any) => l.request?.body?.apiOperation === 'PAY',
-    );
-    if (captureLog) {
-      verifyAuthorizeCaptureLog(captureLog, {
-        apiOperation: 'PAY',
-        session: mc060Session,
-        total: mc060Total,
-        currency: 'USD',
-        transactionId: transactionId!,
-        orderNumber: mc060OrderNumber,
-        card: cards.visaChallenge,
-      });
-    }
-
-    // Verify agreement (subscription)
-    const agreementLog = logContent.find(
-      (l: any) => l.request?.body?.agreement?.type === 'RECURRING',
-    );
-    if (agreementLog) {
-      verifyAgreement(agreementLog, {
-        type: 'RECURRING',
-        amountVariability: 'FIXED',
-        subscriptionId: mc060SubscriptionId,
-        frequency: 'MONTHLY',
-        payDate: mc060PayDate,
-        slug: config.paymentMethodSlug,
-      });
-    }
-
-    // Email verification (PURCHASE = both admin and customer emails)
-    await verifyOrderEmails(mc060OrderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
-
-    // Phase 12: Admin backend — verify order status in UI
-    await adminLogin(page);
-    await navigateToOrder(page, mc060OrderNumber);
-    await assertOrderStatus(page, 'Processing');
-    await assertPaymentMethodMeta(page, config, transactionId!);
-    await assertCapturedNote(page, config, transactionId!);
-    await verifyOrderInMyAccount(page, mc060OrderNumber, 'Processing', { displayName: config.displayName });
-
-    // Verify subscription status in My Account
-    expect(mc060SubscriptionId).toBeTruthy();
-    await verifySubscription(page, mc060SubscriptionId, {
-      expectedStatus: 'Active',
-      displayName: config.displayName,
-    });
-  });
-
-  test('MC-060 - Renewal', async ({ page }) => {
-    expect(mc060SubscriptionId).toBeTruthy();
-
-    await adminLogin(page);
-    await triggerSubscriptionRenewal(page, mc060SubscriptionId);
-
-    const renewalOrderNumber = await extractRenewalOrderNumber(page);
-    expect(renewalOrderNumber).toBeTruthy();
-
-    const { order, transactionId } = await verifyOrderViaAPI(renewalOrderNumber, config);
-    await logOrderContext(test.info().title, { orderNumber: renewalOrderNumber, transactionId });
-    expect(order.payment_method).toBe(config.paymentMethodSlug);
-    expect(order.payment_method_title).toBe(config.displayName);
-    expect(transactionId).toBeTruthy();
-
-    // Renewal: verify total matches totalRenew (uses stored token, no new session logs)
-    const renewalTotal = parseFloat(mc060TotalRenew.replace(/[^0-9.]/g, ''));
-    const orderTotal = parseFloat(order.total);
-    expect(orderTotal).toBeCloseTo(renewalTotal, 2);
-
-    // Renewal uses stored token — no new session logs expected
-    const renewDate = new Date().toISOString().slice(0, 19);
-    const sessionPostLogs = await getLogs(renewDate, '/session');
-    const sessionGetLogs = await getLogs(renewDate, `/session/${mc060Session}`);
-    expect(sessionPostLogs.logs[0]?.content.length ?? 0).toBe(0);
-    expect(sessionGetLogs.logs[0]?.content.length ?? 0).toBe(0);
+  test('MC-060 - Renewal', async ({ adminPage }) => {
+    expect(mc060, 'MC-060 must have run first').toBeTruthy();
+    await assertSubscriptionRenews(adminPage, config, mc060!);
   });
 
   // === MC-061: Subscription frictionless (classic) ===
 
-  let mc061OrderNumber: string;
-  let mc061SubscriptionId: string;
-  let mc061Session: string;
-  let mc061Total: string;
-  let mc061TotalRenew: string;
-  let mc061PayDate: string;
-
-  test('MC-061 - Subscription frictionless (classic)', async ({ page }) => {
-    await addToCartAndCheckout(page, config.products.subscription);
-    await fillBilling(page, billing);
-    await selectPaymentMethod(page, config);
-    await fillHostedSessionCC(page, cards.visaFrictionless, config);
-
-    mc061Session = await extractSessionId(page);
-    mc061Total = await extractOrderTotal(page);
-    mc061TotalRenew = await extractRecurringTotal(page);
-    mc061PayDate = new Date().toISOString().slice(0, 19);
-
-    await clickPlaceOrder(page);
-    const result = await collectOrderReceivedData(page);
-    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: mc061Total }, result);
-    mc061OrderNumber = result.orderNumber;
-    expect(mc061OrderNumber).toBeTruthy();
-    expect(result.subscriptionId).toBeTruthy();
-    mc061SubscriptionId = result.subscriptionId!;
+  test('MC-061 - Subscription frictionless (classic)', async ({ page, adminPage, emailPage }) => {
+    // Authenticated without an ACS prompt; the AUTHENTICATE_PAYER that opens
+    // the agreement still runs, and checkoutSubscription asserts it.
+    ({ ctx: mc061 } = await checkoutSubscription({ page, adminPage, emailPage }, config, {
+      card: cards.visaFrictionless, threeDS: 'never',
+    }));
   });
 
-  test('MC-061 - Admin', async ({ page, emailPage }) => {
-    expect(mc061OrderNumber).toBeTruthy();
-    const { order, transactionId } = await verifyOrderViaAPI(mc061OrderNumber, config);
-    await logOrderContext(test.info().title, { orderNumber: mc061OrderNumber, transactionId });
-    expect(order.payment_method).toBe(config.paymentMethodSlug);
-    expect(order.payment_method_title).toBe(config.displayName);
-    expect(transactionId).toBeTruthy();
+  test('MC-061 - Renewal', async ({ adminPage }) => {
+    expect(mc061, 'MC-061 must have run first').toBeTruthy();
+    await assertSubscriptionRenews(adminPage, config, mc061!);
+  });
 
-    // Log extraction
-    const allLogs = await getLogs(mc061PayDate, '');
-    const sessionPostLogs = await getLogs(mc061PayDate, '/session');
-    const sessionGetLogs = await getLogs(mc061PayDate, `/session/${mc061Session}`);
-    const tokenLogs = await getLogs(mc061PayDate, '/token');
+  // === MC-062 / MC-063: the same checkouts through the block checkout ===
 
-    // Verify session POST
-    const sessionPostLog = sessionPostLogs.logs[0]?.content[0];
-    if (sessionPostLog) {
-      verifySessionPost(sessionPostLog, {
-        session: mc061Session,
-        total: mc061Total,
-        currency: 'USD',
-        transactionId: transactionId!,
-        orderNumber: mc061OrderNumber,
-        apiOperation: 'INITIATE_CHECKOUT',
-      });
-    }
-
-    // Verify session GET
-    const sessionGetLog = sessionGetLogs.logs[0]?.content[0];
-    if (sessionGetLog) {
-      verifySessionGet(sessionGetLog, {
-        session: mc061Session,
-        card: cards.visaFrictionless,
-      });
-    }
-
-    // Token log: subscription forces tokenization
-    const tokenLog = tokenLogs.logs[0]?.content[0];
-    if (tokenLog) {
-      verifyTokenLog(tokenLog, { session: mc061Session, card: cards.visaFrictionless });
-    }
-
-    // Verify 3DS auth logs (frictionless — no challenge but auth logs still present)
-    const logContent = allLogs.logs[0]?.content ?? [];
-    const initiateAuthLog = logContent.find(
-      (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION',
-    );
-    if (initiateAuthLog) {
-      verifyInitiateAuthentication(initiateAuthLog, {
-        session: mc061Session,
-        card: cards.visaFrictionless,
-        transactionId: transactionId!,
-        currency: 'USD',
-      });
-    }
-
-    const authenticatePayerLog = logContent.find(
-      (l: any) => l.request?.body?.apiOperation === 'AUTHENTICATE_PAYER',
-    );
-    if (authenticatePayerLog) {
-      verifyAuthenticatePayer(authenticatePayerLog, {
-        session: mc061Session,
-        transactionId: transactionId!,
-        currency: 'USD',
-        card: cards.visaFrictionless,
-      });
-    }
-
-    // Verify PAY log
-    const captureLog = logContent.find(
-      (l: any) => l.request?.body?.apiOperation === 'PAY',
-    );
-    if (captureLog) {
-      verifyAuthorizeCaptureLog(captureLog, {
-        apiOperation: 'PAY',
-        session: mc061Session,
-        total: mc061Total,
-        currency: 'USD',
-        transactionId: transactionId!,
-        orderNumber: mc061OrderNumber,
-        card: cards.visaFrictionless,
-      });
-    }
-
-    // Verify agreement (subscription)
-    const agreementLog = logContent.find(
-      (l: any) => l.request?.body?.agreement?.type === 'RECURRING',
-    );
-    if (agreementLog) {
-      verifyAgreement(agreementLog, {
-        type: 'RECURRING',
-        amountVariability: 'FIXED',
-        subscriptionId: mc061SubscriptionId,
-        frequency: 'MONTHLY',
-        payDate: mc061PayDate,
-        slug: config.paymentMethodSlug,
-      });
-    }
-
-    // Email verification
-    await verifyOrderEmails(mc061OrderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
-
-    // Phase 12: Admin backend — verify order status in UI
-    await adminLogin(page);
-    await navigateToOrder(page, mc061OrderNumber);
-    await assertOrderStatus(page, 'Processing');
-    await assertPaymentMethodMeta(page, config, transactionId!);
-    await assertCapturedNote(page, config, transactionId!);
-    await verifyOrderInMyAccount(page, mc061OrderNumber, 'Processing', { displayName: config.displayName });
-
-    // Verify subscription status
-    expect(mc061SubscriptionId).toBeTruthy();
-    await verifySubscription(page, mc061SubscriptionId, {
-      expectedStatus: 'Active',
-      displayName: config.displayName,
+  test('MC-062 - Subscription with challenge (blocks)', async ({ page, adminPage, emailPage }) => {
+    await switchCheckoutMode('blocks');
+    // Settings again rather than trusting MC-060's: a retry or --grep can start
+    // here, after another suite left 3DS off.
+    await configureGateway(config, { ...SETTINGS });
+    await checkoutSubscription({ page, adminPage, emailPage }, config, {
+      card: cards.visaChallenge, threeDS: 'always',
     });
   });
 
-  test('MC-061 - Renewal', async ({ page }) => {
-    expect(mc061SubscriptionId).toBeTruthy();
-
-    await adminLogin(page);
-    await triggerSubscriptionRenewal(page, mc061SubscriptionId);
-
-    const renewalOrderNumber = await extractRenewalOrderNumber(page);
-    expect(renewalOrderNumber).toBeTruthy();
-
-    const { order, transactionId } = await verifyOrderViaAPI(renewalOrderNumber, config);
-    await logOrderContext(test.info().title, { orderNumber: renewalOrderNumber, transactionId });
-    expect(order.payment_method).toBe(config.paymentMethodSlug);
-    expect(order.payment_method_title).toBe(config.displayName);
-    expect(transactionId).toBeTruthy();
-
-    // Renewal: verify total matches totalRenew
-    const renewalTotal = parseFloat(mc061TotalRenew.replace(/[^0-9.]/g, ''));
-    const orderTotal = parseFloat(order.total);
-    expect(orderTotal).toBeCloseTo(renewalTotal, 2);
-
-    // Renewal uses stored token — no new session logs expected
-    const renewDate = new Date().toISOString().slice(0, 19);
-    const sessionPostLogs = await getLogs(renewDate, '/session');
-    const sessionGetLogs = await getLogs(renewDate, `/session/${mc061Session}`);
-    expect(sessionPostLogs.logs[0]?.content.length ?? 0).toBe(0);
-    expect(sessionGetLogs.logs[0]?.content.length ?? 0).toBe(0);
-  });
-
-  // === MC-062: Subscription with Challenge (blocks) ===
-
-  let mc062OrderNumber: string;
-  let mc062SubscriptionId: string;
-  let mc062Session: string;
-  let mc062Total: string;
-  let mc062TotalRenew: string;
-  let mc062PayDate: string;
-
-  test('MC-062 - Subscription with challenge (blocks)', async ({ page }) => {
+  test('MC-063 - Subscription frictionless (blocks)', async ({ page, adminPage, emailPage }) => {
     await switchCheckoutMode('blocks');
-
-    await addToCartAndCheckout(page, config.products.subscription);
-    await fillBilling(page, billing);
-    await selectPaymentMethod(page, config);
-    await fillHostedSessionCC(page, cards.visaChallenge, config);
-
-    mc062Session = await extractSessionId(page);
-    mc062Total = await extractOrderTotal(page);
-    mc062TotalRenew = await extractRecurringTotal(page);
-    mc062PayDate = new Date().toISOString().slice(0, 19);
-
-    await clickPlaceOrder(page);
-    await handle3DSChallenge(page);
-    const result = await collectOrderReceivedData(page);
-    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: mc062Total }, result);
-    mc062OrderNumber = result.orderNumber;
-    expect(mc062OrderNumber).toBeTruthy();
-    expect(result.subscriptionId).toBeTruthy();
-    mc062SubscriptionId = result.subscriptionId!;
-  });
-
-  test('MC-062 - Admin', async ({ page, emailPage }) => {
-    expect(mc062OrderNumber).toBeTruthy();
-    const { order, transactionId } = await verifyOrderViaAPI(mc062OrderNumber, config);
-    await logOrderContext(test.info().title, { orderNumber: mc062OrderNumber, transactionId });
-    expect(order.payment_method).toBe(config.paymentMethodSlug);
-    expect(order.payment_method_title).toBe(config.displayName);
-    expect(transactionId).toBeTruthy();
-
-    // Log extraction
-    const allLogs = await getLogs(mc062PayDate, '');
-    const sessionPostLogs = await getLogs(mc062PayDate, '/session');
-    const sessionGetLogs = await getLogs(mc062PayDate, `/session/${mc062Session}`);
-    const tokenLogs = await getLogs(mc062PayDate, '/token');
-
-    // Verify session POST
-    const sessionPostLog = sessionPostLogs.logs[0]?.content[0];
-    if (sessionPostLog) {
-      verifySessionPost(sessionPostLog, {
-        session: mc062Session,
-        total: mc062Total,
-        currency: 'USD',
-        transactionId: transactionId!,
-        orderNumber: mc062OrderNumber,
-        apiOperation: 'INITIATE_CHECKOUT',
-      });
-    }
-
-    // Verify session GET
-    const sessionGetLog = sessionGetLogs.logs[0]?.content[0];
-    if (sessionGetLog) {
-      verifySessionGet(sessionGetLog, {
-        session: mc062Session,
-        card: cards.visaChallenge,
-      });
-    }
-
-    // Token log: subscription forces tokenization
-    const tokenLog = tokenLogs.logs[0]?.content[0];
-    if (tokenLog) {
-      verifyTokenLog(tokenLog, { session: mc062Session, card: cards.visaChallenge });
-    }
-
-    // Verify 3DS auth logs
-    const logContent = allLogs.logs[0]?.content ?? [];
-    const initiateAuthLog = logContent.find(
-      (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION',
-    );
-    if (initiateAuthLog) {
-      verifyInitiateAuthentication(initiateAuthLog, {
-        session: mc062Session,
-        card: cards.visaChallenge,
-        transactionId: transactionId!,
-        currency: 'USD',
-      });
-    }
-
-    const authenticatePayerLog = logContent.find(
-      (l: any) => l.request?.body?.apiOperation === 'AUTHENTICATE_PAYER',
-    );
-    if (authenticatePayerLog) {
-      verifyAuthenticatePayer(authenticatePayerLog, {
-        session: mc062Session,
-        transactionId: transactionId!,
-        currency: 'USD',
-        card: cards.visaChallenge,
-      });
-    }
-
-    // Verify PAY log
-    const captureLog = logContent.find(
-      (l: any) => l.request?.body?.apiOperation === 'PAY',
-    );
-    if (captureLog) {
-      verifyAuthorizeCaptureLog(captureLog, {
-        apiOperation: 'PAY',
-        session: mc062Session,
-        total: mc062Total,
-        currency: 'USD',
-        transactionId: transactionId!,
-        orderNumber: mc062OrderNumber,
-        card: cards.visaChallenge,
-      });
-    }
-
-    // Verify agreement (subscription)
-    const agreementLog = logContent.find(
-      (l: any) => l.request?.body?.agreement?.type === 'RECURRING',
-    );
-    if (agreementLog) {
-      verifyAgreement(agreementLog, {
-        type: 'RECURRING',
-        amountVariability: 'FIXED',
-        subscriptionId: mc062SubscriptionId,
-        frequency: 'MONTHLY',
-        payDate: mc062PayDate,
-        slug: config.paymentMethodSlug,
-      });
-    }
-
-    // Email verification
-    await verifyOrderEmails(mc062OrderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
-
-    // Phase 12: Admin backend — verify order status in UI
-    await adminLogin(page);
-    await navigateToOrder(page, mc062OrderNumber);
-    await assertOrderStatus(page, 'Processing');
-    await assertPaymentMethodMeta(page, config, transactionId!);
-    await assertCapturedNote(page, config, transactionId!);
-    await verifyOrderInMyAccount(page, mc062OrderNumber, 'Processing', { displayName: config.displayName });
-
-    // Verify subscription status
-    expect(mc062SubscriptionId).toBeTruthy();
-    await verifySubscription(page, mc062SubscriptionId, {
-      expectedStatus: 'Active',
-      displayName: config.displayName,
-    });
-  });
-
-  // === MC-063: Subscription frictionless (blocks) ===
-
-  let mc063OrderNumber: string;
-  let mc063SubscriptionId: string;
-  let mc063Session: string;
-  let mc063Total: string;
-  let mc063TotalRenew: string;
-  let mc063PayDate: string;
-
-  test('MC-063 - Subscription frictionless (blocks)', async ({ page }) => {
-    await switchCheckoutMode('blocks');
-
-    await addToCartAndCheckout(page, config.products.subscription);
-    await fillBilling(page, billing);
-    await selectPaymentMethod(page, config);
-    await fillHostedSessionCC(page, cards.visaFrictionless, config);
-
-    mc063Session = await extractSessionId(page);
-    mc063Total = await extractOrderTotal(page);
-    mc063TotalRenew = await extractRecurringTotal(page);
-    mc063PayDate = new Date().toISOString().slice(0, 19);
-
-    await clickPlaceOrder(page);
-    const result = await collectOrderReceivedData(page);
-    await assertOrderReceived(page, { displayName: config.displayName, expectedTotal: mc063Total }, result);
-    mc063OrderNumber = result.orderNumber;
-    expect(mc063OrderNumber).toBeTruthy();
-    expect(result.subscriptionId).toBeTruthy();
-    mc063SubscriptionId = result.subscriptionId!;
-  });
-
-  test('MC-063 - Admin', async ({ page, emailPage }) => {
-    expect(mc063OrderNumber).toBeTruthy();
-    const { order, transactionId } = await verifyOrderViaAPI(mc063OrderNumber, config);
-    await logOrderContext(test.info().title, { orderNumber: mc063OrderNumber, transactionId });
-    expect(order.payment_method).toBe(config.paymentMethodSlug);
-    expect(order.payment_method_title).toBe(config.displayName);
-    expect(transactionId).toBeTruthy();
-
-    // Log extraction
-    const allLogs = await getLogs(mc063PayDate, '');
-    const sessionPostLogs = await getLogs(mc063PayDate, '/session');
-    const sessionGetLogs = await getLogs(mc063PayDate, `/session/${mc063Session}`);
-    const tokenLogs = await getLogs(mc063PayDate, '/token');
-
-    // Verify session POST
-    const sessionPostLog = sessionPostLogs.logs[0]?.content[0];
-    if (sessionPostLog) {
-      verifySessionPost(sessionPostLog, {
-        session: mc063Session,
-        total: mc063Total,
-        currency: 'USD',
-        transactionId: transactionId!,
-        orderNumber: mc063OrderNumber,
-        apiOperation: 'INITIATE_CHECKOUT',
-      });
-    }
-
-    // Verify session GET
-    const sessionGetLog = sessionGetLogs.logs[0]?.content[0];
-    if (sessionGetLog) {
-      verifySessionGet(sessionGetLog, {
-        session: mc063Session,
-        card: cards.visaFrictionless,
-      });
-    }
-
-    // Token log: subscription forces tokenization
-    const tokenLog = tokenLogs.logs[0]?.content[0];
-    if (tokenLog) {
-      verifyTokenLog(tokenLog, { session: mc063Session, card: cards.visaFrictionless });
-    }
-
-    // Verify 3DS auth logs (frictionless)
-    const logContent = allLogs.logs[0]?.content ?? [];
-    const initiateAuthLog = logContent.find(
-      (l: any) => l.request?.body?.apiOperation === 'INITIATE_AUTHENTICATION',
-    );
-    if (initiateAuthLog) {
-      verifyInitiateAuthentication(initiateAuthLog, {
-        session: mc063Session,
-        card: cards.visaFrictionless,
-        transactionId: transactionId!,
-        currency: 'USD',
-      });
-    }
-
-    const authenticatePayerLog = logContent.find(
-      (l: any) => l.request?.body?.apiOperation === 'AUTHENTICATE_PAYER',
-    );
-    if (authenticatePayerLog) {
-      verifyAuthenticatePayer(authenticatePayerLog, {
-        session: mc063Session,
-        transactionId: transactionId!,
-        currency: 'USD',
-        card: cards.visaFrictionless,
-      });
-    }
-
-    // Verify PAY log
-    const captureLog = logContent.find(
-      (l: any) => l.request?.body?.apiOperation === 'PAY',
-    );
-    if (captureLog) {
-      verifyAuthorizeCaptureLog(captureLog, {
-        apiOperation: 'PAY',
-        session: mc063Session,
-        total: mc063Total,
-        currency: 'USD',
-        transactionId: transactionId!,
-        orderNumber: mc063OrderNumber,
-        card: cards.visaFrictionless,
-      });
-    }
-
-    // Verify agreement (subscription)
-    const agreementLog = logContent.find(
-      (l: any) => l.request?.body?.agreement?.type === 'RECURRING',
-    );
-    if (agreementLog) {
-      verifyAgreement(agreementLog, {
-        type: 'RECURRING',
-        amountVariability: 'FIXED',
-        subscriptionId: mc063SubscriptionId,
-        frequency: 'MONTHLY',
-        payDate: mc063PayDate,
-        slug: config.paymentMethodSlug,
-      });
-    }
-
-    // Email verification
-    await verifyOrderEmails(mc063OrderNumber, { paymentMethodTitle: config.displayName, page: emailPage });
-
-    // Phase 12: Admin backend — verify order status in UI
-    await adminLogin(page);
-    await navigateToOrder(page, mc063OrderNumber);
-    await assertOrderStatus(page, 'Processing');
-    await assertPaymentMethodMeta(page, config, transactionId!);
-    await assertCapturedNote(page, config, transactionId!);
-    await verifyOrderInMyAccount(page, mc063OrderNumber, 'Processing', { displayName: config.displayName });
-
-    // Verify subscription status
-    expect(mc063SubscriptionId).toBeTruthy();
-    await verifySubscription(page, mc063SubscriptionId, {
-      expectedStatus: 'Active',
-      displayName: config.displayName,
+    await configureGateway(config, { ...SETTINGS });
+    await checkoutSubscription({ page, adminPage, emailPage }, config, {
+      card: cards.visaFrictionless, threeDS: 'never',
     });
   });
 });

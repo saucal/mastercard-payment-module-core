@@ -72,7 +72,9 @@ export async function collectOrderReceivedData(page: Page): Promise<OrderReceive
   let subscriptionId: string | undefined;
   const subLink = page.locator('td.subscription-id > a');
   if (await subLink.isVisible({ timeout: 2000 }).catch(() => false)) {
-    subscriptionId = (await subLink.textContent() || '').trim();
+    // Rendered as "#2158". Callers build wp-admin URLs from it and match it
+    // against the gateway's agreement.id, and neither tolerates the "#".
+    subscriptionId = (await subLink.textContent() || '').trim().replace(/^#/, '');
   }
 
   return { orderNumber, subscriptionId, declined: false };
@@ -126,8 +128,14 @@ export interface CheckoutContext {
 }
 
 export interface HostedSessionCheckoutOptions {
-  /** Cart entry. Omit only when passing payForOrder. */
+  /** Cart entry. Omit only when passing payForOrder or checkoutUrl. */
   productId?: number;
+  /**
+   * Entry through a link that fills the cart itself and lands on the checkout —
+   * a subscription's "Renew now" (suite 18). Unlike payForOrder this is a real
+   * checkout page, so billing and the total are handled exactly as for a cart.
+   */
+  checkoutUrl?: string;
   /**
    * Pay-for-order entry (suite 12): skip the cart and drive an existing pending
    * order's pay page. `total` defaults to the REST order's own total, which is
@@ -201,9 +209,9 @@ export async function checkoutHostedSession(
   }
 
   expect(
-    (opts.productId === undefined) !== (opts.payForOrder === undefined),
-    'pass exactly one of productId or payForOrder',
-  ).toBe(true);
+    [opts.productId, opts.payForOrder, opts.checkoutUrl].filter((e) => e !== undefined).length,
+    'pass exactly one of productId, payForOrder or checkoutUrl',
+  ).toBe(1);
 
   const logOffset = await getLogEntryCount(new Date().toISOString().slice(0, 19));
 
@@ -211,7 +219,13 @@ export async function checkoutHostedSession(
   if (opts.payForOrder) {
     payDate = await gotoPayForOrder(page, opts.payForOrder.url);
   } else {
-    payDate = await addToCartAndCheckout(page, opts.productId!);
+    if (opts.checkoutUrl) {
+      await page.goto(opts.checkoutUrl);
+      await page.waitForLoadState('load');
+      payDate = new Date().toISOString().slice(0, 19);
+    } else {
+      payDate = await addToCartAndCheckout(page, opts.productId!);
+    }
 
     // A logged-in returning customer already has billing pre-filled and shows no
     // account checkbox, so only fill when there is a reason to.
