@@ -382,7 +382,7 @@ export function verifyAuthenticationResult(
 // ─── Authorize / Capture / Pay verification ───────────────────────────────────
 
 interface AuthorizeCaptureExpected {
-  apiOperation: 'AUTHORIZE' | 'PAY' | 'CAPTURE';
+  apiOperation: 'AUTHORIZE' | 'PAY' | 'CAPTURE' | 'VERIFY';
   session?: string;
   total: string;
   currency: string;
@@ -761,13 +761,20 @@ export async function verifyOrderEmails(
   const mails = await getLoggedMail({ contains: orderNumber }, { minCount: 2 });
   if (options.page) await showEmails(options.page, mails);
 
+  // Subscriptions sends its own emails for a renewal order: "New subscription
+  // renewal order (NNNN)" and "... renewal order receipt from ...". The admin one
+  // does not contain "new order". Match it on /new .*renewal order/, not plain
+  // "renewal order", which the customer's subject also contains.
   const adminMsg = mails.find(m =>
-    m.subject.toLowerCase().includes('new order') || m.subject.includes(`Order #${orderNumber}`)
+    m.subject.toLowerCase().includes('new order')
+    || /new .*renewal order/.test(m.subject.toLowerCase())
+    || m.subject.includes(`Order #${orderNumber}`)
   );
   const customerMsg = mails.find(m =>
     m.subject.toLowerCase().includes('order has been received') ||
     m.subject.toLowerCase().includes('order is on') ||
-    m.subject.toLowerCase().includes('your order')
+    m.subject.toLowerCase().includes('your order') ||
+    m.subject.toLowerCase().includes('order receipt')
   );
 
   expect(adminMsg, `Admin email for order ${orderNumber} not found`).toBeTruthy();
@@ -995,11 +1002,13 @@ export interface CaptureLogTrailExpected {
   /** false for saved-token checkouts, which don't re-fetch card details */
   expectCardDetailsFetch: boolean;
   /**
-   * The money-movement operation the gateway logs: 'PAY' in PURCHASE mode,
-   * 'AUTHORIZE' in AUTHORIZE mode. Everything before it — session, token, 3DS —
-   * is identical, which is why this is a flag and not a second function.
+   * The operation that closes the checkout: 'PAY' in PURCHASE mode, 'AUTHORIZE'
+   * in AUTHORIZE mode, and 'VERIFY' where the card is stored without moving
+   * money (a pre-order charged on release). Everything before it — session,
+   * token, 3DS — is identical, which is why this is a flag and not a second
+   * function.
    */
-  apiOperation?: 'PAY' | 'AUTHORIZE';
+  apiOperation?: 'PAY' | 'AUTHORIZE' | 'VERIFY';
   /**
    * Whether the gateway ran 3DS at all. Defaults to true. Pass false for the
    * `_3d_secure=no` suites, where the assertion inverts: INITIATE_AUTHENTICATION
@@ -1187,6 +1196,106 @@ export async function assertCaptureOperationLog(expected: {
     apiOperation: 'CAPTURE', total: expected.amount, currency: expected.currency ?? 'USD',
     transactionId: expected.transactionId, orderNumber: expected.orderNumber, card: expected.card,
   });
+}
+
+/**
+ * Assert the agreement a cardholder-initiated transaction opened.
+ *
+ * A stored-credential flow is two transactions: the checkout, with the payer
+ * present, which stores the card and opens an agreement; and later charges, with
+ * no payer, that reference it. This checks the first half. `apiOperation` is the
+ * operation that carried the agreement — VERIFY for a pre-order charged on
+ * release, PAY for a subscription's first payment.
+ */
+export async function assertAgreementLog(expected: {
+  payDate: string;
+  logOffset: number;
+  transactionId: string;
+  apiOperation: 'PAY' | 'VERIFY';
+  /**
+   * null asserts the request carries no agreement at all: a payment the payer
+   * makes on a renewal order ("Renew now", or paying a failed renewal) must not
+   * reuse the subscription's agreement, because the gateway then treats it as
+   * the next payment in that series and demands transaction.source MERCHANT.
+   */
+  agreementId: string | null;
+  agreementType?: 'RECURRING' | 'UNSCHEDULED';
+  /**
+   * TO_BE_STORED when the card is entered and saved now (the default). STORED
+   * when the payer picks a card they saved earlier — even if the cart also
+   * forces saving, as a subscription does. That case was reported as
+   * TO_BE_STORED until the gateway started checking the picked card first.
+   */
+  storedOnFile?: 'TO_BE_STORED' | 'STORED';
+}): Promise<void> {
+  const allLogs = await getLogs(expected.payDate, '', expected.logOffset);
+  const log = (allLogs.logs[0]?.content ?? []).find(
+    (l: LogEntry) => l.request?.body?.apiOperation === expected.apiOperation
+      && l.request?.url?.includes(expected.transactionId)
+      && l.response?.body?.result === 'SUCCESS',
+  );
+  expect(log, `${expected.apiOperation} log not found`).toBeTruthy();
+  if (expected.agreementId === null) {
+    expect(log!.request.body.agreement, 'a payer-made renewal must not carry the subscription agreement').toBeUndefined();
+    expect(log!.request.body.transaction?.source).toBe('INTERNET');
+  } else {
+    expect(log!.request.body.agreement?.id).toBe(expected.agreementId);
+    expect(log!.request.body.agreement?.type).toBe(expected.agreementType);
+  }
+  expect(log!.request.body.sourceOfFunds?.provided?.card?.storedOnFile).toBe(expected.storedOnFile ?? 'TO_BE_STORED');
+}
+
+/**
+ * Assert a merchant-initiated charge: the stored card, charged with no payer
+ * present, under the agreement the checkout opened.
+ *
+ * `agreement.type` is checked on purpose. The gateway rejects a merchant-initiated
+ * PAY that carries `agreement.id` without it — "Field agreement.type must be
+ * provided when field agreement.id is provided for payer-initiated payments" —
+ * even though the API reference reads as though the id alone is enough. Every
+ * subscription renewal failed on exactly that.
+ *
+ * No session is expected: the payer is not there to open one.
+ */
+export async function assertMerchantInitiatedPaymentLog(expected: {
+  payDate: string;
+  logOffset: number;
+  orderNumber: string | number;
+  amount: string;
+  currency?: string;
+  agreementId: string;
+  agreementType: 'RECURRING' | 'UNSCHEDULED';
+  /** The checkout's gateway order, which the charge must point back to. */
+  referenceOrderId: string;
+  /**
+   * The SCA exemption the gateway should grant. RECURRING_PAYMENT for a
+   * subscription renewal; leave unset for UNSCHEDULED, which earns none.
+   */
+  exemption?: string;
+}): Promise<void> {
+  const allLogs = await getLogs(expected.payDate, '', expected.logOffset);
+  const log = (allLogs.logs[0]?.content ?? []).find(
+    (l: LogEntry) => l.request?.body?.apiOperation === 'PAY'
+      && l.request?.body?.transaction?.source === 'MERCHANT'
+      && l.request?.body?.agreement?.id === expected.agreementId,
+  );
+  expect(log, `merchant-initiated PAY for agreement ${expected.agreementId} not found`).toBeTruthy();
+
+  const req = log!.request.body;
+  expect(req.agreement?.type, 'agreement.type missing on the merchant-initiated charge').toBe(expected.agreementType);
+  expect(req.referenceOrderId).toBe(expected.referenceOrderId);
+  expect(req.sourceOfFunds?.token, 'the stored card was not charged').toBeTruthy();
+  expect(req.sourceOfFunds?.provided?.card?.storedOnFile).toBe('STORED');
+  expect(req.session, 'a merchant-initiated charge has no session').toBeUndefined();
+
+  const res = log!.response.body;
+  expect(res.result, 'merchant-initiated charge was not approved').toBe('SUCCESS');
+  expect(res.order?.currency).toBe(expected.currency ?? 'USD');
+  expect(String(res.order?.reference)).toBe(String(expected.orderNumber));
+  expect(res.transaction?.amount).toBeCloseTo(parseAmount(expected.amount), 2);
+  if (expected.exemption) {
+    expect(res.authentication?.psd2?.exemption).toBe(expected.exemption);
+  }
 }
 
 export interface HostedCheckoutLogTrailExpected {

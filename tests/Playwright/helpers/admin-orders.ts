@@ -192,7 +192,14 @@ export async function refundPayment(page: Page, amount: string): Promise<void> {
 export async function triggerSubscriptionRenewal(page: Page, subscriptionId: string): Promise<void> {
   await navigateToSubscription(page, subscriptionId);
   await page.locator('select[name="wc_order_action"]').selectOption('wcs_process_renewal');
-  await page.locator('//button[contains(text(), "Update")], button[name="save"]').first().click();
+  // Subscriptions guards this action with a native confirm(). Playwright
+  // dismisses dialogs by default, which cancels the submit: the click lands and
+  // nothing is posted. Accept it before clicking.
+  page.once('dialog', (dialog) => dialog.accept());
+  // CSS only. A selector starting with "//" is parsed as XPath in its entirety,
+  // so the old '//button[...], button[name="save"]' was one invalid expression
+  // and the click threw every time.
+  await page.locator('button[name="save"], button.save_order, #publish').first().click();
   await expect(page.locator('#message > p')).toContainText('Subscription updated');
 }
 

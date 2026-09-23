@@ -106,8 +106,15 @@ export interface LogEntry {
         amount: string;
       };
       session?: { id: string };
-      sourceOfFunds?: { token?: string };
-      transaction?: { currency: string; targetTransactionId?: string; amount?: number };
+      sourceOfFunds?: {
+        token?: string;
+        /** TO_BE_STORED when a card is first saved, STORED on every later charge. */
+        provided?: { card?: { storedOnFile?: 'TO_BE_STORED' | 'STORED' | 'NOT_STORED' } };
+      };
+      /** `source` is MERCHANT only on a merchant-initiated transaction. */
+      transaction?: { currency: string; targetTransactionId?: string; amount?: number; source?: string };
+      /** The cardholder-initiated gateway order a merchant-initiated charge follows from. */
+      referenceOrderId?: string;
       authentication?: { channel: string };
       /**
        * Attached by DynamicCurrencyConversion::maybe_add_dcc_payment_data when a
@@ -115,14 +122,22 @@ export interface LogEntry {
        * state came back: 'ACCEPTED' for Accept, 'DECLINED' for anything else.
        */
       currencyConversion?: { requestId?: string; uptake?: string };
+      /**
+       * Which fields appear depends on the operation. The one that establishes a
+       * RECURRING agreement (AUTHENTICATE_PAYER) must carry expiryDate and
+       * minimumDaysBetweenPayments or the gateway rejects it; later payments
+       * carry only what identifies the agreement. See
+       * docs/credential-on-file-flows.md.
+       */
       agreement?: {
         type: string;
-        amountVariability: string;
+        amountVariability?: string;
         id: string;
-        paymentFrequency: string;
-        startDate: string;
-        expiryDate: string;
-        numberOfPayments: string;
+        paymentFrequency?: string;
+        startDate?: string;
+        expiryDate?: string;
+        minimumDaysBetweenPayments?: number;
+        numberOfPayments?: string;
       };
     };
   };
@@ -175,6 +190,8 @@ export interface LogEntry {
       };
       authentication?: {
         channel: string;
+        /** RECURRING_PAYMENT on a merchant-initiated renewal: SCA-exempt, no payer present. */
+        psd2?: { exemption?: string };
       };
       agreement?: {
         type: string;

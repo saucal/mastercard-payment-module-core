@@ -187,7 +187,14 @@ export async function refreshOrderReview(page: Page): Promise<void> {
 export async function createAccountAtCheckout(page: Page, password: string): Promise<void> {
   const mode = await detectCheckoutMode(page);
   const sel = getSelectors(mode);
-  await page.locator(sel.createAccount).first().click();
+  // WooCommerce Subscriptions makes the account mandatory for a subscription
+  // cart and renders the password field with no checkbox to tick, so clicking it
+  // would time out. Only tick a checkbox that is actually there.
+  const checkbox = page.locator(sel.createAccount).first();
+  const ticked = await checkbox.isVisible({ timeout: 3000 }).catch(() => false);
+  if (ticked) {
+    await checkbox.click();
+  }
   // Password field may not appear (WC can auto-generate passwords)
   const pwField = page.locator(sel.accountPassword).first();
   if (await pwField.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -205,7 +212,12 @@ export async function createAccountAtCheckout(page: Page, password: string): Pro
   // at the point that causes the update. waitForUnblock already waits for an
   // overlay to appear before waiting for it to clear, and an overlay really
   // does fire here, so its appear-window costs nothing on this path.
-  await waitForUnblock(page);
+  //
+  // Only when a box was ticked: filling the forced subscription password field
+  // queues no update, and waiting would just burn the appear-window.
+  if (ticked) {
+    await waitForUnblock(page);
+  }
 }
 
 export async function selectPaymentMethod(page: Page, config: PluginConfig, useNewToken = false): Promise<void> {
