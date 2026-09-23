@@ -123,7 +123,7 @@ trait Subscriptions {
 	 */
 	public function maybe_add_subscription_payment_data( $payment_data, $order ) {
 		$subscription = $this->get_subscription_object( $order );
-		if ( ! $subscription instanceof WC_Subscription ) {
+		if ( ! $subscription instanceof WC_Subscription || $this->is_payer_paid_renewal( $order ) ) {
 			return $payment_data;
 		}
 
@@ -192,7 +192,7 @@ trait Subscriptions {
 	 */
 	public function maybe_add_subscription_authentication_data( $payment_data, $order ) {
 		$subscription = $this->get_subscription_object( $order );
-		if ( ! $subscription instanceof WC_Subscription ) {
+		if ( ! $subscription instanceof WC_Subscription || $this->is_payer_paid_renewal( $order ) ) {
 			return $payment_data;
 		}
 
@@ -210,6 +210,25 @@ trait Subscriptions {
 		$payment_data['order']['amount'] = $subscription->get_total( 'edit' );
 
 		return $payment_data;
+	}
+
+
+	/**
+	 * Whether the payer is paying a renewal order themselves: "Renew now", or
+	 * paying a failed renewal from My Account.
+	 *
+	 * Such a payment must not carry the subscription's agreement. The gateway
+	 * treats any payment reusing an agreement.id as the next one in that series
+	 * and rejects it unless transaction.source is MERCHANT — but the payer is
+	 * present and authenticating, so it is INTERNET. It goes as a plain
+	 * cardholder-initiated payment instead; the automatic renewals keep the
+	 * agreement through process_subscription_payment(), not these filters.
+	 *
+	 * @param WC_Order|null $order Order object.
+	 * @return bool
+	 */
+	protected function is_payer_paid_renewal( $order ) {
+		return $order instanceof WC_Order && function_exists( 'wcs_order_contains_renewal' ) && wcs_order_contains_renewal( $order );
 	}
 
 
