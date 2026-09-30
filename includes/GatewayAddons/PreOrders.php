@@ -41,8 +41,20 @@ trait PreOrders {
 			return;
 		}
 
-		// Hosted checkout is not compatible with pre-orders that require tokenization.
-		if ( $this->is_hosted_checkout() && $this->cart_contains_pre_order_tokenization() ) {
+		/*
+		 * Hosted checkout cannot store a card for a later merchant-initiated
+		 * charge: the hosted page only tokenizes when the payer ticks an optional
+		 * consent box meant for payer-initiated reuse, and INITIATE_CHECKOUT takes
+		 * no storedOnFile. So never claim 'pre-orders' there.
+		 *
+		 * This used to also require cart_contains_pre_order_tokenization(), but it
+		 * runs from build(), before the cart is loaded, so that was always false
+		 * and 'pre-orders' was always claimed. The cart check is not needed:
+		 * WooCommerce Pre-Orders only asks gateways for supports('pre-orders') on
+		 * pre-orders charged upon release, so upfront pre-orders still get this
+		 * gateway, and the hooks below only act on tokenized pre-orders anyway.
+		 */
+		if ( $this->is_hosted_checkout() ) {
 			return;
 		}
 

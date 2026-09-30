@@ -198,41 +198,33 @@ test.describe.serial('Pre-orders', () => {
 
   test('PO-005 - Hosted checkout does not support tokenized pre-orders', async ({ page }) => {
     /**
-     * KNOWN GATEWAY BUG — asserted as an expected failure so this flips to red
-     * the day it is fixed.
+     * Hosted checkout cannot store the card a release charge needs, so the
+     * gateway must not be offered for a pre-order charged on release — but must
+     * still be offered for one charged upfront, which is an ordinary payment.
      *
-     * `init_addon_pre_orders` runs from `build()`
-     * (WC_Abstract_Payment_Gateway_CC.php:166), i.e. while WooCommerce is
-     * constructing its gateways — before the cart is loaded from the session. So
-     * `cart_contains_pre_order_tokenization()` sees no cart, returns false, the
-     * hosted-checkout guard (PreOrders.php:42) never trips, and `'pre-orders'`
-     * is added to `$supports` unconditionally.
-     *
-     * Observed 2026-08-19: with product 4789 in the cart and hosted checkout on,
-     * WooCommerce offers exactly two gateways — `pre_orders_pay_later` and ours.
-     * The pre-orders plugin IS filtering on `supports('pre-orders')`; ours
-     * wrongly claims it.
-     *
-     * The addon's own DCC sibling shows the fix: `init_addon_dcc` defers its
-     * cart-dependent half to `woocommerce_cart_loaded_from_session`
-     * (DynamicCurrencyConversion.php:72).
+     * This was an expected failure: init_addon_pre_orders checked the cart from
+     * build(), before WooCommerce loads it, so 'pre-orders' was always claimed.
      */
-    test.fail();
-
     await configureGateway(config, {
       ...BASE_SETTINGS, checkout_mode: 'hosted_checkout', hosted_checkout_mode: 'embedded',
     });
 
     try {
-      // init_addon_pre_orders returns before adding 'pre-orders' to $supports
-      // (PreOrders.php:42), so WooCommerce filters the gateway out of the
-      // available list for this cart.
       await addToCartAndCheckout(page, config.products.preOrderRelease);
       await fillBilling(page, billing);
       await expect(
         page.locator(`li.payment_method_${config.paymentMethodSlug}`),
         'gateway must not be offered for a tokenizing pre-order in hosted-checkout mode',
       ).toHaveCount(0);
+
+      // Pre-Orders empties the cart when a pre-order is added, so this replaces
+      // the release product rather than joining it.
+      await addToCartAndCheckout(page, config.products.preOrderUpfront);
+      await fillBilling(page, billing);
+      await expect(
+        page.locator(`li.payment_method_${config.paymentMethodSlug}`),
+        'an upfront pre-order is an ordinary payment and must keep the gateway',
+      ).toHaveCount(1);
     } finally {
       // checkout_mode is site-global; leaving hosted checkout on breaks every
       // later suite.

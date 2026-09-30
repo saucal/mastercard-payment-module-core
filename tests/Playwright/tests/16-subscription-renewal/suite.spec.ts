@@ -122,6 +122,28 @@ test.describe.serial('Subscription Renewal', () => {
       card: cards.visaFrictionless, threeDS: 'never',
     });
   });
+
+  // === MC-066: Hosted checkout is not offered for subscriptions ===
+
+  test('MC-066 - Hosted checkout does not offer the gateway for subscriptions', async ({ page }) => {
+    // Renewals charge a stored card, and hosted checkout cannot store one for
+    // merchant-initiated use, so the gateway must not claim 'subscriptions'
+    // there and WooCommerce Subscriptions hides it for the cart.
+    await switchCheckoutMode('classic');
+    await configureGateway(config, { ...SETTINGS, checkout_mode: 'hosted_checkout', hosted_checkout_mode: 'embedded' });
+    try {
+      await addToCartAndCheckout(page, config.products.subscription);
+      await fillBilling(page, billing);
+      await expect(
+        page.locator(`li.payment_method_${config.paymentMethodSlug}`),
+        'gateway must not be offered for a subscription in hosted-checkout mode',
+      ).toHaveCount(0);
+    } finally {
+      // checkout_mode is site-global; leaving hosted checkout on breaks every
+      // later suite.
+      await configureGateway(config, { ...SETTINGS });
+    }
+  });
 });
 
 // ============================================================================
