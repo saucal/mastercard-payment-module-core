@@ -13,7 +13,6 @@ import { handle3DSChallenge, type ThreeDSOutcome } from '../../helpers/three-ds'
 import { requireDccOffer, answerDccOffer, type DccChoice } from '../../helpers/dcc';
 import { waitForUnblock } from '../../helpers/block-ui';
 import { checkoutHostedSession, assertOrderComplete } from '../../helpers/flows';
-import { getLogs } from '../../helpers/wc-api';
 import {
   assertDccOrderMeta,
   assertDccReceiptRow,
@@ -160,32 +159,14 @@ export function describeDccCardCases(mode: CheckoutMode, firstId: number): void 
     await navigateToOrder(adminPage, ctx.orderNumber);
     await assertDccAdminPanel(adminPage, { payerCurrency: MXN });
 
-    // KNOWN DEFECT, blocks only. A buyer who creates their account *at checkout*
-    // is not tokenized when a 3DS challenge intervenes — the gateway makes no
-    // /token call at all, so the card the buyer asked to save is silently not
-    // saved. Isolated 2026-08-19 against three controls, all of which do
-    // tokenize:
-    //
-    //   classic, account created at checkout, challenge   order 6344   1 call
-    //   blocks,  already logged in, challenge             suite 02 MC-009
-    //   blocks,  account created at checkout, 3DS off     DCC-009, reused by DCC-012
-    //   blocks,  account created at checkout, challenge   orders 6355 + 6360   0 calls
-    //
-    // Not DCC-related: 6360 reproduced it with currency_conversion off. Suite 02
-    // never covers it because it has no "new user saving CC" case in blocks.
-    const tokenizes = mode === 'classic';
+    // Blocks used to skip tokenization here — account created at checkout plus
+    // a 3DS challenge made no /token call (orders 6355, 6360, 2026-08-19), so
+    // this pinned expectToken false for blocks. It tokenizes now in both modes:
+    // seen consistently on TESTSAUCAL101 from 2026-09-30 (order 2675 and its
+    // reruns). What fixed it was not isolated.
     await assertCaptureLogTrail({
-      ...ctx, expectSessionPost: true, expectToken: tokenizes, expectCardDetailsFetch: true,
+      ...ctx, expectSessionPost: true, expectToken: true, expectCardDetailsFetch: true,
     });
-    if (!tokenizes) {
-      // Pins the broken value deliberately: when the defect is fixed this goes
-      // red and whoever fixed it flips the expectation above.
-      const tokenLogs = await getLogs(ctx.payDate, '/token', ctx.logOffset);
-      expect(
-        tokenLogs.logs[0]?.content.length ?? 0,
-        'blocks now tokenizes through a challenge — fix is in, set tokenizes = true',
-      ).toBe(0);
-    }
     await assertOrderComplete(ctx, config, { page, adminPage, emailPage }, {
       status: 'Processing',
       note: 'captured',

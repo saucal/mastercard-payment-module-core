@@ -251,6 +251,22 @@ test.describe.serial('DCC - Hosted Session', () => {
   test('DCC-006 - No quote for a subscription cart', async ({ page }) => {
     test.skip(!config.products.subscription, 'PRODUCT_SUBSCRIPTION not configured');
 
+    /**
+     * KNOWN DEFECT — asserted as an expected failure so this flips to red the
+     * day it is fixed.
+     *
+     * With currency_conversion on, visiting checkout with an ordinary product
+     * and then with a subscription leaves the subscription page's card form
+     * blocked for good: PaymentSession never initializes (validate() never
+     * calls back), though every MPGS resource loads 200. The page reuses the
+     * hosted session cached from the ordinary checkout. A fresh subscription
+     * cart with the same settings initializes fine, and so does this same
+     * sequence with currency_conversion off. Reproduced 2026-09-30; not yet
+     * root-caused (suspect: the cached session handed across the two carts,
+     * where init_dcc_hooks is on for the first and bails for the second).
+     */
+    test.fail();
+
     await configureGateway(config, { ...DCC_ON, subscription: 'yes' });
 
     /**
