@@ -253,6 +253,47 @@ test.describe.serial('Pre-orders', () => {
     ).toHaveLength(0);
   });
 
+  // === PO-010: A guest's pre-order is charged on release ===
+
+  test('PO-010 - A guest pre-order is charged on release', async ({ page, adminPage }) => {
+    /**
+     * WooCommerce Pre-Orders lets guests pre-order, so the gateway has to be
+     * able to charge a guest at release. A WooCommerce saved card needs a user,
+     * so a guest's card was never stored and the release could only fail. The
+     * gateway token is kept on the order instead.
+     */
+    await switchCheckoutMode('classic');
+    await configureGateway(config, { ...BASE_SETTINGS });
+
+    const ctx = await checkoutHostedSession(page, config, {
+      productId: config.products.preOrderRelease,
+      card: cards.mastercard,
+      // No createAccount: a guest.
+      billing: { ...billing, email: uniqueEmail() },
+    });
+    expect(ctx.order.customer_id, 'this must be a guest order').toBe(0);
+
+    const payDate = new Date().toISOString().slice(0, 19);
+    const logOffset = await getLogEntryCount(payDate);
+
+    await releasePreOrder(adminPage, ctx.orderNumber);
+
+    await assertMerchantInitiatedPaymentLog({
+      payDate,
+      logOffset,
+      orderNumber: ctx.orderNumber,
+      amount: ctx.total,
+      agreementId: `${config.paymentMethodSlug}_pre-order-${ctx.orderNumber}`,
+      agreementType: 'UNSCHEDULED',
+      referenceOrderId: ctx.transactionId,
+    });
+    const order = await getOrder(ctx.orderNumber);
+    expect(order.date_paid, 'the release must mark the guest pre-order paid').toBeTruthy();
+
+    await navigateToOrder(adminPage, ctx.orderNumber);
+    await assertOrderStatus(adminPage, 'Processing');
+  });
+
   // === PO-004: The forced-save UI ===
 
   test('PO-004 - Save-card checkbox hidden and notice reworded', async ({ page }) => {

@@ -1115,6 +1115,19 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		$user_id = $order ? $order->get_user_id( 'system' ) : get_current_user_id();
 		if ( ! $user_id ) {
+			// A guest has no account to hold a saved card. When the cart forces
+			// saving anyway - a pre-order charged on release, which Pre-Orders
+			// lets guests place - keep the gateway token on the order itself, so
+			// the later charge has a credential to use.
+			if ( $forced_save && $this->is_order( $order ) ) {
+				try {
+					$body = $this->payment_token()->create_gateway_token( $session_data );
+					$order->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_payment_token', $body['token'] );
+					$order->save_meta_data();
+				} catch ( Exception $e ) {
+					$this->core_plugin->logger()->log( 'Could not store a guest token on order ' . $order->get_id() . ': ' . $e->getMessage(), 'error' );
+				}
+			}
 			return;
 		}
 

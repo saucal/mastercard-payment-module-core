@@ -364,7 +364,9 @@ trait PreOrders {
 		try {
 			$tokens = $order->get_payment_tokens();
 			$token  = ! empty( $tokens ) ? WC_Payment_Tokens::get( reset( $tokens ) ) : null;
-			if ( ! $token ) {
+			// A guest has no saved card; their gateway token is kept on the order.
+			$gateway_token = $token ? $token->get_token() : $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_payment_token' );
+			if ( ! $gateway_token ) {
 				throw new Exception( __( 'No stored card found for this pre-order.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
 
@@ -377,7 +379,7 @@ trait PreOrders {
 				$this->pre_order_release_order_id( $order ),
 				$this->pre_order_agreement( $order ),
 				$reference_order_id,
-				$token->get_token()
+				$gateway_token
 			);
 		} catch ( Exception $e ) {
 			$order->update_status(
