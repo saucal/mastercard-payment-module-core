@@ -14,6 +14,7 @@ use WC_Order;
 use WC_Payment_Token_CC;
 use WC_Subscription;
 use WC_Subscriptions_Cart;
+use WC_Subscriptions_Switcher;
 use WC_Subscriptions_Product;
 use WCS_Payment_Tokens;
 use Automattic\WooCommerce\Utilities\NumberUtil;
@@ -88,6 +89,13 @@ trait Subscriptions {
 		// Forcefully save the payment method for subscriptions.
 		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_forced_save_payment_method', array( $this, 'maybe_force_save_method' ) );
 
+		// A plan switch establishes a new agreement, so the customer goes through
+		// the gateway even when the switch costs nothing now.
+		add_filter( 'woocommerce_cart_needs_payment', array( $this, 'maybe_require_payment_for_switch' ), 20, 2 );
+
+		// Once a switch is paid or verified, renewals move to its agreement.
+		add_action( 'PAYMENTS_CORE_HOOK_PREFIX_payment_success', array( $this, 'maybe_adopt_switch_agreement' ) );
+
 		// Add the payment token as a meta data to the subscription order.
 		add_action( 'PAYMENTS_CORE_HOOK_PREFIX_payment_method_saved', array( $this, 'save_payment_token' ), 10, 2 );
 
@@ -123,7 +131,7 @@ trait Subscriptions {
 	 */
 	public function maybe_add_subscription_payment_data( $payment_data, $order ) {
 		$subscription = $this->get_subscription_object( $order );
-		if ( ! $subscription instanceof WC_Subscription || $this->is_payer_paid_existing_subscription( $order ) ) {
+		if ( ! $subscription instanceof WC_Subscription || $this->is_payer_paid_renewal( $order ) ) {
 			return $payment_data;
 		}
 
@@ -139,11 +147,19 @@ trait Subscriptions {
 			$api_operation = 'VERIFY';
 		}
 
+		// A switch that costs nothing now verifies at the recurring amount its
+		// authentication used (AUTHENTICATE_PAYER rejects 0); a VERIFY charges
+		// nothing, and the gateway rejects one that does not match its 3DS
+		// authentication.
+		if ( 'VERIFY' === $api_operation && $this->is_switch_order( $order ) ) {
+			$payment_data['order']['amount'] = $subscription->get_total( 'edit' );
+		}
+
 		return array_merge(
 			$payment_data,
 			array(
 				'apiOperation'  => $api_operation,
-				'agreement'     => array_filter( $this->get_agreement_data( $subscription ) ),
+				'agreement'     => array_filter( $this->get_agreement_data( $subscription, false, $order ) ),
 				'sourceOfFunds' => array(
 					'provided' => array(
 						'card' => array(
@@ -192,15 +208,18 @@ trait Subscriptions {
 	 */
 	public function maybe_add_subscription_authentication_data( $payment_data, $order ) {
 		$subscription = $this->get_subscription_object( $order );
-		if ( ! $subscription instanceof WC_Subscription || $this->is_payer_paid_existing_subscription( $order ) ) {
+		if ( ! $subscription instanceof WC_Subscription || $this->is_payer_paid_renewal( $order ) ) {
 			return $payment_data;
 		}
 
-		$payment_data['agreement'] = array_filter( $this->get_agreement_data( $subscription, true ) );
+		$payment_data['agreement'] = array_filter( $this->get_agreement_data( $subscription, true, $order ) );
 
 		$has_free_trial = $this->order_contains_free_trial( $subscription ) || ( class_exists( 'WC_Subscriptions_Cart' ) && WC_Subscriptions_Cart::cart_contains_free_trial() );
+		// AUTHENTICATE_PAYER rejects amount 0, so a switch that costs nothing now
+		// authenticates the recurring amount it agrees to, as a free trial does.
+		$is_free_switch = $this->is_switch_order( $order ) && $this->order_is_empty_or_subscription( $order, $subscription );
 
-		if ( ! $has_free_trial && ! $this->is_subs_change_payment() ) {
+		if ( ! $has_free_trial && ! $is_free_switch && ! $this->is_subs_change_payment() ) {
 			return $payment_data;
 		}
 
@@ -214,10 +233,8 @@ trait Subscriptions {
 
 
 	/**
-	 * Whether the payer is paying into a subscription that already has an
-	 * agreement: a renewal order they pay themselves ("Renew now", or a failed
-	 * renewal paid from My Account), or a switch to another plan that charges
-	 * now (upgrade with proration).
+	 * Whether the payer is paying a renewal order themselves: "Renew now", or
+	 * paying a failed renewal from My Account.
 	 *
 	 * Such a payment must not carry the subscription's agreement. The gateway
 	 * treats any payment reusing an agreement.id as the next one in that series
@@ -226,16 +243,135 @@ trait Subscriptions {
 	 * cardholder-initiated payment instead; the automatic renewals keep the
 	 * agreement through process_subscription_payment(), not these filters.
 	 *
+	 * A plan switch is different: it establishes a new agreement of its own
+	 * (see agreement_id_for_order()), so it goes through these filters.
+	 *
 	 * @param WC_Order|null $order Order object.
 	 * @return bool
 	 */
-	protected function is_payer_paid_existing_subscription( $order ) {
-		if ( ! $order instanceof WC_Order ) {
-			return false;
+	protected function is_payer_paid_renewal( $order ) {
+		return $order instanceof WC_Order && function_exists( 'wcs_order_contains_renewal' ) && wcs_order_contains_renewal( $order );
+	}
+
+
+	/**
+	 * Whether the order switches a subscription to another plan.
+	 *
+	 * @param WC_Order|null $order Order object.
+	 * @return bool
+	 */
+	protected function is_switch_order( $order ) {
+		return $order instanceof WC_Order && function_exists( 'wcs_order_contains_switch' ) && wcs_order_contains_switch( $order );
+	}
+
+
+	/**
+	 * The agreement a subscription's renewals currently run under.
+	 *
+	 * Set when a plan switch establishes a new agreement; until then it is the
+	 * one the subscription's first checkout established.
+	 *
+	 * @param WC_Subscription $subscription Subscription object.
+	 * @return string
+	 */
+	protected function current_agreement_id( $subscription ) {
+		$agreement_id = $subscription->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_agreement_id' );
+		return $agreement_id ? $agreement_id : $this->unique_subscription_id( $subscription );
+	}
+
+
+	/**
+	 * The agreement a customer-present order for this subscription establishes.
+	 *
+	 * A plan switch changes the terms the renewals are charged under, so it
+	 * establishes a new agreement rather than reuse the current one: the
+	 * gateway accepts re-authenticating an existing agreement.id, but then
+	 * treats the payment that references that authentication as the next
+	 * payment in the series and rejects it as cardholder-initiated. A new
+	 * agreement keeps the switch to a single payment with a single 3DS
+	 * challenge, exactly like the first checkout.
+	 *
+	 * @param WC_Subscription $subscription Subscription object.
+	 * @param WC_Order|null   $order        The order being paid.
+	 * @return string
+	 */
+	protected function agreement_id_for_order( $subscription, $order = null ) {
+		if ( $this->is_switch_order( $order ) ) {
+			return $this->unique_subscription_id( $subscription ) . '-switch-' . $order->get_id();
 		}
 
-		return ( function_exists( 'wcs_order_contains_renewal' ) && wcs_order_contains_renewal( $order ) )
-			|| ( function_exists( 'wcs_order_contains_switch' ) && wcs_order_contains_switch( $order ) );
+		return $this->current_agreement_id( $subscription );
+	}
+
+
+	/**
+	 * After a switch is paid or verified, move the subscription's renewals to
+	 * the agreement it established, and record the old one as superseded.
+	 *
+	 * API v100 has no operation to cancel an agreement (only "Retrieve
+	 * Agreement"), so superseding it means it is never sent again: renewals
+	 * use the new agreement.id and reference the switch's gateway order.
+	 *
+	 * @param WC_Order $order The paid order.
+	 * @return void
+	 */
+	public function maybe_adopt_switch_agreement( $order ) {
+		if ( ! $this->is_switch_order( $order ) || $order->get_payment_method() !== $this->id || ! function_exists( 'wcs_get_subscriptions_for_switch_order' ) ) {
+			return;
+		}
+
+		foreach ( wcs_get_subscriptions_for_switch_order( $order ) as $subscription ) {
+			$old_agreement = $this->current_agreement_id( $subscription );
+			$new_agreement = $this->agreement_id_for_order( $subscription, $order );
+			if ( $old_agreement === $new_agreement ) {
+				continue;
+			}
+
+			$subscription->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_agreement_id', $new_agreement );
+			$subscription->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_agreement_reference_order_id', $this->unique_order_id( $order ) );
+			$subscription->save_meta_data();
+
+			$subscription->add_order_note(
+				sprintf(
+					// translators: 1: old agreement id, 2: new agreement id, 3: order number.
+					__( 'Plan change: payment agreement %1$s replaced by %2$s (order #%3$s). Renewals now use the new agreement; the old one is no longer used.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+					$old_agreement,
+					$new_agreement,
+					$order->get_order_number()
+				)
+			);
+		}
+	}
+
+
+	/**
+	 * Require payment for a plan switch of a subscription this gateway renews,
+	 * even when it costs nothing now (a downgrade, or upgrades set not to
+	 * prorate): the switch establishes a new agreement, which needs the
+	 * customer present, so it goes through the gateway as a VERIFY.
+	 *
+	 * @param bool    $needs_payment Whether the cart needs payment.
+	 * @param WC_Cart $cart          Cart.
+	 * @return bool
+	 */
+	public function maybe_require_payment_for_switch( $needs_payment, $cart ) {
+		if ( $needs_payment || ! class_exists( 'WC_Subscriptions_Switcher' ) ) {
+			return $needs_payment;
+		}
+
+		$switch_items = WC_Subscriptions_Switcher::cart_contains_switches( 'any' );
+		if ( empty( $switch_items ) ) {
+			return $needs_payment;
+		}
+
+		foreach ( $switch_items as $switch_item ) {
+			$subscription = ! empty( $switch_item['subscription_id'] ) ? wcs_get_subscription( $switch_item['subscription_id'] ) : false;
+			if ( $subscription && ! $subscription->is_manual() && $subscription->get_payment_method() === $this->id ) {
+				return true;
+			}
+		}
+
+		return $needs_payment;
 	}
 
 
@@ -243,9 +379,11 @@ trait Subscriptions {
 	 * Get agreement data for the subscription.
 	 *
 	 * @param WC_Subscription $subscription Subscription object.
+	 * @param bool            $establishing Whether this operation establishes the agreement.
+	 * @param WC_Order|null   $order        The order being paid, if any.
 	 * @return array
 	 */
-	protected function get_agreement_data( $subscription, $establishing = false ) {
+	protected function get_agreement_data( $subscription, $establishing = false, $order = null ) {
 		if ( ! $subscription instanceof WC_Subscription ) {
 			return array();
 		}
@@ -277,7 +415,7 @@ trait Subscriptions {
 		return array(
 			'type'                       => 'RECURRING',
 			'amountVariability'          => 'FIXED',
-			'id'                         => $this->unique_subscription_id( $subscription ),
+			'id'                         => $this->agreement_id_for_order( $subscription, $order ),
 			'paymentFrequency'           => $this->formatted_subscription_period( $subscription ),
 			'startDate'                  => gmdate( 'Y-m-d' ),
 			'expiryDate'                 => $this->agreement_expiry_date( $end_date, $establishing ),
@@ -676,11 +814,13 @@ trait Subscriptions {
 			$order,
 			$this->unique_order_id( $order ),
 			array(
-				'id'                => $this->unique_subscription_id( $subscription ),
+				'id'                => $this->current_agreement_id( $subscription ),
 				'type'              => 'RECURRING',
 				'amountVariability' => 'FIXED',
 			),
-			$this->unique_order_id( $parent_order ),
+			// The gateway order that established the current agreement: the first
+			// checkout, or the latest plan switch.
+			$subscription->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_agreement_reference_order_id' ) ?: $this->unique_order_id( $parent_order ),
 			$payment_token
 		);
 	}

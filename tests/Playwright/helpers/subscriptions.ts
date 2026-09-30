@@ -133,6 +133,12 @@ export async function assertSubscriptionRenews(
   adminPage: Page,
   config: PluginConfig,
   ctx: CheckoutContext,
+  /**
+   * The agreement renewals run under, when it is not the first checkout's: a
+   * plan switch establishes a new agreement, and renewals then reference the
+   * switch's gateway order.
+   */
+  agreement?: { id: string; referenceOrderId: string },
 ): Promise<string> {
   expect(ctx.subscriptionId, 'the checkout did not produce a subscription').toBeTruthy();
 
@@ -151,9 +157,9 @@ export async function assertSubscriptionRenews(
     // The renewal order's own total: it can differ from the checkout's, which
     // may include one-off shipping or a sign-up fee.
     amount: String(renewal.total),
-    agreementId: subscriptionAgreementId(config.paymentMethodSlug, ctx.subscriptionId!),
+    agreementId: agreement?.id ?? subscriptionAgreementId(config.paymentMethodSlug, ctx.subscriptionId!),
     agreementType: 'RECURRING',
-    referenceOrderId: ctx.transactionId,
+    referenceOrderId: agreement?.referenceOrderId ?? ctx.transactionId,
     exemption: 'RECURRING_PAYMENT',
   });
 
