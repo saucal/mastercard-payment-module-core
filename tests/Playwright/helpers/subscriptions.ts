@@ -37,7 +37,8 @@ export function subscriptionAgreementId(slug: string, subscriptionId: string): s
 export async function assertSubscriptionProduct(productId: number): Promise<void> {
   expect(productId, 'subscription product id must be configured').toBeGreaterThan(0);
   const product = await getProduct(productId);
-  expect(product.type, `product ${productId} is not a subscription`).toBe('subscription');
+  expect(['subscription', 'subscription_variation'], `product ${productId} is not a subscription`)
+    .toContain(product.type);
 }
 
 /**
@@ -178,13 +179,13 @@ export interface SubscriptionCheckout {
 export async function checkoutSubscription(
   pages: { page: Page; adminPage: Page; emailPage: Page },
   config: PluginConfig,
-  opts: { card: CardData; threeDS: 'always' | 'never' },
+  opts: { card: CardData; threeDS: 'always' | 'never'; productId?: number },
 ): Promise<SubscriptionCheckout> {
   const email = uniqueEmail();
   const password = billing.password;
 
   const ctx = await checkoutHostedSession(pages.page, config, {
-    productId: config.products.subscription,
+    productId: opts.productId ?? config.products.subscription,
     card: opts.card,
     billing: { ...billing, email },
     createAccount: password,
