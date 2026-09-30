@@ -161,6 +161,16 @@ const hostedSessions = {
 		hostedSessions.dcc.setQuoteArea( '' );
 		hostedSessions.dcc.setQuoteId( '' );
 		hostedSessions.blockFieldset();
+
+		// The fields stay blocked until MPGS reports them initialized. If a card
+		// field iframe fails to load (MPGS answers 500), that callback never
+		// comes and the payer is left on a spinner with no message, so give up
+		// after a while and say so.
+		clearTimeout( hostedSessions.initWatchdog );
+		hostedSessions.initWatchdog = setTimeout(
+			hostedSessions.failInitialization,
+			hostedSessions.INIT_TIMEOUT_MS
+		);
 		try {
 			PaymentSession.configure(
 				{
@@ -168,7 +178,13 @@ const hostedSessions = {
 					fields: hostedSessions.fields(),
 					frameEmbeddingMitigation: [ 'javascript' ],
 					callbacks: {
-						initialized: () => {
+						initialized: ( response ) => {
+							clearTimeout( hostedSessions.initWatchdog );
+							if ( response?.status && response.status !== 'ok' ) {
+								hostedSessions.failInitialization();
+								return;
+							}
+
 							// Do not bubble events related to validation to avoid conflicts with WC core validation
 							hostedSessions.$ccFieldset.off(
 								'input validate change focusout',
@@ -204,6 +220,7 @@ const hostedSessions = {
 				hostedSessions.paymentScope()
 			);
 		} catch ( error ) {
+			clearTimeout( hostedSessions.initWatchdog );
 			hostedSessions.submitError(
 				__(
 					'There was an error initializing the payment fields. Please try again.',
@@ -947,6 +964,19 @@ const hostedSessions = {
 				jQuery( hostedSessions.$wcForm ).unblock();
 			}
 		}
+	},
+
+	INIT_TIMEOUT_MS: 30000,
+
+	failInitialization() {
+		clearTimeout( hostedSessions.initWatchdog );
+		hostedSessions.unblockFieldset();
+		hostedSessions.submitError(
+			__(
+				'The payment form could not be loaded. Please refresh the page and try again.',
+				core_gateway_params.textDomain
+			)
+		);
 	},
 
 	blockFieldset() {
