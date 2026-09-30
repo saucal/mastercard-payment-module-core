@@ -40,8 +40,8 @@ import { describeDccCardCases } from '../_shared/dcc-card-cases';
  * failure is never confused with an ACS one. Do NOT swap in `mastercard`: it
  * returns Unavailable, and requireDccOffer would fail with nothing wrong.
  */
-const dccCard = cards.visaFrictionless;
-const PAYER_CURRENCY = 'GBP';
+const dccCard = cards.mastercardEurFrictionless;
+const PAYER_CURRENCY = 'EUR';
 
 /** The gateway config every case here shares, DCC on. */
 const DCC_ON = {
