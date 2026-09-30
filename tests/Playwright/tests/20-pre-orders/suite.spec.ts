@@ -1,5 +1,5 @@
 import { test, expect } from '../../fixtures/test';
-import { switchCheckoutMode, configureGateway, getLogEntryCount, getOrder } from '../../helpers/wc-api';
+import { switchCheckoutMode, configureGateway, getLogEntryCount, getLogs, getOrder } from '../../helpers/wc-api';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import { fillBilling, selectPaymentMethod } from '../../helpers/checkout';
 import {
@@ -17,9 +17,11 @@ import {
   assertPaymentMethodMeta,
 } from '../../helpers/assertions';
 import { navigateToOrder } from '../../helpers/admin-orders';
+import { deletePaymentMethod } from '../../helpers/my-account';
 import {
   assertPreOrderProduct,
   releasePreOrder,
+  cancelPreOrder,
   assertPreOrderStatus,
   assertPreOrderEmails,
 } from '../../helpers/pre-orders';
@@ -173,6 +175,82 @@ test.describe.serial('Pre-orders', () => {
     await navigateToOrder(adminPage, ctx.orderNumber);
     await assertOrderStatus(adminPage, 'Processing');
     await assertOrderNoteContains(adminPage, `${config.displayName} payment was Captured`);
+  });
+
+  // === PO-006: The release charge fails ===
+
+  test('PO-006 - A release that cannot be charged fails the order', async ({ page, adminPage }) => {
+    /**
+     * Proves the release failure path: the order is marked Failed with a note,
+     * rather than left Pre-ordered as if nothing happened.
+     *
+     * Not driven by a declining card, as first planned: on the
+     * test gateway the outcome follows the card and expiry, so the "declined"
+     * card fails the checkout VERIFY too and never reaches release. Instead the
+     * customer removes the saved card before release - which is also a real
+     * way this fails, since nothing stops them doing it.
+     */
+    await switchCheckoutMode('classic');
+    await configureGateway(config, { ...BASE_SETTINGS });
+
+    const ctx = await checkoutHostedSession(page, config, {
+      productId: config.products.preOrderRelease,
+      card: cards.mastercard,
+      billing: { ...billing, email: uniqueEmail() },
+      createAccount: billing.password,
+    });
+
+    // The account created at checkout is logged in on `page`.
+    await deletePaymentMethod(page, 1);
+
+    const payDate = new Date().toISOString().slice(0, 19);
+    const logOffset = await getLogEntryCount(payDate);
+
+    await releasePreOrder(adminPage, ctx.orderNumber);
+
+    await navigateToOrder(adminPage, ctx.orderNumber);
+    await assertOrderStatus(adminPage, 'Failed');
+    await assertOrderNoteContains(adminPage, 'Pre-order release payment failed: No stored card found');
+
+    const order = await getOrder(ctx.orderNumber);
+    expect(order.date_paid, 'a failed release must not mark the pre-order paid').toBeFalsy();
+
+    const entries = (await getLogs(payDate, '', logOffset)).logs[0]?.content ?? [];
+    expect(
+      entries.filter((l) => l.request?.body?.apiOperation === 'PAY'),
+      'with no stored card there is nothing to charge',
+    ).toHaveLength(0);
+  });
+
+  // === PO-007: Cancelling before release charges nothing ===
+
+  test('PO-007 - Cancelling a pre-order charges nothing', async ({ page, adminPage }) => {
+    // With VERIFY at checkout there is no held authorization to release, so
+    // cancelling must not touch the gateway at all.
+    await switchCheckoutMode('classic');
+    await configureGateway(config, { ...BASE_SETTINGS });
+
+    const ctx = await checkoutHostedSession(page, config, {
+      productId: config.products.preOrderRelease,
+      card: cards.mastercard,
+      billing: { ...billing, email: uniqueEmail() },
+      createAccount: billing.password,
+    });
+
+    const payDate = new Date().toISOString().slice(0, 19);
+    const logOffset = await getLogEntryCount(payDate);
+
+    await cancelPreOrder(adminPage, ctx.orderNumber);
+    await assertPreOrderStatus(adminPage, ctx.orderNumber, 'Cancelled');
+
+    await navigateToOrder(adminPage, ctx.orderNumber);
+    await assertOrderStatus(adminPage, 'Cancelled');
+
+    const entries = (await getLogs(payDate, '', logOffset)).logs[0]?.content ?? [];
+    expect(
+      entries.filter((l) => ['PAY', 'AUTHORIZE', 'CAPTURE', 'VOID'].includes(l.request?.body?.apiOperation)),
+      'cancelling a pre-order must not call the gateway',
+    ).toHaveLength(0);
   });
 
   // === PO-004: The forced-save UI ===
