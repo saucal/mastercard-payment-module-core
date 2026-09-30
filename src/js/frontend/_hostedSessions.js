@@ -61,7 +61,23 @@ const hostedSessions = {
 			}
 		}
 
-		hostedSessions.getSessionId();
+		// Re-read the session the page was just rendered with. WooCommerce
+		// re-renders the payment box on update_checkout, and the server may
+		// have rotated the hosted session (a changed cart gets a new one). The
+		// cached id would then configure PaymentSession against the old
+		// session and old field ids ("Field [Card Number] not found"), while
+		// the attempt below is re-read, and the form never initializes.
+		// Keep the cached id when the page renders none (block checkout with a
+		// saved card selected has no card fields, and still needs the session
+		// for the saved-card DCC quote).
+		const renderedSessionId = jQuery(
+			`#${ core_gateway_params.pluginPrefix }_session_id`
+		).val();
+		if ( renderedSessionId ) {
+			hostedSessions.sessionId = renderedSessionId;
+		} else {
+			hostedSessions.getSessionId();
+		}
 		if ( ! hostedSessions.sessionId ) {
 			return;
 		}
