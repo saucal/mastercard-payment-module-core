@@ -60,8 +60,9 @@ export async function renewSubscription(adminPage: Page, subscriptionId: string)
  * rejected without an expiry and a minimum gap between payments ("must provide
  * recurring expiry and recurring frequency"). The PAY must not invent them for
  * a subscription that runs until cancelled — Mastercard Gateway Support: such
- * agreements "should not" provide expiryDate or numberOfPayments. So the two
- * operations disagree on purpose.
+ * agreements "should not" provide expiryDate or numberOfPayments on payments.
+ * So the two operations disagree on purpose, and the establishing expiry is set
+ * far out, because renewals stop once it passes.
  *
  * `expect3DS: false` for a gateway running with 3DS off, where there is no
  * AUTHENTICATE_PAYER to check.
@@ -101,7 +102,14 @@ export async function assertSubscriptionAgreement(expected: {
   if (expected.expect3DS ?? true) {
     const auth = forAgreement('AUTHENTICATE_PAYER');
     expect(auth, 'AUTHENTICATE_PAYER carrying the agreement not found').toBeTruthy();
-    expect(auth!.request.body.agreement!.expiryDate, 'AUTHENTICATE_PAYER is rejected without an expiry').toBeTruthy();
+    const expiry = auth!.request.body.agreement!.expiryDate;
+    expect(expiry, 'AUTHENTICATE_PAYER is rejected without an expiry').toBeTruthy();
+    // The test product runs until cancelled, and renewals stop once this date
+    // passes, so a near date (it was one year) quietly ends the subscription.
+    expect(
+      new Date(expiry!).getFullYear() - new Date().getFullYear(),
+      'an open-ended subscription must not declare a near expiry',
+    ).toBeGreaterThanOrEqual(19);
     // max(1) in the plugin: a 0 is dropped by array_filter() and rejected as missing.
     expect(auth!.request.body.agreement!.minimumDaysBetweenPayments ?? 0).toBeGreaterThanOrEqual(1);
   }

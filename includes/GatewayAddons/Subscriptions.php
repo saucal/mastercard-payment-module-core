@@ -244,31 +244,26 @@ trait Subscriptions {
 		}
 
 		/**
-		 * Only a real end date bounds the agreement; otherwise send nothing.
+		 * The expiry is sent only where the agreement is established.
 		 *
-		 * Most WooCommerce subscriptions run until cancelled, so they have no
-		 * contractual end date. Mastercard Gateway Support, 2026-09: for such
-		 * agreements expiryDate and numberOfPayments "should not be provided...
-		 * omit fields whose values are not defined by the merchant-customer
-		 * agreement", and "if the agreement.expiryDate passes the agreement
-		 * comes to an end and you would need to create a new agreement".
+		 * Payments omit it. Mastercard Gateway Support, 2026-09: for agreements
+		 * with no contractual end, expiryDate and numberOfPayments "should not be
+		 * provided" - which, they later clarified, refers to PAYMENT transactions.
 		 *
-		 * So any invented horizon is actively harmful: it would kill the
-		 * agreement on that date, and re-establishing one needs a payer-present
-		 * CIT, which an unattended renewal cannot do. Callers array_filter() this
-		 * array, so returning an empty string omits the field.
+		 * The AUTHENTICATE_PAYER that establishes the agreement is different: it
+		 * rejects the request without one ("Authentication requests to establish
+		 * recurring and installment agreements must provide recurring expiry"),
+		 * and support confirmed "for AUTHENTICATE_PAYER transactions that start
+		 * Agreements agreement.expiryDate must be provided".
 		 *
-		 * $require_expiry is the exception, and it is not optional. The 3DS
-		 * AUTHENTICATE_PAYER that establishes the agreement rejects the request
-		 * outright without one:
-		 *
-		 *   INVALID_REQUEST - "Authentication requests to establish recurring and
-		 *   installment agreements must provide recurring expiry"
-		 *
-		 * So the gateway contradicts its own support guidance here: omit it on the
-		 * payment, but the authentication step demands a date even when the
-		 * agreement has no end. A year is the horizon we send there. Raised with
-		 * Mastercard - see data/apps/mastercard/ (unversioned).
+		 * That date is binding. Once it passes, merchant-initiated renewals stop
+		 * working, and extending the agreement takes a new payer authentication
+		 * with the customer present - which an unattended renewal cannot do. So a
+		 * subscription with a real end date sends that date, and one that runs
+		 * until cancelled sends a date "sufficiently far into the future so that
+		 * it would not present an issue" (support's words; they give no specific
+		 * value). See agreement_expiry_date(). Callers array_filter() this array,
+		 * so an empty string omits the field.
 		 */
 		$end_date = $subscription->get_date( 'end' );
 
@@ -299,7 +294,9 @@ trait Subscriptions {
 			return gmdate( 'Y-m-d', strtotime( $end_date ) );
 		}
 
-		return $establishing ? gmdate( 'Y-m-d', strtotime( '+1 year' ) ) : '';
+		// ponytail: fixed 20-year horizon, no gateway maximum is documented; if one
+		// turns up, clamp to it here.
+		return $establishing ? gmdate( 'Y-m-d', strtotime( '+20 years' ) ) : '';
 	}
 
 
