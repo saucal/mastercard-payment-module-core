@@ -865,24 +865,30 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				$payment_data['sourceOfFunds']['provided']['card'] = array();
 			}
 			/*
-			 * A credential the payer picked from their saved methods is already
-			 * stored, so it is STORED even when the cart also forces saving.
+			 * storedOnFile is read per agreement, not per card.
 			 *
-			 * $saving_card used to be checked first, and subscriptions force it on
-			 * (maybe_force_save_method), so subscribing with an already-saved card
-			 * was reported to the gateway as TO_BE_STORED — "the first transaction
-			 * using these card details" — for a credential stored long before.
-			 * Suites never caught it because every test enters a fresh card.
+			 * A payment that carries an agreement.id opens that agreement's series
+			 * (a subscription's first checkout, a plan switch, a pre-order), and the
+			 * gateway only accepts it as TO_BE_STORED - even when the payer picked a
+			 * card they saved long before. With STORED it reads "subsequent payment
+			 * in a series" and rejects the cardholder-initiated source: "Value
+			 * 'INTERNET' is invalid. Field transaction.source must be set to
+			 * MERCHANT ...". Probed 2026-09-30: same stored token, a never-used
+			 * agreement.id, STORED rejected, TO_BE_STORED approved.
 			 *
-			 * The session-derived token stays last: during a new-card checkout the
+			 * Without an agreement, a card the payer picked from their saved
+			 * methods is STORED even when the cart forces saving. After a 3DS
+			 * challenge this runs in the callback, where the posted token is gone;
+			 * the choice was stored on the order before the challenge. The
+			 * session-derived token stays last: during a new-card checkout the
 			 * session can already carry one, and that case really is TO_BE_STORED.
-			 *
-			 * After a 3DS challenge this runs in the callback, where the posted
-			 * token is gone; the choice was stored on the order before the challenge.
 			 */
+			$opens_agreement          = ! empty( $payment_data['agreement']['id'] );
 			$paying_with_saved_method = $this->is_saved_payment_method()
 				|| ( $processing_3ds_callback && $this->is_order( $order ) && 'yes' === $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_paying_with_saved_method' ) );
-			if ( $paying_with_saved_method ) {
+			if ( $opens_agreement ) {
+				$payment_data['sourceOfFunds']['provided']['card']['storedOnFile'] = 'TO_BE_STORED';
+			} elseif ( $paying_with_saved_method ) {
 				$payment_data['sourceOfFunds']['provided']['card']['storedOnFile'] = 'STORED';
 			} elseif ( $saving_card ) {
 				$payment_data['sourceOfFunds']['provided']['card']['storedOnFile'] = 'TO_BE_STORED';

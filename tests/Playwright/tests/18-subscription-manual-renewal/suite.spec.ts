@@ -11,6 +11,7 @@ import {
   assertSubscriptionProduct,
   checkoutSubscription,
   assertSubscriptionRenews,
+  subscriptionAgreementId,
   type SubscriptionCheckout,
 } from '../../helpers/subscriptions';
 import config from '../../plugin-config';
@@ -121,5 +122,40 @@ test.describe.serial('Subscription Manual Renewal', () => {
     // The subscription's parent is still MC-060's order, so that is the
     // checkout the renewal must reference, not the early renewal.
     await assertSubscriptionRenews(adminPage, config, baseline!.ctx);
+  });
+
+  // === MC-068: A returning customer subscribes again with the saved card ===
+
+  test('MC-068 - Second subscription with the saved card', async ({ page }) => {
+    /**
+     * A new subscription opens a new agreement, and the gateway reads
+     * storedOnFile per agreement: the first payment of an agreement must be
+     * TO_BE_STORED even though this card was saved on MC-060. Sent as STORED
+     * (a saved card picked at checkout), it was rejected: "transaction.source
+     * must be set to MERCHANT for a subsequent payment in a series".
+     */
+    expect(baseline, 'MC-060 must have run first').toBeTruthy();
+    const { ctx: first, email, password } = baseline!;
+
+    const ctx = await checkoutHostedSession(page, config, {
+      productId: config.products.subscription,
+      loginAs: { email, password },
+      billing: { ...billing, email },
+      card: cards.visaChallenge,
+      savedTokenIndex: 1,
+      threeDS: 'maybe',
+    });
+    expect(ctx.subscriptionId, 'a second subscription').toBeTruthy();
+    expect(ctx.subscriptionId).not.toBe(first.subscriptionId);
+
+    await assertAgreementLog({
+      payDate: ctx.payDate,
+      logOffset: ctx.logOffset,
+      transactionId: ctx.transactionId,
+      apiOperation: 'PAY',
+      agreementId: subscriptionAgreementId(config.paymentMethodSlug, ctx.subscriptionId!),
+      agreementType: 'RECURRING',
+      storedOnFile: 'TO_BE_STORED',
+    });
   });
 });
