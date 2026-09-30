@@ -390,9 +390,18 @@ trait DynamicCurrencyConversion {
 			}
 
 			$request_id = $result['body']['paymentTypes']['card']['currencyConversion']['requestId'] ?? null;
-			$offer_text = $result['body']['paymentTypes']['card']['currencyConversion']['offerText'] ?? null;
+			$offer_text = $result['body']['paymentTypes']['card']['currencyConversion']['offerText'] ?? '';
 
-			if ( ! $request_id || ! $offer_text ) {
+			/*
+			 * A quote with no offer (NOT_ELIGIBLE, UNSUPPORTED_CARD_BRAND, ERROR)
+			 * still carries a requestId, and the payment must send it back with
+			 * uptake NOT_AVAILABLE ("You must set currencyConversion.uptake=
+			 * NOT_AVAILABLE ... and supply the correct currencyConversion.requestId",
+			 * Mastercard Gateway DCC guide). So only a missing requestId is a
+			 * failure; an empty offer is passed on and the frontend marks it
+			 * Unavailable, as it already does for entered cards.
+			 */
+			if ( ! $request_id ) {
 				wp_send_json_error();
 			}
 

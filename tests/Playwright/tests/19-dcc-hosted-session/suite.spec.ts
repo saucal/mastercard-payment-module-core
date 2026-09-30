@@ -207,6 +207,45 @@ test.describe.serial('DCC - Hosted Session', () => {
 
   // === DCC-005: Setting off ⇒ no quote at all ===
 
+  // === DCC-027: Saved card with no offer still reports NOT_AVAILABLE ===
+
+  test('DCC-027 - Saved card without an offer sends NOT_AVAILABLE', async ({ page }) => {
+    /**
+     * A quote with no offer still carries a requestId, and Mastercard requires
+     * the payment to return it with uptake NOT_AVAILABLE. The entered-card path
+     * always did; the saved-card path (ajax_dcc_quote) used to drop a quote
+     * with no offerText, so the PAY carried no currencyConversion at all.
+     */
+    // Own settings: this must hold when run alone or retried.
+    await switchCheckoutMode('classic');
+    await configureGateway(config, { ...DCC_ON });
+
+    const noOfferEmail = uniqueEmail();
+    const account = { email: noOfferEmail, password: billing.password };
+
+    // cards.mastercard quotes with a requestId but no offer (the "Unavailable"
+    // shape requireDccOffer warns about). First purchase saves it; the
+    // entered-card path is the control.
+    const first = await checkoutHostedSession(page, config, {
+      productId: config.products.physical,
+      card: cards.mastercard,
+      billing: { ...billing, email: noOfferEmail },
+      createAccount: billing.password,
+      saveCard: true,
+    });
+    await assertDccUptakeLog({ ...first, uptake: 'NOT_AVAILABLE' });
+
+    // Second purchase pays with that saved card: the case this is about.
+    const ctx = await checkoutHostedSession(page, config, {
+      productId: config.products.physical,
+      card: cards.mastercard,
+      loginAs: account,
+      savedTokenIndex: 1,
+    });
+    await assertDccQuoteInquiryLog({ payDate: ctx.payDate, logOffset: ctx.logOffset });
+    await assertDccUptakeLog({ ...ctx, uptake: 'NOT_AVAILABLE' });
+  });
+
   test('DCC-005 - No quote when the setting is off', async ({ page, adminPage, emailPage }) => {
     await configureGateway(config, { ...DCC_ON, currency_conversion: 'no' });
 

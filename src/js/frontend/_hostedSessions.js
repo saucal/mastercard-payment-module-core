@@ -1580,18 +1580,17 @@ const hostedSessions = {
 						data,
 					} )
 					.done( function ( res ) {
-						if (
-							! res?.success ||
-							! res?.data?.requestId ||
-							! res?.data?.offerText
-						) {
+						// An empty offer still has a requestId the payment must
+						// return with uptake NOT_AVAILABLE; keep it, as the
+						// entered-card path does.
+						if ( ! res?.success || ! res?.data?.requestId ) {
 							return reject();
 						}
 
 						return resolve(
 							hostedSessions.dcc.cacheQuote( tokenId, {
 								requestId: res.data.requestId,
-								offerText: res.data.offerText,
+								offerText: res.data.offerText || '',
 							} )
 						);
 					} );
