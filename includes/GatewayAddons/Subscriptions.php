@@ -123,7 +123,7 @@ trait Subscriptions {
 	 */
 	public function maybe_add_subscription_payment_data( $payment_data, $order ) {
 		$subscription = $this->get_subscription_object( $order );
-		if ( ! $subscription instanceof WC_Subscription || $this->is_payer_paid_renewal( $order ) ) {
+		if ( ! $subscription instanceof WC_Subscription || $this->is_payer_paid_existing_subscription( $order ) ) {
 			return $payment_data;
 		}
 
@@ -192,7 +192,7 @@ trait Subscriptions {
 	 */
 	public function maybe_add_subscription_authentication_data( $payment_data, $order ) {
 		$subscription = $this->get_subscription_object( $order );
-		if ( ! $subscription instanceof WC_Subscription || $this->is_payer_paid_renewal( $order ) ) {
+		if ( ! $subscription instanceof WC_Subscription || $this->is_payer_paid_existing_subscription( $order ) ) {
 			return $payment_data;
 		}
 
@@ -214,8 +214,10 @@ trait Subscriptions {
 
 
 	/**
-	 * Whether the payer is paying a renewal order themselves: "Renew now", or
-	 * paying a failed renewal from My Account.
+	 * Whether the payer is paying into a subscription that already has an
+	 * agreement: a renewal order they pay themselves ("Renew now", or a failed
+	 * renewal paid from My Account), or a switch to another plan that charges
+	 * now (upgrade with proration).
 	 *
 	 * Such a payment must not carry the subscription's agreement. The gateway
 	 * treats any payment reusing an agreement.id as the next one in that series
@@ -227,8 +229,13 @@ trait Subscriptions {
 	 * @param WC_Order|null $order Order object.
 	 * @return bool
 	 */
-	protected function is_payer_paid_renewal( $order ) {
-		return $order instanceof WC_Order && function_exists( 'wcs_order_contains_renewal' ) && wcs_order_contains_renewal( $order );
+	protected function is_payer_paid_existing_subscription( $order ) {
+		if ( ! $order instanceof WC_Order ) {
+			return false;
+		}
+
+		return ( function_exists( 'wcs_order_contains_renewal' ) && wcs_order_contains_renewal( $order ) )
+			|| ( function_exists( 'wcs_order_contains_switch' ) && wcs_order_contains_switch( $order ) );
 	}
 
 
