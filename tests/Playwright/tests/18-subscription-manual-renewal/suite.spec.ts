@@ -14,6 +14,9 @@ import {
   subscriptionAgreementId,
   type SubscriptionCheckout,
 } from '../../helpers/subscriptions';
+import { selectGatewayOnAddPaymentMethod } from '../../helpers/my-account';
+import { fillHostedSessionCC } from '../../helpers/hosted-session';
+import { waitForUnblock } from '../../helpers/block-ui';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
 import { billing } from '../../fixtures/billing';
@@ -157,5 +160,52 @@ test.describe.serial('Subscription Manual Renewal', () => {
       agreementType: 'RECURRING',
       storedOnFile: 'TO_BE_STORED',
     });
+  });
+
+  // === MC-069: The card subscriptions renew with cannot be removed ===
+
+  test('MC-069 - The only card a subscription renews with cannot be removed', async ({ page }) => {
+    // WooCommerce Subscriptions hides Delete for a card an active subscription
+    // renews with when the customer has no other card. It finds those
+    // subscriptions by the token stored in their meta, which this gateway
+    // writes (payment_token), so the protection applies to our subscriptions.
+    expect(baseline, 'MC-060 must have run first').toBeTruthy();
+    const { email, password } = baseline!;
+
+    await frontendLogin(page, email, password);
+    await page.goto('/my-account/payment-methods/');
+    const row = page.locator('tr.payment-method').filter({ hasText: cards.visaChallenge.number.slice(-4) });
+    await expect(row, 'the card the subscriptions renew with').toHaveCount(1);
+    await expect(row.locator('a.delete'), 'no Delete action while subscriptions renew with it').toHaveCount(0);
+  });
+
+  // === MC-070: Another saved card does not unlock it ===
+
+  test('MC-070 - The subscription card stays locked with another card saved', async ({ page }) => {
+    /**
+     * WooCommerce Subscriptions lets a customer remove the card once they have
+     * another, and repoints the subscription. With this gateway the next
+     * renewal then fails (observed: "Invalid payment token", subscription On
+     * hold), and even a repointed card would be refused: the gateway only
+     * charges, merchant-initiated, the card of the agreement's last
+     * cardholder-initiated payment. So the gateway keeps the card locked; the
+     * customer changes it through "Change payment method".
+     */
+    expect(baseline, 'MC-060 must have run first').toBeTruthy();
+    const { email, password } = baseline!;
+
+    await frontendLogin(page, email, password);
+    await selectGatewayOnAddPaymentMethod(page, config);
+    await fillHostedSessionCC(page, cards.visaFrictionless, config);
+    await page.locator('#place_order').first().click();
+    await page.waitForURL(/payment-methods/, { timeout: 60000 });
+    await waitForUnblock(page);
+
+    const subscriptionCard = page.locator('tr.payment-method').filter({ hasText: cards.visaChallenge.number.slice(-4) });
+    const otherCard = page.locator('tr.payment-method').filter({ hasText: cards.visaFrictionless.number.slice(-4) });
+    await expect(subscriptionCard.locator('a.delete'), 'the subscription card stays locked').toHaveCount(0);
+    await expect(otherCard.locator('a.delete'), 'a card no subscription uses can be removed').toHaveCount(1);
+    await expect(page.locator('.woocommerce-info, .woocommerce-notice, .wc-block-components-notice-banner'))
+      .toContainText('change the subscription');
   });
 });

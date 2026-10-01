@@ -107,6 +107,12 @@ trait Subscriptions {
 
 		add_action( 'woocommerce_payment_token_deleted', array( $this, 'maybe_remove_token_from_subscriptions' ), 10, 2 );
 
+		// Keep a customer from removing a card their subscriptions renew with,
+		// even when they have another one (see is_subscription_token_locked()).
+		add_filter( 'woocommerce_payment_methods_list_item', array( $this, 'maybe_block_subscription_token_deletion' ), 20, 2 );
+		add_action( 'woocommerce_before_account_payment_methods', array( $this, 'print_subscription_token_notices' ) );
+		add_action( 'wp', array( $this, 'maybe_refuse_subscription_token_deletion' ), 10 );
+
 		// Handle subscription change payment method.
 		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_unique_order_id', array( $this, 'maybe_bump_order_id_change_payment_method' ), 10, 2 );
 		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_addon', array( $this, 'maybe_handle_sub_change_payment_method' ), 10, 2 );
@@ -1073,5 +1079,121 @@ trait Subscriptions {
 	 */
 	public function order_is_empty_or_subscription( $order, $subscription ) {
 		return $subscription->get_id() === $order->get_id() || NumberUtil::round( $order->get_total(), \WC_ROUNDING_PRECISION ) <= 0;
+	}
+
+
+	/**
+	 * The customer's active subscriptions that renew with this card.
+	 *
+	 * @param WC_Payment_Token $token Saved card.
+	 * @return WC_Subscription[]
+	 */
+	protected function subscriptions_using_token( $token ) {
+		if ( ! $token instanceof \WC_Payment_Token || $token->get_gateway_id() !== $this->id || ! class_exists( 'WCS_Payment_Tokens' ) ) {
+			return array();
+		}
+
+		return array_values( WCS_Payment_Tokens::get_subscriptions_from_token( $token ) );
+	}
+
+
+	/**
+	 * Whether active subscriptions renew with this card.
+	 *
+	 * WooCommerce Subscriptions only stops this when the customer has no other
+	 * card; with another one it lets the card go and repoints the subscriptions.
+	 * That cannot work here: the gateway binds the agreement to the card of its
+	 * last cardholder-initiated payment and refuses a merchant-initiated charge
+	 * on any other card ("The card number provided for this merchant-initiated
+	 * transaction does not match the card number used for the last
+	 * customer-initiated transaction in this series of payments"). Observed: the
+	 * next renewal failed and the subscription went On hold. The card can change
+	 * through "Change payment method", which the customer completes at the
+	 * gateway.
+	 *
+	 * @param WC_Payment_Token $token Saved card.
+	 * @return bool
+	 */
+	protected function is_subscription_token_locked( $token ) {
+		return ! empty( $this->subscriptions_using_token( $token ) );
+	}
+
+
+	/**
+	 * Remove the Delete action from a card subscriptions renew with. Runs after
+	 * WooCommerce Subscriptions' own filter.
+	 *
+	 * @param array             $item  Payment method list item.
+	 * @param \WC_Payment_Token $token Saved card.
+	 * @return array
+	 */
+	public function maybe_block_subscription_token_deletion( $item, $token ) {
+		if ( isset( $item['actions']['delete'] ) && $this->is_subscription_token_locked( $token ) ) {
+			unset( $item['actions']['delete'] );
+		}
+
+		return $item;
+	}
+
+
+	/**
+	 * Explain on My Account > Payment methods why a card cannot be removed.
+	 *
+	 * @return void
+	 */
+	public function print_subscription_token_notices() {
+		if ( ! is_user_logged_in() ) {
+			return;
+		}
+
+		foreach ( \WC_Payment_Tokens::get_customer_tokens( get_current_user_id(), $this->id ) as $token ) {
+			$subscriptions = $this->subscriptions_using_token( $token );
+			if ( empty( $subscriptions ) ) {
+				continue;
+			}
+
+			$numbers = array_map(
+				function ( $subscription ) {
+					return '#' . $subscription->get_order_number();
+				},
+				$subscriptions
+			);
+
+			wc_print_notice(
+				sprintf(
+					// translators: 1: card label, 2: subscription numbers.
+					__( '%1$s is used to renew your subscription %2$s, so it cannot be removed. To use another card, change the subscription\'s payment method first.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+					$token->get_display_name(),
+					implode( ', ', $numbers )
+				),
+				'notice'
+			);
+		}
+	}
+
+
+	/**
+	 * Refuse a direct delete request for a card subscriptions renew with.
+	 *
+	 * Runs before WooCommerce handles the delete-payment-method endpoint (its
+	 * handler is on 'wp' at priority 20).
+	 *
+	 * @return void
+	 */
+	public function maybe_refuse_subscription_token_deletion() {
+		global $wp;
+
+		if ( ! isset( $wp->query_vars['delete-payment-method'] ) ) {
+			return;
+		}
+
+		$token = \WC_Payment_Tokens::get( absint( $wp->query_vars['delete-payment-method'] ) );
+		if ( ! $token || $token->get_user_id() !== get_current_user_id() || ! $this->is_subscription_token_locked( $token ) ) {
+			return;
+		}
+
+		wc_add_notice( __( 'This card is used to renew a subscription, so it cannot be removed. To use another card, change the subscription\'s payment method first.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ), 'error' );
+		wp_safe_redirect( wc_get_account_endpoint_url( 'payment-methods' ) );
+		exit;
 	}
 }
