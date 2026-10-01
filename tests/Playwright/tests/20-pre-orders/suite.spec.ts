@@ -1,5 +1,5 @@
 import { test, expect } from '../../fixtures/test';
-import { switchCheckoutMode, configureGateway, getLogEntryCount, getLogs, getOrder } from '../../helpers/wc-api';
+import { switchCheckoutMode, configureGateway, getLogEntryCount, getLogs, getOrder, updateOrderMeta } from '../../helpers/wc-api';
 import { addToCartAndCheckout } from '../../helpers/cart';
 import { fillBilling, selectPaymentMethod } from '../../helpers/checkout';
 import {
@@ -17,7 +17,9 @@ import {
   assertPaymentMethodMeta,
 } from '../../helpers/assertions';
 import { navigateToOrder } from '../../helpers/admin-orders';
-import { deletePaymentMethod } from '../../helpers/my-account';
+import { selectGatewayOnAddPaymentMethod } from '../../helpers/my-account';
+import { fillHostedSessionCC } from '../../helpers/hosted-session';
+import { waitForUnblock } from '../../helpers/block-ui';
 import {
   assertPreOrderProduct,
   releasePreOrder,
@@ -181,16 +183,15 @@ test.describe.serial('Pre-orders', () => {
 
   // === PO-006: The release charge fails ===
 
-  test('PO-006 - A release that cannot be charged fails the order', async ({ page, adminPage }) => {
+  test('PO-006 - A release the gateway declines fails the order', async ({ page, adminPage }) => {
     /**
-     * Proves the release failure path: the order is marked Failed with a note,
-     * rather than left Pre-ordered as if nothing happened.
+     * Proves the release failure path: the order goes to Failed with a note,
+     * rather than staying Pre-ordered as if nothing happened.
      *
-     * Not driven by a declining card, as first planned: on the
-     * test gateway the outcome follows the card and expiry, so the "declined"
-     * card fails the checkout VERIFY too and never reaches release. Instead the
-     * customer removes the saved card before release - which is also a real
-     * way this fails, since nothing stops them doing it.
+     * The test gateway decides outcomes by card and expiry, so no card verifies
+     * at checkout and then declines later (the "declined" card fails the VERIFY
+     * too). The stored card is instead swapped for a token the gateway refuses,
+     * which takes the same path as a card cancelled before release.
      */
     await switchCheckoutMode('classic');
     await configureGateway(config, { ...BASE_SETTINGS });
@@ -201,27 +202,16 @@ test.describe.serial('Pre-orders', () => {
       billing: { ...billing, email: uniqueEmail() },
       createAccount: billing.password,
     });
-
-    // The account created at checkout is logged in on `page`.
-    await deletePaymentMethod(page, 1);
-
-    const payDate = new Date().toISOString().slice(0, 19);
-    const logOffset = await getLogEntryCount(payDate);
+    await updateOrderMeta(ctx.orderNumber, config.paymentTokenMetaKey, '9999999999999999');
 
     await releasePreOrder(adminPage, ctx.orderNumber);
 
     await navigateToOrder(adminPage, ctx.orderNumber);
     await assertOrderStatus(adminPage, 'Failed');
-    await assertOrderNoteContains(adminPage, 'Pre-order release payment failed: No stored card found');
+    await assertOrderNoteContains(adminPage, 'Pre-order release payment failed');
 
     const order = await getOrder(ctx.orderNumber);
     expect(order.date_paid, 'a failed release must not mark the pre-order paid').toBeFalsy();
-
-    const entries = (await getLogs(payDate, '', logOffset)).logs[0]?.content ?? [];
-    expect(
-      entries.filter((l) => l.request?.body?.apiOperation === 'PAY'),
-      'with no stored card there is nothing to charge',
-    ).toHaveLength(0);
   });
 
   // === PO-007: Cancelling before release charges nothing ===
@@ -330,6 +320,64 @@ test.describe.serial('Pre-orders', () => {
     } finally {
       await configureGateway(config, { ...BASE_SETTINGS });
     }
+  });
+
+  // === PO-012: The only card a pre-order needs cannot be removed ===
+
+  test('PO-012 - The card a pending pre-order needs cannot be removed', async ({ page }) => {
+    // Like WooCommerce Subscriptions does for subscriptions: with no other card
+    // to move the pre-order to, the card has no Delete action, and a notice
+    // says why.
+    await switchCheckoutMode('classic');
+    await configureGateway(config, { ...BASE_SETTINGS });
+
+    const ctx = await checkoutHostedSession(page, config, {
+      productId: config.products.preOrderRelease,
+      card: cards.mastercard,
+      billing: { ...billing, email: uniqueEmail() },
+      createAccount: billing.password,
+    });
+
+    // The account created at checkout is logged in on `page`.
+    await page.goto('/my-account/payment-methods/');
+    const row = page.locator('tr.payment-method').filter({ hasText: cards.mastercard.number.slice(-4) });
+    await expect(row, 'the card saved for the pre-order').toHaveCount(1);
+    await expect(row.locator('a.delete'), 'no Delete action while a pre-order depends on it').toHaveCount(0);
+    await expect(page.locator('.woocommerce-info, .woocommerce-notice, .wc-block-components-notice-banner'))
+      .toContainText(`#${ctx.orderNumber}`);
+  });
+
+  // === PO-013: Another saved card does not unlock it ===
+
+  test('PO-013 - The pre-order card stays locked with another card saved', async ({ page }) => {
+    /**
+     * The pre-order cannot move to another card: the gateway refuses a
+     * merchant-initiated charge on any card but the one of the agreement's last
+     * cardholder-initiated payment ("The card number provided for this
+     * merchant-initiated transaction does not match ..."). So a second card does
+     * not make the first removable, while the second card itself is.
+     */
+    await switchCheckoutMode('classic');
+    await configureGateway(config, { ...BASE_SETTINGS });
+
+    await checkoutHostedSession(page, config, {
+      productId: config.products.preOrderRelease,
+      card: cards.mastercard,
+      billing: { ...billing, email: uniqueEmail() },
+      createAccount: billing.password,
+    });
+
+    // Add a second card from My Account (3DS is off in BASE_SETTINGS).
+    await selectGatewayOnAddPaymentMethod(page, config);
+    await fillHostedSessionCC(page, cards.visaFrictionless, config);
+    await page.locator('#place_order').first().click();
+    await page.waitForURL(/payment-methods/, { timeout: 30000 });
+    await waitForUnblock(page);
+
+    const preOrderCard = page.locator('tr.payment-method').filter({ hasText: cards.mastercard.number.slice(-4) });
+    const otherCard = page.locator('tr.payment-method').filter({ hasText: cards.visaFrictionless.number.slice(-4) });
+    await expect(preOrderCard.locator('a.delete'), 'the pre-order card stays locked').toHaveCount(0);
+    await expect(otherCard.locator('a.delete'), 'a card no pre-order needs can be removed').toHaveCount(1);
   });
 
   // === PO-004: The forced-save UI ===

@@ -43,6 +43,7 @@ export interface PluginConfig {
   transactionIdMetaKey: string;
   sessionIdMetaKey: string;
   tokenMetaKey: string;
+  paymentTokenMetaKey: string;
   products: {
     physical: number;
     digital: number;

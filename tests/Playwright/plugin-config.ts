@@ -14,6 +14,8 @@ const config: PluginConfig = {
   transactionIdMetaKey: `${metaPrefix}_order_id`,
   sessionIdMetaKey: `${metaPrefix}_session_id`,
   tokenMetaKey: `${metaPrefix}_token`,
+  // The gateway token a subscription or pre-order is charged to.
+  paymentTokenMetaKey: `${metaPrefix}_payment_token`,
   products: {
     physical: parseInt(process.env.PRODUCT_PHYSICAL || '61', 10),
     digital: parseInt(process.env.PRODUCT_DIGITAL || '316', 10),

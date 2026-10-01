@@ -15,6 +15,7 @@ use WC_Pre_Orders_Order;
 use WC_Pre_Orders_Cart;
 use WC_Pre_Orders_Product;
 use WC_Payment_Tokens;
+use WC_Payment_Token;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
@@ -42,10 +43,14 @@ trait PreOrders {
 		}
 
 		/*
-		 * Hosted checkout cannot store a card for a later merchant-initiated
-		 * charge: the hosted page only tokenizes when the payer ticks an optional
-		 * consent box meant for payer-initiated reuse, and INITIATE_CHECKOUT takes
-		 * no storedOnFile. So never claim 'pre-orders' there.
+		 * Pre-orders charged on release need a stored card, and in hosted
+		 * checkout mode we cannot guarantee one: the payer pays on Mastercard's
+		 * page, which only stores the card if they tick an optional consent box
+		 * (interaction.saveCardForCredentialOnFile), and INITIATE_CHECKOUT takes
+		 * no storedOnFile. In hosted session mode the server tokenizes the
+		 * session itself, unconditionally. Subscriptions are excluded from hosted
+		 * checkout for the same reason (init_addon_subscriptions). So never claim
+		 * 'pre-orders' there.
 		 *
 		 * This used to also require cart_contains_pre_order_tokenization(), but it
 		 * runs from build(), before the cart is loaded, so that was always false
@@ -86,6 +91,17 @@ trait PreOrders {
 		// Flag pre-order as completed after successful payment.
 		add_action( 'PAYMENTS_CORE_HOOK_PREFIX_payment_success', array( $this, 'maybe_flag_pre_order_as_completed' ) );
 		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_change_order_status', array( $this, 'maybe_bypass_change_status' ), 10, 2 );
+
+		// Record the card a pre-order charged on release will be charged to,
+		// whether entered now or picked from the customer's saved cards.
+		add_action( 'PAYMENTS_CORE_HOOK_PREFIX_payment_method_saved', array( $this, 'maybe_store_pre_order_token' ), 10, 2 );
+
+		// Keep a customer from removing the card a pending pre-order will be
+		// charged to (see is_pre_order_token_locked()).
+		add_filter( 'woocommerce_payment_methods_list_item', array( $this, 'maybe_block_pre_order_token_deletion' ), 10, 2 );
+		add_action( 'woocommerce_before_account_payment_methods', array( $this, 'print_pre_order_token_notices' ) );
+		add_action( 'wp', array( $this, 'maybe_refuse_pre_order_token_deletion' ), 10 );
+		add_action( 'woocommerce_payment_token_deleted', array( $this, 'note_pre_orders_on_deleted_token' ), 10, 2 );
 
 		// Process pre-order payment when released (charged upon release).
 		add_action( 'wc_pre_orders_process_pre_order_completion_payment_' . $this->id, array( $this, 'process_pre_order_release_payment' ), 10, 1 );
@@ -362,10 +378,15 @@ trait PreOrders {
 		}
 
 		try {
-			$tokens = $order->get_payment_tokens();
-			$token  = ! empty( $tokens ) ? WC_Payment_Tokens::get( reset( $tokens ) ) : null;
-			// A guest has no saved card; their gateway token is kept on the order.
-			$gateway_token = $token ? $token->get_token() : $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_payment_token' );
+			// The card recorded for this pre-order (see maybe_store_pre_order_token(),
+			// and the guest path in maybe_save_cards()); older orders fall back to
+			// the tokens attached to the order.
+			$gateway_token = $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_payment_token' );
+			if ( ! $gateway_token ) {
+				$tokens        = $order->get_payment_tokens();
+				$token         = ! empty( $tokens ) ? WC_Payment_Tokens::get( reset( $tokens ) ) : null;
+				$gateway_token = $token ? $token->get_token() : '';
+			}
 			if ( ! $gateway_token ) {
 				throw new Exception( __( 'No stored card found for this pre-order.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 			}
@@ -443,5 +464,193 @@ trait PreOrders {
 		}
 
 		return $add_meta_box;
+	}
+
+
+	/**
+	 * Record the card a pre-order charged on release will be charged to.
+	 *
+	 * Fired for a card entered and saved at checkout and for one picked from the
+	 * customer's saved cards. The second never reached the order before, so a
+	 * customer who pre-ordered with a saved card had nothing to charge at
+	 * release ("No stored card found for this pre-order").
+	 *
+	 * @param WC_Order $order    Order object.
+	 * @param int      $token_id Saved card (payment token) id.
+	 *
+	 * @return void
+	 */
+	public function maybe_store_pre_order_token( $order, $token_id ) {
+		// Not is_pre_order_charged_on_release(): Pre-Orders' "requires
+		// tokenization" turns false as soon as the order has a payment token,
+		// and the gateway attaches the card just before this fires.
+		if ( ! $this->is_order( $order ) || ! $this->has_pre_order( $order->get_id() ) || ! WC_Pre_Orders_Order::order_will_be_charged_upon_release( $order ) ) {
+			return;
+		}
+
+		$token = WC_Payment_Tokens::get( $token_id );
+		if ( ! $token || $token->get_gateway_id() !== $this->id ) {
+			return;
+		}
+
+		$order->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_payment_token', $token->get_token() );
+		$order->save_meta_data();
+	}
+
+
+	/**
+	 * The customer's pending pre-orders that will be charged to this card.
+	 *
+	 * @param WC_Payment_Token $token Saved card.
+	 *
+	 * @return WC_Order[]
+	 */
+	protected function pre_orders_using_token( $token ) {
+		if ( ! $token instanceof WC_Payment_Token || $token->get_gateway_id() !== $this->id || ! $token->get_user_id() ) {
+			return array();
+		}
+
+		$orders = wc_get_orders(
+			array(
+				'customer_id'    => $token->get_user_id(),
+				'payment_method' => $this->id,
+				'status'         => array( 'pre-ordered' ),
+				'limit'          => -1,
+			)
+		);
+
+		return array_values(
+			array_filter(
+				$orders,
+				function ( $order ) use ( $token ) {
+					return $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_payment_token' ) === $token->get_token()
+						&& WC_Pre_Orders_Order::order_will_be_charged_upon_release( $order );
+				}
+			)
+		);
+	}
+
+
+	/**
+	 * Whether a pending pre-order will be charged to this card.
+	 *
+	 * Such a card cannot be swapped for another one, even when the customer has
+	 * one: the gateway binds an agreement to the card of its last
+	 * cardholder-initiated payment, and refuses a merchant-initiated charge on
+	 * any other card ("The card number provided for this merchant-initiated
+	 * transaction does not match the card number used for the last
+	 * customer-initiated transaction in this series of payments"). Pre-Orders
+	 * has no flow for the customer to re-authorize with a new card, so the card
+	 * stays until the pre-order is released or cancelled.
+	 *
+	 * @param WC_Payment_Token $token Saved card.
+	 *
+	 * @return bool
+	 */
+	protected function is_pre_order_token_locked( $token ) {
+		return ! empty( $this->pre_orders_using_token( $token ) );
+	}
+
+
+	/**
+	 * Remove the Delete action from a saved card a pending pre-order depends on.
+	 *
+	 * @param array            $item  Payment method list item.
+	 * @param WC_Payment_Token $token Saved card.
+	 *
+	 * @return array
+	 */
+	public function maybe_block_pre_order_token_deletion( $item, $token ) {
+		if ( isset( $item['actions']['delete'] ) && $this->is_pre_order_token_locked( $token ) ) {
+			unset( $item['actions']['delete'] );
+		}
+
+		return $item;
+	}
+
+
+	/**
+	 * Explain on My Account > Payment methods why a card cannot be removed.
+	 *
+	 * @return void
+	 */
+	public function print_pre_order_token_notices() {
+		if ( ! is_user_logged_in() ) {
+			return;
+		}
+
+		foreach ( WC_Payment_Tokens::get_customer_tokens( get_current_user_id(), $this->id ) as $token ) {
+			if ( ! $this->is_pre_order_token_locked( $token ) ) {
+				continue;
+			}
+
+			$order_numbers = array_map(
+				function ( $order ) {
+					return '#' . $order->get_order_number();
+				},
+				$this->pre_orders_using_token( $token )
+			);
+
+			wc_print_notice(
+				sprintf(
+					// translators: 1: card label, 2: pre-order numbers.
+					__( '%1$s will be charged for your pre-order %2$s when it is released, so it cannot be removed until the pre-order is released or cancelled.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+					$token->get_display_name(),
+					implode( ', ', $order_numbers )
+				),
+				'notice'
+			);
+		}
+	}
+
+
+	/**
+	 * Refuse a direct delete request for a card a pending pre-order depends on.
+	 *
+	 * Runs before WooCommerce handles the delete-payment-method endpoint (its
+	 * handler is on 'wp' at priority 20), so a crafted request cannot get round
+	 * the hidden button.
+	 *
+	 * @return void
+	 */
+	public function maybe_refuse_pre_order_token_deletion() {
+		global $wp;
+
+		if ( ! isset( $wp->query_vars['delete-payment-method'] ) ) {
+			return;
+		}
+
+		$token = WC_Payment_Tokens::get( absint( $wp->query_vars['delete-payment-method'] ) );
+		if ( ! $token || $token->get_user_id() !== get_current_user_id() || ! $this->is_pre_order_token_locked( $token ) ) {
+			return;
+		}
+
+		wc_add_notice( __( 'This card will be charged for a pending pre-order, so it cannot be removed until the pre-order is released or cancelled.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ), 'error' );
+		wp_safe_redirect( wc_get_account_endpoint_url( 'payment-methods' ) );
+		exit;
+	}
+
+
+	/**
+	 * Note on a pending pre-order when the card it will be charged to is removed
+	 * anyway (customers cannot; an admin can). The release will fail: the
+	 * gateway only accepts the card of the agreement's last cardholder-initiated
+	 * payment, so the pre-order cannot be moved to another card.
+	 *
+	 * @param int              $token_id Deleted card id.
+	 * @param WC_Payment_Token $token    Deleted card.
+	 *
+	 * @return void
+	 */
+	public function note_pre_orders_on_deleted_token( $token_id, $token ) {
+		foreach ( $this->pre_orders_using_token( $token ) as $order ) {
+			$order->add_order_note(
+				sprintf(
+					// translators: %s: removed card label.
+					__( '%s, the card this pre-order is to be charged to on release, was removed. The release charge will fail.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+					$token->get_display_name()
+				)
+			);
+		}
 	}
 }
