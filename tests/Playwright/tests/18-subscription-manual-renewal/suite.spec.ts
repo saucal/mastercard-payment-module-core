@@ -1,5 +1,5 @@
 import { test, expect } from '../../fixtures/test';
-import { switchCheckoutMode, configureGateway } from '../../helpers/wc-api';
+import { switchCheckoutMode, configureGateway, getLogs, getLogEntryCount, type LogEntry } from '../../helpers/wc-api';
 import { frontendLogin } from '../../helpers/wp-login';
 import { checkoutHostedSession, assertOrderComplete } from '../../helpers/flows';
 import {
@@ -17,6 +17,7 @@ import {
 import { selectGatewayOnAddPaymentMethod } from '../../helpers/my-account';
 import { fillHostedSessionCC } from '../../helpers/hosted-session';
 import { waitForUnblock } from '../../helpers/block-ui';
+import { handle3DSChallenge } from '../../helpers/three-ds';
 import config from '../../plugin-config';
 import { cards } from '../../fixtures/cards';
 import { billing } from '../../fixtures/billing';
@@ -207,5 +208,56 @@ test.describe.serial('Subscription Manual Renewal', () => {
     await expect(otherCard.locator('a.delete'), 'a card no subscription uses can be removed').toHaveCount(1);
     await expect(page.locator('.woocommerce-info, .woocommerce-notice, .wc-block-components-notice-banner'))
       .toContainText('change the subscription');
+  });
+  // === MC-071: Change payment method moves the subscription to another card ===
+
+  test('MC-071 - Change payment method, then renew with the new card', async ({ page, adminPage }) => {
+    /**
+     * The way to change the card a subscription renews with (MC-070 keeps the
+     * old one from being removed). It must be a cardholder-initiated payment
+     * under the subscription's agreement, because the gateway only charges,
+     * merchant-initiated, the card of the agreement's last cardholder-initiated
+     * payment: the renewal after it must charge the new card, and be approved.
+     */
+    expect(baseline, 'MC-060 must have run first').toBeTruthy();
+    const { ctx: opened, email, password } = baseline!;
+    const newCard = cards.visaFrictionless; // saved in MC-070
+
+    await frontendLogin(page, email, password);
+    await page.goto(`/my-account/view-subscription/${opened.subscriptionId}/`);
+    await page.locator('a.change_payment_method').first().click();
+    await page.waitForLoadState('load');
+
+    const payDate = new Date().toISOString().slice(0, 19);
+    const logOffset = await getLogEntryCount(payDate);
+
+    // Pick the other saved card.
+    await page.locator(`label[for="payment_method_${config.paymentMethodSlug}"]`).click().catch(() => {});
+    await page.locator('li.woocommerce-SavedPaymentMethods-token label').filter({ hasText: newCard.number.slice(-4) }).click();
+    await waitForUnblock(page);
+    await page.locator('#place_order').click();
+    await handle3DSChallenge(page, { urlPattern: /view-subscription|my-account/ }).catch(() => {});
+    await page.waitForURL(/view-subscription|my-account/, { timeout: 60000 });
+    await expect(page.locator('.woocommerce-message, .wc-block-components-notice-banner.is-success'))
+      .toContainText(/Payment method updated/i);
+
+    // The change is a VERIFY under the subscription's agreement.
+    const changeLogs: LogEntry[] = (await getLogs(payDate, '', logOffset)).logs[0]?.content ?? [];
+    const verify = changeLogs.find((l) => l.request?.body?.apiOperation === 'VERIFY'
+      && l.response?.body?.result === 'SUCCESS');
+    expect(verify, 'the change is verified at the gateway').toBeTruthy();
+    expect(verify!.request.body.agreement?.id, 'under the subscription agreement')
+      .toBe(subscriptionAgreementId(config.paymentMethodSlug, opened.subscriptionId!));
+    const newToken = verify!.response.body.sourceOfFunds?.token;
+    expect(newToken, 'the new card is a stored token').toBeTruthy();
+
+    // The next renewal charges the new card, merchant-initiated, and is approved.
+    const renewalDate = new Date().toISOString().slice(0, 19);
+    const renewalOffset = await getLogEntryCount(renewalDate);
+    await assertSubscriptionRenews(adminPage, config, opened);
+    const renewalLogs: LogEntry[] = (await getLogs(renewalDate, '', renewalOffset)).logs[0]?.content ?? [];
+    const pay = renewalLogs.find((l) => l.request?.body?.apiOperation === 'PAY'
+      && l.request?.body?.transaction?.source === 'MERCHANT');
+    expect(pay?.request?.body?.sourceOfFunds?.token, 'the renewal charges the new card').toBe(newToken);
   });
 });
