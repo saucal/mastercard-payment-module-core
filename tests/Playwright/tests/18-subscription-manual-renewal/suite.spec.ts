@@ -47,6 +47,17 @@ const SETTINGS = {
   currency_conversion: 'no',
 } as const;
 
+/**
+ * The second card MC-070 saves and MC-071 changes to: a Mastercard, not a Visa.
+ * On TESTSAUCAL101 a saved Visa's VTS scheme token turns ACTIVE about a minute
+ * after it is stored, and a VERIFY after 3DS on it (the change of payment
+ * method) is then rejected: "The details provided in field
+ * sourceOfFunds.provided.card.number do not match the details used for the 3DS
+ * Authentication". Whether it had turned active made MC-071 flaky. Mastercard
+ * scheme tokens stay PROVISIONING there. Raised with Mastercard (2026-09-30).
+ */
+const SECOND_CARD = cards.mastercardEurFrictionless;
+
 test.describe.serial('Subscription Manual Renewal', () => {
   let baseline: SubscriptionCheckout | undefined;
   /** Set only if the early renewal ran; gates the automatic renewal after it. */
@@ -197,13 +208,13 @@ test.describe.serial('Subscription Manual Renewal', () => {
 
     await frontendLogin(page, email, password);
     await selectGatewayOnAddPaymentMethod(page, config);
-    await fillHostedSessionCC(page, cards.visaFrictionless, config);
+    await fillHostedSessionCC(page, SECOND_CARD, config);
     await page.locator('#place_order').first().click();
     await page.waitForURL(/payment-methods/, { timeout: 60000 });
     await waitForUnblock(page);
 
     const subscriptionCard = page.locator('tr.payment-method').filter({ hasText: cards.visaChallenge.number.slice(-4) });
-    const otherCard = page.locator('tr.payment-method').filter({ hasText: cards.visaFrictionless.number.slice(-4) });
+    const otherCard = page.locator('tr.payment-method').filter({ hasText: SECOND_CARD.number.slice(-4) });
     await expect(subscriptionCard.locator('a.delete'), 'the subscription card stays locked').toHaveCount(0);
     await expect(otherCard.locator('a.delete'), 'a card no subscription uses can be removed').toHaveCount(1);
     await expect(page.locator('.woocommerce-info, .woocommerce-notice, .wc-block-components-notice-banner'))
@@ -221,7 +232,7 @@ test.describe.serial('Subscription Manual Renewal', () => {
      */
     expect(baseline, 'MC-060 must have run first').toBeTruthy();
     const { ctx: opened, email, password } = baseline!;
-    const newCard = cards.visaFrictionless; // saved in MC-070
+    const newCard = SECOND_CARD; // saved in MC-070
 
     await frontendLogin(page, email, password);
     await page.goto(`/my-account/view-subscription/${opened.subscriptionId}/`);
