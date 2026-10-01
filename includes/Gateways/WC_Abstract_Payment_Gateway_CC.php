@@ -1199,12 +1199,21 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		// (pay-for-order): use that authentication rather than start another.
 		if ( ! $processing_3ds_callback && $this->is_order( $order ) ) {
 			$completed = $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_authentication_completed' );
-			if ( $completed ) {
+			if ( is_array( $completed ) && ! empty( $completed['transaction_id'] ) ) {
 				$order->delete_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_authentication_completed' );
 				$order->save_meta_data();
-				if ( $completed === $this->get_authentication_transaction( $order ) && $this->validate_authentication( $unique_order_id, $completed ) ) {
-					return $completed;
+
+				// Only on the gateway order it was made under. A subscription's
+				// change of payment method gets a new gateway order on every request
+				// (maybe_bump_order_id_change_payment_method), so there it cannot be
+				// reused: drop it and authenticate afresh, as before.
+				if ( $completed['order_id'] === $unique_order_id
+					&& $completed['transaction_id'] === $this->get_authentication_transaction( $order )
+					&& $this->validate_authentication( $unique_order_id, $completed['transaction_id'] ) ) {
+					return $completed['transaction_id'];
 				}
+
+				$this->clean_cached_3ds_data( $order );
 			}
 		}
 
@@ -2960,7 +2969,15 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			 * authentication request".
 			 */
 			if ( $this->is_order( $order ) && is_string( $authentication_transaction_id ) && '' !== $authentication_transaction_id ) {
-				$order->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_authentication_completed', $authentication_transaction_id );
+				// Keyed to the gateway order it was made under: an authentication can
+				// only be used by a payment on that same gateway order.
+				$order->update_meta_data(
+					'PAYMENTS_CORE_HOOK_PREFIX_authentication_completed',
+					array(
+						'order_id'       => $this->unique_order_id( $order ),
+						'transaction_id' => $authentication_transaction_id,
+					)
+				);
 				$order->save_meta_data();
 				wp_send_json_success();
 			}
