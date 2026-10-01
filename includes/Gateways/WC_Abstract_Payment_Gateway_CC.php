@@ -1194,6 +1194,20 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	public function get_3ds_authentication( $order, $session, $processing_3ds_callback = false ) {
 		$unique_order_id = $this->unique_order_id( $order );
+
+		// Already authenticated without a challenge by ajax_authenticate_payer()
+		// (pay-for-order): use that authentication rather than start another.
+		if ( ! $processing_3ds_callback && $this->is_order( $order ) ) {
+			$completed = $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_authentication_completed' );
+			if ( $completed ) {
+				$order->delete_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_authentication_completed' );
+				$order->save_meta_data();
+				if ( $completed === $this->get_authentication_transaction( $order ) && $this->validate_authentication( $unique_order_id, $completed ) ) {
+					return $completed;
+				}
+			}
+		}
+
 		if ( $processing_3ds_callback ) {
 			$transaction_id = $this->get_authentication_transaction( $order );
 
@@ -2934,6 +2948,21 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				$this->maybe_cache_location();
 
 				wp_send_json_success( $authentication_transaction_id );
+			}
+
+			/*
+			 * Authenticated without a challenge. On the pay-for-order page the form
+			 * is submitted next, and that request takes the payment: keep this
+			 * authentication for it. Clearing it here (the payment is not taken
+			 * yet) made the submission authenticate the payer a second time, and
+			 * when the first authentication's 3DS return still arrived it failed
+			 * the signature check: "There was an error validating the
+			 * authentication request".
+			 */
+			if ( $this->is_order( $order ) && is_string( $authentication_transaction_id ) && '' !== $authentication_transaction_id ) {
+				$order->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_authentication_completed', $authentication_transaction_id );
+				$order->save_meta_data();
+				wp_send_json_success();
 			}
 
 			// Clean the current authentication once the payment is authorized.
