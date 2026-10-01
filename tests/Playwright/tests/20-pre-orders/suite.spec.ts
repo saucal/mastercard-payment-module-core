@@ -380,6 +380,55 @@ test.describe.serial('Pre-orders', () => {
     await expect(otherCard.locator('a.delete'), 'a card no pre-order needs can be removed').toHaveCount(1);
   });
 
+  // === PO-014: The customer recovers a failed release ===
+
+  test('PO-014 - The customer pays a pre-order whose release failed', async ({ page, adminPage, emailPage }) => {
+    /**
+     * When the release charge fails the order is Failed, and the customer can
+     * pay it from My Account. That is the way out when the stored card stops
+     * working: a cardholder-initiated payment of the full amount, after which
+     * the order is paid like any other.
+     */
+    await switchCheckoutMode('classic');
+    await configureGateway(config, { ...BASE_SETTINGS });
+
+    const email = uniqueEmail();
+    const ctx = await checkoutHostedSession(page, config, {
+      productId: config.products.preOrderRelease,
+      card: cards.mastercard,
+      billing: { ...billing, email },
+      createAccount: billing.password,
+    });
+    // Make the release fail at the gateway, as in PO-006.
+    await updateOrderMeta(ctx.orderNumber, config.paymentTokenMetaKey, '9999999999999999');
+    await releasePreOrder(adminPage, ctx.orderNumber);
+    await navigateToOrder(adminPage, ctx.orderNumber);
+    await assertOrderStatus(adminPage, 'Failed');
+
+    // The customer pays it from the order's pay link, with their saved card.
+    const failed = await getOrder(ctx.orderNumber);
+    expect(failed.payment_url, 'a failed order can be paid by the customer').toBeTruthy();
+    const paid = await checkoutHostedSession(page, config, {
+      payForOrder: { url: failed.payment_url },
+      card: cards.mastercard,
+      loginAs: { email, password: billing.password },
+      savedTokenIndex: 1,
+    });
+
+    const order = await getOrder(paid.orderNumber);
+    expect(paid.orderNumber).toBe(ctx.orderNumber);
+    expect(order.date_paid, 'the recovered pre-order is paid').toBeTruthy();
+    expect(Number(order.total), 'for the full amount').toBeGreaterThan(0);
+    const logs = (await getLogs(paid.payDate, '', paid.logOffset)).logs[0]?.content ?? [];
+    const pay = logs.find((l) => ['PAY', 'AUTHORIZE'].includes(l.request?.body?.apiOperation)
+      && l.response?.body?.result === 'SUCCESS');
+    expect(pay, 'charged now, not verified for later').toBeTruthy();
+    expect(pay!.request.body.transaction?.source, 'paid by the customer').toBe('INTERNET');
+
+    await navigateToOrder(adminPage, ctx.orderNumber);
+    await assertOrderStatus(adminPage, 'Processing');
+  });
+
   // === PO-004: The forced-save UI ===
 
   test('PO-004 - Save-card checkbox hidden and notice reworded', async ({ page }) => {
