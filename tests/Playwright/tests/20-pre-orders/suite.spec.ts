@@ -51,6 +51,8 @@ const BASE_SETTINGS = {
   saved_cards: 'yes',
   transaction_mode: 'PURCHASE',
   checkout_mode: 'hosted_session',
+  // Pinned off: site-global, and the DCC suites can leave it on.
+  currency_conversion: 'no',
 } as const;
 
 test.describe.serial('Pre-orders', () => {
@@ -292,6 +294,42 @@ test.describe.serial('Pre-orders', () => {
 
     await navigateToOrder(adminPage, ctx.orderNumber);
     await assertOrderStatus(adminPage, 'Processing');
+  });
+
+  // === PO-011: Currency conversion on, pre-order charged on release ===
+
+  test('PO-011 - A pre-order charged on release checks out with currency conversion on', async ({ page }) => {
+    /**
+     * Nothing is charged at checkout (a VERIFY), so there is nothing to convert,
+     * and the gateway rejects currencyConversion on a VERIFY ("Unexpected
+     * parameter 'currencyConversion.uptake'"). With currency conversion on, every
+     * such pre-order used to fail at checkout. The card is one that does draw
+     * an offer on an ordinary cart.
+     */
+    await switchCheckoutMode('classic');
+    await configureGateway(config, { ...BASE_SETTINGS, currency_conversion: 'yes' });
+    try {
+      const ctx = await checkoutHostedSession(page, config, {
+        productId: config.products.preOrderRelease,
+        card: cards.mastercardEurFrictionless,
+        billing: { ...billing, email: uniqueEmail() },
+        createAccount: billing.password,
+      });
+      await expect(
+        page.locator('input[name="dccOfferState"][type="radio"]'),
+        'no conversion offer for a payment made at release',
+      ).toHaveCount(0);
+      await assertAgreementLog({
+        payDate: ctx.payDate,
+        logOffset: ctx.logOffset,
+        transactionId: ctx.transactionId,
+        apiOperation: 'VERIFY',
+        agreementId: `${config.paymentMethodSlug}_pre-order-${ctx.orderNumber}`,
+        agreementType: 'UNSCHEDULED',
+      });
+    } finally {
+      await configureGateway(config, { ...BASE_SETTINGS });
+    }
   });
 
   // === PO-004: The forced-save UI ===

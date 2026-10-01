@@ -110,6 +110,12 @@ trait DynamicCurrencyConversion {
 			return; // DCC is not supported with subscriptions.
 		}
 
+		// A pre-order charged on release takes no payment now (a VERIFY), so
+		// there is nothing to convert; the charge at release is merchant-initiated.
+		if ( class_exists( 'WC_Pre_Orders_Cart' ) && is_callable( array( $this, 'cart_contains_pre_order_tokenization' ) ) && $this->cart_contains_pre_order_tokenization() ) {
+			return;
+		}
+
 		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_localize_frontend_script', array( $this, 'add_dcc_script_data' ) );
 
 		// Validate fields to ensure DCC data is correct.
@@ -173,6 +179,12 @@ trait DynamicCurrencyConversion {
 	 */
 	public function maybe_add_dcc_payment_data( $payment_data, $order ) {
 		if ( ! $this->is_order( $order ) ) {
+			return $payment_data;
+		}
+
+		// A VERIFY charges nothing, and the gateway rejects currencyConversion on
+		// it: "Unexpected parameter 'currencyConversion.uptake'".
+		if ( isset( $payment_data['apiOperation'] ) && 'VERIFY' === $payment_data['apiOperation'] ) {
 			return $payment_data;
 		}
 
