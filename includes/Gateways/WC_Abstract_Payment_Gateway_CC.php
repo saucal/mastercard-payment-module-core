@@ -865,24 +865,30 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				$payment_data['sourceOfFunds']['provided']['card'] = array();
 			}
 			/*
-			 * A credential the payer picked from their saved methods is already
-			 * stored, so it is STORED even when the cart also forces saving.
+			 * storedOnFile is read per agreement, not per card.
 			 *
-			 * $saving_card used to be checked first, and subscriptions force it on
-			 * (maybe_force_save_method), so subscribing with an already-saved card
-			 * was reported to the gateway as TO_BE_STORED — "the first transaction
-			 * using these card details" — for a credential stored long before.
-			 * Suites never caught it because every test enters a fresh card.
+			 * A payment that carries an agreement.id opens that agreement's series
+			 * (a subscription's first checkout, a plan switch, a pre-order), and the
+			 * gateway only accepts it as TO_BE_STORED - even when the payer picked a
+			 * card they saved long before. With STORED it reads "subsequent payment
+			 * in a series" and rejects the cardholder-initiated source: "Value
+			 * 'INTERNET' is invalid. Field transaction.source must be set to
+			 * MERCHANT ...". Probed 2026-09-30: same stored token, a never-used
+			 * agreement.id, STORED rejected, TO_BE_STORED approved.
 			 *
-			 * The session-derived token stays last: during a new-card checkout the
+			 * Without an agreement, a card the payer picked from their saved
+			 * methods is STORED even when the cart forces saving. After a 3DS
+			 * challenge this runs in the callback, where the posted token is gone;
+			 * the choice was stored on the order before the challenge. The
+			 * session-derived token stays last: during a new-card checkout the
 			 * session can already carry one, and that case really is TO_BE_STORED.
-			 *
-			 * After a 3DS challenge this runs in the callback, where the posted
-			 * token is gone; the choice was stored on the order before the challenge.
 			 */
+			$opens_agreement          = ! empty( $payment_data['agreement']['id'] );
 			$paying_with_saved_method = $this->is_saved_payment_method()
 				|| ( $processing_3ds_callback && $this->is_order( $order ) && 'yes' === $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_paying_with_saved_method' ) );
-			if ( $paying_with_saved_method ) {
+			if ( $opens_agreement ) {
+				$payment_data['sourceOfFunds']['provided']['card']['storedOnFile'] = 'TO_BE_STORED';
+			} elseif ( $paying_with_saved_method ) {
 				$payment_data['sourceOfFunds']['provided']['card']['storedOnFile'] = 'STORED';
 			} elseif ( $saving_card ) {
 				$payment_data['sourceOfFunds']['provided']['card']['storedOnFile'] = 'TO_BE_STORED';
@@ -1115,6 +1121,19 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		$user_id = $order ? $order->get_user_id( 'system' ) : get_current_user_id();
 		if ( ! $user_id ) {
+			// A guest has no account to hold a saved card. When the cart forces
+			// saving anyway - a pre-order charged on release, which Pre-Orders
+			// lets guests place - keep the gateway token on the order itself, so
+			// the later charge has a credential to use.
+			if ( $forced_save && $this->is_order( $order ) ) {
+				try {
+					$body = $this->payment_token()->create_gateway_token( $session_data );
+					$order->update_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_payment_token', $body['token'] );
+					$order->save_meta_data();
+				} catch ( Exception $e ) {
+					$this->core_plugin->logger()->log( 'Could not store a guest token on order ' . $order->get_id() . ': ' . $e->getMessage(), 'error' );
+				}
+			}
 			return;
 		}
 
@@ -1175,6 +1194,29 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 */
 	public function get_3ds_authentication( $order, $session, $processing_3ds_callback = false ) {
 		$unique_order_id = $this->unique_order_id( $order );
+
+		// Already authenticated without a challenge by ajax_authenticate_payer()
+		// (pay-for-order): use that authentication rather than start another.
+		if ( ! $processing_3ds_callback && $this->is_order( $order ) ) {
+			$completed = $order->get_meta( 'PAYMENTS_CORE_HOOK_PREFIX_authentication_completed' );
+			if ( is_array( $completed ) && ! empty( $completed['transaction_id'] ) ) {
+				$order->delete_meta_data( 'PAYMENTS_CORE_HOOK_PREFIX_authentication_completed' );
+				$order->save_meta_data();
+
+				// Only on the gateway order it was made under. A subscription's
+				// change of payment method gets a new gateway order on every request
+				// (maybe_bump_order_id_change_payment_method), so there it cannot be
+				// reused: drop it and authenticate afresh, as before.
+				if ( $completed['order_id'] === $unique_order_id
+					&& $completed['transaction_id'] === $this->get_authentication_transaction( $order )
+					&& $this->validate_authentication( $unique_order_id, $completed['transaction_id'] ) ) {
+					return $completed['transaction_id'];
+				}
+
+				$this->clean_cached_3ds_data( $order );
+			}
+		}
+
 		if ( $processing_3ds_callback ) {
 			$transaction_id = $this->get_authentication_transaction( $order );
 
@@ -2915,6 +2957,29 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				$this->maybe_cache_location();
 
 				wp_send_json_success( $authentication_transaction_id );
+			}
+
+			/*
+			 * Authenticated without a challenge. On the pay-for-order page the form
+			 * is submitted next, and that request takes the payment: keep this
+			 * authentication for it. Clearing it here (the payment is not taken
+			 * yet) made the submission authenticate the payer a second time, and
+			 * when the first authentication's 3DS return still arrived it failed
+			 * the signature check: "There was an error validating the
+			 * authentication request".
+			 */
+			if ( $this->is_order( $order ) && is_string( $authentication_transaction_id ) && '' !== $authentication_transaction_id ) {
+				// Keyed to the gateway order it was made under: an authentication can
+				// only be used by a payment on that same gateway order.
+				$order->update_meta_data(
+					'PAYMENTS_CORE_HOOK_PREFIX_authentication_completed',
+					array(
+						'order_id'       => $this->unique_order_id( $order ),
+						'transaction_id' => $authentication_transaction_id,
+					)
+				);
+				$order->save_meta_data();
+				wp_send_json_success();
 			}
 
 			// Clean the current authentication once the payment is authorized.

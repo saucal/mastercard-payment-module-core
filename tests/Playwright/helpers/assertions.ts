@@ -1221,10 +1221,10 @@ export async function assertAgreementLog(expected: {
   agreementId: string | null;
   agreementType?: 'RECURRING' | 'UNSCHEDULED';
   /**
-   * TO_BE_STORED when the card is entered and saved now (the default). STORED
-   * when the payer picks a card they saved earlier — even if the cart also
-   * forces saving, as a subscription does. That case was reported as
-   * TO_BE_STORED until the gateway started checking the picked card first.
+   * TO_BE_STORED (the default) whenever the payment opens an agreement, even
+   * with a card saved earlier: the gateway reads storedOnFile per agreement.
+   * STORED when the payer picks a saved card for a payment with no agreement
+   * (an early renewal).
    */
   storedOnFile?: 'TO_BE_STORED' | 'STORED';
 }): Promise<void> {

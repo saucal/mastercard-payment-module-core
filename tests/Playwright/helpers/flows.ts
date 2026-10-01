@@ -304,6 +304,11 @@ export async function checkoutHostedSession(
   }
 
   const received = await collectOrderReceivedData(page);
+  // The order-pay page has no total to scrape, but order-received does, in the
+  // store's own format ("10,00 $") - the form every later page shows it in.
+  const receivedTotal = opts.payForOrder
+    ? (await page.locator('li.woocommerce-order-overview__total strong').first().textContent({ timeout: 5000 }).catch(() => null))?.trim()
+    : undefined;
   // Skip the total on the pay-for-order path: REST returns "10.00" while the
   // order-received page may render locale-formatted "10,00 $".
   await assertOrderReceived(
@@ -327,7 +332,7 @@ export async function checkoutHostedSession(
     order,
     session,
     orderReceivedUrl,
-    total: opts.payForOrder ? (opts.payForOrder.total ?? String(order.total)) : pageTotal,
+    total: opts.payForOrder ? (opts.payForOrder.total ?? receivedTotal ?? String(order.total)) : pageTotal,
     payDate,
     logOffset,
     card: opts.card,
