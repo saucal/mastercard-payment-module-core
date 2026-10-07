@@ -2112,17 +2112,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		$response = $this->api()->create_session( $payload );
 
-		/*
-		 * The gateway rejects a Click to Pay display mode from a merchant without
-		 * Click to Pay, and the default display mode needs a payer email we hide.
-		 * Ask for it, and drop it for merchants that refuse it.
-		 */
-		if ( ! $response['success'] && isset( $payload['interaction']['displayControl']['paymentMethod']['clickToPay'] )
-			&& preg_match( '/click\s*to\s*pay|secure remote commerce/i', (string) ( $response['error'] ?? '' ) ) ) {
-			unset( $payload['interaction']['displayControl']['paymentMethod'] );
-			$response = $this->api()->create_session( $payload );
-		}
-
 		if ( ! $response['success'] || empty( $response['body']['session']['id'] ) || empty( $response['body']['successIndicator'] ) ) {
 			return '';
 		}
@@ -2372,9 +2361,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 					'customerEmail'  => 'HIDE',
 					'billingAddress' => 'HIDE',
 					'shipping'       => 'HIDE',
-					'paymentMethod'  => array(
-						'clickToPay' => array( 'displayMode' => 'ACCORDION' ),
-					),
 				),
 			),
 			$order
