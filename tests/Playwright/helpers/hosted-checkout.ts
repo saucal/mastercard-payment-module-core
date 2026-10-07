@@ -68,6 +68,9 @@ export async function fillHostedCheckoutCC(page: Page, card: CardData, config: P
   await fillField('gw-proxy-expiryMonth', 'expiryMonth',  card.month);
   await fillField('gw-proxy-expiryYear',  'expiryYear',   card.year);
   await fillField('gw-proxy-securityCode','securityCode', card.cvv);
+  // The page validates a field when it loses focus, and keeps Pay disabled
+  // while the last one filled still has it.
+  await host.frameLocator('iframe.gw-proxy-securityCode').locator('#securityCode').press('Tab');
 }
 
 export async function clickHostedCheckoutPay(
@@ -102,6 +105,14 @@ export async function clickHostedCheckoutPay(
   // match), and no bare `#pay-label` exists on that variant. Matching both keeps
   // this working whether or not MPGS decides to quote the card — which is its
   // decision, not a setting we control, so suites 03-05 need this too.
+  // Rendering a currency conversion offer can hand focus back to the security
+  // code and leave Pay disabled until the field is validated again.
+  const payButton = host.locator('button:has([id^="pay-label"])').first();
+  if (!(await expect(payButton).toBeEnabled({ timeout: 5_000 }).then(() => true, () => false))) {
+    const securityCode = host.frameLocator('iframe.gw-proxy-securityCode').locator('#securityCode');
+    await securityCode.fill(await securityCode.inputValue());
+    await securityCode.press('Tab');
+  }
   await host.locator('[id^="pay-label"]').first().click();
   // After submission MPGS either: (a) redirects the top page to the 3DS
   // challenge, (b) redirects to the WC order-received page, (c) stays on
