@@ -314,9 +314,11 @@ trait Subscriptions {
 	 * After a switch is paid or verified, move the subscription's renewals to
 	 * the agreement it established, and record the old one as superseded.
 	 *
-	 * API v100 has no operation to cancel an agreement (only "Retrieve
-	 * Agreement"), so superseding it means it is never sent again: renewals
-	 * use the new agreement.id and reference the switch's gateway order.
+	 * Superseding it means it is never sent again: renewals use the new
+	 * agreement.id and reference the switch's gateway order. The old one is
+	 * left to expire rather than sent to "Agreement: Cancel Agreement", which
+	 * Mastercard says is needed only where the acquirer or regional
+	 * regulations require agreements to be recorded.
 	 *
 	 * @param WC_Order $order The paid order.
 	 * @return void
