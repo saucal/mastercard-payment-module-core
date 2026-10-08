@@ -61,7 +61,23 @@ const hostedSessions = {
 			}
 		}
 
-		hostedSessions.getSessionId();
+		// Re-read the session the page was just rendered with. WooCommerce
+		// re-renders the payment box on update_checkout, and the server may
+		// have rotated the hosted session (a changed cart gets a new one). The
+		// cached id would then configure PaymentSession against the old
+		// session and old field ids ("Field [Card Number] not found"), while
+		// the attempt below is re-read, and the form never initializes.
+		// Keep the cached id when the page renders none (block checkout with a
+		// saved card selected has no card fields, and still needs the session
+		// for the saved-card DCC quote).
+		const renderedSessionId = jQuery(
+			`#${ core_gateway_params.pluginPrefix }_session_id`
+		).val();
+		if ( renderedSessionId ) {
+			hostedSessions.sessionId = renderedSessionId;
+		} else {
+			hostedSessions.getSessionId();
+		}
 		if ( ! hostedSessions.sessionId ) {
 			return;
 		}
@@ -161,6 +177,16 @@ const hostedSessions = {
 		hostedSessions.dcc.setQuoteArea( '' );
 		hostedSessions.dcc.setQuoteId( '' );
 		hostedSessions.blockFieldset();
+
+		// The fields stay blocked until MPGS reports them initialized. If a card
+		// field iframe fails to load (MPGS answers 500), that callback never
+		// comes and the payer is left on a spinner with no message, so give up
+		// after a while and say so.
+		clearTimeout( hostedSessions.initWatchdog );
+		hostedSessions.initWatchdog = setTimeout(
+			hostedSessions.failInitialization,
+			hostedSessions.INIT_TIMEOUT_MS
+		);
 		try {
 			PaymentSession.configure(
 				{
@@ -168,7 +194,13 @@ const hostedSessions = {
 					fields: hostedSessions.fields(),
 					frameEmbeddingMitigation: [ 'javascript' ],
 					callbacks: {
-						initialized: () => {
+						initialized: ( response ) => {
+							clearTimeout( hostedSessions.initWatchdog );
+							if ( response?.status && response.status !== 'ok' ) {
+								hostedSessions.failInitialization();
+								return;
+							}
+
 							// Do not bubble events related to validation to avoid conflicts with WC core validation
 							hostedSessions.$ccFieldset.off(
 								'input validate change focusout',
@@ -204,6 +236,7 @@ const hostedSessions = {
 				hostedSessions.paymentScope()
 			);
 		} catch ( error ) {
+			clearTimeout( hostedSessions.initWatchdog );
 			hostedSessions.submitError(
 				__(
 					'There was an error initializing the payment fields. Please try again.',
@@ -949,6 +982,19 @@ const hostedSessions = {
 		}
 	},
 
+	INIT_TIMEOUT_MS: 30000,
+
+	failInitialization() {
+		clearTimeout( hostedSessions.initWatchdog );
+		hostedSessions.unblockFieldset();
+		hostedSessions.submitError(
+			__(
+				'The payment form could not be loaded. Please refresh the page and try again.',
+				core_gateway_params.textDomain
+			)
+		);
+	},
+
 	blockFieldset() {
 		if (
 			hostedSessions.$ccFieldset &&
@@ -1580,18 +1626,17 @@ const hostedSessions = {
 						data,
 					} )
 					.done( function ( res ) {
-						if (
-							! res?.success ||
-							! res?.data?.requestId ||
-							! res?.data?.offerText
-						) {
+						// An empty offer still has a requestId the payment must
+						// return with uptake NOT_AVAILABLE; keep it, as the
+						// entered-card path does.
+						if ( ! res?.success || ! res?.data?.requestId ) {
 							return reject();
 						}
 
 						return resolve(
 							hostedSessions.dcc.cacheQuote( tokenId, {
 								requestId: res.data.requestId,
-								offerText: res.data.offerText,
+								offerText: res.data.offerText || '',
 							} )
 						);
 					} );
