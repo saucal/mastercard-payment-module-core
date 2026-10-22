@@ -256,12 +256,13 @@ interface SessionGetExpected {
 
 /**
  * Verify a session UPDATE_SESSION log entry.
- * Asserts PUT method, UPDATE_SESSION operation, session ID, updateStatus SUCCESS.
+ * Asserts PUT method, no apiOperation, session ID, updateStatus SUCCESS.
  */
 export function verifySessionGet(log: LogEntry, expected: SessionGetExpected): void {
   expect(log.request.type).toBe('PUT');
   expect(log.request.url).toContain('/session/');
-  expect(log.request.body.apiOperation).toBe('UPDATE_SESSION');
+  // Update Session takes no apiOperation; the gateway's "~" sessions reject it.
+  expect(log.request.body.apiOperation).toBeUndefined();
   expect(log.request.body.session?.id ?? log.response.body.session?.id).toBe(expected.session);
 
   const res = log.response.body;
@@ -1063,7 +1064,6 @@ export async function assertCaptureLogTrail(expected: CaptureLogTrailExpected): 
   expect(sessionGetLogs.logs[0]?.content.length, 'session GET logs should not be empty').toBeGreaterThan(0);
   const sessionPut = sessionGetLogs.logs[0].content.find(
     (l: LogEntry) => l.request?.type === 'PUT'
-      && l.request?.body?.apiOperation === 'UPDATE_SESSION'
       && l.response?.body?.session?.updateStatus === 'SUCCESS'
   );
   expect(sessionPut, 'UPDATE_SESSION PUT log entry not found').toBeTruthy();

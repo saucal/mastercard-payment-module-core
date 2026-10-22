@@ -467,7 +467,6 @@ test.describe.skip('Subscription Order with Authorize Mode (from suite 14)', () 
     expect(sessionGetLogs.logs[0]?.content.length, 'session GET logs should not be empty').toBeGreaterThan(0);
     const sessionPut = sessionGetLogs.logs[0].content.find(
       (l: any) => l.request?.type === 'PUT'
-        && l.request?.body?.apiOperation === 'UPDATE_SESSION'
         && l.response?.body?.session?.updateStatus === 'SUCCESS'
     );
     expect(sessionPut, 'UPDATE_SESSION PUT log entry not found').toBeTruthy();

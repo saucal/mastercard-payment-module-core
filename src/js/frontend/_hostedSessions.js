@@ -304,12 +304,17 @@ const hostedSessions = {
 	},
 
 	fields() {
+		// Escaped because newer session IDs start with "~", a CSS combinator.
+		const field = ( name ) =>
+			`#${ CSS.escape(
+				`${ hostedSessions.pluginPrefix }-card-${ name }-${ hostedSessions.sessionId }`
+			) }`;
 		return {
 			card: {
-				number: `#${ hostedSessions.pluginPrefix }-card-number-${ hostedSessions.sessionId }`,
-				securityCode: `#${ hostedSessions.pluginPrefix }-card-cvc-${ hostedSessions.sessionId }`,
-				expiryMonth: `#${ hostedSessions.pluginPrefix }-card-expiry-month-${ hostedSessions.sessionId }`,
-				expiryYear: `#${ hostedSessions.pluginPrefix }-card-expiry-year-${ hostedSessions.sessionId }`,
+				number: field( 'number' ),
+				securityCode: field( 'cvc' ),
+				expiryMonth: field( 'expiry-month' ),
+				expiryYear: field( 'expiry-year' ),
 			},
 		};
 	},
