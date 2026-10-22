@@ -1798,7 +1798,6 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		}
 
 		$payload = array(
-			'apiOperation'  => 'UPDATE_SESSION',
 			'sourceOfFunds' => array(
 				'type'  => 'CARD',
 				'token' => $payment_token->get_token(),
@@ -2229,15 +2228,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			return;
 		}
 
-		$payload = array_merge(
-			$target_config,
-			array(
-				'apiOperation' => 'UPDATE_SESSION',
-			)
-		);
-
 		try {
-			$this->api()->update_session( $session_id, $payload );
+			$this->api()->update_session( $session_id, $target_config );
 		} catch ( \Exception $e ) {
 			$this->core_plugin->logger()->log( 'Failed to update hosted session: ' . $e->getMessage(), 'error' );
 		}

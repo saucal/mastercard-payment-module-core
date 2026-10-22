@@ -300,6 +300,11 @@ final class API {
 	 * @param array  $payload    Payload.
 	 */
 	public function update_session( $session_id, $payload = array() ) {
+		$payload = $this->maybe_add_partner_solution_id( array_merge( $payload, array( 'apiOperation' => 'UPDATE_SESSION' ) ) );
+
+		// Update Session takes no apiOperation, and the gateway's newer sessions (IDs starting with "~") reject it.
+		unset( $payload['apiOperation'] );
+
 		return $this->request( 'session/' . $session_id, 'PUT', $payload );
 	}
 
