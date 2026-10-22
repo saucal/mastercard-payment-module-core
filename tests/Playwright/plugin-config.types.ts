@@ -43,10 +43,13 @@ export interface PluginConfig {
   transactionIdMetaKey: string;
   sessionIdMetaKey: string;
   tokenMetaKey: string;
+  paymentTokenMetaKey: string;
   products: {
     physical: number;
     digital: number;
     subscription: number;
+    subscriptionBasic: number;
+    subscriptionPremium: number;
     /** WooCommerce Pre-Orders product charged at checkout. */
     preOrderUpfront: number;
     /** WooCommerce Pre-Orders product charged when the pre-order is released. */

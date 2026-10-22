@@ -1,6 +1,6 @@
-import { test } from '../../fixtures/test';
+import { test, expect } from '../../fixtures/test';
 import {
-  switchCheckoutMode, configureGateway, findCustomerIdByEmail, createPendingOrder,
+  switchCheckoutMode, configureGateway, findCustomerIdByEmail, createPendingOrder, getLogs, type LogEntry,
 } from '../../helpers/wc-api';
 import { checkoutHostedSession, assertOrderComplete } from '../../helpers/flows';
 import { assertCaptureLogTrail } from '../../helpers/assertions';
@@ -145,5 +145,32 @@ test.describe.serial('Hosted Session - Pay For Order', () => {
       note: 'captured',
       emails: 'admin',
     });
+  });
+  // === MC-014: A frictionless card authenticates the payer once ===
+
+  test('MC-014 - Pay for order with a frictionless card authenticates once', async ({ page }) => {
+    /**
+     * On pay-for-order the browser authenticates through ajax_authenticate_payer
+     * before submitting the form. When that authentication needs no challenge,
+     * it used to be cleared before the form was submitted, so the submission
+     * authenticated the payer a second time - and if the first authentication's
+     * 3DS return still arrived, it failed the signature check ("There was an
+     * error validating the authentication request") on an order that the
+     * second attempt had paid.
+     */
+    const ctx = await checkoutHostedSession(page, config, {
+      payForOrder: { url: await pendingOrderUrl() },
+      card: cards.visaFrictionless,
+      loginAs: returning,
+      useNewToken: true,
+      saveCard: true,
+      threeDS: 'never',
+    });
+
+    const logs: LogEntry[] = (await getLogs(ctx.payDate, '', ctx.logOffset)).logs[0]?.content ?? [];
+    const gatewayOrder = ctx.transactionId.split('-').slice(0, 2).join('-');
+    const authentications = logs.filter((l) => l.request?.body?.apiOperation === 'AUTHENTICATE_PAYER'
+      && l.request?.url?.includes(`/order/${gatewayOrder}/`));
+    expect(authentications, 'the payer is authenticated once').toHaveLength(1);
   });
 });

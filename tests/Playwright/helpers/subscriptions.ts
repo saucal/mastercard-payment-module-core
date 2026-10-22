@@ -37,7 +37,8 @@ export function subscriptionAgreementId(slug: string, subscriptionId: string): s
 export async function assertSubscriptionProduct(productId: number): Promise<void> {
   expect(productId, 'subscription product id must be configured').toBeGreaterThan(0);
   const product = await getProduct(productId);
-  expect(product.type, `product ${productId} is not a subscription`).toBe('subscription');
+  expect(['subscription', 'subscription_variation'], `product ${productId} is not a subscription`)
+    .toContain(product.type);
 }
 
 /**
@@ -60,8 +61,9 @@ export async function renewSubscription(adminPage: Page, subscriptionId: string)
  * rejected without an expiry and a minimum gap between payments ("must provide
  * recurring expiry and recurring frequency"). The PAY must not invent them for
  * a subscription that runs until cancelled — Mastercard Gateway Support: such
- * agreements "should not" provide expiryDate or numberOfPayments. So the two
- * operations disagree on purpose.
+ * agreements "should not" provide expiryDate or numberOfPayments on payments.
+ * So the two operations disagree on purpose, and the establishing expiry is set
+ * far out, because renewals stop once it passes.
  *
  * `expect3DS: false` for a gateway running with 3DS off, where there is no
  * AUTHENTICATE_PAYER to check.
@@ -101,7 +103,14 @@ export async function assertSubscriptionAgreement(expected: {
   if (expected.expect3DS ?? true) {
     const auth = forAgreement('AUTHENTICATE_PAYER');
     expect(auth, 'AUTHENTICATE_PAYER carrying the agreement not found').toBeTruthy();
-    expect(auth!.request.body.agreement!.expiryDate, 'AUTHENTICATE_PAYER is rejected without an expiry').toBeTruthy();
+    const expiry = auth!.request.body.agreement!.expiryDate;
+    expect(expiry, 'AUTHENTICATE_PAYER is rejected without an expiry').toBeTruthy();
+    // The test product runs until cancelled, and renewals stop once this date
+    // passes, so a near date (it was one year) quietly ends the subscription.
+    expect(
+      new Date(expiry!).getFullYear() - new Date().getFullYear(),
+      'an open-ended subscription must not declare a near expiry',
+    ).toBeGreaterThanOrEqual(19);
     // max(1) in the plugin: a 0 is dropped by array_filter() and rejected as missing.
     expect(auth!.request.body.agreement!.minimumDaysBetweenPayments ?? 0).toBeGreaterThanOrEqual(1);
   }
@@ -124,6 +133,12 @@ export async function assertSubscriptionRenews(
   adminPage: Page,
   config: PluginConfig,
   ctx: CheckoutContext,
+  /**
+   * The agreement renewals run under, when it is not the first checkout's: a
+   * plan switch establishes a new agreement, and renewals then reference the
+   * switch's gateway order.
+   */
+  agreement?: { id: string; referenceOrderId: string },
 ): Promise<string> {
   expect(ctx.subscriptionId, 'the checkout did not produce a subscription').toBeTruthy();
 
@@ -142,9 +157,9 @@ export async function assertSubscriptionRenews(
     // The renewal order's own total: it can differ from the checkout's, which
     // may include one-off shipping or a sign-up fee.
     amount: String(renewal.total),
-    agreementId: subscriptionAgreementId(config.paymentMethodSlug, ctx.subscriptionId!),
+    agreementId: agreement?.id ?? subscriptionAgreementId(config.paymentMethodSlug, ctx.subscriptionId!),
     agreementType: 'RECURRING',
-    referenceOrderId: ctx.transactionId,
+    referenceOrderId: agreement?.referenceOrderId ?? ctx.transactionId,
     exemption: 'RECURRING_PAYMENT',
   });
 
@@ -170,13 +185,13 @@ export interface SubscriptionCheckout {
 export async function checkoutSubscription(
   pages: { page: Page; adminPage: Page; emailPage: Page },
   config: PluginConfig,
-  opts: { card: CardData; threeDS: 'always' | 'never' },
+  opts: { card: CardData; threeDS: 'always' | 'never'; productId?: number },
 ): Promise<SubscriptionCheckout> {
   const email = uniqueEmail();
   const password = billing.password;
 
   const ctx = await checkoutHostedSession(pages.page, config, {
-    productId: config.products.subscription,
+    productId: opts.productId ?? config.products.subscription,
     card: opts.card,
     billing: { ...billing, email },
     createAccount: password,

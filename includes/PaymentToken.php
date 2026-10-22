@@ -40,6 +40,39 @@ class PaymentToken {
 
 
 	/**
+	 * Tokenize the card in a payment session at the gateway.
+	 *
+	 * @param array $session_data Session data, with the session id.
+	 *
+	 * @throws Exception If the gateway returns no token.
+	 *
+	 * @return array The create-token response body.
+	 */
+	public function create_gateway_token( $session_data ) {
+		if ( ! $this->gateway ) {
+			throw new Exception( 'The gateway object is invalid' );
+		}
+
+		$response = $this->gateway->api()->create_token(
+			array(
+				'session'       => array(
+					'id' => $session_data['session']['id'],
+				),
+				'sourceOfFunds' => array(
+					'type' => 'CARD',
+				),
+			)
+		);
+
+		if ( empty( $response['body']['token'] ) || empty( $response['body']['sourceOfFunds']['provided']['card'] ) ) {
+			throw new Exception( 'Token not present in reponse' );
+		}
+
+		return $response['body'];
+	}
+
+
+	/**
 	 * This function processes the saved cards for a given session and user ID.
 	 *
 	 * @param string $session_data The session ID.
@@ -51,25 +84,7 @@ class PaymentToken {
 	 */
 	public function process_saved_cards( $session_data, $user_id ) {
 		try {
-
-			if ( ! $this->gateway ) {
-				throw new Exception( 'The gateway object is invalid', '__PAYMENTS_CORE_TEXT_DOMAIN__' );
-			}
-
-			$response = $this->gateway->api()->create_token(
-				array(
-					'session'       => array(
-						'id' => $session_data['session']['id'],
-					),
-					'sourceOfFunds' => array(
-						'type' => 'CARD',
-					),
-				)
-			);
-
-			if ( empty( $response['body']['token'] ) || empty( $response['body']['sourceOfFunds']['provided']['card'] ) ) {
-				throw new Exception( 'Token not present in reponse' );
-			}
+			$response = array( 'body' => $this->create_gateway_token( $session_data ) );
 
 			$token = new WC_Payment_Token_CC();
 			$token->set_token( $response['body']['token'] );

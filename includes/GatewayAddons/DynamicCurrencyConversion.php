@@ -110,6 +110,12 @@ trait DynamicCurrencyConversion {
 			return; // DCC is not supported with subscriptions.
 		}
 
+		// A pre-order charged on release takes no payment now (a VERIFY), so
+		// there is nothing to convert; the charge at release is merchant-initiated.
+		if ( class_exists( 'WC_Pre_Orders_Cart' ) && is_callable( array( $this, 'cart_contains_pre_order_tokenization' ) ) && $this->cart_contains_pre_order_tokenization() ) {
+			return;
+		}
+
 		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_localize_frontend_script', array( $this, 'add_dcc_script_data' ) );
 
 		// Validate fields to ensure DCC data is correct.
@@ -173,6 +179,12 @@ trait DynamicCurrencyConversion {
 	 */
 	public function maybe_add_dcc_payment_data( $payment_data, $order ) {
 		if ( ! $this->is_order( $order ) ) {
+			return $payment_data;
+		}
+
+		// A VERIFY charges nothing, and the gateway rejects currencyConversion on
+		// it: "Unexpected parameter 'currencyConversion.uptake'".
+		if ( isset( $payment_data['apiOperation'] ) && 'VERIFY' === $payment_data['apiOperation'] ) {
 			return $payment_data;
 		}
 
@@ -390,9 +402,18 @@ trait DynamicCurrencyConversion {
 			}
 
 			$request_id = $result['body']['paymentTypes']['card']['currencyConversion']['requestId'] ?? null;
-			$offer_text = $result['body']['paymentTypes']['card']['currencyConversion']['offerText'] ?? null;
+			$offer_text = $result['body']['paymentTypes']['card']['currencyConversion']['offerText'] ?? '';
 
-			if ( ! $request_id || ! $offer_text ) {
+			/*
+			 * A quote with no offer (NOT_ELIGIBLE, UNSUPPORTED_CARD_BRAND, ERROR)
+			 * still carries a requestId, and the payment must send it back with
+			 * uptake NOT_AVAILABLE ("You must set currencyConversion.uptake=
+			 * NOT_AVAILABLE ... and supply the correct currencyConversion.requestId",
+			 * Mastercard Gateway DCC guide). So only a missing requestId is a
+			 * failure; an empty offer is passed on and the frontend marks it
+			 * Unavailable, as it already does for entered cards.
+			 */
+			if ( ! $request_id ) {
 				wp_send_json_error();
 			}
 

@@ -178,7 +178,8 @@ export async function answerHostedCheckoutDcc(
   choice: DccChoice = 'reject',
 ): Promise<boolean> {
   const option = host.locator(HOSTED_CHECKOUT_OPTION[choice]);
-  if (!(await option.isVisible({ timeout: 5_000 }).catch(() => false))) return false;
+  // waitFor, not isVisible: isVisible ignores its timeout and checks once.
+  if (!(await option.waitFor({ state: 'visible', timeout: 5_000 }).then(() => true, () => false))) return false;
   await option.click();
   return true;
 }

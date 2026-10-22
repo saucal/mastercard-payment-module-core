@@ -14,10 +14,16 @@ const config: PluginConfig = {
   transactionIdMetaKey: `${metaPrefix}_order_id`,
   sessionIdMetaKey: `${metaPrefix}_session_id`,
   tokenMetaKey: `${metaPrefix}_token`,
+  // The gateway token a subscription or pre-order is charged to.
+  paymentTokenMetaKey: `${metaPrefix}_payment_token`,
   products: {
     physical: parseInt(process.env.PRODUCT_PHYSICAL || '61', 10),
     digital: parseInt(process.env.PRODUCT_DIGITAL || '316', 10),
     subscription: parseInt(process.env.PRODUCT_SUBSCRIPTION || '66', 10),
+    // Two plans of one variable subscription, for switching (suite 17). 0 when
+    // the install has none: suite 17 then skips the switch.
+    subscriptionBasic: parseInt(process.env.PRODUCT_SUBSCRIPTION_BASIC || '0', 10),
+    subscriptionPremium: parseInt(process.env.PRODUCT_SUBSCRIPTION_PREMIUM || '0', 10),
     // Both verified on mastercard.mystagingwebsite.com 2026-08-13: simple
     // products with _wc_pre_orders_enabled=yes and the charge mode below.
     // Override per install — suite 20 asserts both are non-zero, since a

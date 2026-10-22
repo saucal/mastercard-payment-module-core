@@ -256,12 +256,13 @@ interface SessionGetExpected {
 
 /**
  * Verify a session UPDATE_SESSION log entry.
- * Asserts PUT method, UPDATE_SESSION operation, session ID, updateStatus SUCCESS.
+ * Asserts PUT method, no apiOperation, session ID, updateStatus SUCCESS.
  */
 export function verifySessionGet(log: LogEntry, expected: SessionGetExpected): void {
   expect(log.request.type).toBe('PUT');
   expect(log.request.url).toContain('/session/');
-  expect(log.request.body.apiOperation).toBe('UPDATE_SESSION');
+  // Update Session takes no apiOperation; the gateway's "~" sessions reject it.
+  expect(log.request.body.apiOperation).toBeUndefined();
   expect(log.request.body.session?.id ?? log.response.body.session?.id).toBe(expected.session);
 
   const res = log.response.body;
@@ -1063,7 +1064,6 @@ export async function assertCaptureLogTrail(expected: CaptureLogTrailExpected): 
   expect(sessionGetLogs.logs[0]?.content.length, 'session GET logs should not be empty').toBeGreaterThan(0);
   const sessionPut = sessionGetLogs.logs[0].content.find(
     (l: LogEntry) => l.request?.type === 'PUT'
-      && l.request?.body?.apiOperation === 'UPDATE_SESSION'
       && l.response?.body?.session?.updateStatus === 'SUCCESS'
   );
   expect(sessionPut, 'UPDATE_SESSION PUT log entry not found').toBeTruthy();
@@ -1221,10 +1221,10 @@ export async function assertAgreementLog(expected: {
   agreementId: string | null;
   agreementType?: 'RECURRING' | 'UNSCHEDULED';
   /**
-   * TO_BE_STORED when the card is entered and saved now (the default). STORED
-   * when the payer picks a card they saved earlier — even if the cart also
-   * forces saving, as a subscription does. That case was reported as
-   * TO_BE_STORED until the gateway started checking the picked card first.
+   * TO_BE_STORED (the default) whenever the payment opens an agreement, even
+   * with a card saved earlier: the gateway reads storedOnFile per agreement.
+   * STORED when the payer picks a saved card for a payment with no agreement
+   * (an early renewal).
    */
   storedOnFile?: 'TO_BE_STORED' | 'STORED';
 }): Promise<void> {

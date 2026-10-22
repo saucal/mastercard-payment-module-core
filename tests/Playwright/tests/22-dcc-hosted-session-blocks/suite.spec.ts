@@ -53,8 +53,8 @@ import { describeDccCardCases } from '../_shared/dcc-card-cases';
  */
 
 /** Quotes AND skips the 3DS challenge, so a DCC failure is never an ACS one. */
-const dccCard = cards.visaFrictionless;
-const PAYER_CURRENCY = 'GBP';
+const dccCard = cards.mastercardEurFrictionless;
+const PAYER_CURRENCY = 'EUR';
 
 const DCC_ON = {
   _3d_secure: 'no',

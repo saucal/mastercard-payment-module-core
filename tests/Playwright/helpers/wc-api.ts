@@ -56,6 +56,17 @@ export async function getOrder(orderNumber: string): Promise<any> {
   return res.json();
 }
 
+/** Set meta on an order through the WooCommerce REST API. */
+export async function updateOrderMeta(orderNumber: string, key: string, value: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/wp-json/wc/v3/orders/${orderNumber}`, {
+    method: 'PUT',
+    headers: wcAuthHeaders(),
+    credentials: 'omit',
+    body: JSON.stringify({ meta_data: [{ key, value }] }),
+  });
+  if (!res.ok) throw new Error(`updateOrderMeta(${orderNumber}, ${key}) failed: ${res.status}`);
+}
+
 export async function getProduct(productId: number): Promise<any> {
   const res = await fetch(`${BASE_URL}/wp-json/wc/v3/products/${productId}`, {
     headers: wcAuthHeaders(),

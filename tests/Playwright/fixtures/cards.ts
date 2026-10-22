@@ -54,10 +54,31 @@ export const cards: Record<string, CardData> = {
     challenge: false,
   },
   /**
-   * DCC fixtures. Both quote in a currency other than the store's, which is what
+   * DCC fixtures. Each quotes in a currency other than the store's, which is what
    * draws a conversion offer at all — that is a property of the BIN at MPGS, not
    * something the suite controls.
    */
+  /**
+   * DCC test card, base currency USD: quotes in EUR, frictionless success
+   * (developer.mastercard.com/mastercard-gateway/documentation/testing/test-cards/dcc-pay-pot-inq-tc/tc-usd/).
+   *
+   * The DCC suites use this rather than a Visa card for a reason beyond it
+   * being a documented DCC card. On TESTSAUCAL101 a stored Visa card gets a VTS
+   * scheme token that turns ACTIVE within a minute, and from then on every DCC
+   * quote against the stored token is rejected at PAY ("requestId is
+   * invalid") — including the documented Visa EUR card 4907449999991296. This
+   * Mastercard's scheme token stays PROVISIONING and quotes against it pay.
+   * Probed 2026-09-30; raised with Mastercard.
+   */
+  mastercardEurFrictionless: {
+    number: '5490019999991271',
+    name: 'MasterCard',
+    shortName: 'MASTERCARD',
+    month: '01',
+    year: '39',
+    cvv: '100',
+    challenge: false,
+  },
   mastercardMxnChallenge: {
     number: '5288049999998964',
     name: 'MasterCard',

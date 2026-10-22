@@ -224,25 +224,18 @@ export async function selectPaymentMethod(page: Page, config: PluginConfig, useN
   const mode = await detectCheckoutMode(page);
   const allSlugs = [config.paymentMethodSlug, ...config.paymentMethodSlugsAlt];
 
-  for (const slug of allSlugs) {
-    if (mode === 'classic') {
-      // Classic checkout hides the radio input (1x1px, clipped) and renders
-      // a custom radio via the label's CSS. Click the label instead.
-      const label = page.locator(`label[for="payment_method_${slug}"]`);
-      if (await label.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await label.click();
-        await waitForUnblock(page);
-        break;
-      }
-    } else {
-      const blocksRadio = page.locator(`#radio-control-wc-payment-method-options-${slug}`);
-      if (await blocksRadio.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await blocksRadio.click();
-        await waitForUnblock(page);
-        break;
-      }
-    }
-  }
+  // Wait for whichever slug renders: isVisible() ignores its timeout, so
+  // probing each slug in turn skipped them all while WooCommerce was still
+  // re-rendering the payment box, and the order went through on the default
+  // method (Cash on Delivery).
+  // Both checkouts hide the radio input and style its label, so click the label.
+  const radioId = (slug: string) => (mode === 'classic'
+    ? `payment_method_${slug}`
+    : `radio-control-wc-payment-method-options-${slug}`);
+  await page.locator(allSlugs.map((slug) => `label[for="${radioId(slug)}"]`).join(', ')).first().click();
+  await waitForUnblock(page);
+  await expect(page.locator(allSlugs.map((slug) => `#${radioId(slug)}:checked`).join(', ')),
+    'the gateway must be the selected payment method').toHaveCount(1);
 
   if (useNewToken) {
     if (mode === 'classic') {

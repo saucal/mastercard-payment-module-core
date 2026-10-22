@@ -88,6 +88,30 @@ export async function releasePreOrder(adminPage: Page, orderNumber: string): Pro
 }
 
 /**
+ * Cancel a pre-order from the admin Pre-Orders screen, through the same bulk
+ * control releasePreOrder uses (value 'cancel', confirmed in
+ * WC_Pre_Orders_Admin_Pre_Orders::get_bulk_actions).
+ */
+export async function cancelPreOrder(adminPage: Page, orderNumber: string): Promise<void> {
+  await ensureAdminSession(adminPage);
+  await adminPage.goto(preOrdersUrl());
+  await adminPage.waitForLoadState('domcontentloaded');
+
+  const row = preOrderRow(adminPage, orderNumber);
+  await expect(row, `pre-order row for order ${orderNumber} not found`).toBeVisible({
+    timeout: 30_000,
+  });
+
+  await row.locator('input[name="order_id[]"]').check();
+  await adminPage.selectOption('#bulk-action-selector-top', 'cancel');
+  adminPage.once('dialog', (d) => d.accept());
+  await Promise.all([
+    adminPage.waitForURL(/[?&]message=/, { timeout: 60_000 }),
+    adminPage.click('#doaction'),
+  ]);
+}
+
+/**
  * The pre-order's own status column, distinct from the WC order status.
  *
  * It is the table's primary column, which WordPress renders as

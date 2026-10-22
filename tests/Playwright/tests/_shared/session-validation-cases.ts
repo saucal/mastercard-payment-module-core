@@ -49,6 +49,33 @@ export function describeSessionValidationCases(mode: CheckoutMode): void {
     await assertSessionFieldsPresent(page, config);
   });
 
+  test('MC-001 - Card fields fail to load', async ({ page }) => {
+    // One card field iframe answers 500, as during the 2026-09-23 MPGS outage.
+    // PaymentSession then never reports the form initialized; the gateway's
+    // watchdog must unblock the form and tell the payer, not spin forever.
+    await page.route('**/role/expiryMonth/inputField.do**', (route) =>
+      route.fulfill({ status: 500, body: '' }));
+    try {
+      await addToCartAndCheckout(page, config.products.physical);
+      await fillBilling(page, billing);
+      await selectPaymentMethod(page, config);
+
+      // The gateway script renders its errors as .woocommerce-error on both
+      // checkouts, so read that too — getCheckoutError only reads the blocks
+      // banner in blocks mode.
+      await expect(
+        page.locator('.woocommerce-error, .wc-block-components-notice-banner.is-error')
+          .filter({ hasText: 'The payment form could not be loaded' }),
+      ).toBeVisible({ timeout: 60_000 });
+      await expect(
+        page.locator('#payment .blockUI.blockOverlay, .wc-block-checkout__payment-method .blockUI.blockOverlay'),
+        'the payment form must not stay blocked',
+      ).toHaveCount(0);
+    } finally {
+      await page.unroute('**/role/expiryMonth/inputField.do**');
+    }
+  });
+
   test('MC-002 - Place order without CC info', async ({ page }) => {
     await addToCartAndCheckout(page, config.products.physical);
     await fillBilling(page, billing);
