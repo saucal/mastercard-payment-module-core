@@ -256,6 +256,7 @@ final class API {
 		if ( 200 > $response['response']['code'] || 300 < $response['response']['code'] ) {
 			return array(
 				'success' => false,
+				'cause'   => $body['error']['cause'] ?? '',
 				'error'   => sprintf(
 					// Translators: %1$s: Response code, %2$s: Response message.
 					__( 'Request failed with status code %1$s and message: %2$s', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
@@ -305,7 +306,17 @@ final class API {
 		// Update Session takes no apiOperation, and the gateway's newer sessions (IDs starting with "~") reject it.
 		unset( $payload['apiOperation'] );
 
-		return $this->request( 'session/' . $session_id, 'PUT', $payload );
+		// Updates to "~" sessions intermittently fail with SERVER_FAILED, and the same update succeeds when repeated.
+		$attempts = 3;
+		for ( $attempt = 1; ; $attempt++ ) {
+			$response = $this->request( 'session/' . $session_id, 'PUT', $payload );
+
+			if ( $response['success'] || $attempt >= $attempts || ! in_array( $response['cause'] ?? '', array( 'SERVER_FAILED', 'SERVER_BUSY' ), true ) ) {
+				return $response;
+			}
+
+			usleep( 300000 * $attempt );
+		}
 	}
 
 
