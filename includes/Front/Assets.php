@@ -63,7 +63,8 @@ final class Assets {
 	public function add_styles( $styles ) {
 
 		$styles['PAYMENTS_CORE_HOOK_PREFIX_gateway'] = array(
-			'src' => $this->core_plugin->assets_controller()->localize_asset( 'css/frontend/payment-core.css' ),
+			'src'     => $this->core_plugin->assets_controller()->localize_asset( 'css/frontend/payment-core.css' ),
+			'enqueue' => $this->is_payment_page(),
 		);
 
 		return $styles;
@@ -91,16 +92,28 @@ final class Assets {
 		);
 
 		$scripts['PAYMENTS_CORE_HOOK_PREFIX_gateway'] = array(
-			'src'  => $this->core_plugin->assets_controller()->localize_asset( 'js/frontend/payment-core.js' ),
-			'deps' => array( 'jquery', 'wp-i18n' ),
+			'src'     => $this->core_plugin->assets_controller()->localize_asset( 'js/frontend/payment-core.js' ),
+			'deps'    => array( 'jquery', 'wp-i18n' ),
 			/**
 			 * Filters the localized data for the frontend script.
 			 *
 			 * @since 1.0.0
 			 */
-			'data' => apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_localize_frontend_script', $data ),
+			'data'    => apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_localize_frontend_script', $data ),
+			// Registered everywhere because the block integration depends on it.
+			'enqueue' => $this->is_payment_page(),
 		);
 
 		return $scripts;
+	}
+
+
+	/**
+	 * Whether the current page can take card details (checkout, pay for order, change payment, add payment method).
+	 *
+	 * @return bool
+	 */
+	private function is_payment_page() {
+		return is_checkout() || is_add_payment_method_page();
 	}
 }

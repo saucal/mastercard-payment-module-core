@@ -1908,7 +1908,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		if ( $this->is_hosted_checkout() ) {
 			$scripts[ $this->hosted_checkout_script_handle() ] = array(
-				'src' => $this->hosted_checkout_url(),
+				'src'     => $this->hosted_checkout_url(),
+				'enqueue' => false, // Loaded as a dependency of the gateway script.
 			);
 
 			if ( isset( $scripts[ $gateway_script ] ) ) {
@@ -1919,7 +1920,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			}
 		} else {
 			$scripts[ $this->hosted_session_script_handle() ] = array(
-				'src' => $this->hosted_session_url(),
+				'src'     => $this->hosted_session_url(),
+				'enqueue' => false, // Loaded as a dependency of the gateway script.
 			);
 
 			if ( isset( $scripts[ $gateway_script ] ) ) {
