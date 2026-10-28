@@ -663,6 +663,7 @@ const hostedSessions = {
 				}
 
 				data.order_id = orderId || '';
+				data.order_key = hostedSessions.getCurrentOrderKey();
 				if ( isChangePayment ) {
 					data.change_payment_method = true;
 				}
@@ -777,6 +778,11 @@ const hostedSessions = {
 		}
 
 		return tokenId;
+	},
+
+	// The server checks it for guest orders, as WooCommerce's pay page does.
+	getCurrentOrderKey() {
+		return new URLSearchParams( window.location.search ).get( 'key' ) || '';
 	},
 
 	isChangePayment() {
@@ -1625,6 +1631,7 @@ const hostedSessions = {
 				const orderId = hostedSessions.getCurrentOrderId() || undefined;
 				if ( orderId ) {
 					data.order_id = orderId;
+					data.order_key = hostedSessions.getCurrentOrderKey();
 				}
 
 				jQuery

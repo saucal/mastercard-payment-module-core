@@ -2930,7 +2930,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				}
 
 				$order = wc_get_order( $order_id );
-				if ( ! $order ) {
+				if ( ! $order || ! $this->can_pay_for_posted_order( $order ) ) {
 					throw new Exception( __( 'There was an error obtaining the order. Please refresh the page and try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 				}
 			} else {

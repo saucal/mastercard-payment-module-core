@@ -370,6 +370,10 @@ trait DynamicCurrencyConversion {
 		if ( isset( $_POST['order_id'] ) ) {
 			$order_id = wc_clean( wp_unslash( $_POST['order_id'] ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 			$order    = wc_get_order( $order_id );
+
+			if ( ! $order || ! $this->can_pay_for_posted_order( $order ) ) {
+				wp_send_json_error();
+			}
 		}
 
 		try {

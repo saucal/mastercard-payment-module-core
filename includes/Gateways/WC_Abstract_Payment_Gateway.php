@@ -372,6 +372,25 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 
 	/**
+	 * Whether the visitor may use the order the browser posted. Guest orders also need the
+	 * order key from the pay-for-order URL, as WooCommerce's pay page does.
+	 *
+	 * @param WC_Order $order Order.
+	 *
+	 * @return bool
+	 */
+	protected function can_pay_for_posted_order( $order ) {
+		if ( ! current_user_can( 'pay_for_order', $order->get_id() ) ) { // phpcs:ignore WordPress.WP.Capabilities.Unknown -- WooCommerce capability.
+			return false;
+		}
+
+		$order_key = isset( $_POST['order_key'] ) ? wc_clean( wp_unslash( $_POST['order_key'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Callers verify their nonce; sanitized via wc_clean().
+
+		return $order->get_user_id() || hash_equals( $order->get_order_key(), (string) $order_key );
+	}
+
+
+	/**
 	 * Set order status and add an order notice with the error message as presented to the customer.
 	 *
 	 * @param WP_Error|Exception $error_message Error message.
