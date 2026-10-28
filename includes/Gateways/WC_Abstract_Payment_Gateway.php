@@ -367,7 +367,7 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	protected function hashed_signature( $order, $transaction_id ) {
 		$unique_order_id = $this->unique_order_id( $order );
 
-		return hash( 'sha256', $unique_order_id . $transaction_id );
+		return hash_hmac( 'sha256', $unique_order_id . $transaction_id, wp_salt( 'auth' ) );
 	}
 
 
