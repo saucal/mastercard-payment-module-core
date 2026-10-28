@@ -389,7 +389,10 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 		$order_note = __( 'Error processing payment. Reason: ', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) . $message;
 
-		if ( ! $order->has_status( 'failed' ) ) {
+		// A failed payment method change must not move the subscription (Subscriptions maps failed to pending).
+		$is_subscription = function_exists( 'wcs_is_subscription' ) && wcs_is_subscription( $order );
+
+		if ( ! $is_subscription && ! $order->has_status( 'failed' ) ) {
 			$order->update_status( 'failed', $order_note );
 		} else {
 			$order->add_order_note( $order_note );
