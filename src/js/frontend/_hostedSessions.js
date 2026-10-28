@@ -594,6 +594,9 @@ const hostedSessions = {
 				hostedSessions.blockForm();
 				return hostedSessions.updateSession();
 			} )
+			.then( ( response ) =>
+				hostedSessions.dcc.ensureQuote().then( () => response )
+			)
 			.then( hostedSessions.triggerPayAfterResponse );
 	},
 
@@ -1355,7 +1358,7 @@ const hostedSessions = {
 			}
 
 			if ( hostedSessions.dcc.requesting ) {
-				return Promise.resolve();
+				return hostedSessions.dcc.requestPromise || Promise.resolve();
 			}
 
 			const $dccWrapper = hostedSessions.dcc.getQuoteArea();
@@ -1390,7 +1393,7 @@ const hostedSessions = {
 					hostedSessions.dcc.requestCurrencyConversionQuote();
 			}
 
-			return quotePromise
+			hostedSessions.dcc.requestPromise = quotePromise
 				.then( function ( res ) {
 					// Quote handled in the promise.
 					if ( res.offerText.length === 0 ) {
@@ -1408,6 +1411,21 @@ const hostedSessions = {
 					hostedSessions.unblockFieldset();
 					hostedSessions.dcc.requesting = false;
 				} );
+
+			return hostedSessions.dcc.requestPromise;
+		},
+
+		// The offer can be missing at Place order, e.g. when WooCommerce re-rendered the
+		// payment box over it. Get the quote then, so the payer still has to answer it.
+		ensureQuote() {
+			if (
+				! core_gateway_params.dccEnabled ||
+				hostedSessions.dcc.getQuoteIdField().val()
+			) {
+				return Promise.resolve();
+			}
+
+			return hostedSessions.dcc.maybeTriggerCurrencyConversion();
 		},
 
 		getCachedQuote( key ) {
@@ -1523,7 +1541,8 @@ const hostedSessions = {
 										}
 									)
 								);
-							} );
+							} )
+							.fail( reject );
 					} )
 					.catch( reject );
 			} );
