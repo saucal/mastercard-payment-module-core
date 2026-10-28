@@ -26,7 +26,7 @@ final class Main {
 	const PLUGIN_REQUIREMENTS = array(
 		'php_version' => '7.3',
 		'wp_version'  => '5.6',
-		'wc_version'  => '5.3',
+		'wc_version'  => '9.0',
 	);
 
 	/**
@@ -216,7 +216,10 @@ final class Main {
 			$errors[] = sprintf( esc_html__( '%1$s requires a minimum WordPress version of %2$s.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ), $this->plugin_title(), self::PLUGIN_REQUIREMENTS['wp_version'] );
 		}
 
-		if ( isset( self::PLUGIN_REQUIREMENTS['wc_version'] ) && ( ! defined( 'WC_VERSION' ) || ! version_compare( WC_VERSION, self::PLUGIN_REQUIREMENTS['wc_version'], '>=' ) ) ) {
+		if ( ! defined( 'WC_VERSION' ) ) {
+			/* Translators: 1: The Plugin's Name */
+			$errors[] = sprintf( esc_html__( '%1$s requires WooCommerce to be installed and active.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ), $this->plugin_title() );
+		} elseif ( isset( self::PLUGIN_REQUIREMENTS['wc_version'] ) && ! version_compare( WC_VERSION, self::PLUGIN_REQUIREMENTS['wc_version'], '>=' ) ) {
 			/* Translators: 1: The Plugin's Name 2: The minimum WC version */
 			$errors[] = sprintf( esc_html__( '%1$s requires a minimum WooCommerce version of %2$s.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ), $this->plugin_title(), self::PLUGIN_REQUIREMENTS['wc_version'] );
 		}
