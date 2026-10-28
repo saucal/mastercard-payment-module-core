@@ -150,15 +150,32 @@ final class Logger {
 
 
 	/**
-	 * Maybe mask data in JSON.
+	 * Mask stored card tokens in JSON, keeping the last 4 characters. The gateway
+	 * already masks card numbers and security codes in what it returns.
 	 *
 	 * @param string $data Data to mask.
 	 *
 	 * @return string
 	 */
 	private static function maybe_mask_in_json( $data ) {
-		// TODO: Mask sensitive data in JSON.
-		return $data;
+		$decoded = is_string( $data ) ? json_decode( $data, true ) : null;
+
+		if ( ! is_array( $decoded ) ) {
+			return $data;
+		}
+
+		$masked = false;
+		array_walk_recursive(
+			$decoded,
+			function ( &$value, $key ) use ( &$masked ) {
+				if ( 'token' === $key && is_string( $value ) && strlen( $value ) > 4 ) {
+					$value  = str_repeat( 'x', strlen( $value ) - 4 ) . substr( $value, -4 );
+					$masked = true;
+				}
+			}
+		);
+
+		return $masked ? wp_json_encode( $decoded ) : $data;
 	}
 
 

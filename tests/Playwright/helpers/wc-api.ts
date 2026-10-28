@@ -41,7 +41,8 @@ export async function configureGateway(config: PluginConfig, settings: Record<st
     credentials: 'omit',
     body: JSON.stringify({
       option_name: config.settingsOptionName,
-      updates: settings,
+      // Debug logging is off by default, and the assertions read the logs.
+      updates: { debug: 'yes', ...settings },
     }),
   });
   if (!res.ok) throw new Error(`configureGateway failed: ${res.status}`);

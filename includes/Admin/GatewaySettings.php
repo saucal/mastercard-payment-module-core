@@ -480,7 +480,7 @@ final class GatewaySettings {
 					'label'       => __( 'Log debug messages', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'type'        => 'checkbox',
 					'description' => __( 'Save debug messages to the WooCommerce System Status log.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
-					'default'     => 'yes',
+					'default'     => 'no',
 					'desc_tip'    => true,
 				),
 			)
