@@ -956,7 +956,13 @@ const hostedSessions = {
 		if ( ! scrollElement.length ) {
 			scrollElement = jQuery( 'form.checkout' );
 		}
-		jQuery.scroll_to_notices( scrollElement );
+
+		// WooCommerce defines scroll_to_notices on DOM ready, after an error during page load can fire.
+		if ( typeof jQuery.scroll_to_notices === 'function' ) {
+			jQuery.scroll_to_notices( scrollElement );
+		} else if ( scrollElement.length ) {
+			scrollElement[ 0 ].scrollIntoView( { behavior: 'smooth' } );
+		}
 	},
 
 	blockForm() {
