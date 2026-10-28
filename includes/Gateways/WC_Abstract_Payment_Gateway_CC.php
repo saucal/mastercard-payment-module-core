@@ -2327,36 +2327,39 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return array
 	 */
 	protected function hosted_checkout_interaction_payload( $order ) {
+		$interaction = array(
+			'operation'      => $this->transaction_mode,
+			'returnUrl'      => add_query_arg(
+				array(
+					'PAYMENTS_CORE_HOOK_PREFIX-callback' => 'wc',
+					'order-id'                           => $order->get_id(),
+					'nonce'                              => wp_create_nonce( 'PAYMENTS_CORE_HOOK_PREFIX_nonce' ),
+				),
+				trailingslashit( get_home_url() )
+			),
+			'cancelUrl'      => $order->get_checkout_payment_url(),
+			'timeoutUrl'     => $order->get_checkout_payment_url(),
+			'merchant'       => array(
+				'name' => $this->merchant_name,
+			),
+			'displayControl' => array(
+				'customerEmail'  => 'HIDE',
+				'billingAddress' => 'HIDE',
+				'shipping'       => 'HIDE',
+			),
+		);
+
+		// Shows the payment page in the store's language. The gateway rejects the request for tags other than "xx" or "xx_YY".
+		if ( preg_match( '/^[a-z]{2}(_[A-Z]{2})?/', get_locale(), $locale ) ) {
+			$interaction['locale'] = $locale[0];
+		}
+
 		/**
 		 * Filter the interaction payload for the hosted checkout session.
 		 *
 		 * @since 1.0.0
 		 */
-		return apply_filters(
-			'PAYMENTS_CORE_HOOK_PREFIX_checkout_session_interaction_payload',
-			array(
-				'operation'      => $this->transaction_mode,
-				'returnUrl'      => add_query_arg(
-					array(
-						'PAYMENTS_CORE_HOOK_PREFIX-callback' => 'wc',
-						'order-id' => $order->get_id(),
-						'nonce'    => wp_create_nonce( 'PAYMENTS_CORE_HOOK_PREFIX_nonce' ),
-					),
-					trailingslashit( get_home_url() )
-				),
-				'cancelUrl'      => $order->get_checkout_payment_url(),
-				'timeoutUrl'     => $order->get_checkout_payment_url(),
-				'merchant'       => array(
-					'name' => $this->merchant_name,
-				),
-				'displayControl' => array(
-					'customerEmail'  => 'HIDE',
-					'billingAddress' => 'HIDE',
-					'shipping'       => 'HIDE',
-				),
-			),
-			$order
-		);
+		return apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_checkout_session_interaction_payload', $interaction, $order );
 	}
 
 
