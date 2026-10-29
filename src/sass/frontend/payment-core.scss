@@ -113,6 +113,13 @@
 .wc-block-components-form .payment-core-payment-form-blocks,
 .wc-block-checkout__payment-method {
     .payment-core-currency-conversion {
+        // Sets the offer apart from the saved cards and card fields above it.
+        &:not(:empty) {
+            margin-top: 1em;
+            padding-top: 1em;
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
         p {
             margin-bottom: 0.25em;
         }
