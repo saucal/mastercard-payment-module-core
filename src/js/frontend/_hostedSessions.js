@@ -918,13 +918,21 @@ const hostedSessions = {
 			} );
 	},
 
+	resettingSession: false,
+
 	resetPaymentSession() {
+		// Every field of a dead session reports it, often in the same tick: one replacement is enough.
+		if ( hostedSessions.resettingSession ) {
+			return;
+		}
+		hostedSessions.resettingSession = true;
 		hostedSessions.blockFieldset();
 		debounce( function () {
 			if (
 				! hostedSessions.isPaymentMethodSelected() ||
 				! hostedSessions.selectedField()
 			) {
+				hostedSessions.resettingSession = false;
 				hostedSessions.unblockFieldset();
 				return;
 			}
@@ -942,6 +950,7 @@ const hostedSessions = {
 					}
 				} )
 				.always( function () {
+					hostedSessions.resettingSession = false;
 					hostedSessions.unblockFieldset();
 					jQuery( document.body ).trigger( 'update_checkout' );
 				} );
