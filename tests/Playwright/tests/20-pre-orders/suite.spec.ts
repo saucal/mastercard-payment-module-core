@@ -126,6 +126,19 @@ test.describe.serial('Pre-orders', () => {
     await assertOrderStatus(adminPage, 'Processing');
   });
 
+  // === PO-016: The settings say upfront pre-orders are charged ===
+
+  test('PO-016 - Authorize Only notes that upfront pre-orders are charged', async ({ adminPage }) => {
+    await adminPage.goto(`/wp-admin/admin.php?page=wc-settings&tab=checkout&section=${config.paymentMethodSlug}`);
+    const mode = adminPage.locator(`#woocommerce_${config.paymentMethodSlug}_transaction_mode`);
+    const note = adminPage.getByText('Pre-order products set to charge upfront are not authorized');
+
+    await mode.selectOption('AUTHORIZE');
+    await expect(note).toBeVisible();
+    await mode.selectOption('PURCHASE');
+    await expect(note).toBeHidden();
+  });
+
   // === PO-002: Charged upon release — the checkout half ===
 
   test('PO-002 - Pre-order charged upon release verifies and tokenizes', async ({ page, adminPage, emailPage }) => {

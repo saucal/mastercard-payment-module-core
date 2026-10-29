@@ -367,6 +367,12 @@ final class GatewaySettings {
 		// TODO: Move to the Subscription addon class.
 		$supported_operations_explain['subscriptions'] = '' . __( 'This setting does not affect subscriptions; charges for orders related to subscriptions are always captured.', '__PAYMENTS_CORE_TEXT_DOMAIN__' );
 
+		// Shown under the field while "Authorize Only" is selected (see PreOrders::maybe_add_pre_order_payment_data()).
+		$pre_orders_note = '';
+		if ( class_exists( 'WC_Pre_Orders' ) && isset( $supported_operations['AUTHORIZE'] ) ) {
+			$pre_orders_note = '<span class="conditional-hide" data-show-rel="transaction_mode" data-show-if="AUTHORIZE">' . __( 'Pre-order products set to charge upfront are not authorized but charged when the order is placed.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) . '</span>';
+		}
+
 		// Checkout modes options and explanations.
 		$checkout_modes         = self::checkout_modes();
 		$checkout_modes_options = wp_list_pluck( $checkout_modes, 'label' );
@@ -406,8 +412,8 @@ final class GatewaySettings {
 					'type'        => 'select',
 					'options'     => $supported_operations_options,
 					'default'     => \array_key_first( $supported_operations_options ),
-					'description' => implode( '<br/><br/>', $supported_operations_explain ),
-					'desc_tip'    => true,
+					'description' => $pre_orders_note,
+					'desc_tip'    => implode( '<br/><br/>', $supported_operations_explain ),
 				),
 				'checkout_mode'        => array(
 					'title'       => __( 'Integration Mode', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
