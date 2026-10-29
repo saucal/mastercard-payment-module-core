@@ -186,6 +186,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		// Gateway AJAX actions.
 		add_action( 'wc_ajax_PAYMENTS_CORE_HOOK_PREFIX_reset_hosted_session', array( $this, 'ajax_clean_hosted_cached_session' ) );
+		add_action( 'wc_ajax_PAYMENTS_CORE_HOOK_PREFIX_hosted_session_status', array( $this, 'ajax_hosted_session_status' ) );
 		add_action( 'wc_ajax_PAYMENTS_CORE_HOOK_PREFIX_update_hosted_session_from_token', array( $this, 'ajax_update_hosted_session_from_token' ) );
 		add_action( 'wc_ajax_PAYMENTS_CORE_HOOK_PREFIX_authenticate_payer', array( $this, 'ajax_authenticate_payer' ) );
 
@@ -2875,6 +2876,19 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 		wp_send_json(
 			$this->hosted_session_id()
 		);
+	}
+
+	/**
+	 * Tell the page whether its hosted session has expired. The card fields of an
+	 * expired session report the card as NOT_SUPPORTED instead of saying so.
+	 *
+	 * @return void
+	 */
+	public function ajax_hosted_session_status() {
+		$this->verify_ajax_nonce();
+		$session_id = wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_session_id'] ?? '' ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified in verify_ajax_nonce(); input sanitized via wc_clean().
+
+		wp_send_json( array( 'expired' => '' === $session_id || empty( $this->retrieve_payment_session( $session_id ) ) ) );
 	}
 
 	/**

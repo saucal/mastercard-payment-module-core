@@ -174,6 +174,27 @@ const hostedSessions = {
 			return;
 		}
 
+		// Configure each rendered set of fields once per scope. After a session reset the old fields stay until
+		// update_checkout renders new ones, which both the payment method change and updated_checkout then
+		// configure: twice leaves every field with two iframes, and a stale attempt leaves a scope the fields
+		// never answer. The change fires before updated_checkout re-reads the attempt, so read it here too.
+		const renderedAttempt = jQuery(
+			`#${ hostedSessions.pluginPrefix }_session_attempt`
+		).val();
+		if ( renderedAttempt ) {
+			hostedSessions.sessionIdAttempt = renderedAttempt;
+		}
+		const $numberField = jQuery( hostedSessions.fields().card.number );
+		if (
+			! hostedSessions.isWooBlocks() &&
+			( ! $numberField.length ||
+				$numberField.data( 'configured-scope' ) ===
+					hostedSessions.paymentScope() )
+		) {
+			return;
+		}
+		$numberField.data( 'configured-scope', hostedSessions.paymentScope() );
+
 		hostedSessions.dcc.setQuoteArea( '' );
 		hostedSessions.dcc.setQuoteId( '' );
 		hostedSessions.blockFieldset();
@@ -198,6 +219,8 @@ const hostedSessions = {
 							clearTimeout( hostedSessions.initWatchdog );
 							if ( response?.status && response.status !== 'ok' ) {
 								hostedSessions.failInitialization();
+								// Fields of an expired session fail to initialize.
+								hostedSessions.maybeResetExpiredSession();
 								return;
 							}
 
@@ -866,7 +889,33 @@ const hostedSessions = {
 			hostedSessions.resetPaymentSession();
 			return true;
 		}
+
+		// An expired session reports the card as NOT_SUPPORTED, as does a card brand the merchant does not accept.
+		if ( reason.toUpperCase() === 'NOT_SUPPORTED' ) {
+			hostedSessions.maybeResetExpiredSession();
+		}
 		return false;
+	},
+
+	sessionStatusCheckedAt: 0,
+
+	maybeResetExpiredSession() {
+		// Once a minute at most: every field validation lands here while the card is unsupported.
+		if ( Date.now() - hostedSessions.sessionStatusCheckedAt < 60000 ) {
+			return;
+		}
+		hostedSessions.sessionStatusCheckedAt = Date.now();
+
+		hostedSessions
+			.ajax( 'hosted_session_status', {
+				[ `${ hostedSessions.pluginPrefix }_session_id` ]:
+					hostedSessions.sessionId,
+			} )
+			.done( function ( res ) {
+				if ( res?.expired ) {
+					hostedSessions.resetPaymentSession();
+				}
+			} );
 	},
 
 	resetPaymentSession() {
@@ -887,7 +936,10 @@ const hostedSessions = {
 					hostedSessions.submitError(
 						core_gateway_params.hostedSessionErrors.session_expired
 					);
-					hostedSessions.initHostedSession();
+					// Classic checkout re-initializes from the payment box update_checkout renders with the new session.
+					if ( hostedSessions.isWooBlocks() ) {
+						hostedSessions.initHostedSession();
+					}
 				} )
 				.always( function () {
 					hostedSessions.unblockFieldset();
