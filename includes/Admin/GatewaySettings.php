@@ -139,7 +139,7 @@ final class GatewaySettings {
 					'type'              => 'checkbox',
 					'description'       => sprintf(
 						/* translators: %1$s: opening link tag, %2$s: closing link tag */
-						__( 'Set the payment gateway in test mode using test API credentials (real payments will not be taken). You can use %1$stest card numbers%2$s to simulate various transactions.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+						__( 'Set the payment gateway in test mode using test API credentials (real payments will not be taken). Test and live merchant accounts have separate credentials: test credentials only work in test mode, and live credentials take real payments. You can use %1$stest card numbers%2$s to simulate various transactions.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 						'<a href="https://test-gateway.mastercard.com/api/documentation/integrationGuidelines/supportedFeatures/testAndGoLive.html" target="_blank">',
 						'</a>'
 					),
@@ -237,8 +237,14 @@ final class GatewaySettings {
 					),
 				),
 				'webhook'                  => array(
-					'title' => __( 'Webhook Notifications', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
-					'type'  => 'title',
+					'title'       => __( 'Webhook Notifications', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+					'type'        => 'title',
+					'description' => sprintf(
+						/* translators: %1$s: opening link tag, %2$s: closing link tag */
+						__( 'The gateway sends your store a notification when a payment changes outside checkout, such as a capture or refund made in the Merchant Portal. The notification secret lets your store verify those notifications. %1$sLearn more about webhook notifications%2$s.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+						'<a href="https://test-gateway.mastercard.com/api/documentation/integrationGuidelines/supportedFeatures/pickAdditionalFunctionality/webhookNotifications.html" target="_blank">',
+						'</a>'
+					),
 				),
 				'notification_secret'      => array(
 					'title'             => __( 'Notification Secret', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
@@ -294,6 +300,7 @@ final class GatewaySettings {
 			'region' => array(
 				'title'             => __( 'Merchant Region', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 				'type'              => 'select',
+				'description'       => __( 'The region of the payment gateway your merchant account was created in. It is set by your bank or payment provider when the account is opened, not by your store\'s location. Ask them if you are unsure.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 				'options'           => $regions,
 				'default'           => array_key_first( $regions ),
 				'class'             => 'conditional-hide',
