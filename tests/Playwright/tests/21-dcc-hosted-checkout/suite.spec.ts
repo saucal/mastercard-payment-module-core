@@ -5,6 +5,7 @@ import {
   assertHostedCheckoutLogTrail,
   assertDccAdminPanel,
   assertDccOrderMeta,
+  assertDccReceiptRow,
 } from '../../helpers/assertions';
 import { navigateToOrder } from '../../helpers/admin-orders';
 import config from '../../plugin-config';
@@ -21,10 +22,8 @@ import { cards } from '../../fixtures/cards';
  *   - the `currency_conversion` setting is inert — the offer comes from the MPGS
  *     merchant profile and renders on MPGS's own page. DCC-007 proves this by
  *     leaving the setting OFF and still getting an offer.
- *   - there is no quote call of ours, no offer validation, and no
- *     "Paid Amount:" receipt row — render_dcc_data_receipt is registered inside
- *     init_dcc_hooks, which this path never reaches.
- *   - the admin panel hook does survive the guard.
+ *   - there is no quote call of ours and no offer validation.
+ *   - the admin panel and the "Paid Amount:" receipt row survive the guard.
  *
  * Payer currency is MPGS's choice and differs from the hosted-session path — GBP
  * there, BRL observed here for the same card — so nothing pins it. See
@@ -61,12 +60,8 @@ test.describe.serial('DCC - Hosted Checkout', () => {
     // what the payer is charged, not what the shop booked.
     expect(ctx.order.currency, 'order currency should stay the store currency').toBe('USD');
 
-    // No receipt row in this mode, however the offer was answered.
     await page.goto(ctx.orderReceivedUrl);
-    await expect(
-      page.locator('tr:has-text("Paid Amount"), li:has-text("Paid Amount")'),
-      'hosted checkout never registers render_dcc_data_receipt, so no converted-amount row',
-    ).toHaveCount(0);
+    await assertDccReceiptRow(page, {});
 
     // The meta IS written on this path, which the source alone could not settle:
     // process_dcc_data is registered before the is_hosted_checkout() guard, but it

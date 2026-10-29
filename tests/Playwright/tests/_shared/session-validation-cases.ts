@@ -9,6 +9,7 @@ import {
 } from '../../helpers/checkout';
 import {
   assertSessionFieldsPresent,
+  fillHostedSessionCC,
   fillHostedSessionCCPartial,
 } from '../../helpers/hosted-session';
 import { waitForUnblock } from '../../helpers/block-ui';
@@ -75,6 +76,37 @@ export function describeSessionValidationCases(mode: CheckoutMode): void {
       await page.unroute('**/role/expiryMonth/inputField.do**');
     }
   });
+
+  // Classic only: the payment box arrives in update_order_review, where the session can be swapped.
+  if (mode === 'classic') {
+    test('MC-001 - Expired session is replaced', async ({ page }) => {
+      // The gateway forgets a session about an hour after creating it, and an unknown id gets the same
+      // "not found or expired" answer, so a made-up one stands in for a shopper who left checkout open.
+      const expired = '~expiredSessionForPlaywrightTest000000';
+      const sessionId = /~[A-Za-z0-9_-]{30,40}/g;
+      let swap = true;
+      page.on('request', (r) => { if (r.url().includes('hosted_session_status')) swap = false; });
+      await page.route(/wc-ajax=update_order_review/, async (route) => {
+        const res = await route.fetch();
+        const body = await res.text();
+        await route.fulfill({ response: res, body: swap ? body.replace(sessionId, expired) : body });
+      });
+      await configureGateway(config, { _3d_secure: 'no' });
+      try {
+        await addToCartAndCheckout(page, config.products.physical);
+        await fillBilling(page, billing);
+        await selectPaymentMethod(page, config);
+        const field = page.locator(`#${config.paymentMethodSlug}_session_id`);
+        await expect.poll(() => field.inputValue(), { timeout: 60_000, message: 'the expired session was never replaced' })
+          .not.toBe(expired);
+        await fillHostedSessionCC(page, cards.mastercard, config);
+        await clickPlaceOrder(page);
+        await page.waitForURL(/order-received/, { timeout: 60_000 });
+      } finally {
+        await configureGateway(config, { _3d_secure: 'yes' });
+      }
+    });
+  }
 
   test('MC-002 - Place order without CC info', async ({ page }) => {
     await addToCartAndCheckout(page, config.products.physical);

@@ -139,7 +139,7 @@ final class GatewaySettings {
 					'type'              => 'checkbox',
 					'description'       => sprintf(
 						/* translators: %1$s: opening link tag, %2$s: closing link tag */
-						__( 'Set the payment gateway in test mode using test API credentials (real payments will not be taken). You can use %1$stest card numbers%2$s to simulate various transactions.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+						__( 'Set the payment gateway in test mode using test API credentials (real payments will not be taken). Test and live merchant accounts have separate credentials: test credentials only work in test mode, and live credentials take real payments. You can use %1$stest card numbers%2$s to simulate various transactions.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 						'<a href="https://test-gateway.mastercard.com/api/documentation/integrationGuidelines/supportedFeatures/testAndGoLive.html" target="_blank">',
 						'</a>'
 					),
@@ -237,8 +237,14 @@ final class GatewaySettings {
 					),
 				),
 				'webhook'                  => array(
-					'title' => __( 'Webhook Notifications', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
-					'type'  => 'title',
+					'title'       => __( 'Webhook Notifications', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+					'type'        => 'title',
+					'description' => sprintf(
+						/* translators: %1$s: opening link tag, %2$s: closing link tag */
+						__( 'The gateway sends your store a notification when a payment changes outside checkout, such as a capture or refund made in the Merchant Portal. The notification secret lets your store verify those notifications. %1$sLearn more about webhook notifications%2$s.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+						'<a href="https://test-gateway.mastercard.com/api/documentation/integrationGuidelines/supportedFeatures/pickAdditionalFunctionality/webhookNotifications.html" target="_blank">',
+						'</a>'
+					),
 				),
 				'notification_secret'      => array(
 					'title'             => __( 'Notification Secret', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
@@ -294,6 +300,7 @@ final class GatewaySettings {
 			'region' => array(
 				'title'             => __( 'Merchant Region', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 				'type'              => 'select',
+				'description'       => __( 'The region of the payment gateway your merchant account was created in. It is set by your bank or payment provider when the account is opened, not by your store\'s location. Ask them if you are unsure.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 				'options'           => $regions,
 				'default'           => array_key_first( $regions ),
 				'class'             => 'conditional-hide',
@@ -367,6 +374,12 @@ final class GatewaySettings {
 		// TODO: Move to the Subscription addon class.
 		$supported_operations_explain['subscriptions'] = '' . __( 'This setting does not affect subscriptions; charges for orders related to subscriptions are always captured.', '__PAYMENTS_CORE_TEXT_DOMAIN__' );
 
+		// Shown under the field while "Authorize Only" is selected (see PreOrders::maybe_add_pre_order_payment_data()).
+		$pre_orders_note = '';
+		if ( class_exists( 'WC_Pre_Orders' ) && isset( $supported_operations['AUTHORIZE'] ) ) {
+			$pre_orders_note = '<span class="conditional-hide" data-show-rel="transaction_mode" data-show-if="AUTHORIZE">' . __( 'Pre-order products set to charge upfront are not authorized but charged when the order is placed.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) . '</span>';
+		}
+
 		// Checkout modes options and explanations.
 		$checkout_modes         = self::checkout_modes();
 		$checkout_modes_options = wp_list_pluck( $checkout_modes, 'label' );
@@ -406,8 +419,8 @@ final class GatewaySettings {
 					'type'        => 'select',
 					'options'     => $supported_operations_options,
 					'default'     => \array_key_first( $supported_operations_options ),
-					'description' => implode( '<br/><br/>', $supported_operations_explain ),
-					'desc_tip'    => true,
+					'description' => $pre_orders_note,
+					'desc_tip'    => implode( '<br/><br/>', $supported_operations_explain ),
 				),
 				'checkout_mode'        => array(
 					'title'       => __( 'Integration Mode', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
@@ -480,7 +493,7 @@ final class GatewaySettings {
 					'label'       => __( 'Log debug messages', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 					'type'        => 'checkbox',
 					'description' => __( 'Save debug messages to the WooCommerce System Status log.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
-					'default'     => 'yes',
+					'default'     => 'no',
 					'desc_tip'    => true,
 				),
 			)

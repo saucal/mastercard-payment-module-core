@@ -186,6 +186,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		// Gateway AJAX actions.
 		add_action( 'wc_ajax_PAYMENTS_CORE_HOOK_PREFIX_reset_hosted_session', array( $this, 'ajax_clean_hosted_cached_session' ) );
+		add_action( 'wc_ajax_PAYMENTS_CORE_HOOK_PREFIX_hosted_session_status', array( $this, 'ajax_hosted_session_status' ) );
 		add_action( 'wc_ajax_PAYMENTS_CORE_HOOK_PREFIX_update_hosted_session_from_token', array( $this, 'ajax_update_hosted_session_from_token' ) );
 		add_action( 'wc_ajax_PAYMENTS_CORE_HOOK_PREFIX_authenticate_payer', array( $this, 'ajax_authenticate_payer' ) );
 
@@ -1908,7 +1909,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 
 		if ( $this->is_hosted_checkout() ) {
 			$scripts[ $this->hosted_checkout_script_handle() ] = array(
-				'src' => $this->hosted_checkout_url(),
+				'src'     => $this->hosted_checkout_url(),
+				'enqueue' => false, // Loaded as a dependency of the gateway script.
 			);
 
 			if ( isset( $scripts[ $gateway_script ] ) ) {
@@ -1919,7 +1921,8 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 			}
 		} else {
 			$scripts[ $this->hosted_session_script_handle() ] = array(
-				'src' => $this->hosted_session_url(),
+				'src'     => $this->hosted_session_url(),
+				'enqueue' => false, // Loaded as a dependency of the gateway script.
 			);
 
 			if ( isset( $scripts[ $gateway_script ] ) ) {
@@ -2327,36 +2330,39 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	 * @return array
 	 */
 	protected function hosted_checkout_interaction_payload( $order ) {
+		$interaction = array(
+			'operation'      => $this->transaction_mode,
+			'returnUrl'      => add_query_arg(
+				array(
+					'PAYMENTS_CORE_HOOK_PREFIX-callback' => 'wc',
+					'order-id'                           => $order->get_id(),
+					'nonce'                              => wp_create_nonce( 'PAYMENTS_CORE_HOOK_PREFIX_nonce' ),
+				),
+				trailingslashit( get_home_url() )
+			),
+			'cancelUrl'      => $order->get_checkout_payment_url(),
+			'timeoutUrl'     => $order->get_checkout_payment_url(),
+			'merchant'       => array(
+				'name' => $this->merchant_name,
+			),
+			'displayControl' => array(
+				'customerEmail'  => 'HIDE',
+				'billingAddress' => 'HIDE',
+				'shipping'       => 'HIDE',
+			),
+		);
+
+		// Shows the payment page in the store's language. The gateway rejects the request for tags other than "xx" or "xx_YY".
+		if ( preg_match( '/^[a-z]{2}(_[A-Z]{2})?/', get_locale(), $locale ) ) {
+			$interaction['locale'] = $locale[0];
+		}
+
 		/**
 		 * Filter the interaction payload for the hosted checkout session.
 		 *
 		 * @since 1.0.0
 		 */
-		return apply_filters(
-			'PAYMENTS_CORE_HOOK_PREFIX_checkout_session_interaction_payload',
-			array(
-				'operation'      => $this->transaction_mode,
-				'returnUrl'      => add_query_arg(
-					array(
-						'PAYMENTS_CORE_HOOK_PREFIX-callback' => 'wc',
-						'order-id' => $order->get_id(),
-						'nonce'    => wp_create_nonce( 'PAYMENTS_CORE_HOOK_PREFIX_nonce' ),
-					),
-					trailingslashit( get_home_url() )
-				),
-				'cancelUrl'      => $order->get_checkout_payment_url(),
-				'timeoutUrl'     => $order->get_checkout_payment_url(),
-				'merchant'       => array(
-					'name' => $this->merchant_name,
-				),
-				'displayControl' => array(
-					'customerEmail'  => 'HIDE',
-					'billingAddress' => 'HIDE',
-					'shipping'       => 'HIDE',
-				),
-			),
-			$order
-		);
+		return apply_filters( 'PAYMENTS_CORE_HOOK_PREFIX_checkout_session_interaction_payload', $interaction, $order );
 	}
 
 
@@ -2873,6 +2879,19 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 	}
 
 	/**
+	 * Tell the page whether its hosted session has expired. The card fields of an
+	 * expired session report the card as NOT_SUPPORTED instead of saying so.
+	 *
+	 * @return void
+	 */
+	public function ajax_hosted_session_status() {
+		$this->verify_ajax_nonce();
+		$session_id = wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_session_id'] ?? '' ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified in verify_ajax_nonce(); input sanitized via wc_clean().
+
+		wp_send_json( array( 'expired' => '' === $session_id || empty( $this->retrieve_payment_session( $session_id ) ) ) );
+	}
+
+	/**
 	 * AJAX handler to update hosted session from token.
 	 *
 	 * @return void
@@ -2925,7 +2944,7 @@ abstract class WC_Abstract_Payment_Gateway_CC extends WC_Abstract_Payment_Gatewa
 				}
 
 				$order = wc_get_order( $order_id );
-				if ( ! $order ) {
+				if ( ! $order || ! $this->can_pay_for_posted_order( $order ) ) {
 					throw new Exception( __( 'There was an error obtaining the order. Please refresh the page and try again.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) );
 				}
 			} else {

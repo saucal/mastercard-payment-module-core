@@ -60,6 +60,7 @@ trait PreOrders {
 		 * gateway, and the hooks below only act on tokenized pre-orders anyway.
 		 */
 		if ( $this->is_hosted_checkout() ) {
+			add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_checkout_session_interaction_payload', array( $this, 'maybe_charge_upfront_pre_order_hosted_checkout' ), 10, 2 );
 			return;
 		}
 
@@ -126,7 +127,9 @@ trait PreOrders {
 	 * the base gateway: saving is forced for these carts, and the base sets the
 	 * flag after this filter runs, so anything set here would be overwritten.
 	 *
-	 * A pre-order charged upfront is an ordinary payment and is left alone.
+	 * A pre-order charged upfront is an ordinary payment, except that it is
+	 * always charged: WooCommerce Pre-Orders only moves an upfront order to
+	 * pre-ordered from processing, so an authorized (on-hold) one gets stuck.
 	 *
 	 * @param array         $payment_data Payment data.
 	 * @param WC_Order|null $order        Order object.
@@ -135,6 +138,10 @@ trait PreOrders {
 	 */
 	public function maybe_add_pre_order_payment_data( $payment_data, $order ) {
 		if ( ! $this->is_pre_order_charged_on_release( $order ) ) {
+			if ( $this->is_pre_order_charged_upfront( $order ) && 'AUTHORIZE' === ( $payment_data['apiOperation'] ?? '' ) ) {
+				$payment_data['apiOperation'] = 'PAY';
+			}
+
 			return $payment_data;
 		}
 
@@ -217,6 +224,38 @@ trait PreOrders {
 		return $this->is_order( $order )
 			&& $this->has_pre_order( $order->get_id() )
 			&& WC_Pre_Orders_Order::order_requires_payment_tokenization( $order );
+	}
+
+
+	/**
+	 * Whether the order holds a pre-order paid at checkout.
+	 *
+	 * @param WC_Order|null $order Order object.
+	 *
+	 * @return bool
+	 */
+	protected function is_pre_order_charged_upfront( $order ) {
+		return $this->is_order( $order )
+			&& $this->has_pre_order( $order->get_id() )
+			&& ! WC_Pre_Orders_Order::order_will_be_charged_upon_release( $order );
+	}
+
+
+	/**
+	 * Charge an upfront pre-order on the hosted checkout page even in authorize
+	 * mode, for the reason in maybe_add_pre_order_payment_data().
+	 *
+	 * @param array    $interaction Hosted checkout interaction payload.
+	 * @param WC_Order $order       Order object.
+	 *
+	 * @return array
+	 */
+	public function maybe_charge_upfront_pre_order_hosted_checkout( $interaction, $order ) {
+		if ( $this->is_pre_order_charged_upfront( $order ) ) {
+			$interaction['operation'] = 'PURCHASE';
+		}
+
+		return $interaction;
 	}
 
 

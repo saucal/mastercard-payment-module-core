@@ -34,10 +34,9 @@ import { billing, uniqueEmail } from '../../fixtures/billing';
 /**
  * Covers includes/GatewayAddons/PreOrders.php.
  *
- * The two charge modes are different flows, not variants. Charged-upfront takes
- * no addon branch at all (`maybe_add_pre_order_payment_data` returns early once
- * `order_requires_payment_tokenization` is false), so it is an ordinary capture
- * checkout.
+ * The two charge modes are different flows, not variants. Charged-upfront is an
+ * ordinary capture checkout, except that authorize mode is overridden to PAY
+ * (PO-015): Pre-Orders never moves an on-hold upfront order to pre-ordered.
  *
  * Charged-upon-release is a stored-credential flow. The checkout is a VERIFY
  * that stores the card and opens an UNSCHEDULED agreement, whatever the
@@ -99,6 +98,45 @@ test.describe.serial('Pre-orders', () => {
     // maybe_hide_capture_meta_box_pre_order hides the gateway capture box for
     // every pre-order, upfront included — the one addon behaviour this path has.
     await assertCaptureFormVisible(adminPage, config, false);
+  });
+
+  // === PO-015: Charged upfront in authorize mode ===
+
+  test('PO-015 - Pre-order charged upfront is captured in authorize mode', async ({ page, adminPage }) => {
+    // AUTHORIZE would leave the order on-hold, which Pre-Orders never moves to
+    // pre-ordered; maybe_add_pre_order_payment_data must charge it instead.
+    await configureGateway(config, { ...BASE_SETTINGS, transaction_mode: 'AUTHORIZE' });
+
+    const ctx = await checkoutHostedSession(page, config, {
+      productId: config.products.preOrderUpfront,
+      card: cards.mastercard,
+    });
+
+    await assertCaptureLogTrail({
+      ...ctx, apiOperation: 'PAY', expectSessionPost: true, expectToken: false, expectCardDetailsFetch: true,
+      expect3DS: false,
+    });
+
+    await navigateToOrder(adminPage, ctx.orderNumber);
+    await assertOrderStatus(adminPage, 'Pre-ordered');
+
+    await releasePreOrder(adminPage, ctx.orderNumber);
+    await assertPreOrderStatus(adminPage, ctx.orderNumber, 'Completed');
+    await navigateToOrder(adminPage, ctx.orderNumber);
+    await assertOrderStatus(adminPage, 'Processing');
+  });
+
+  // === PO-016: The settings say upfront pre-orders are charged ===
+
+  test('PO-016 - Authorize Only notes that upfront pre-orders are charged', async ({ adminPage }) => {
+    await adminPage.goto(`/wp-admin/admin.php?page=wc-settings&tab=checkout&section=${config.paymentMethodSlug}`);
+    const mode = adminPage.locator(`#woocommerce_${config.paymentMethodSlug}_transaction_mode`);
+    const note = adminPage.getByText('Pre-order products set to charge upfront are not authorized');
+
+    await mode.selectOption('AUTHORIZE');
+    await expect(note).toBeVisible();
+    await mode.selectOption('PURCHASE');
+    await expect(note).toBeHidden();
   });
 
   // === PO-002: Charged upon release — the checkout half ===

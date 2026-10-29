@@ -112,6 +112,8 @@ class CapturePaymentMetaBox {
 			return;
 		}
 
+		wp_nonce_field( 'PAYMENTS_CORE_HOOK_PREFIX_payment_actions', 'PAYMENTS_CORE_HOOK_PREFIX_payment_actions_nonce' );
+
 		$this->core_plugin->payment_core()->template()->get(
 			'admin/payment-actions.php',
 			array(
@@ -144,7 +146,12 @@ class CapturePaymentMetaBox {
 			return;
 		}
 
-		// phpcs:ignore WordPress.Security.NonceVerification, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce + edit_shop_order cap verified by WooCommerce core before this hook fires.
+		// Our own guard on top of WooCommerce core's. edit_shop_orders, not edit_shop_order, which can't map an HPOS order ID to a post.
+		$nonce = isset( $_POST['PAYMENTS_CORE_HOOK_PREFIX_payment_actions_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_payment_actions_nonce'] ) ) : '';
+		if ( ! current_user_can( 'edit_shop_orders' ) || ! wp_verify_nonce( $nonce, 'PAYMENTS_CORE_HOOK_PREFIX_payment_actions' ) ) { // phpcs:ignore WordPress.WP.Capabilities.Unknown -- WooCommerce capability.
+			return;
+		}
+
 		$void_transaction = isset( $_POST['PAYMENTS_CORE_HOOK_PREFIX_void_transaction'] ) ? wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_void_transaction'] ) ) : 0;
 		if ( $void_transaction ) {
 			// Void transaction takes precedence over capture.
@@ -152,7 +159,6 @@ class CapturePaymentMetaBox {
 			return;
 		}
 
-		// phpcs:ignore WordPress.Security.NonceVerification, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce + edit_shop_order cap verified by WooCommerce core before this hook fires.
 		$capture_amount = isset( $_POST['PAYMENTS_CORE_HOOK_PREFIX_capture_amount'] ) ? wc_format_decimal( wc_clean( wp_unslash( $_POST['PAYMENTS_CORE_HOOK_PREFIX_capture_amount'] ) ) ) : 0;
 		if ( $capture_amount <= 0 ) {
 			return;

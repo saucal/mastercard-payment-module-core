@@ -45,6 +45,9 @@ trait DynamicCurrencyConversion {
 		// Render DCC data on the order edit page.
 		add_action( 'woocommerce_admin_order_data_after_billing_address', array( $this, 'render_dcc_data' ) );
 
+		// Render DCC data on the order receipt page.
+		add_filter( 'woocommerce_get_order_item_totals', array( $this, 'render_dcc_data_receipt' ), 10, 2 );
+
 		if ( $this->is_hosted_checkout() ) {
 			return; // DCC is automatically supported in hosted checkout mode.
 		}
@@ -124,9 +127,6 @@ trait DynamicCurrencyConversion {
 		// Add DCC data to the payment data.
 		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_hosted_session_data', array( $this, 'maybe_add_dcc_payment_data' ), 10, 2 );
 		add_filter( 'PAYMENTS_CORE_HOOK_PREFIX_process_payment_hosted_session_3ds_data', array( $this, 'maybe_add_dcc_payment_data' ), 10, 2 );
-
-		// Render DCC data on the order receipt page.
-		add_filter( 'woocommerce_get_order_item_totals', array( $this, 'render_dcc_data_receipt' ), 10, 2 );
 	}
 
 
@@ -370,6 +370,10 @@ trait DynamicCurrencyConversion {
 		if ( isset( $_POST['order_id'] ) ) {
 			$order_id = wc_clean( wp_unslash( $_POST['order_id'] ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 			$order    = wc_get_order( $order_id );
+
+			if ( ! $order || ! $this->can_pay_for_posted_order( $order ) ) {
+				wp_send_json_error();
+			}
 		}
 
 		try {

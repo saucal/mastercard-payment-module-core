@@ -174,6 +174,27 @@ const hostedSessions = {
 			return;
 		}
 
+		// Configure each rendered set of fields once per scope. After a session reset the old fields stay until
+		// update_checkout renders new ones, which both the payment method change and updated_checkout then
+		// configure: twice leaves every field with two iframes, and a stale attempt leaves a scope the fields
+		// never answer. The change fires before updated_checkout re-reads the attempt, so read it here too.
+		const renderedAttempt = jQuery(
+			`#${ hostedSessions.pluginPrefix }_session_attempt`
+		).val();
+		if ( renderedAttempt ) {
+			hostedSessions.sessionIdAttempt = renderedAttempt;
+		}
+		const $numberField = jQuery( hostedSessions.fields().card.number );
+		if (
+			! hostedSessions.isWooBlocks() &&
+			( ! $numberField.length ||
+				$numberField.data( 'configured-scope' ) ===
+					hostedSessions.paymentScope() )
+		) {
+			return;
+		}
+		$numberField.data( 'configured-scope', hostedSessions.paymentScope() );
+
 		hostedSessions.dcc.setQuoteArea( '' );
 		hostedSessions.dcc.setQuoteId( '' );
 		hostedSessions.blockFieldset();
@@ -198,6 +219,8 @@ const hostedSessions = {
 							clearTimeout( hostedSessions.initWatchdog );
 							if ( response?.status && response.status !== 'ok' ) {
 								hostedSessions.failInitialization();
+								// Fields of an expired session fail to initialize.
+								hostedSessions.maybeResetExpiredSession();
 								return;
 							}
 
@@ -594,6 +617,9 @@ const hostedSessions = {
 				hostedSessions.blockForm();
 				return hostedSessions.updateSession();
 			} )
+			.then( ( response ) =>
+				hostedSessions.dcc.ensureQuote().then( () => response )
+			)
 			.then( hostedSessions.triggerPayAfterResponse );
 	},
 
@@ -663,6 +689,7 @@ const hostedSessions = {
 				}
 
 				data.order_id = orderId || '';
+				data.order_key = hostedSessions.getCurrentOrderKey();
 				if ( isChangePayment ) {
 					data.change_payment_method = true;
 				}
@@ -779,6 +806,11 @@ const hostedSessions = {
 		return tokenId;
 	},
 
+	// The server checks it for guest orders, as WooCommerce's pay page does.
+	getCurrentOrderKey() {
+		return new URLSearchParams( window.location.search ).get( 'key' ) || '';
+	},
+
 	isChangePayment() {
 		return jQuery( 'input[name="woocommerce_change_payment"]' ).length > 0;
 	},
@@ -857,16 +889,50 @@ const hostedSessions = {
 			hostedSessions.resetPaymentSession();
 			return true;
 		}
+
+		// An expired session reports the card as NOT_SUPPORTED, as does a card brand the merchant does not accept.
+		if ( reason.toUpperCase() === 'NOT_SUPPORTED' ) {
+			hostedSessions.maybeResetExpiredSession();
+		}
 		return false;
 	},
 
+	sessionStatusCheckedAt: 0,
+
+	maybeResetExpiredSession() {
+		// Once a minute at most: every field validation lands here while the card is unsupported.
+		if ( Date.now() - hostedSessions.sessionStatusCheckedAt < 60000 ) {
+			return;
+		}
+		hostedSessions.sessionStatusCheckedAt = Date.now();
+
+		hostedSessions
+			.ajax( 'hosted_session_status', {
+				[ `${ hostedSessions.pluginPrefix }_session_id` ]:
+					hostedSessions.sessionId,
+			} )
+			.done( function ( res ) {
+				if ( res?.expired ) {
+					hostedSessions.resetPaymentSession();
+				}
+			} );
+	},
+
+	resettingSession: false,
+
 	resetPaymentSession() {
+		// Every field of a dead session reports it, often in the same tick: one replacement is enough.
+		if ( hostedSessions.resettingSession ) {
+			return;
+		}
+		hostedSessions.resettingSession = true;
 		hostedSessions.blockFieldset();
 		debounce( function () {
 			if (
 				! hostedSessions.isPaymentMethodSelected() ||
 				! hostedSessions.selectedField()
 			) {
+				hostedSessions.resettingSession = false;
 				hostedSessions.unblockFieldset();
 				return;
 			}
@@ -878,9 +944,13 @@ const hostedSessions = {
 					hostedSessions.submitError(
 						core_gateway_params.hostedSessionErrors.session_expired
 					);
-					hostedSessions.initHostedSession();
+					// Classic checkout re-initializes from the payment box update_checkout renders with the new session.
+					if ( hostedSessions.isWooBlocks() ) {
+						hostedSessions.initHostedSession();
+					}
 				} )
 				.always( function () {
+					hostedSessions.resettingSession = false;
 					hostedSessions.unblockFieldset();
 					jQuery( document.body ).trigger( 'update_checkout' );
 				} );
@@ -956,7 +1026,13 @@ const hostedSessions = {
 		if ( ! scrollElement.length ) {
 			scrollElement = jQuery( 'form.checkout' );
 		}
-		jQuery.scroll_to_notices( scrollElement );
+
+		// WooCommerce defines scroll_to_notices on DOM ready, after an error during page load can fire.
+		if ( typeof jQuery.scroll_to_notices === 'function' ) {
+			jQuery.scroll_to_notices( scrollElement );
+		} else if ( scrollElement.length ) {
+			scrollElement[ 0 ].scrollIntoView( { behavior: 'smooth' } );
+		}
 	},
 
 	blockForm() {
@@ -1343,7 +1419,7 @@ const hostedSessions = {
 			}
 
 			if ( hostedSessions.dcc.requesting ) {
-				return Promise.resolve();
+				return hostedSessions.dcc.requestPromise || Promise.resolve();
 			}
 
 			const $dccWrapper = hostedSessions.dcc.getQuoteArea();
@@ -1378,7 +1454,7 @@ const hostedSessions = {
 					hostedSessions.dcc.requestCurrencyConversionQuote();
 			}
 
-			return quotePromise
+			hostedSessions.dcc.requestPromise = quotePromise
 				.then( function ( res ) {
 					// Quote handled in the promise.
 					if ( res.offerText.length === 0 ) {
@@ -1396,6 +1472,21 @@ const hostedSessions = {
 					hostedSessions.unblockFieldset();
 					hostedSessions.dcc.requesting = false;
 				} );
+
+			return hostedSessions.dcc.requestPromise;
+		},
+
+		// The offer can be missing at Place order, e.g. when WooCommerce re-rendered the
+		// payment box over it. Get the quote then, so the payer still has to answer it.
+		ensureQuote() {
+			if (
+				! core_gateway_params.dccEnabled ||
+				hostedSessions.dcc.getQuoteIdField().val()
+			) {
+				return Promise.resolve();
+			}
+
+			return hostedSessions.dcc.maybeTriggerCurrencyConversion();
 		},
 
 		getCachedQuote( key ) {
@@ -1511,7 +1602,8 @@ const hostedSessions = {
 										}
 									)
 								);
-							} );
+							} )
+							.fail( reject );
 					} )
 					.catch( reject );
 			} );
@@ -1619,6 +1711,7 @@ const hostedSessions = {
 				const orderId = hostedSessions.getCurrentOrderId() || undefined;
 				if ( orderId ) {
 					data.order_id = orderId;
+					data.order_key = hostedSessions.getCurrentOrderKey();
 				}
 
 				jQuery

@@ -1410,8 +1410,8 @@ export async function assertDccOrderMeta(
  * The "Paid Amount:" row render_dcc_data_receipt adds to the order totals table
  * on the order-received page and in My Account.
  *
- * It is a `woocommerce_get_order_item_totals` filter registered inside
- * init_dcc_hooks, so it renders wherever WooCommerce prints order totals.
+ * It is a `woocommerce_get_order_item_totals` filter registered in both
+ * checkout modes, so it renders wherever WooCommerce prints order totals.
  */
 export async function assertDccReceiptRow(page: Page, expected: DccExpected): Promise<void> {
   const row = page.locator('tr:has-text("Paid Amount"), li:has-text("Paid Amount")').first();

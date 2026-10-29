@@ -367,7 +367,26 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 	protected function hashed_signature( $order, $transaction_id ) {
 		$unique_order_id = $this->unique_order_id( $order );
 
-		return hash( 'sha256', $unique_order_id . $transaction_id );
+		return hash_hmac( 'sha256', $unique_order_id . $transaction_id, wp_salt( 'auth' ) );
+	}
+
+
+	/**
+	 * Whether the visitor may use the order the browser posted. Guest orders also need the
+	 * order key from the pay-for-order URL, as WooCommerce's pay page does.
+	 *
+	 * @param WC_Order $order Order.
+	 *
+	 * @return bool
+	 */
+	protected function can_pay_for_posted_order( $order ) {
+		if ( ! current_user_can( 'pay_for_order', $order->get_id() ) ) { // phpcs:ignore WordPress.WP.Capabilities.Unknown -- WooCommerce capability.
+			return false;
+		}
+
+		$order_key = isset( $_POST['order_key'] ) ? wc_clean( wp_unslash( $_POST['order_key'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Callers verify their nonce; sanitized via wc_clean().
+
+		return $order->get_user_id() || hash_equals( $order->get_order_key(), (string) $order_key );
 	}
 
 
@@ -389,7 +408,10 @@ abstract class WC_Abstract_Payment_Gateway extends WC_Payment_Gateway_CC {
 
 		$order_note = __( 'Error processing payment. Reason: ', '__PAYMENTS_CORE_TEXT_DOMAIN__' ) . $message;
 
-		if ( ! $order->has_status( 'failed' ) ) {
+		// A failed payment method change must not move the subscription (Subscriptions maps failed to pending).
+		$is_subscription = function_exists( 'wcs_is_subscription' ) && wcs_is_subscription( $order );
+
+		if ( ! $is_subscription && ! $order->has_status( 'failed' ) ) {
 			$order->update_status( 'failed', $order_note );
 		} else {
 			$order->add_order_note( $order_note );

@@ -126,7 +126,7 @@ final class Notices {
 
 		$message = sprintf(
 				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
-			__( '%1$s - The Notification Secret is not set. Webhook notifications are required for stores to process asyncronous operations such as captures, refunds, and order status updates.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+			__( '%1$s - The Notification Secret is not set. Webhook notifications are required for stores to process asynchronous operations such as captures, refunds, and order status updates.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 			'<strong>' . $this->core_plugin->plugin_title() . '</strong>'
 		);
 
@@ -140,7 +140,7 @@ final class Notices {
 		} else {
 			$message .= ' ' . sprintf(
 				// Translators: %1$s is the plugin title, %2$s is the settings URL, %3$s is the closing anchor tag.
-				__( 'Please add your notification secret %1$shere%2$s.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
+				__( 'Generate it in the Merchant Portal under Admin -> Webhook Notifications, then paste it in the %1$sNotification Secret field%2$s below.', '__PAYMENTS_CORE_TEXT_DOMAIN__' ),
 				'<a href="' . esc_url( '#woocommerce_' . $this->core_plugin->plugin_id() . '_webhook' ) . '">',
 				'</a>',
 			);

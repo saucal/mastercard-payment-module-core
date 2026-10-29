@@ -63,7 +63,8 @@ const Settings = {
 	},
 
 	maybeShowHide( $el, $relElement ) {
-		const $row = $el.closest( 'tr' );
+		// A note in a field's description hides on its own, not the field's row.
+		const $row = $el.closest( '.description, tr' );
 		if ( $relElement.attr( 'type' ) === 'checkbox' ) {
 			const value = $el.data( 'show-if' );
 			let expected;
